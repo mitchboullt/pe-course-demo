@@ -190,19 +190,34 @@ const presenter = el('presenter');
 
 // ---- Voice selection ----
 let voices = [];
+// Rank voices so the nicest available one is the default regardless of which
+// set a given browser/OS exposes (browser speech voices vary by environment).
+function rankVoice(v){
+  const n=(v.name||'').toLowerCase();
+  let s=0;
+  if(n.includes('natural')) s+=100;   // Microsoft online neural voices
+  if(n.includes('online'))  s+=40;
+  if(n.includes('google'))  s+=30;    // Chrome's better local voices
+  if(/(samantha|aria|jenny|libby|sonia|ryan|guy|emma|neural)/.test(n)) s+=25;
+  if(v.lang==='en-GB') s+=8; else if(v.lang==='en-US') s+=6; else s+=2;
+  if(n.includes('desktop')) s+=1;
+  return s;
+}
 function loadVoices(){
   voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
   const sel = el('voice'); if(!sel) return;
   const saved = localStorage.getItem('lessonVoice');
+  const en = voices.filter(v=>v.lang.startsWith('en'))
+                   .sort((a,b)=>rankVoice(b)-rankVoice(a));  // best first
   sel.innerHTML = '';
-  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+  if(!en.length){ sel.innerHTML='<option>default</option>'; return; }
+  en.forEach(v=>{
     const o=document.createElement('option'); o.value=v.name;
     o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
-    if(v.name===saved) o.selected=true; sel.appendChild(o);
+    sel.appendChild(o);
   });
-  if(!voices.filter(v=>v.lang.startsWith('en')).length){
-    sel.innerHTML='<option>default</option>';
-  }
+  // Restore the viewer's saved pick; otherwise default to the top-ranked voice.
+  sel.value = (saved && en.some(v=>v.name===saved)) ? saved : en[0].name;
 }
 if(window.speechSynthesis){
   loadVoices();
