@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-the-exit-decision-framework", "title": "Synthesis: The Exit Decision Framework", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "Exit isn't freely chosen", "on_screen_bullets": ["Routes set by what was built", "Fund clock shrinks the set", "IRR/MOIC filters each route"], "narration": "Exit routes, holding-period sensitivity, IRR-versus-MOIC trade-offs, GP-led secondaries, and exit process timelines are studied as separate topics. In practice they are a single decision system every PE firm faces in the final years of every investment. The connection is structural: the exit route available at year five is not chosen freely — it is the result of what was built during the hold, further constrained by fund-life pressure, and then filtered through the IRR-MOIC trade-off each route produces. Three forces act at once. The option set is fixed by what was built — an eighty-million-EBITDA company with clean accounts can access all four routes; a thirty-million company with concentrated customers and a messy carve-out history has one. The fund clock shrinks the set further — a fund with three years left can do a trade sale or SBO but probably can't wait for an IPO. And each route has a different IRR-MOIC profile. The synthesis in one sentence: the exit a GP ultimately uses is not the one chosen at year five — it is the one that remains viable given what was built, the time remaining, and the trade-off the GP is willing to accept.", "est_sec": 58}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "One route = weakness", "on_screen_bullets": ["Menu built over 5 years", "Engineer multi-route optionality", "GP vs LP optimise differently"], "narration": "Studying exit routes as a menu misses the point, because the menu isn't freely available at year five — it was constructed over the prior five years and is being rapidly shortened by the fund clock. Mastering this synthesis lets you identify why a GP with one viable exit route always negotiates from weakness, and how sophisticated GPs engineer multi-route optionality during the hold to avoid that; evaluate whether an exit decision was optimal — not just did they get a good price, but did they access the right route at the right time given the constraints; understand the GP-led secondary as a structural solution to the intersection of hold-period pressure and the IRR-MOIC trade-off, not merely a governance controversy; predict LP net returns from different route combinations, since a fund exiting via trade sales produces very different IRR and DPI patterns from one exiting via IPO lock-up sell-downs; and pinpoint the structural source of GP-LP misalignment at exit — GPs optimise for carry, which is IRR-sensitive, while LPs optimise for total cash received, which is MOIC-sensitive.", "est_sec": 52}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "Build, clock, trade-off", "on_screen_bullets": ["Hold period builds optionality", "Year 8: IPO essentially off", "Each route a distinct IRR/MOIC"], "narration": "The concept map has three layers. First, the hold period builds or destroys optionality: company scale drives IPO viability, which typically needs seventy-five-million-plus of EBITDA; revenue quality drives strategic-buyer interest; management quality drives both IPO readiness and the strategic premium; leverage at year five sets the equity floor and SBO debt capacity; and add-ons build the platform premium. Second, the fund clock constrains timing: years one to five offer full flexibility; by years six to seven an IPO is still possible but must start immediately; by year eight the IPO is essentially off the table because the sell-down would run past year ten, leaving trade sale and SBO; by years nine to ten only an SBO or a GP-led secondary is realistic; and past year ten the GP is a forced seller. Third, each route carries a distinct IRR-MOIC profile: a trade sale gives the highest MOIC via a twenty-to-forty-percent synergy premium but needs willing buyers and process time; an SBO closes faster, preserving IRR, but at a lower MOIC with no synergy premium; an IPO can give the highest MOIC in a hot market but the worst IRR, because eighteen to thirty months of preparation and sell-down systematically destroys it; and a GP-led secondary preserves IRR for cash-out LPs while solving the timing problem, at a slight discount to the strategic sale that more time might have achieved. And the execution timeline itself eats into IRR — every month of process is a month of drag, so starting six months too late can convert a preferred trade sale into a missed window and a forced downgrade to an SBO.", "est_sec": 66}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Nexaris at Year 7", "on_screen_bullets": ["SBO 3.95x/21.9%; trade 5.30x/26.4%", "IPO Yr9 6.90x but 23.9%", "Dual-track keeps leverage"], "narration": "Take a Year-7 decision, with figures illustrative. A fund bought Nexaris Health in year one at eight times thirty-million EBITDA — two hundred forty million enterprise value, a hundred forty of debt, a hundred million of fund equity. By year seven EBITDA has grown to forty-five million, debt is paid to a hundred, and the company has strong retention and clean accounts, so all four routes are at least arguably viable. Now the IRR-MOIC analysis on that hundred-million equity. An SBO now at eleven times is a four-hundred-ninety-five-million enterprise value, three hundred ninety-five of equity — a three-point-nine-five MOIC over seven years, about twenty-two percent IRR. A trade sale in six months at fourteen times is six hundred thirty million, five hundred thirty of equity — a five-point-three MOIC and the best IRR, about twenty-six-and-a-half percent. An IPO with sell-down into year nine, at fourteen times a grown fifty-five-million EBITDA, reaches a six-point-nine MOIC — the highest — but only about twenty-four percent IRR, because the two extra years and the lock-up drag it down. So the best MOIC and the best IRR are different routes. The GP runs a dual-track process: simultaneously preparing an IPO to signal credibility and running a trade-sale auction, which forces strategic buyers to compete with each other and with the IPO alternative, preventing them from anchoring at SBO multiples. If trade bids hit fourteen times by month four, the GP closes and drops the IPO; if they come in low, the GP can credibly threaten to float — preserving leverage at every step.", "est_sec": 68}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "One route, or the escape valve", "on_screen_bullets": ["Single SBO: 11x → 10–10.5x, lose £100m", "Year 8.5: GP-led at £395m equity", "Cash out 18.2% IRR; rollers chase 5.3x"], "narration": "Now contrast it with the weak version. Suppose the GP doesn't run a dual track and pursues only the SBO — no IPO readiness, no trade process. Bidders know there's no IPO threat, no competing strategic process, and a three-year fund deadline, so the GP has no leverage. They respond by bidding ten to ten-and-a-half times instead of eleven, knowing the GP must accept, and the MOIC drops from three-point-nine-five to three-and-a-half — a hundred-million difference on exit equity, the direct cost of having one route instead of several. Finally, the GP-led secondary as the escape valve. Suppose years seven and eight produce neither a compelling trade bid nor a viable IPO window, and the fund is now at year eight-and-a-half with eighteen months left. The GP offers existing LPs an exit at the SBO-equivalent three-hundred-ninety-five-million equity valuation — which at this later point is only about eighteen percent IRR, lower than year seven. LPs who accept realise their DPI and lock in their IRR; LPs who decline roll into a continuation vehicle targeting the strategic sale in years nine to ten at fourteen-times-plus, and a new third-party investor co-invests alongside them at the same valuation. The cash-out LPs get certainty, the rollers reset their clock to chase the five-point-three MOIC, the fund winds down, and the GP keeps managing the best asset. The GP-led secondary converts a forced-sale problem into voluntary optionality.", "est_sec": 66}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Route chosen years earlier", "Waiting for MOIC ignores IRR cost", "Timelines are minimums, not fixed"], "narration": "Five things people miss. First, the GP chooses the exit route that maximises value at year five — no, the GP chooses from the routes that remain viable after five years of hold decisions; we'd love a strategic sale but can't find a buyer in the eight months left is the consequence of not cultivating buyers, starting too late, and not building dual-track readiness. Second, waiting longer always produces a higher MOIC — only if the extra hold generates EBITDA growth or multiple expansion that outpaces the IRR erosion of waiting; the year-nine IPO gives a higher MOIC but a lower IRR than the year-seven trade sale. Third, the GP-led secondary is primarily a governance controversy — understanding it only that way misses its functional role as a structural solution to the timing-versus-trade-off problem, a rational response to the mismatch between ten-year fund life and the optimal hold for premium valuation. Fourth, exit-process timelines are fixed — they're average outcomes under good conditions; regulatory clearance, management cooperation, market windows, and counterparty dynamics all stretch them, so a GP planning a six-month trade sale must start twelve months before the deadline. And fifth, the four routes are alternatives you pick from — a dual-track process running two routes at once is the gold standard for large-cap exits precisely because it manufactures competitive tension between routes.", "est_sec": 62}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Practical Example", "on_screen_title": "Caesars: no pivot available", "on_screen_bullets": ["2008 ~$30bn LBO, ~$20bn debt", "Only route: a tiny 2012 IPO", "Bankrupt 2015; equity impaired"], "narration": "The cautionary case, approximate figures from public information. Apollo and TPG acquired Harrah's, later Caesars, in a 2008 LBO at around thirty billion dollars — one of the largest gaming deals ever — and the timing was catastrophic, closing just before the financial crisis with extreme leverage as the gaming industry contracted. By 2012 the synthesis is on full display. On the exit-route constraint built by the hold: the company carried over twenty billion of debt, which ruled out a trade sale at any premium, because no strategic buyer would assume that debt, and ruled out an SBO for the same reason — leaving only an IPO, which allows partial exit without immediate debt repayment, or continuing to hold and hoping for recovery. Caesars IPO'd in February 2012 at nine dollars a share, raising only about sixteen million — a tiny float that established a public listing rather than providing real liquidity, and the sponsors stayed locked up, unable to exit meaningful stakes for years as the share price stayed weak. The IRR-MOIC trade-off then played out over a decade of prolonged lock-up; Caesars filed for bankruptcy in 2015 and the investment was significantly impaired. The original thesis — gaming recovery plus operational improvement — was sound, but the capital structure and macro timing combined to destroy the equity, and there was no pivot available. That is negotiating from weakness taken to its logical extreme: a deal entered with one viable eventual exit route is fragile to the macro environment.", "est_sec": 62}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Optionality is built, not found", "on_screen_bullets": ["Menu narrows over the hold", "Plan timelines backward from deadline", "Multiple routes = negotiate from strength"], "narration": "To recap. The exit decision framework synthesises five concepts into one picture: exit routes are a menu that narrows over time based on what was built during the hold; holding-period sensitivity creates structural pressure to exit before the fund clock destroys IRR; IRR-versus-MOIC trade-offs mean different routes advance different objectives and different LP constituencies; the GP-led secondary emerged as a structural solution to the timing constraint imposed by fund life; and exit-process timelines must be planned backward from the fund deadline, not forward from the point of decision. A GP with multiple viable routes can run dual-track processes, credibly threaten alternatives, and negotiate from strength. A GP with one route — too small for IPO, no active strategic buyers, deadline near — negotiates from weakness and leaves significant MOIC on the table. Exit optionality is built during the hold, not discovered at year five. Next we go under the hood of those returns themselves — debt structure and return sensitivity.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why does a GP with only one viable exit route negotiate from weakness, and how does a dual-track process restore leverage? In the Nexaris case, why does the highest-MOIC route (IPO) not also give the highest IRR?", "narration": "Before the next lesson, answer both. Why does a GP with only one viable exit route end up negotiating from weakness — and how does a dual-track process restore its leverage? And in the Nexaris example, why does the highest-MOIC route, the IPO, not also produce the highest IRR? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: The Exit Decision Framework\n\n[hook] Exit isn't freely chosen\nExit routes, holding-period sensitivity, IRR-versus-MOIC trade-offs, GP-led secondaries, and exit process timelines are studied as separate topics. In practice they are a single decision system every PE firm faces in the final years of every investment. The connection is structural: the exit route available at year five is not chosen freely — it is the result of what was built during the hold, further constrained by fund-life pressure, and then filtered through the IRR-MOIC trade-off each route produces. Three forces act at once. The option set is fixed by what was built — an eighty-million-EBITDA company with clean accounts can access all four routes; a thirty-million company with concentrated customers and a messy carve-out history has one. The fund clock shrinks the set further — a fund with three years left can do a trade sale or SBO but probably can't wait for an IPO. And each route has a different IRR-MOIC profile. The synthesis in one sentence: the exit a GP ultimately uses is not the one chosen at year five — it is the one that remains viable given what was built, the time remaining, and the trade-off the GP is willing to accept.\n\n[intuition] One route = weakness\nStudying exit routes as a menu misses the point, because the menu isn't freely available at year five — it was constructed over the prior five years and is being rapidly shortened by the fund clock. Mastering this synthesis lets you identify why a GP with one viable exit route always negotiates from weakness, and how sophisticated GPs engineer multi-route optionality during the hold to avoid that; evaluate whether an exit decision was optimal — not just did they get a good price, but did they access the right route at the right time given the constraints; understand the GP-led secondary as a structural solution to the intersection of hold-period pressure and the IRR-MOIC trade-off, not merely a governance controversy; predict LP net returns from different route combinations, since a fund exiting via trade sales produces very different IRR and DPI patterns from one exiting via IPO lock-up sell-downs; and pinpoint the structural source of GP-LP misalignment at exit — GPs optimise for carry, which is IRR-sensitive, while LPs optimise for total cash received, which is MOIC-sensitive.\n\n[mechanics] Build, clock, trade-off\nThe concept map has three layers. First, the hold period builds or destroys optionality: company scale drives IPO viability, which typically needs seventy-five-million-plus of EBITDA; revenue quality drives strategic-buyer interest; management quality drives both IPO readiness and the strategic premium; leverage at year five sets the equity floor and SBO debt capacity; and add-ons build the platform premium. Second, the fund clock constrains timing: years one to five offer full flexibility; by years six to seven an IPO is still possible but must start immediately; by year eight the IPO is essentially off the table because the sell-down would run past year ten, leaving trade sale and SBO; by years nine to ten only an SBO or a GP-led secondary is realistic; and past year ten the GP is a forced seller. Third, each route carries a distinct IRR-MOIC profile: a trade sale gives the highest MOIC via a twenty-to-forty-percent synergy premium but needs willing buyers and process time; an SBO closes faster, preserving IRR, but at a lower MOIC with no synergy premium; an IPO can give the highest MOIC in a hot market but the worst IRR, because eighteen to thirty months of preparation and sell-down systematically destroys it; and a GP-led secondary preserves IRR for cash-out LPs while solving the timing problem, at a slight discount to the strategic sale that more time might have achieved. And the execution timeline itself eats into IRR — every month of process is a month of drag, so starting six months too late can convert a preferred trade sale into a missed window and a forced downgrade to an SBO.\n\n[worked-example] Nexaris at Year 7\nTake a Year-7 decision, with figures illustrative. A fund bought Nexaris Health in year one at eight times thirty-million EBITDA — two hundred forty million enterprise value, a hundred forty of debt, a hundred million of fund equity. By year seven EBITDA has grown to forty-five million, debt is paid to a hundred, and the company has strong retention and clean accounts, so all four routes are at least arguably viable. Now the IRR-MOIC analysis on that hundred-million equity. An SBO now at eleven times is a four-hundred-ninety-five-million enterprise value, three hundred ninety-five of equity — a three-point-nine-five MOIC over seven years, about twenty-two percent IRR. A trade sale in six months at fourteen times is six hundred thirty million, five hundred thirty of equity — a five-point-three MOIC and the best IRR, about twenty-six-and-a-half percent. An IPO with sell-down into year nine, at fourteen times a grown fifty-five-million EBITDA, reaches a six-point-nine MOIC — the highest — but only about twenty-four percent IRR, because the two extra years and the lock-up drag it down. So the best MOIC and the best IRR are different routes. The GP runs a dual-track process: simultaneously preparing an IPO to signal credibility and running a trade-sale auction, which forces strategic buyers to compete with each other and with the IPO alternative, preventing them from anchoring at SBO multiples. If trade bids hit fourteen times by month four, the GP closes and drops the IPO; if they come in low, the GP can credibly threaten to float — preserving leverage at every step.\n\n[worked-example] One route, or the escape valve\nNow contrast it with the weak version. Suppose the GP doesn't run a dual track and pursues only the SBO — no IPO readiness, no trade process. Bidders know there's no IPO threat, no competing strategic process, and a three-year fund deadline, so the GP has no leverage. They respond by bidding ten to ten-and-a-half times instead of eleven, knowing the GP must accept, and the MOIC drops from three-point-nine-five to three-and-a-half — a hundred-million difference on exit equity, the direct cost of having one route instead of several. Finally, the GP-led secondary as the escape valve. Suppose years seven and eight produce neither a compelling trade bid nor a viable IPO window, and the fund is now at year eight-and-a-half with eighteen months left. The GP offers existing LPs an exit at the SBO-equivalent three-hundred-ninety-five-million equity valuation — which at this later point is only about eighteen percent IRR, lower than year seven. LPs who accept realise their DPI and lock in their IRR; LPs who decline roll into a continuation vehicle targeting the strategic sale in years nine to ten at fourteen-times-plus, and a new third-party investor co-invests alongside them at the same valuation. The cash-out LPs get certainty, the rollers reset their clock to chase the five-point-three MOIC, the fund winds down, and the GP keeps managing the best asset. The GP-led secondary converts a forced-sale problem into voluntary optionality.\n\n[pitfalls] What siloed study misses\nFive things people miss. First, the GP chooses the exit route that maximises value at year five — no, the GP chooses from the routes that remain viable after five years of hold decisions; we'd love a strategic sale but can't find a buyer in the eight months left is the consequence of not cultivating buyers, starting too late, and not building dual-track readiness. Second, waiting longer always produces a higher MOIC — only if the extra hold generates EBITDA growth or multiple expansion that outpaces the IRR erosion of waiting; the year-nine IPO gives a higher MOIC but a lower IRR than the year-seven trade sale. Third, the GP-led secondary is primarily a governance controversy — understanding it only that way misses its functional role as a structural solution to the timing-versus-trade-off problem, a rational response to the mismatch between ten-year fund life and the optimal hold for premium valuation. Fourth, exit-process timelines are fixed — they're average outcomes under good conditions; regulatory clearance, management cooperation, market windows, and counterparty dynamics all stretch them, so a GP planning a six-month trade sale must start twelve months before the deadline. And fifth, the four routes are alternatives you pick from — a dual-track process running two routes at once is the gold standard for large-cap exits precisely because it manufactures competitive tension between routes.\n\n[worked-example] Caesars: no pivot available\nThe cautionary case, approximate figures from public information. Apollo and TPG acquired Harrah's, later Caesars, in a 2008 LBO at around thirty billion dollars — one of the largest gaming deals ever — and the timing was catastrophic, closing just before the financial crisis with extreme leverage as the gaming industry contracted. By 2012 the synthesis is on full display. On the exit-route constraint built by the hold: the company carried over twenty billion of debt, which ruled out a trade sale at any premium, because no strategic buyer would assume that debt, and ruled out an SBO for the same reason — leaving only an IPO, which allows partial exit without immediate debt repayment, or continuing to hold and hoping for recovery. Caesars IPO'd in February 2012 at nine dollars a share, raising only about sixteen million — a tiny float that established a public listing rather than providing real liquidity, and the sponsors stayed locked up, unable to exit meaningful stakes for years as the share price stayed weak. The IRR-MOIC trade-off then played out over a decade of prolonged lock-up; Caesars filed for bankruptcy in 2015 and the investment was significantly impaired. The original thesis — gaming recovery plus operational improvement — was sound, but the capital structure and macro timing combined to destroy the equity, and there was no pivot available. That is negotiating from weakness taken to its logical extreme: a deal entered with one viable eventual exit route is fragile to the macro environment.\n\n[recap] Optionality is built, not found\nTo recap. The exit decision framework synthesises five concepts into one picture: exit routes are a menu that narrows over time based on what was built during the hold; holding-period sensitivity creates structural pressure to exit before the fund clock destroys IRR; IRR-versus-MOIC trade-offs mean different routes advance different objectives and different LP constituencies; the GP-led secondary emerged as a structural solution to the timing constraint imposed by fund life; and exit-process timelines must be planned backward from the fund deadline, not forward from the point of decision. A GP with multiple viable routes can run dual-track processes, credibly threaten alternatives, and negotiate from strength. A GP with one route — too small for IPO, no active strategic buyers, deadline near — negotiates from weakness and leaves significant MOIC on the table. Exit optionality is built during the hold, not discovered at year five. Next we go under the hood of those returns themselves — debt structure and return sensitivity.\n\nEnd-card question: Why does a GP with only one viable exit route negotiate from weakness, and how does a dual-track process restore leverage? In the Nexaris case, why does the highest-MOIC route (IPO) not also give the highest IRR?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>Exit routes, holding period sensitivity, IRR/MOIC trade-offs, GP-led secondaries, and exit process timelines are studied as separate topics. In practice they are a single decision system that every PE firm faces in the final years of every investment.</p><p>The connection is structural: <strong>the exit route available at Year 5 is not chosen freely — it is the result of what was built during the hold period, further constrained by fund life pressure, and then filtered through the IRR/MOIC trade-offs each route produces.</strong></p><p>Three forces simultaneously determine what exit is possible and what it is worth:</p><ol><li><strong>Exit Routes Overview — the option set is set by what was built.</strong> A company that grew to £80M EBITDA with clean accounts, strong management, and a simple cap table can access all four exit routes (strategic sale, SBO, IPO, GP-led secondary). A company with £30M EBITDA, concentrated customers, and complex carve-out history has one: SBO. The option set is fixed years before the exit decision is made.</li></ol><ol><li><strong>Holding Period Sensitivity — the fund clock shrinks the option set further.</strong> A PE fund with 3 years remaining can execute a trade sale or SBO. It probably cannot wait for an IPO (12-18 months prep plus sell-down period) unless it starts immediately and accepts lock-up risk extending into the fund's extension period. Every additional year of hold compresses the IRR of the eventual exit at the same MOIC — by year 8, a 3x MOIC produces roughly 17% IRR; by year 10, below 12%. The fund's 10-year life creates an absolute exit deadline that can transform a willing seller into a forced one.</li></ol><ol><li><strong>IRR vs MOIC Trade-offs — each route has a different IRR/MOIC profile.</strong> Strategic sales typically produce the highest MOIC (synergy premium) but require willing buyers and process time. SBOs close faster (better IRR preservation) but at a discount to strategic value (lower MOIC). IPOs can produce the highest MOIC in a hot market but the multi-year lock-up and gradual sell-down period systematically destroys IRR. GP-led secondaries solve the timing problem but often at a slight discount to the strategic sale that might have been achievable with more time.</li></ol><ol><li><strong>GP-Led Secondary Transactions — the structural innovation that addresses the intersection of all three forces.</strong> When the fund clock is running down, the optimal exit route requires more time than the fund has, and the existing portfolio would produce a higher MOIC at a longer hold, the GP-led secondary separates the two LP populations: those who need IRR (cash out now at the SBO-equivalent price) and those willing to wait for MOIC (roll into the new vehicle targeting the strategic sale). It converts the fund's forced-sale problem into a voluntary optionality mechanism.</li></ol><ol><li><strong>PE Exit Process and Timeline — execution time is a variable, not a constant.</strong> Each exit route has a different execution timeline: SBO 3-6 months, trade sale 4-8 months, IPO 12-18 months preparation plus sell-down, GP-led secondary 3-6 months. These timelines directly interact with Holding Period Sensitivity — every month of execution is a month of IRR erosion. A GP who starts exit preparation too late may find that the preferred exit route (trade sale) cannot be completed before the fund deadline, forcing a downgrade to a faster but lower-value alternative.</li></ol><p><strong>The synthesis in one sentence: the exit route a GP ultimately uses is not the one chosen at Year 5 — it is the one that remains viable given what was built during the hold, the time remaining in the fund, and the specific IRR/MOIC trade-off the GP is willing to accept.</strong></p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying exit routes as a menu of options misses the point. The menu is not freely available at Year 5 — it was constructed over the prior 5 years and is being rapidly shortened by the fund clock. Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Identify why GPs with one viable exit route always negotiate from weakness</strong> — and how sophisticated GPs engineer multi-route optionality during the hold period to avoid this</li><li><strong>Evaluate whether a GP's exit decision was optimal</strong> — not just \"did they get a good price?\" but \"did they access the right route at the right time, given the constraints?\"</li><li><strong>Understand the GP-led secondary as a systemic solution</strong> to the intersection of hold period pressure and IRR/MOIC trade-off, not just a governance controversy</li><li><strong>Predict LP net returns from different exit route combinations</strong> — a fund that exits via trade sales produces different IRR and DPI patterns than one exiting via IPO lock-up sell-downs</li><li><strong>Identify the structural source of GP/LP misalignment at exit</strong> — GPs optimise for carry (IRR-sensitive), LPs optimise for total cash received (MOIC-sensitive), and different exit routes advance different objectives</li></ul><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>The Year 7 decision for a GP approaching fund deadline</strong></p><p>A PE fund (Fund III) acquired a healthcare software company (Nexaris Health) in Year 1 at 8x £30M EBITDA = £240M EV, with £140M debt and £100M equity from the fund.</p><p>Now in Year 7, with the fund approaching its 10-year limit: - EBITDA has grown to £45M (strong execution of value creation plan) - Exit debt has been paid down to £100M - Company has strong NRR (107%), solid management, clean accounts</p><p><strong>The option set analysis (which routes are viable?):</strong></p><p>| Route | Viable? | Reason | |---|---|---| | <strong>Strategic sale</strong> | ✅ Yes | Two strategic buyers identified in CDD as natural acquirers — one US health tech, one European EHR | | <strong>SBO</strong> | ✅ Yes | Company is a good LBO target; PE buyers will engage | | <strong>IPO</strong> | ⚠️ Marginal | At £45M EBITDA, just under the size threshold for a credible UK mid-cap float; 12-18 months prep required | | <strong>GP-led secondary</strong> | ✅ Yes | Fund has 3 years; GP believes strategic value is achievable in Year 8-9 if market improves |</p><p><strong>The IRR/MOIC analysis for each route:</strong></p><p>Entry equity: £100M</p><p>| Route | Expected Valuation | Exit Debt | Exit Equity | MOIC | Hold | IRR | |---|---|---|---|---|---|---| | SBO (now, Year 7) | 11x £45M = £495M | £100M | £395M | 3.95x | 7y | ~21.9% | | Trade sale (Year 7, 6 months) | 14x £45M = £630M | £100M | £530M | 5.30x | 7.5y | ~26.4% | | IPO + sell-down (Year 9) | 14x £55M = £770M | £80M | £690M | 6.90x | 9y | ~23.9% | | GP-led secondary (Year 7) | SBO-equivalent: £395M equity for cashouts | — | — | 3.95x for cashouts | 7y | ~21.9% (cashout LPs) |</p><p>[All figures illustrative — needs-verification]</p><p><strong>The trade-off matrix:</strong></p><ul class='notelist'><li><strong>Best MOIC:</strong> IPO at Year 9 (6.90x) — but takes 2 more years, IRR is lower than trade sale, execution risk is high (IPO window may not be open in Year 9)</li><li><strong>Best IRR:</strong> Trade sale at Year 7.5 (26.4%) — but requires two strategic buyers to engage simultaneously, providing competitive tension</li><li><strong>Most certain exit:</strong> SBO (3.95x, 21.9%) — but surrenders the synergy premium; below the IRR and MOIC of a trade sale</li></ul><p><strong>The GP's decision:</strong></p><p>The GP runs a <strong>dual-track process</strong>: simultaneously preparing for an IPO (to signal credibility and create competitive pressure on strategic buyers) while running a trade sale process. The dual-track forces strategic buyers to compete with each other AND with the IPO alternative — preventing them from anchoring the bid at SBO multiples.</p><p>If the trade sale process produces bids at or above 14x by Month 4, the GP closes the trade sale and drops the IPO track. If strategic buyers bid low, the GP can credibly threaten to IPO instead — maintaining negotiating leverage.</p><p><strong>What happens if the GP doesn't run a dual-track:</strong></p><p>If only the SBO route is pursued (GP doesn't invest in trade sale or IPO preparation), buyers know: - No IPO threat (company not IPO-ready) - No strategic sale threat (no process running) - Fund has 3-year deadline (GP will eventually need to sell) - GP has no leverage</p><p>SBO bidders respond by bidding 10-10.5x instead of 11x, knowing the GP must accept. The MOIC drops from 3.95x to 3.50x (£100M difference on exit equity) — a direct cost of having one viable exit route versus multiple.</p><p><strong>The GP-led secondary as the escape valve:</strong></p><p>If Year 7 and Year 8 produce neither a compelling trade sale bid nor a viable IPO window, and the fund is now at Year 8.5 with 18 months remaining, the GP considers a GP-led secondary:</p><ul class='notelist'><li>Existing LPs are offered exit at £395M equity (SBO equivalent, 3.95x, ~21.9% IRR at Year 8.5 = ~18.2% by then — lower than Year 7)</li><li>LPs who accept: DPI realised, IRR preserved at their cost basis</li><li>LPs who decline (roll over): remain in the Nexaris vehicle; targeting strategic sale in Year 9-10 at 14x+</li><li>New third-party investor co-invests alongside rollovers at the same £395M equity valuation</li></ul><p>For the LPs who roll over: they effectively reset their IRR clock but hold out for 5.3x+ MOIC from the strategic sale. For the GP: the fund is wound down, the strategy is preserved, management fee continues on the new vehicle. For the cashout LPs: they accept 18.2% IRR (lower than they'd hoped) but receive DPI.</p><p>---</p>"}, "4": {"section": "How They Interact in Practice", "html": "<p><strong>The Year 7 decision for a GP approaching fund deadline</strong></p><p>A PE fund (Fund III) acquired a healthcare software company (Nexaris Health) in Year 1 at 8x £30M EBITDA = £240M EV, with £140M debt and £100M equity from the fund.</p><p>Now in Year 7, with the fund approaching its 10-year limit: - EBITDA has grown to £45M (strong execution of value creation plan) - Exit debt has been paid down to £100M - Company has strong NRR (107%), solid management, clean accounts</p><p><strong>The option set analysis (which routes are viable?):</strong></p><p>| Route | Viable? | Reason | |---|---|---| | <strong>Strategic sale</strong> | ✅ Yes | Two strategic buyers identified in CDD as natural acquirers — one US health tech, one European EHR | | <strong>SBO</strong> | ✅ Yes | Company is a good LBO target; PE buyers will engage | | <strong>IPO</strong> | ⚠️ Marginal | At £45M EBITDA, just under the size threshold for a credible UK mid-cap float; 12-18 months prep required | | <strong>GP-led secondary</strong> | ✅ Yes | Fund has 3 years; GP believes strategic value is achievable in Year 8-9 if market improves |</p><p><strong>The IRR/MOIC analysis for each route:</strong></p><p>Entry equity: £100M</p><p>| Route | Expected Valuation | Exit Debt | Exit Equity | MOIC | Hold | IRR | |---|---|---|---|---|---|---| | SBO (now, Year 7) | 11x £45M = £495M | £100M | £395M | 3.95x | 7y | ~21.9% | | Trade sale (Year 7, 6 months) | 14x £45M = £630M | £100M | £530M | 5.30x | 7.5y | ~26.4% | | IPO + sell-down (Year 9) | 14x £55M = £770M | £80M | £690M | 6.90x | 9y | ~23.9% | | GP-led secondary (Year 7) | SBO-equivalent: £395M equity for cashouts | — | — | 3.95x for cashouts | 7y | ~21.9% (cashout LPs) |</p><p>[All figures illustrative — needs-verification]</p><p><strong>The trade-off matrix:</strong></p><ul class='notelist'><li><strong>Best MOIC:</strong> IPO at Year 9 (6.90x) — but takes 2 more years, IRR is lower than trade sale, execution risk is high (IPO window may not be open in Year 9)</li><li><strong>Best IRR:</strong> Trade sale at Year 7.5 (26.4%) — but requires two strategic buyers to engage simultaneously, providing competitive tension</li><li><strong>Most certain exit:</strong> SBO (3.95x, 21.9%) — but surrenders the synergy premium; below the IRR and MOIC of a trade sale</li></ul><p><strong>The GP's decision:</strong></p><p>The GP runs a <strong>dual-track process</strong>: simultaneously preparing for an IPO (to signal credibility and create competitive pressure on strategic buyers) while running a trade sale process. The dual-track forces strategic buyers to compete with each other AND with the IPO alternative — preventing them from anchoring the bid at SBO multiples.</p><p>If the trade sale process produces bids at or above 14x by Month 4, the GP closes the trade sale and drops the IPO track. If strategic buyers bid low, the GP can credibly threaten to IPO instead — maintaining negotiating leverage.</p><p><strong>What happens if the GP doesn't run a dual-track:</strong></p><p>If only the SBO route is pursued (GP doesn't invest in trade sale or IPO preparation), buyers know: - No IPO threat (company not IPO-ready) - No strategic sale threat (no process running) - Fund has 3-year deadline (GP will eventually need to sell) - GP has no leverage</p><p>SBO bidders respond by bidding 10-10.5x instead of 11x, knowing the GP must accept. The MOIC drops from 3.95x to 3.50x (£100M difference on exit equity) — a direct cost of having one viable exit route versus multiple.</p><p><strong>The GP-led secondary as the escape valve:</strong></p><p>If Year 7 and Year 8 produce neither a compelling trade sale bid nor a viable IPO window, and the fund is now at Year 8.5 with 18 months remaining, the GP considers a GP-led secondary:</p><ul class='notelist'><li>Existing LPs are offered exit at £395M equity (SBO equivalent, 3.95x, ~21.9% IRR at Year 8.5 = ~18.2% by then — lower than Year 7)</li><li>LPs who accept: DPI realised, IRR preserved at their cost basis</li><li>LPs who decline (roll over): remain in the Nexaris vehicle; targeting strategic sale in Year 9-10 at 14x+</li><li>New third-party investor co-invests alongside rollovers at the same £395M equity valuation</li></ul><p>For the LPs who roll over: they effectively reset their IRR clock but hold out for 5.3x+ MOIC from the strategic sale. For the GP: the fund is wound down, the strategy is preserved, management fee continues on the new vehicle. For the cashout LPs: they accept 18.2% IRR (lower than they'd hoped) but receive DPI.</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"The GP chooses the exit route based on what maximises value at Year 5.\"</p><p>The GP chooses from the options that remain viable after 5 years of hold period decisions, subject to the time remaining in the fund. \"We'd love a strategic sale but can't find a willing buyer in the 8 months we have left before fund deadline\" is not a free choice — it is the result of (a) not cultivating strategic buyer relationships during the hold, (b) starting the exit process too late, and (c) not building dual-track readiness. The \"exit decision\" in Year 5 is largely the consequence of decisions made in Years 2-4.</p><p>### 2. \"Waiting longer always produces a higher MOIC, so GPs should extend holds.\"</p><p>Waiting longer produces higher MOIC <em>only if the additional hold period generates EBITDA growth or multiple expansion that outpaces the IRR erosion from the longer hold</em>. In the illustrative example above, the IPO at Year 9 produces 6.9x MOIC but only 23.9% IRR — lower IRR than the Year 7 trade sale (26.4%). An LP who compares the two options on MOIC alone will prefer to wait. An LP who considers total portfolio IRR and J-curve effects may prefer the earlier exit. The \"wait for higher MOIC\" argument systematically ignores the IRR penalty of waiting.</p><p>### 3. \"The GP-led secondary is primarily a governance controversy.\"</p><p>GP-led secondaries are controversial — but understanding them only as a governance issue misses their functional role as a structural solution to the holding period sensitivity × IRR/MOIC trade-off problem. They are not aberrations; they are a rational response to the structural mismatch between the 10-year fund life and the optimal hold period for premium exit valuation. Any analysis of GP-led secondaries that doesn't include holding period sensitivity and IRR/MOIC trade-offs is incomplete.</p><p>### 4. \"Exit process timelines are fixed — you know how long each route takes.\"</p><p>The timelines in the PE Exit Process and Timeline note are average outcomes. Real execution depends on: regulatory clearance (trade sales in regulated sectors can take 12+ months for antitrust review), management team cooperation (a management team whose MIP is underwater is not motivated to run a smooth sale process), market conditions (IPO windows open and close), and counterparty dynamics (strategic buyers may go cold, SBO bidders may discover due diligence issues). The GP who plans to execute a trade sale in 6 months must start 12 months before deadline to account for slippage. The 4-8 month timeline is a minimum under good conditions.</p><p>### 5. \"The four exit routes are alternatives — you pick one.\"</p><p>A dual-track process (simultaneously preparing for two routes, typically trade sale + IPO) is not unusual — it is the gold standard for large-cap exits precisely because it creates competitive tension between route options. A GP running dual-track forces strategic buyers to compete with the IPO alternative and with each other. The \"pick one\" mental model misses one of the most powerful tactical tools in exit execution.</p><p>---</p>"}, "6": {"section": "Practical Example", "html": "<p><strong>Apollo Global Management's IPO of Caesars Entertainment (2012) and subsequent complexity</strong></p><p>Apollo and TPG acquired Harrah's Entertainment (later Caesars) in a 2008 LBO at $30B — one of the largest gaming acquisitions ever. The timing was catastrophic: the deal closed just before the financial crisis, and Harrah's/Caesars spent the next several years managing extreme leverage while the gaming industry contracted.</p><p>The exit challenge by 2012 demonstrates multiple elements of this synthesis:</p><p><strong>Hold period sensitivity:</strong> By Year 4 (2012), the fund clock was not yet critical (2008 vintage funds had until ~2018), but the leverage load was severe — Caesars carried over $20B of debt. IRR on the investment was already deeply negative regardless of exit timing.</p><p><strong>Exit route constraints (built by the hold period):</strong> The extreme leverage ruled out a trade sale at any premium — no strategic buyer would assume $20B in debt. A secondary buyout was also impossible for the same reason. The only viable route: IPO (allows partial exit, does not require debt repayment immediately) or continue holding and hope for recovery.</p><p><strong>IPO complexity (exit process timeline):</strong> Caesars IPO'd in February 2012 at $9/share, raising ~$16M — a tiny IPO that served more to establish a public listing than to provide real liquidity. Apollo and TPG remained locked up and were unable to exit meaningful stakes for years, due to share price weakness.</p><p><strong>The IRR/MOIC trade-off played out over a decade:</strong> Rather than generating a quick 3x and high IRR, the investment produced prolonged lock-up, Caesars eventually filed for bankruptcy in 2015, and the investment was significantly impaired. The original thesis (gaming market recovery + operational improvement) was sound; the capital structure and macro timing combined to destroy equity.</p><p><strong>GP-led mechanisms as the only option:</strong> When no traditional exit was viable, private credit solutions and balance sheet restructuring became the tools — a precursor to today's GP-led secondary market for companies that can't access traditional exit routes.</p><p><strong>The lesson:</strong> A deal entered with one viable eventual exit route (the gaming sector recovery that would allow a trade sale at a premium to the debt load) is fragile to the macro environment. There was no pivot available. That is the \"negotiating from weakness\" problem taken to its logical extreme.</p><p>[Note: Specific figures for the Caesars transaction are approximate and based on publicly available information — needs-verification for precise deal economics]</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The exit decision framework synthesises five concepts into a single picture: exit routes are a menu that narrows over time based on what was built during the hold period; holding period sensitivity creates structural pressure to exit before the fund clock destroys IRR; IRR vs. MOIC trade-offs mean that different exit routes advance different objectives and different LP constituencies; the GP-led secondary emerged as a structural solution to the timing constraint imposed by fund life; and exit process timelines must be planned backwards from fund deadlines, not forwards from the point of decision. A GP with multiple viable exit routes can run dual-track processes, credibly threaten alternatives, and negotiate from strength. A GP with one viable route — because the company is too small for IPO, no strategic buyers are active, and the fund deadline is near — negotiates from weakness and typically leaves significant MOIC on the table. Exit optionality is built during the hold period, not discovered at Year 5.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

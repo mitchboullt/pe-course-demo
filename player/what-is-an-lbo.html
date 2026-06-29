@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "what-is-an-lbo", "title": "What Is an LBO", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The engine of the asset class", "on_screen_bullets": ["The defining PE transaction", "Funds, returns, value — all flow from it", "Debt cuts both ways"], "narration": "If you understand one transaction in private equity, make it this one. The leveraged buyout is the defining deal type — almost everything else in PE flows from its logic: how funds are structured, how returns are measured, how companies get managed after the deal. You can't study valuation or value creation in any depth until this is solid underneath you. And the heart of it is a single idea: why borrowed money amplifies the returns on your own money — and why that amplification cuts both ways. Get that, and you understand the engine that drives the whole asset class.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Buying with borrowed money", "on_screen_bullets": ["Acquire using mostly debt", "Typically 50–80% borrowed", "Small equity cheque, amplified return"], "narration": "The definition. A leveraged buyout is the acquisition of a company using a large amount of borrowed money — typically fifty to eighty percent of the purchase price — so that a private equity firm can buy a business with a relatively small equity cheque and amplify its returns when it eventually sells. The word leveraged is doing all the work: most of the price is debt, and only a slice is the firm's own equity.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The house, with a mortgage", "on_screen_bullets": ["£20k down, £80k borrowed", "Sell at £130k, repay £75k", "£20k → £55k = 2.75x vs 1.3x"], "narration": "Here's the intuition with a house. Say you buy one worth a hundred thousand pounds. You could pay all cash — but instead you put down twenty thousand of your own and borrow eighty thousand from the bank. Three years later the house is worth a hundred and thirty thousand. You pay off the seventy-five thousand left on the mortgage and pocket fifty-five thousand. Your twenty-thousand investment became fifty-five — a two-point-seven-five times return. Now compare the all-cash buyer: they made thirty thousand on a hundred thousand invested — just one-point-three times. Same house, same price rise — but leverage turned a modest gain into a big one. A leveraged buyout works exactly this way, except the house is a company, the mortgage is a package of bank loans and bonds, and the buyer is a PE firm using money pooled from institutions.", "est_sec": 58}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "A machine on a mortgage", "on_screen_bullets": ["Cash flow pays the loan", "Debt shrinks, equity grows", "Stable cash flow is everything"], "narration": "A second way to hold it: think of an LBO as buying a cash-generating machine on a mortgage. You put down a small deposit; the machine earns enough each year to cover the loan payments; and over time you own more and more of it outright. When you sell, you keep everything above what's left on the mortgage. Here's the key insight — as long as the machine keeps earning, the debt steadily shrinks and your equity slice grows, even if the machine's total value never changes at all. That's precisely why stable, predictable cash flow is the single most important quality in an LBO candidate. An unpredictable machine might miss the payments — and then the bank repossesses it.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "How it's built", "on_screen_bullets": ["NewCo buys 100% of the target", "Senior debt · mezz · sponsor equity", "Debt pushed onto the company"], "narration": "Mechanically, the sponsor creates a new holding entity — call it NewCo or BidCo — which buys a hundred percent of the target's equity. The purchase is funded by a stack: senior debt, the term loans and revolver, secured against the company's assets and cash flows, cheapest, and first in line in a bankruptcy; subordinated or mezzanine debt, sometimes high-yield bonds, unsecured or second-lien, more expensive and junior; and sponsor equity, the PE fund's own capital, typically twenty to fifty percent of the total. And here's the crucial move: the debt is pushed down onto the acquired company's own balance sheet, so the target's future cash flows service the loans — not the PE fund. The company, in effect, pays for its own acquisition.", "est_sec": 56}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Blackstone buys Hilton, 2007", "on_screen_bullets": ["~$26bn enterprise value", "~$5.7bn equity, ~$20bn debt", "≈ 77% debt / 23% equity"], "narration": "The textbook example is Blackstone's Hilton deal. In July two thousand seven, Blackstone acquired Hilton Hotels for about twenty-six billion dollars — one of the largest LBOs in history. Of that, roughly five-point-seven billion was equity from Blackstone's funds, and about twenty billion was debt — loans and bonds — giving leverage of roughly seventy-seven percent debt to twenty-three percent equity. Then the timing turned brutal: the two thousand eight financial crisis hit just after closing, Hilton's value dropped sharply, and the debt became distressed. But Blackstone kept the management team, invested heavily in operational improvements, and expanded the brand internationally — and rode it all the way to one of the most profitable PE outcomes ever. It's the perfect illustration: heavy leverage amplifies the downside and the upside, and it's the operating work in between that decides which one you get.", "est_sec": 60}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["The fund isn't on the hook for the debt", "Leverage magnifies losses too", "Not every company is LBO-able"], "narration": "A few corrections. First, the PE fund itself does not owe the debt — it sits on the target company's balance sheet, secured against the target's assets. If the deal fails, the lenders take the company, but they generally can't pursue the fund's other money. Second, leverage is not a free lunch: the very thing that multiplies gains also multiplies losses, and an over-levered company with a single bad year can tip into default. And third, not every business can take an LBO. The model needs stable, predictable cash flow to service the debt — which is why mature, steady businesses get bought this way and volatile, cash-hungry ones generally don't.", "est_sec": 50}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Buy, deleverage, sell", "on_screen_bullets": ["Mostly debt, small equity", "Company services its own debt", "Cash flow is the make-or-break"], "narration": "To recap. A leveraged buyout buys a company with mostly borrowed money — fifty to eighty percent debt — and a small equity cheque, through a NewCo that pushes the debt down onto the target so the company services its own acquisition. Returns are amplified because, as the business generates cash and pays the debt down, the equity slice grows — and that amplification works in both directions, which is why stable cash flow is everything. Hold the house-with-a-mortgage picture and you've got the engine of private equity. Next we'll open up the structure of that NewCo and see exactly how the layers fit together.", "est_sec": 44}], "end_card": {"quiz_label": "Q1", "question_on_screen": "In the house example, why does £20k of equity turn into a 2.75x return while the all-cash buyer earns only 1.3x — on the same price rise?", "narration": "Pause and reason this through before moving on. Same house, same thirty-thousand price rise — why does the leveraged buyer earn two-point-seven-five times their money while the all-cash buyer makes only one-point-three? Say why out loud, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: What Is an LBO\n\n[hook] The engine of the asset class\nIf you understand one transaction in private equity, make it this one. The leveraged buyout is the defining deal type — almost everything else in PE flows from its logic: how funds are structured, how returns are measured, how companies get managed after the deal. You can't study valuation or value creation in any depth until this is solid underneath you. And the heart of it is a single idea: why borrowed money amplifies the returns on your own money — and why that amplification cuts both ways. Get that, and you understand the engine that drives the whole asset class.\n\n[definition] Buying with borrowed money\nThe definition. A leveraged buyout is the acquisition of a company using a large amount of borrowed money — typically fifty to eighty percent of the purchase price — so that a private equity firm can buy a business with a relatively small equity cheque and amplify its returns when it eventually sells. The word leveraged is doing all the work: most of the price is debt, and only a slice is the firm's own equity.\n\n[intuition] The house, with a mortgage\nHere's the intuition with a house. Say you buy one worth a hundred thousand pounds. You could pay all cash — but instead you put down twenty thousand of your own and borrow eighty thousand from the bank. Three years later the house is worth a hundred and thirty thousand. You pay off the seventy-five thousand left on the mortgage and pocket fifty-five thousand. Your twenty-thousand investment became fifty-five — a two-point-seven-five times return. Now compare the all-cash buyer: they made thirty thousand on a hundred thousand invested — just one-point-three times. Same house, same price rise — but leverage turned a modest gain into a big one. A leveraged buyout works exactly this way, except the house is a company, the mortgage is a package of bank loans and bonds, and the buyer is a PE firm using money pooled from institutions.\n\n[intuition] A machine on a mortgage\nA second way to hold it: think of an LBO as buying a cash-generating machine on a mortgage. You put down a small deposit; the machine earns enough each year to cover the loan payments; and over time you own more and more of it outright. When you sell, you keep everything above what's left on the mortgage. Here's the key insight — as long as the machine keeps earning, the debt steadily shrinks and your equity slice grows, even if the machine's total value never changes at all. That's precisely why stable, predictable cash flow is the single most important quality in an LBO candidate. An unpredictable machine might miss the payments — and then the bank repossesses it.\n\n[mechanics] How it's built\nMechanically, the sponsor creates a new holding entity — call it NewCo or BidCo — which buys a hundred percent of the target's equity. The purchase is funded by a stack: senior debt, the term loans and revolver, secured against the company's assets and cash flows, cheapest, and first in line in a bankruptcy; subordinated or mezzanine debt, sometimes high-yield bonds, unsecured or second-lien, more expensive and junior; and sponsor equity, the PE fund's own capital, typically twenty to fifty percent of the total. And here's the crucial move: the debt is pushed down onto the acquired company's own balance sheet, so the target's future cash flows service the loans — not the PE fund. The company, in effect, pays for its own acquisition.\n\n[worked-example] Blackstone buys Hilton, 2007\nThe textbook example is Blackstone's Hilton deal. In July two thousand seven, Blackstone acquired Hilton Hotels for about twenty-six billion dollars — one of the largest LBOs in history. Of that, roughly five-point-seven billion was equity from Blackstone's funds, and about twenty billion was debt — loans and bonds — giving leverage of roughly seventy-seven percent debt to twenty-three percent equity. Then the timing turned brutal: the two thousand eight financial crisis hit just after closing, Hilton's value dropped sharply, and the debt became distressed. But Blackstone kept the management team, invested heavily in operational improvements, and expanded the brand internationally — and rode it all the way to one of the most profitable PE outcomes ever. It's the perfect illustration: heavy leverage amplifies the downside and the upside, and it's the operating work in between that decides which one you get.\n\n[pitfalls] What people get wrong\nA few corrections. First, the PE fund itself does not owe the debt — it sits on the target company's balance sheet, secured against the target's assets. If the deal fails, the lenders take the company, but they generally can't pursue the fund's other money. Second, leverage is not a free lunch: the very thing that multiplies gains also multiplies losses, and an over-levered company with a single bad year can tip into default. And third, not every business can take an LBO. The model needs stable, predictable cash flow to service the debt — which is why mature, steady businesses get bought this way and volatile, cash-hungry ones generally don't.\n\n[recap] Buy, deleverage, sell\nTo recap. A leveraged buyout buys a company with mostly borrowed money — fifty to eighty percent debt — and a small equity cheque, through a NewCo that pushes the debt down onto the target so the company services its own acquisition. Returns are amplified because, as the business generates cash and pays the debt down, the equity slice grows — and that amplification works in both directions, which is why stable cash flow is everything. Hold the house-with-a-mortgage picture and you've got the engine of private equity. Next we'll open up the structure of that NewCo and see exactly how the layers fit together.\n\nEnd-card question: In the house example, why does £20k of equity turn into a 2.75x return while the all-cash buyer earns only 1.3x — on the same price rise?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The LBO is the defining transaction type in private equity. Almost everything else in PE — how funds are structured, how returns are measured, how companies are managed post-acquisition — flows from the logic of the LBO. Understanding the LBO at the foundations level is non-negotiable before studying deal mechanics, valuation, or value creation in any depth.</p><p>If you can explain why debt amplifies equity returns (and why that cuts both ways), you understand the engine that drives the entire asset class.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A leveraged buyout (LBO) is the acquisition of a company using a large amount of borrowed money — typically 50–80% of the purchase price — so that a private equity firm can buy a business with a relatively small equity cheque and amplify its returns when it eventually sells.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you want to buy a house worth £100,000. You could pay all cash — but instead you put down £20,000 of your own money and borrow £80,000 from the bank. Three years later the house is worth £130,000. You pay off the remaining £75,000 of your mortgage and pocket £55,000. Your £20,000 investment turned into £55,000 — a 2.75x return. If you had paid all cash, you would have made only £30,000 on £100,000 invested — a 1.3x return.</p><p>That is leverage at work: you used other people's money to amplify your own gain.</p><p>A leveraged buyout works the same way, but instead of a house it is a company, the \"mortgage\" is a package of bank loans and bonds, and the \"buyer\" is a private equity firm using money pooled from institutional investors.</p><p>The PE firm: 1. Finds a company it believes is undervalued or can be improved 2. Buys it using mostly borrowed money 3. Spends 3–7 years paying down the debt and improving the business 4. Sells the company (to a strategic buyer, another PE fund, or via IPO) at a profit 5. Returns the proceeds to its investors after taking its share</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of an LBO as buying a cash-generating machine on a mortgage. You put down a small deposit, the machine earns enough money each year to pay the mortgage instalments, and over time you own more and more of it outright. When you sell the machine, you keep everything above what's left on the mortgage.</p><p>The key insight: as long as the machine keeps earning (i.e., the company keeps generating cash flow), the debt gradually shrinks and your equity slice grows — even if the total value of the machine doesn't change at all.</p><p>This is why <strong>stable, predictable cash flows</strong> are the single most important LBO candidate characteristic. An unpredictable machine might not cover the mortgage payments, and then the bank repossesses it.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>In an LBO, a PE sponsor creates a new holding entity (often called \"NewCo\" or \"Bidco\") which acquires 100% of the target company's equity. The acquisition is funded by a combination of:</p><ul class='notelist'><li><strong>Senior debt</strong> (term loans, revolving credit facility): secured against the assets and cash flows of the target, cheapest cost, first priority in bankruptcy</li><li><strong>Subordinated/mezzanine debt</strong> (sometimes high-yield bonds): unsecured or second-lien, higher interest rate, junior in the capital stack</li><li><strong>Sponsor equity</strong>: the PE fund's own capital, typically 20–50% of the total capitalization</li></ul><p>The debt is pushed down onto the acquired company's balance sheet, meaning the target's own future cash flows service the debt — not the PE fund itself.</p><p><strong>Return mechanics:</strong></p><p>Returns to the equity holder are driven by three factors (covered fully in Three Sources of PE Returns): 1. <strong>Leverage effect</strong>: as debt is paid down, equity value increases even if the business value stays flat 2. <strong>Multiple expansion</strong>: selling at a higher EV/EBITDA multiple than the entry multiple 3. <strong>EBITDA growth</strong>: growing the underlying business, which increases the value of the enterprise</p><p><strong>Key formula:</strong></p><p>&gt; Exit Equity Value = Exit Enterprise Value − Net Debt at Exit &gt; Entry Equity Value = Entry Enterprise Value − Net Debt at Entry &gt; MOIC = Exit Equity Value ÷ Entry Equity Value</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Blackstone's Acquisition of Hilton Hotels (2007)</strong></p><p>In July 2007, Blackstone acquired Hilton Hotels Corporation for approximately $26 billion — one of the largest LBO transactions in history.</p><ul class='notelist'><li><strong>Purchase price</strong>: ~$26B enterprise value</li><li><strong>Equity contributed</strong>: ~$5.7B (Blackstone's fund capital)</li><li><strong>Debt raised</strong>: ~$20B in loans and bonds</li><li><strong>Leverage ratio</strong>: approximately 77% debt / 23% equity</li></ul><p>The 2008 financial crisis hit shortly after closing, causing Hilton's value to drop sharply and the debt to become distressed. However, Blackstone retained the management team, invested heavily in operational improvements, and expanded the brand internationally.</p><p>By the time of Hilton's IPO in 2013 and subsequent stake sales, Blackstone had generated approximately $14B in profit on its ~$5.7B equity investment — a roughly 3x return even after navigating one of the worst recessions in modern history.</p><p><strong>Lesson</strong>: LBOs can survive adverse macro environments if the underlying business has strong fundamentals and the sponsor actively creates value rather than relying purely on financial engineering.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"LBOs are just about financial engineering\"</strong> Reality: While leverage is the enabling mechanism, returns in modern PE increasingly come from operational improvements — cost reduction, revenue growth, add-on acquisitions, and strategic repositioning. Pure financial engineering has become less reliable as entry multiples have risen.</p><p><strong>Misconception 2: \"The PE firm takes on the debt\"</strong> Reality: The debt is held by the acquisition vehicle (NewCo/Bidco) and is secured against the target company's assets. The PE fund itself has no legal obligation to repay it. The fund's maximum loss is its equity contribution.</p><p><strong>Misconception 3: \"High debt always means high returns\"</strong> Reality: Higher leverage increases the potential upside, but it also increases the probability of loss and may restrict the company's ability to invest and grow. Optimal leverage depends on the stability and predictability of the target's cash flows.</p><p><strong>Misconception 4: \"Any company can be LBO'd\"</strong> Reality: Good LBO candidates share specific characteristics: stable free cash flows, low capex requirements, strong market position, defensible margins, and asset-backed collateral for lenders. Highly cyclical, capital-intensive, or loss-making businesses are poor LBO candidates.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>An LBO is the acquisition of a company using mostly borrowed money. The private equity firm contributes a relatively small equity cheque (20–50% of the purchase price), borrows the rest, and pushes that debt onto the acquired company. The company's own cash flows service the debt over the hold period. Returns come from three sources: debt paydown (which increases equity value without business growth), multiple expansion (selling at a higher multiple than you paid), and EBITDA growth. Leverage amplifies returns but also amplifies risk — making cash flow stability the foundational requirement for any LBO target. The Blackstone/Hilton case illustrates both the power of the model (eventual ~3x return) and its vulnerability to adverse macro conditions.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lp-types-and-motivations", "title": "LP Types and Motivations", "draft_watermark": false, "estimated_runtime_sec": 455, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Not all the money is the same", "on_screen_bullets": ["Different horizons", "Different return targets", "Different constraints"], "narration": "When a fund says it has raised five billion dollars, it's worth asking: whose money is it? Because the investors behind a private equity fund are not one crowd — they're a handful of very different institutions, each with its own time horizon, its own return target, its own rules, and its own sensitivity to fees. And those differences aren't trivia. They explain why some investors are natural fits for private equity and others are structurally blocked from it — and they shape how funds get built and sold in the first place. So let's meet the people on the other side of the table.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Who the LPs are", "on_screen_bullets": ["The institutions that fund PE", "And why they accept the lock-up"], "narration": "Here's the definition. The topic of LP types and motivations is simply the set of institutional investors who commit capital to private equity funds, and the reasons each of them is willing to put up with what PE demands — illiquidity, high fees, and money locked away for a decade. The question underneath every category is the same: what does this investor get out of PE that makes the lock-up worth it?", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Six kinds of backer", "on_screen_bullets": ["Pensions · endowments · SWFs", "Insurers · family offices", "Funds of funds"], "narration": "In plain terms, the money comes from six main places. A pension fund invests because it has to pay retirees decades from now, so it needs strong long-term returns. A university endowment invests because it follows the long-horizon, alternatives-heavy playbook pioneered by David Swensen at Yale. A sovereign wealth fund is a country's investment vehicle — essentially unlimited time horizon, chasing premium returns. An insurance company uses PE for extra yield to cover future policyholder claims. A family office puts the ultra-wealthy alongside the big institutions in the same deals. And a fund of funds is a middleman — it bundles smaller investors together and allocates to PE on their behalf, for a fee on top of a fee.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Savers with different deadlines", "on_screen_bullets": ["Pension: retiring in 30 yrs", "Endowment: lasts forever", "SWF: a nation's savings", "Insurer: a bill on a date"], "narration": "The cleanest way to keep them straight is to think of each as a saver with a different deadline. A pension fund is someone saving for retirement thirty years out — it can lock money away, but it has a target it must hit. An endowment is a trust meant to last forever — maximum horizon, no forced withdrawals. A sovereign wealth fund is a country's savings account — permanent, enormous, and with no liabilities pulling on it. An insurance company is saving for a bill it knows is coming — so it's constrained by when that bill lands. A family office is a wealthy individual — flexible, but smaller. And a fund of funds is a financial adviser pooling small savers — convenient, but taking a cut on top of the manager's cut.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why each one shows up", "on_screen_bullets": ["Pensions: 6–8% actuarial target", "Illiquidity premium ~3–5%", "Pensions allocate ~10–20%", "Insurers capped by Solvency II"], "narration": "Now the mechanics, because the motivations are specific. Pension funds — like CalPERS and Canada's CPP, each around five hundred billion dollars, or Ontario Teachers at roughly two hundred and fifty billion — need to earn an actuarial return of typically six to eight percent a year to meet their future obligations. Private equity's illiquidity premium has historically delivered three to five percent above public equities, net of fees, and a thirty-year liability horizon comfortably tolerates a ten-year lock-up. So pensions typically put ten to twenty percent of their assets into PE. Endowments follow the Yale model — heavy on alternatives, perpetual horizon, spending only four to five percent of their value a year. Sovereign wealth funds bring permanent, flexible capital with no fixed liabilities at all. Insurance companies want the yield but are reined in by capital rules like Solvency the Second, which penalise illiquid holdings. Family offices commit smaller, flexible cheques. And funds of funds aggregate the small players — at the cost of that damaging second fee layer.", "est_sec": 64}, {"n": 6, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Yale, and the CalPERS dilemma", "on_screen_bullets": ["Swensen: $1bn (1985) → ~$40bn", "Yale: 25–40% in alternatives", "CalPERS PE: ~8–13%, fee angst"], "narration": "Two real stories make it concrete. David Swensen took over Yale's endowment in nineteen eighty-five with about a billion dollars. By tilting hard into alternatives — eventually twenty-five to forty percent in private equity, venture, and real assets — he grew it to roughly forty billion by his death in twenty twenty-one, beating public market benchmarks by a wide margin. That track record is, more than anything, why PE has had access to such vast pools of patient institutional money — nearly every major endowment copied him. The flip side is CalPERS, the world's largest pension LP, at around five hundred billion. It has run a PE allocation of roughly eight to thirteen percent for years — and yet it has repeatedly agonised over the program's fee complexity and opacity, even exiting hedge funds entirely in twenty fourteen on cost-benefit grounds. The same illiquid, high-fee asset class that the endowment embraced, the giant pension keeps interrogating. Different investor, different calculus.", "est_sec": 64}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not all LPs are equal to a GP", "Endowment ≠ pension", "Funds of funds: not always bad"], "narration": "Three corrections. First, LPs are not equally important to a GP. A one-billion-dollar commitment from CalPERS or Abu Dhabi is strategically essential — anchor capital that signals quality and pulls in others. A ten-million-dollar cheque from a small family office is welcome but not relationship-defining. Second, don't lump endowments and pensions together. Pensions have actuarial targets and benefits to pay on a schedule, which creates real cash-flow needs; endowments have perpetual horizons and a spending target but no fixed liabilities of the same weight — so they can stomach more illiquidity. And third, funds of funds aren't simply bad value. Yes, the double fee layer eats into net returns — but for a smaller investor who can't meet the minimum commitment or build a diversified PE program alone, that middleman may be the only door in.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The backers, in one line", "on_screen_bullets": ["6 LP types, 6 motivations", "Horizon + liabilities + fees", "Shapes how PE is funded"], "narration": "So, to bring it together. The main LP types are pension funds, endowments, sovereign wealth funds, insurance companies, family offices, and funds of funds. Pensions chase an actuarial return and match long liabilities. Endowments run the Yale model — heavy alternatives, perpetual horizon. Sovereign wealth funds bring permanent, unconstrained capital. Insurers want yield but are capped by regulation. Family offices are flexible but small. And funds of funds aggregate the rest at the price of a second fee. Get these motivations straight and you understand the deepest thing about private equity — not how it invests, but where its money comes from, and why that money is willing to wait.", "est_sec": 48}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why does a pension fund's long liability horizon make it a natural PE investor, while an insurance company's constraints can limit its PE exposure?", "narration": "Before the next lesson, answer this in your own words. Why is a pension fund's long horizon such a natural fit for private equity — and what is it about an insurer's position that holds it back? Think it through, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LP Types and Motivations\n\n[hook] Not all the money is the same\nWhen a fund says it has raised five billion dollars, it's worth asking: whose money is it? Because the investors behind a private equity fund are not one crowd — they're a handful of very different institutions, each with its own time horizon, its own return target, its own rules, and its own sensitivity to fees. And those differences aren't trivia. They explain why some investors are natural fits for private equity and others are structurally blocked from it — and they shape how funds get built and sold in the first place. So let's meet the people on the other side of the table.\n\n[definition] Who the LPs are\nHere's the definition. The topic of LP types and motivations is simply the set of institutional investors who commit capital to private equity funds, and the reasons each of them is willing to put up with what PE demands — illiquidity, high fees, and money locked away for a decade. The question underneath every category is the same: what does this investor get out of PE that makes the lock-up worth it?\n\n[intuition] Six kinds of backer\nIn plain terms, the money comes from six main places. A pension fund invests because it has to pay retirees decades from now, so it needs strong long-term returns. A university endowment invests because it follows the long-horizon, alternatives-heavy playbook pioneered by David Swensen at Yale. A sovereign wealth fund is a country's investment vehicle — essentially unlimited time horizon, chasing premium returns. An insurance company uses PE for extra yield to cover future policyholder claims. A family office puts the ultra-wealthy alongside the big institutions in the same deals. And a fund of funds is a middleman — it bundles smaller investors together and allocates to PE on their behalf, for a fee on top of a fee.\n\n[intuition] Savers with different deadlines\nThe cleanest way to keep them straight is to think of each as a saver with a different deadline. A pension fund is someone saving for retirement thirty years out — it can lock money away, but it has a target it must hit. An endowment is a trust meant to last forever — maximum horizon, no forced withdrawals. A sovereign wealth fund is a country's savings account — permanent, enormous, and with no liabilities pulling on it. An insurance company is saving for a bill it knows is coming — so it's constrained by when that bill lands. A family office is a wealthy individual — flexible, but smaller. And a fund of funds is a financial adviser pooling small savers — convenient, but taking a cut on top of the manager's cut.\n\n[mechanics] Why each one shows up\nNow the mechanics, because the motivations are specific. Pension funds — like CalPERS and Canada's CPP, each around five hundred billion dollars, or Ontario Teachers at roughly two hundred and fifty billion — need to earn an actuarial return of typically six to eight percent a year to meet their future obligations. Private equity's illiquidity premium has historically delivered three to five percent above public equities, net of fees, and a thirty-year liability horizon comfortably tolerates a ten-year lock-up. So pensions typically put ten to twenty percent of their assets into PE. Endowments follow the Yale model — heavy on alternatives, perpetual horizon, spending only four to five percent of their value a year. Sovereign wealth funds bring permanent, flexible capital with no fixed liabilities at all. Insurance companies want the yield but are reined in by capital rules like Solvency the Second, which penalise illiquid holdings. Family offices commit smaller, flexible cheques. And funds of funds aggregate the small players — at the cost of that damaging second fee layer.\n\n[worked-example] Yale, and the CalPERS dilemma\nTwo real stories make it concrete. David Swensen took over Yale's endowment in nineteen eighty-five with about a billion dollars. By tilting hard into alternatives — eventually twenty-five to forty percent in private equity, venture, and real assets — he grew it to roughly forty billion by his death in twenty twenty-one, beating public market benchmarks by a wide margin. That track record is, more than anything, why PE has had access to such vast pools of patient institutional money — nearly every major endowment copied him. The flip side is CalPERS, the world's largest pension LP, at around five hundred billion. It has run a PE allocation of roughly eight to thirteen percent for years — and yet it has repeatedly agonised over the program's fee complexity and opacity, even exiting hedge funds entirely in twenty fourteen on cost-benefit grounds. The same illiquid, high-fee asset class that the endowment embraced, the giant pension keeps interrogating. Different investor, different calculus.\n\n[pitfalls] What people get wrong\nThree corrections. First, LPs are not equally important to a GP. A one-billion-dollar commitment from CalPERS or Abu Dhabi is strategically essential — anchor capital that signals quality and pulls in others. A ten-million-dollar cheque from a small family office is welcome but not relationship-defining. Second, don't lump endowments and pensions together. Pensions have actuarial targets and benefits to pay on a schedule, which creates real cash-flow needs; endowments have perpetual horizons and a spending target but no fixed liabilities of the same weight — so they can stomach more illiquidity. And third, funds of funds aren't simply bad value. Yes, the double fee layer eats into net returns — but for a smaller investor who can't meet the minimum commitment or build a diversified PE program alone, that middleman may be the only door in.\n\n[recap] The backers, in one line\nSo, to bring it together. The main LP types are pension funds, endowments, sovereign wealth funds, insurance companies, family offices, and funds of funds. Pensions chase an actuarial return and match long liabilities. Endowments run the Yale model — heavy alternatives, perpetual horizon. Sovereign wealth funds bring permanent, unconstrained capital. Insurers want yield but are capped by regulation. Family offices are flexible but small. And funds of funds aggregate the rest at the price of a second fee. Get these motivations straight and you understand the deepest thing about private equity — not how it invests, but where its money comes from, and why that money is willing to wait.\n\nEnd-card question: Why does a pension fund's long liability horizon make it a natural PE investor, while an insurance company's constraints can limit its PE exposure?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Different LP types have different return requirements, time horizons, regulatory constraints, and fee sensitivities. Understanding these differences explains why some LPs are natural PE investors and others face structural barriers — and helps explain how PE funds are constructed and marketed.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>LP Types and Motivations describes the main categories of institutional investors who commit capital to private equity funds, and explains why each type is attracted to PE despite its illiquidity, fees, and long lock-up periods.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Not all PE investors are the same. The money flowing into PE funds comes from many different types of institution — each with a different reason for being there.</p><p>A <strong>pension fund</strong> invests in PE because it needs to earn enough return to pay out pensions to retirees decades from now. A <strong>university endowment</strong> invests in PE because it follows a long-term strategy pioneered by investors like David Swensen at Yale, which emphasizes alternatives over plain stocks and bonds. A <strong>sovereign wealth fund</strong> is a country's investment vehicle — it has essentially unlimited time horizon and uses PE for premium returns. An <strong>insurance company</strong> uses PE for extra yield to meet policyholder claims. A <strong>family office</strong> invests because the ultra-wealthy owners want access to the same deals as institutions. A <strong>fund of funds</strong> is a middleman that bundles smaller investors together and allocates to PE on their behalf.</p><p>Each of these investors has different expectations of what PE will do for their portfolio — and each has different constraints on how much they can invest and how long they can wait.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of the different LP types as different types of savers with different time horizons and cash needs:</p><ul class='notelist'><li><strong>Pension fund</strong> = someone saving for retirement in 30 years — can lock money away, needs a target return</li><li><strong>Endowment</strong> = a trust fund meant to last forever — maximum time horizon, no forced withdrawals</li><li><strong>SWF</strong> = a country's savings account — permanent, massive, no liabilities</li><li><strong>Insurance company</strong> = someone saving to pay a bill they know is coming — constrained by when the bill arrives</li><li><strong>Family office</strong> = a wealthy individual investor — flexible, but smaller</li><li><strong>Fund of funds</strong> = a financial advisor who pools small savers and invests on their behalf — but takes a cut on top of the underlying fund manager's cut</li></ul>"}, "4": {"section": "Technical Explanation", "html": "<p>### LP Type 1: Pension Funds</p><p><strong>Who they are:</strong> Organizations that collect contributions from employers and employees to fund retirement benefits. Two types: - <strong>Public pension funds</strong>: Managed on behalf of government employees (teachers, firefighters, civil servants). Examples: CalPERS (California Public Employees' Retirement System, ~$500B AUM), CPP Investments (Canada, ~$500B AUM), Ontario Teachers' Pension Plan (~$250B AUM) - <strong>Private pension funds</strong>: Corporate-sponsored defined benefit plans (less common now, shifting to defined contribution)</p><p><strong>Why they invest in PE:</strong> - Need to earn an actuarial return of typically 6-8% p.a. to meet future pension liabilities - PE's illiquidity premium has historically delivered 3-5% above public equities net of fees - Long liability horizon (30+ years) tolerates PE's 10-year lock-up</p><p><strong>Typical PE allocation:</strong> 10-20% of total AUM <strong>Typical commitment size:</strong> $100M-$2B+ per fund depending on size <strong>Investment horizon:</strong> Very long (matching pension liabilities) <strong>Fee sensitivity:</strong> High — public funds face political scrutiny over PE fees <strong>Reporting requirements:</strong> Stringent — public records requirements in many jurisdictions (FOIA in US)</p><p>### LP Type 2: University Endowments</p><p><strong>Who they are:</strong> Investment funds owned by universities to support their academic mission. Endowment spending (typically 4-5% of AUM per year) funds scholarships, faculty, buildings. Examples: Yale (~$40B AUM), Harvard (~$50B AUM), MIT (~$27B AUM)</p><p><strong>Why they invest in PE:</strong> - The <strong>Yale Model</strong> (developed by David Swensen, Yale CIO 1985-2021) demonstrated that heavy allocation to alternatives (PE, VC, real assets, hedge funds) outperforms traditional stock-bond portfolios over long periods - Yale and Harvard have historically allocated 25-40% of their endowment to PE and VC combined - Perpetual horizon (the endowment is meant to last forever) is a perfect match for illiquid PE</p><p><strong>Typical PE allocation:</strong> 15-40% of endowment (varies widely) <strong>Typical commitment size:</strong> $50M-$500M <strong>Investment horizon:</strong> Perpetual <strong>Fee sensitivity:</strong> Medium — willing to pay for top-quartile managers <strong>Reporting requirements:</strong> Less stringent than public pensions; annual 990 filings in the US</p><p>### LP Type 3: Sovereign Wealth Funds (SWFs)</p><p><strong>Who they are:</strong> State-owned investment vehicles funded by government surpluses, commodity revenues (oil), or foreign currency reserves. Examples: - GIC (Government of Singapore Investment Corporation, ~$700B+) - ADIA (Abu Dhabi Investment Authority, ~$800B+) - Norway GPFG (Government Pension Fund Global, ~$1.4T — predominantly public equities) - Kuwait Investment Authority (~$700B) - Saudi Arabia PIF (Public Investment Fund, ~$700B+)</p><p><strong>Why they invest in PE:</strong> - No fixed liabilities (unlike pensions) — maximum flexibility - Long/permanent time horizon: managing national wealth for future generations - PE premium over public markets compounds substantially over decades - Access to private dealflow unavailable in public markets - Political motivation: GIC and ADIA use PE relationships to build economic partnerships</p><p><strong>Typical PE allocation:</strong> 5-20% of total AUM</p><p><strong>Typical commitment size:</strong> $200M-$3B+ <strong>Investment horizon:</strong> Multigenerational / permanent <strong>Fee sensitivity:</strong> Low-medium — large enough to negotiate favourable terms <strong>Reporting requirements:</strong> Minimal (state-owned; non-democratic transparency)</p><p>See Sovereign Wealth Funds as PE LPs for deep detail.</p><p>### LP Type 4: Insurance Companies</p><p><strong>Who they are:</strong> Life insurers, property and casualty insurers, and reinsurers with large investment portfolios backing policyholder liabilities. Examples: Prudential, MetLife, AXA, Munich Re.</p><p><strong>Why they invest in PE:</strong> - Need to earn investment income to cover claims and generate profit - PE provides a yield premium over investment-grade bonds - Long-dated life insurance liabilities (life policies, annuities) create tolerance for illiquidity</p><p><strong>Constraints:</strong> - <strong>Solvency II</strong> (EU) and <strong>Risk-Based Capital</strong> (US) regulations impose punitive capital charges on illiquid / equity-like assets — limiting PE allocations to 5-10% for most insurers - Asset-liability matching requirements: insurer liabilities have specific timing; PE cash flows are unpredictable</p><p><strong>Typical PE allocation:</strong> 3-8% <strong>Typical commitment size:</strong> $50M-$500M <strong>Investment horizon:</strong> Long (but more constrained than pensions/SWFs) <strong>Fee sensitivity:</strong> High <strong>Reporting requirements:</strong> Very stringent — regulated entities</p><p>### LP Type 5: Family Offices</p><p><strong>Who they are:</strong> Private wealth management organisations serving ultra-high-net-worth families (net worth typically $100M+). Single-family offices (SFO) serve one family; multi-family offices (MFO) serve multiple families and act more like institutions.</p><p><strong>Why they invest in PE:</strong> - Access to institutional-quality investments previously unavailable to private wealth - Diversification beyond public markets - Long intergenerational investment horizon - Interest in co-investments and direct deals (some family offices make direct PE investments without a GP)</p><p><strong>Typical PE allocation:</strong> Highly variable — 10-50% in aggressive family offices <strong>Typical commitment size:</strong> $5M-$100M <strong>Investment horizon:</strong> Multi-generational <strong>Fee sensitivity:</strong> High — family offices are price-sensitive at smaller commitment sizes <strong>Reporting requirements:</strong> Minimal — private entities</p><p>### LP Type 6: Funds of Funds (FoF)</p><p><strong>Who they are:</strong> Investment vehicles that raise capital from smaller investors (smaller endowments, pension funds, family offices, high-net-worth individuals) and allocate it across a diversified portfolio of PE funds. Examples: Pantheon Ventures, HarbourVest, Partners Group.</p><p><strong>Why they exist:</strong> - Provide access to PE for investors who are too small to meet minimum commitments ($50M+) of top-tier GPs - Offer diversification across GPs, vintages, geographies, and strategies - Provide professional PE manager selection for LPs without in-house PE teams</p><p><strong>The double fee problem:</strong> - FoF charge their own fees: typically 1% management fee + 5-10% carry - Plus they pay the underlying fund's 2%+20% fees - This double layer of fees significantly erodes net returns to the end investor - The FoF model has been under pressure as more LPs invest directly</p><p><strong>Typical PE allocation:</strong> 100% (the FoF IS the PE allocation vehicle) <strong>Typical commitment size to underlying funds:</strong> $10M-$200M <strong>Fee sensitivity of end investors:</strong> Very high (paying double fees) <strong>Reporting requirements:</strong> Variable</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Yale Endowment — Pioneer of the LP Model</strong> David Swensen took over Yale's endowment in 1985 with $1B AUM. By following an alternatives-heavy strategy (eventually 25-40% in PE/VC/real assets), he grew the endowment to approximately $40B by his death in 2021. Yale's 20-year annualised net return exceeded public market benchmarks by a substantial margin. This track record inspired virtually every major university endowment and many pension funds to follow suit — and is one reason why PE has had access to vast pools of long-duration institutional capital.</p><p><strong>CalPERS — The World's Largest Pension LP's PE Dilemma</strong> CalPERS (~$500B) has maintained a PE allocation of approximately 8-13% for years. However, it has also periodically considered eliminating its PE program due to fee complexity and opacity. In 2014, CalPERS controversially exited hedge funds entirely due to cost/benefit concerns — a signal to the industry that even the largest LPs will walk away from fees they cannot justify. PE survived the scrutiny partly because net returns have been materially above public equity benchmarks.</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"All LPs are equally important to GPs.\"</strong> Not true. A $1B LP commitment from CalPERS or ADIA is strategically essential for a GP — it provides anchor capital, prestige, and signals quality to other LPs. A $10M commitment from a small family office is welcome but not relationship-defining.</p><p><strong>Misconception 2: \"Endowments and pension funds are the same kind of investor.\"</strong> Different constraints. Pension funds have actuarial return requirements and must pay benefits on a schedule — creating cash flow needs. Endowments have perpetual time horizons and spending targets (4-5% of NAV/year) but no fixed liability payments of the same magnitude. Endowments can be more flexible about illiquidity.</p><p><strong>Misconception 3: \"Funds of funds are bad value.\"</strong> The double fee layer reduces net returns substantially. However, for smaller investors who lack the minimum commitment size and the in-house expertise to access top-tier GPs, a FoF may still provide better net PE exposure than being shut out of the asset class entirely.</p>"}, "7": {"section": "Summary", "html": "<p>The main LP types in PE are pension funds, university endowments, sovereign wealth funds, insurance companies, family offices, and funds of funds. Each brings different return requirements, time horizons, regulatory constraints, and fee sensitivities. Pension funds need to hit actuarial returns and match long liability horizons. Endowments follow the Yale Model of heavy alternatives allocation with perpetual time horizons. Sovereign wealth funds bring permanent, flexible capital with no fixed liabilities. Insurance companies face regulatory capital constraints limiting their PE exposure. Family offices bring flexible, smaller commitments. Funds of funds aggregate smaller investors but add a damaging second layer of fees. Understanding LP motivations is foundational to understanding how PE is funded, marketed, and structured.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

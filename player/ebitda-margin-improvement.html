@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "ebitda-margin-improvement", "title": "EBITDA Margin Improvement", "draft_watermark": false, "estimated_runtime_sec": 415, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The most controllable lever", "on_screen_bullets": ["£1 EBITDA × the exit multiple", "10x → £1m EBITDA = £10m EV", "And the GP controls it"], "narration": "Of all the value-creation levers, EBITDA margin is the single most directly controllable — and the maths is why it's so powerful. At exit, buyers pay a multiple of EBITDA. So every extra pound of EBITDA generates the multiple in extra enterprise value. If the exit multiple is ten times, then one million of additional annual EBITDA creates ten million of enterprise value — and because the equity is a leveraged slice of that, a few points of margin can swing the whole IRR. Best of all, unlike multiple expansion, which depends on the market, or revenue growth, which depends on customers, margin is a lever the GP can largely pull from the inside. That combination — high impact and high control — is why PE obsesses over it.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "More profit per £ of sales", "on_screen_bullets": ["EBITDA as a % of revenue, rising", "Costs + pricing + efficiency", "A primary exit-return driver"], "narration": "The definition. EBITDA margin improvement is the increase in a portfolio company's EBITDA as a percentage of revenue over the hold period — achieved through a mix of cost reduction, pricing improvement, and operational efficiency — and it's one of the primary drivers of equity return at exit. In plain terms: keep more profit out of every pound of sales.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Same revenue, more value", "on_screen_bullets": ["£10m sales, £8m costs → 20% margin", "8x: 20% → £16m valuation", "28% → £22.4m, same revenue"], "narration": "EBITDA margin is just this: of every pound of sales, how many pence does the business keep as operating profit before interest and tax? A company with ten million of revenue that spends eight million running itself has two million of EBITDA — a twenty percent margin. Now watch why PE fixates on this number, given that companies sell for a multiple of EBITDA. At an eight-times multiple, twenty percent margin on ten million of revenue is two million of EBITDA — a sixteen-million valuation. Lift the margin to twenty-eight percent — same ten million of revenue — and EBITDA is two-point-eight million, a valuation of twenty-two-point-four million. Same revenue, same customers, same products — and over six million more in value, purely from keeping more of each pound. That's the leverage of margin.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The full but inefficient restaurant", "on_screen_bullets": ["Every table full, half the dishes lose money", "Reprice, renegotiate, restaff", "Profit without selling more"], "narration": "Think of a restaurant chain where every dish is on the menu and every table is full every night. Sounds perfect — but if half the dishes lose money because the ingredients cost too much for the price, and every table is served by three staff where one would do, the business is working far harder than it needs to for the profit it makes. EBITDA margin improvement is the work of figuring out which dishes to reprice or cut, which supplier contracts to renegotiate, which tables one person could serve, and which overheads — the expensive wine-storage room, the PR agency — aren't earning their keep. The point is that you don't need to sell a single extra meal to make a lot more money. You just need to stop leaking profit on the meals you already sell.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why EBITDA, and how it compounds", "on_screen_bullets": ["EBITDA = profit before int/tax/D&A", "Exit EV = exit EBITDA × multiple", "Margin gain compounds via the multiple"], "narration": "Mechanically, EBITDA is earnings before interest, tax, depreciation, and amortisation — used rather than net profit because it approximates cash operating profitability, ignores capital structure since interest is excluded, and ignores depreciation policy, which makes it comparable across companies and deals. And buyers value on it: exit enterprise value is exit EBITDA times the exit multiple, and exit equity value is that minus net debt at exit. So any improvement to EBITDA flows through the multiple into enterprise value, and then — leveraged — into a magnified equity gain. The levers themselves are three: cost reduction — procurement, headcount, overhead; pricing — which we'll devote a whole lesson to; and operational efficiency — doing the same work with less waste. Margin improvement is just the disciplined, sustained application of all three, tracked through an EBITDA bridge from entry to exit.", "est_sec": 58}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "An EBITDA bridge", "on_screen_bullets": ["Entry vs Exit (Year 4)", "Margin lifts on flat-ish revenue", "Each lever a line in the bridge"], "narration": "Picture a speciality chemicals distributor over a four-year hold, laid out as an EBITDA bridge from entry to exit. You start with the entry EBITDA and margin, and then add up the improvement lever by lever: procurement savings from renegotiating supplier contracts; overhead reduction from cutting costs that weren't pulling their weight; a pricing uplift from correcting years of under-charging; and efficiency gains from streamlining operations. Each of those is a distinct line in the bridge, and they stack to lift the exit EBITDA and the exit margin well above where they started — even if revenue grows only modestly. The discipline is exactly this: you don't claim a vague margin improvement, you build the bridge, attribute every basis point of gain to a specific action, and hold the management team accountable for delivering each line. That's how a controllable lever stays controllable.", "est_sec": 56}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Cutting too deep destroys value", "Not all margin gain is sustainable", "Margin ≠ cash flow"], "narration": "Three corrections. First, margin improvement is not a licence to cut without limit — slashing into sales, R&D, or maintenance can flatter EBITDA for a year and gut the business by exit, and a sophisticated buyer will discount margin gains that look like under-investment. Second, not all margin improvement is equal: a sustainable structural gain, like a renegotiated supplier contract or a permanent pricing correction, is worth far more at exit than a one-off cut a new owner could reverse — so the quality of the improvement matters as much as the size. And third, remember that EBITDA isn't cash flow — improving the margin lifts the valuation, but if the gains come at the cost of higher capex or working capital, the actual cash benefit is smaller than the bridge suggests.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Keep more of each pound", "on_screen_bullets": ["Costs + pricing + efficiency", "£1 EBITDA → multiple × EV", "Build the bridge; favour durable gains"], "narration": "To recap. EBITDA margin improvement raises the profit a company keeps from each pound of sales, through cost reduction, pricing, and operational efficiency — and it's the most controllable value lever because the GP can drive it from the inside. Every pound of EBITDA created converts, through the exit multiple, into the multiple in enterprise value, and then a leveraged equity gain, so even a few margin points can move the IRR materially. The discipline is to build an EBITDA bridge, attribute every gain to a specific action, and favour durable, structural improvements over one-off cuts. The most underrated and highest-leverage of these levers gets its own lesson next: pricing strategy.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A company has £10m revenue. If EBITDA margin rises from 20% to 28% and the exit multiple is 8x, how much enterprise value is created on the same revenue?", "narration": "Before the next lesson, do the maths. Ten million of revenue; margin lifting from twenty percent to twenty-eight; an eight-times exit multiple — how much enterprise value does that create on identical revenue? Work it through, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: EBITDA Margin Improvement\n\n[hook] The most controllable lever\nOf all the value-creation levers, EBITDA margin is the single most directly controllable — and the maths is why it's so powerful. At exit, buyers pay a multiple of EBITDA. So every extra pound of EBITDA generates the multiple in extra enterprise value. If the exit multiple is ten times, then one million of additional annual EBITDA creates ten million of enterprise value — and because the equity is a leveraged slice of that, a few points of margin can swing the whole IRR. Best of all, unlike multiple expansion, which depends on the market, or revenue growth, which depends on customers, margin is a lever the GP can largely pull from the inside. That combination — high impact and high control — is why PE obsesses over it.\n\n[definition] More profit per £ of sales\nThe definition. EBITDA margin improvement is the increase in a portfolio company's EBITDA as a percentage of revenue over the hold period — achieved through a mix of cost reduction, pricing improvement, and operational efficiency — and it's one of the primary drivers of equity return at exit. In plain terms: keep more profit out of every pound of sales.\n\n[intuition] Same revenue, more value\nEBITDA margin is just this: of every pound of sales, how many pence does the business keep as operating profit before interest and tax? A company with ten million of revenue that spends eight million running itself has two million of EBITDA — a twenty percent margin. Now watch why PE fixates on this number, given that companies sell for a multiple of EBITDA. At an eight-times multiple, twenty percent margin on ten million of revenue is two million of EBITDA — a sixteen-million valuation. Lift the margin to twenty-eight percent — same ten million of revenue — and EBITDA is two-point-eight million, a valuation of twenty-two-point-four million. Same revenue, same customers, same products — and over six million more in value, purely from keeping more of each pound. That's the leverage of margin.\n\n[intuition] The full but inefficient restaurant\nThink of a restaurant chain where every dish is on the menu and every table is full every night. Sounds perfect — but if half the dishes lose money because the ingredients cost too much for the price, and every table is served by three staff where one would do, the business is working far harder than it needs to for the profit it makes. EBITDA margin improvement is the work of figuring out which dishes to reprice or cut, which supplier contracts to renegotiate, which tables one person could serve, and which overheads — the expensive wine-storage room, the PR agency — aren't earning their keep. The point is that you don't need to sell a single extra meal to make a lot more money. You just need to stop leaking profit on the meals you already sell.\n\n[mechanics] Why EBITDA, and how it compounds\nMechanically, EBITDA is earnings before interest, tax, depreciation, and amortisation — used rather than net profit because it approximates cash operating profitability, ignores capital structure since interest is excluded, and ignores depreciation policy, which makes it comparable across companies and deals. And buyers value on it: exit enterprise value is exit EBITDA times the exit multiple, and exit equity value is that minus net debt at exit. So any improvement to EBITDA flows through the multiple into enterprise value, and then — leveraged — into a magnified equity gain. The levers themselves are three: cost reduction — procurement, headcount, overhead; pricing — which we'll devote a whole lesson to; and operational efficiency — doing the same work with less waste. Margin improvement is just the disciplined, sustained application of all three, tracked through an EBITDA bridge from entry to exit.\n\n[worked-example] An EBITDA bridge\nPicture a speciality chemicals distributor over a four-year hold, laid out as an EBITDA bridge from entry to exit. You start with the entry EBITDA and margin, and then add up the improvement lever by lever: procurement savings from renegotiating supplier contracts; overhead reduction from cutting costs that weren't pulling their weight; a pricing uplift from correcting years of under-charging; and efficiency gains from streamlining operations. Each of those is a distinct line in the bridge, and they stack to lift the exit EBITDA and the exit margin well above where they started — even if revenue grows only modestly. The discipline is exactly this: you don't claim a vague margin improvement, you build the bridge, attribute every basis point of gain to a specific action, and hold the management team accountable for delivering each line. That's how a controllable lever stays controllable.\n\n[pitfalls] What people get wrong\nThree corrections. First, margin improvement is not a licence to cut without limit — slashing into sales, R&D, or maintenance can flatter EBITDA for a year and gut the business by exit, and a sophisticated buyer will discount margin gains that look like under-investment. Second, not all margin improvement is equal: a sustainable structural gain, like a renegotiated supplier contract or a permanent pricing correction, is worth far more at exit than a one-off cut a new owner could reverse — so the quality of the improvement matters as much as the size. And third, remember that EBITDA isn't cash flow — improving the margin lifts the valuation, but if the gains come at the cost of higher capex or working capital, the actual cash benefit is smaller than the bridge suggests.\n\n[recap] Keep more of each pound\nTo recap. EBITDA margin improvement raises the profit a company keeps from each pound of sales, through cost reduction, pricing, and operational efficiency — and it's the most controllable value lever because the GP can drive it from the inside. Every pound of EBITDA created converts, through the exit multiple, into the multiple in enterprise value, and then a leveraged equity gain, so even a few margin points can move the IRR materially. The discipline is to build an EBITDA bridge, attribute every gain to a specific action, and favour durable, structural improvements over one-off cuts. The most underrated and highest-leverage of these levers gets its own lesson next: pricing strategy.\n\nEnd-card question: A company has £10m revenue. If EBITDA margin rises from 20% to 28% and the exit multiple is 8x, how much enterprise value is created on the same revenue?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>EBITDA margin is the single most directly controllable value creation lever in PE. Here is why it matters so powerfully: when a PE firm prices an exit, buyers typically pay a multiple of EBITDA (the EV/EBITDA multiple). This means that every £1 of additional EBITDA generates £[multiple] of additional enterprise value. If the exit multiple is 10x, then £1M of additional annual EBITDA creates £10M of enterprise value. Multiply that by the equity contribution and you see why even a few percentage points of margin improvement can dramatically change an IRR.</p><p>This is also a lever the GP can control — unlike multiple expansion (which depends on market conditions) or revenue growth (which depends on customers). Cost reduction and operational efficiency improvements are within the GP's power to drive. That is why EBITDA margin improvement features in almost every PE value creation plan.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>EBITDA margin improvement is the increase in a portfolio company's EBITDA as a percentage of revenue during the PE hold period, achieved through a combination of cost reduction, pricing improvement, and operational efficiency, and is one of the primary drivers of equity return at exit.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>EBITDA margin is simply: \"Of every £1 of sales the business makes, how many pence does it keep as operating profit before interest and tax?\"</p><p>If a business has £10M of revenue and spends £8M running the business (salaries, rent, raw materials, etc.), its EBITDA is £2M and its EBITDA margin is 20%.</p><p>PE firms focus intensely on this number because of how company valuations work. Companies are typically sold for a fixed \"multiple\" of their EBITDA. If that multiple is 8x:</p><ul class='notelist'><li>At 20% EBITDA margin on £10M revenue: EBITDA = £2M → Valuation = £16M</li><li>At 28% EBITDA margin on £10M revenue: EBITDA = £2.8M → Valuation = £22.4M</li></ul><p>The business has the same revenue, the same number of customers, the same product — but it is worth £6.4M more simply because it runs more efficiently. That's why PE firms spend so much time finding cost savings and pricing improvements.</p><p>The main ways to improve EBITDA margin are: 1. Charge more for what you sell (pricing) 2. Pay less for what you buy (procurement) 3. Use fewer people to do the same work (headcount rationalisation) 4. Spend less on overhead (office consolidation, software rationalisation) 5. Sell more of the highest-margin products/services (product mix)</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of a restaurant chain where every dish is on the menu and every table is occupied every night. Sounds great — but if half the dishes lose money (because the ingredients cost too much relative to the price charged) and half the tables are served by three staff members each, the business is running harder than it needs to for the profit it generates.</p><p>EBITDA margin improvement is the work of figuring out: which dishes should be repriced or removed, which supplier contracts should be renegotiated, which tables could be served by one staff member instead of three, and which overhead costs (the expensive wine storage room, the PR agency) are not earning their keep.</p><p>You do not need to sell more meals to improve the margin — you need to run the same (or growing) level of activity more efficiently and intelligently.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>Definitions:</strong></p><p>EBITDA = Earnings Before Interest, Tax, Depreciation, and Amortisation EBITDA Margin = EBITDA ÷ Revenue × 100 (expressed as a %)</p><p>EBITDA is used rather than net profit because it approximates cash operating profitability, is not affected by capital structure (interest is excluded), and is not affected by depreciation policy — making it a more comparable metric across companies and transactions.</p><p><strong>Why buyers use EV/EBITDA:</strong> Enterprise value multiples based on EBITDA are the dominant PE and M&amp;A valuation methodology for most sectors. This means:</p><p>Exit EV = Exit EBITDA × Exit EV/EBITDA Multiple</p><p>And since: Exit Equity Value = Exit EV − Net Debt at Exit</p><p>Any improvement to EBITDA (holding multiple constant) directly increases equity value. The leveraged structure amplifies this — because the debt component is roughly fixed (in nominal terms), EBITDA improvement flows almost entirely to equity.</p><p><strong>The EBITDA Bridge:</strong> The \"EBITDA bridge\" is the analytical tool used to show how EBITDA moved from entry to exit. It decomposes the change into its component drivers:</p><p>This bridge allows the GP to: (1) plan and target specific improvements, (2) track progress quarterly, and (3) present a clear narrative to exit buyers.</p><p><strong>The five operational levers in detail:</strong></p><p><strong>Lever 1: Procurement and supplier renegotiation</strong> Many acquired companies — particularly founder-led businesses — have never systematically renegotiated supplier contracts. Consolidating spend with fewer suppliers, running competitive tenders, and benchmarking pricing against industry rates can generate savings of 5–20% on direct and indirect costs. [needs-verification: typical savings range] In businesses with significant bought-in materials (manufacturing, distribution), this is often the largest single EBITDA lever.</p><p><strong>Lever 2: Headcount rationalisation and organisational design</strong> This includes: removing duplicated roles post-acquisition (particularly in M&amp;A situations), restructuring layers of middle management, automating roles through technology, and exiting underperformers. This is the most disruptive lever — it carries execution risk (loss of key people), cultural risk (fear and low morale), and legal risk (employment law, redundancy costs). Best practice: pair any headcount reduction with investment in the retained team's capability.</p><p><strong>Lever 3: Pricing improvement</strong> Many businesses, especially those that have grown organically or been run by founder-owners reluctant to risk customer relationships, are systematically under-priced. Pricing analysis — comparing rates charged to different customers for equivalent services, benchmarking against competitors, assessing customer price sensitivity — often reveals significant opportunity. Even a 2–3% price increase on a £100M revenue business generates £2–3M of EBITDA (assuming volume is maintained).</p><p><strong>Lever 4: Overhead consolidation</strong> Property, IT, insurance, travel, marketing, professional fees — overheads are often the least scrutinised cost base in growing companies. PE-backed companies typically implement: lease renegotiations or office consolidation, software contract rationalisation, centrally negotiated insurance, and strict approval processes for discretionary spend. Property rationalisation alone can be transformative for businesses with multiple offices or manufacturing sites.</p><p><strong>Lever 5: Product mix improvement</strong> Not all revenue is equally profitable. Many businesses have a long tail of low-margin products, services, or customers that consume resources disproportionate to their contribution. Actively managing the revenue mix — growing high-margin lines, exiting or repricing loss-making lines, focusing sales effort on high-margin segments — can improve blended margins without growing total revenue.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Worked Example: EBITDA Bridge in a PE Hold</strong></p><p>Assume a PE firm acquires a speciality chemicals distributor:</p><p>| Metric | Entry | Exit (Year 4) | |--------|-------|---------------| | Revenue | £100M | £100M | | EBITDA Margin | 20% | 28% | | EBITDA | £20M | £28M | | EV/EBITDA Multiple | 8x | 8x | | Enterprise Value | £160M | £224M | | Net Debt | £80M | £40M (paid down) | | <strong>Equity Value</strong> | <strong>£80M</strong> | <strong>£184M</strong> |</p><p><strong>MOIC on equity: £184M ÷ £80M = 2.3x</strong></p><p>The EBITDA bridge showing how £8M of margin improvement was achieved: - Procurement renegotiation (top 10 suppliers): +£2.5M - Headcount restructuring (removed 2 layers of regional management): +£2.0M - Pricing improvement (3% average increase on non-contractual volumes): +£2.0M - IT and property overhead reduction: +£1.5M - <strong>Total EBITDA improvement: +£8M (20% → 28% margin)</strong></p><p>The additional equity return came from both the EBITDA improvement and the debt paydown: £80M of net debt fell to £40M as the business generated cash over 4 years.</p><p>Without the EBITDA improvement (holding all else equal), the equity value would have been: £160M EV − £40M debt = £120M → MOIC of 1.5x. The operational improvement alone added 0.8x to the MOIC.</p><p><strong>Representative real-world case:</strong> Cinven's acquisition of NCI Information Systems and similar PE-backed B2B services businesses have documented procurement-led EBITDA improvement as a primary return driver. [needs-verification: specific case details] This pattern — buying a business with sub-sector-average margins and improving them toward the top quartile — is one of the most common PE value creation playbooks.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"EBITDA margin improvement means cost cutting\"</strong> Reality: Pricing improvement, product mix management, and revenue quality improvement are often larger and more sustainable margin levers than cost cutting. The best EBITDA bridges show margin improvement driven by both cost and revenue quality.</p><p><strong>Misconception 2: \"Higher EBITDA margins are always better\"</strong> Reality: A business that achieves very high margins by under-investing in sales, product development, or customer service is sacrificing future growth and competitive position for short-term profitability. Sustainable margin improvement is only valuable if growth is maintained.</p><p><strong>Misconception 3: \"EBITDA and cash flow are the same thing\"</strong> Reality: EBITDA is a proxy for cash flow but excludes working capital movements, capital expenditure, and tax. A business can have strong EBITDA but poor cash generation if it has high capex requirements or growing working capital. PE firms also focus on \"cash conversion\" — what % of EBITDA converts to free cash flow.</p><p><strong>Misconception 4: \"The EBITDA bridge tells the whole returns story\"</strong> Reality: The EBITDA bridge shows only the earnings improvement component. The full returns story also includes leverage paydown and multiple expansion/contraction. A PE firm that dramatically improves EBITDA but suffers multiple contraction at exit may still generate a poor return.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>EBITDA margin improvement — increasing the proportion of revenue that falls through to operating profit — is one of the most powerful and controllable value creation levers in PE. Because companies are valued as a multiple of EBITDA, every percentage point of margin improvement creates a disproportionate increase in enterprise value. The five main levers are: procurement savings, headcount rationalisation, pricing improvement, overhead consolidation, and product mix management. These are tracked through an EBITDA bridge that maps the improvement from entry to exit. The central risk is over-cutting — sacrificing growth and competitive position for short-term margin gains that make the exit EBITDA impressive but the underlying business weaker.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

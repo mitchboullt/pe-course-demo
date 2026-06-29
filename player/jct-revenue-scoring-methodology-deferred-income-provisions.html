@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "jct-revenue-scoring-methodology-deferred-income-provisions", "title": "JCT Revenue Scoring Methodology — Deferred Income Provisions", "draft_watermark": false, "estimated_runtime_sec": 350, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Why the same reform scores differently", "on_screen_bullets": ["Same policy, different numbers", "Not a measurement error", "It's the methodology"], "narration": "We have already seen that the big revenue figures in the carry debate often measure different reforms. But there is a subtler puzzle underneath that one. Even when two estimates are measuring the very same reform, the official Congressional score can come out far below an economic estimate of the same provision. That is not sloppiness and it is not bias. It is methodology. The official scorekeeper for tax legislation follows a specific set of conventions, and those conventions systematically understate the present-value cost of carry deferral. This lesson explains exactly how that happens — because once you understand the scoring rules, you stop treating an official score as the whole economic truth, and you start reading it as one particular, narrowly defined measurement.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Nominal dollars, ten-year window", "on_screen_bullets": ["No discounting of future tax", "Captures rate, misses deferral", "Deferral is forty percent"], "narration": "Here is the definition to hold onto. Official revenue scoring for deferred-income provisions, including carry reform, uses conventional static scoring inside a ten-year budget window. And crucially, it counts a dollar of tax collected eight years from now as equivalent to a dollar collected today — it does not discount future receipts to present value. The consequence is that the score captures the first-order rate differential when carry is taxed at a higher rate, but it does not capture the full time-value subsidy that deferral provides. And that deferral subsidy is not a rounding error — it is roughly forty percent of the total lifetime tax advantage a general partner enjoys. So the methodology, by design, leaves out the single largest piece of the puzzle.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "A dollar in year seven", "on_screen_bullets": ["Future dollar worth less", "Scored as full value", "Subsidy never counted"], "narration": "Let me make the core mechanism concrete. The scorekeeper estimates how much revenue a tax change raises over the next ten years. For carry reform, it counts the extra revenue from carry taxed at higher rates. But it does not adjust for the fact that carry distributed seven years from now is worth less, in today's terms, than carry distributed today. A dollar of tax collected in year seven is worth only about seventy cents today at a five-percent discount rate — yet the score treats it as a full dollar. Two things follow. The score overstates how much a reform that accelerates taxation really gains in present-value terms, and it never separately measures the deferral subsidy that exists in current law. That subsidy — the government effectively extending an interest-free loan by letting carry tax wait years — represents about forty percent of the total advantage, and it simply does not appear anywhere in the official number.", "est_sec": 56}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "How the scoring works", "on_screen_bullets": ["Ten-year nominal window", "Conventional behaviour assumptions", "Rate differential on distributions"], "narration": "Let me lay out the methodology properly. The scorekeeper uses conventional scoring: it estimates revenue changes over a standard ten-year window without discounting future receipts, matching the baseline approach used across federal budgeting. On behaviour, it blends static and conventional assumptions — static meaning taxpayer behaviour is assumed unchanged, conventional meaning it incorporates first-order responses like timing shifts and limited income-shifting, but not broad macroeconomic feedback. For carry specifically, it computes the difference in tax revenue between current law, where carry is taxed at the lower rate, and the proposed law, where carry is taxed at a higher rate or applied more broadly. It assumes some volume of carry distributions over the ten years and applies the rate differential to those distributions. That is a perfectly coherent calculation — but notice what it is built to capture: the rate gap on distributions that fall inside the window, and essentially nothing about timing value.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Four structural blind spots", "on_screen_bullets": ["No present-value discounting", "Window misses late funds", "Subsidy sits in baseline"], "narration": "Now the four ways this methodology goes blind on deferred income. First, no present-value discounting — a payment due in year eight counts the same as one in year one, even though it is worth far less, which overstates the gain from accelerating tax and hides the cost of the current subsidy. Second, the window itself: funds raised late in the ten years distribute their carry mostly after the window closes, so their lifetime impact is never scored. Third, and most subtle, the deferral subsidy is not a provision in the code — it is an implicit feature of the realisation-based baseline, so there is literally no line item to score; the subsidy exists in the baseline and is therefore invisible to the scorekeeper. Fourth, behavioural timing effects: when higher rates loom, some partners accelerate distributions beforehand, which can make a provision score high revenue in years one and two and then negative revenue later — an anomaly conventional scoring handles imprecisely. Four blind spots, all pointing the same direction: understatement of the true cost of deferral.", "est_sec": 58}, {"n": 6, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why economists get bigger numbers", "on_screen_bullets": ["They discount to present value", "Model the full lifecycle", "Quantify the subsidy directly"], "narration": "This is exactly why economic and academic estimates of carry reform tend to come out larger than the official score, and now you can name the reasons precisely. Economic estimates often discount future revenue flows to present value, painting a different picture than the nominal approach. They model the full lifecycle of carry rather than just receipts inside a ten-year window. They frequently model the entire base of carry income, including fund types outside the scorekeeper's detailed modelling. And they attempt to quantify the deferral subsidy directly and add it to the rate-change revenue, producing a larger figure for the true cost of current treatment. The same logic underlies the effective-lifetime-rate framework we use elsewhere — that low single-digit effective rate is an economic model reflecting rate, deferral, and step-up across a whole career. It is not an official score, and the official methodology neither uses nor produces it. The two are answering different questions.", "est_sec": 56}, {"n": 7, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Read the score correctly", "on_screen_bullets": ["Nominal, undiscounted, ten years", "Subsidy lives in baseline", "Understates true deferral cost"], "narration": "So to summarise: official scoring for deferred-income provisions uses conventional nominal methodology that does not discount future tax payments, does not separately score the deferral subsidy embedded in current law, and is confined to a ten-year window that misses lifetime carry impacts. Together these features cause official scores for carry reform to systematically understate the true present-value cost of deferral — and that is the single largest source of divergence between official scores and economic estimates. The practical takeaway is a reading skill. When you see an official carry-reform score, read it for what it is: a nominal, ten-year, rate-focused fiscal estimate built for the Congressional budget framework — not a complete economic measure of what the deferral subsidy actually costs.", "est_sec": 46}, {"n": 8, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Why no discounting matters", "Where does the subsidy hide?", "Why economists score higher"], "narration": "Before you move on, try these from memory. Why does counting a future tax dollar as equal to a present one cause the score to understate the cost of deferral? Why is the deferral subsidy never scored as a provision — where does it actually live? And name two reasons economic estimates of the same reform come out larger than the official score. Answer each one yourself first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: JCT Revenue Scoring Methodology — Deferred Income Provisions\n\n[hook] Why the same reform scores differently\nWe have already seen that the big revenue figures in the carry debate often measure different reforms. But there is a subtler puzzle underneath that one. Even when two estimates are measuring the very same reform, the official Congressional score can come out far below an economic estimate of the same provision. That is not sloppiness and it is not bias. It is methodology. The official scorekeeper for tax legislation follows a specific set of conventions, and those conventions systematically understate the present-value cost of carry deferral. This lesson explains exactly how that happens — because once you understand the scoring rules, you stop treating an official score as the whole economic truth, and you start reading it as one particular, narrowly defined measurement.\n\n[definition] Nominal dollars, ten-year window\nHere is the definition to hold onto. Official revenue scoring for deferred-income provisions, including carry reform, uses conventional static scoring inside a ten-year budget window. And crucially, it counts a dollar of tax collected eight years from now as equivalent to a dollar collected today — it does not discount future receipts to present value. The consequence is that the score captures the first-order rate differential when carry is taxed at a higher rate, but it does not capture the full time-value subsidy that deferral provides. And that deferral subsidy is not a rounding error — it is roughly forty percent of the total lifetime tax advantage a general partner enjoys. So the methodology, by design, leaves out the single largest piece of the puzzle.\n\n[intuition] A dollar in year seven\nLet me make the core mechanism concrete. The scorekeeper estimates how much revenue a tax change raises over the next ten years. For carry reform, it counts the extra revenue from carry taxed at higher rates. But it does not adjust for the fact that carry distributed seven years from now is worth less, in today's terms, than carry distributed today. A dollar of tax collected in year seven is worth only about seventy cents today at a five-percent discount rate — yet the score treats it as a full dollar. Two things follow. The score overstates how much a reform that accelerates taxation really gains in present-value terms, and it never separately measures the deferral subsidy that exists in current law. That subsidy — the government effectively extending an interest-free loan by letting carry tax wait years — represents about forty percent of the total advantage, and it simply does not appear anywhere in the official number.\n\n[mechanics] How the scoring works\nLet me lay out the methodology properly. The scorekeeper uses conventional scoring: it estimates revenue changes over a standard ten-year window without discounting future receipts, matching the baseline approach used across federal budgeting. On behaviour, it blends static and conventional assumptions — static meaning taxpayer behaviour is assumed unchanged, conventional meaning it incorporates first-order responses like timing shifts and limited income-shifting, but not broad macroeconomic feedback. For carry specifically, it computes the difference in tax revenue between current law, where carry is taxed at the lower rate, and the proposed law, where carry is taxed at a higher rate or applied more broadly. It assumes some volume of carry distributions over the ten years and applies the rate differential to those distributions. That is a perfectly coherent calculation — but notice what it is built to capture: the rate gap on distributions that fall inside the window, and essentially nothing about timing value.\n\n[mechanics] Four structural blind spots\nNow the four ways this methodology goes blind on deferred income. First, no present-value discounting — a payment due in year eight counts the same as one in year one, even though it is worth far less, which overstates the gain from accelerating tax and hides the cost of the current subsidy. Second, the window itself: funds raised late in the ten years distribute their carry mostly after the window closes, so their lifetime impact is never scored. Third, and most subtle, the deferral subsidy is not a provision in the code — it is an implicit feature of the realisation-based baseline, so there is literally no line item to score; the subsidy exists in the baseline and is therefore invisible to the scorekeeper. Fourth, behavioural timing effects: when higher rates loom, some partners accelerate distributions beforehand, which can make a provision score high revenue in years one and two and then negative revenue later — an anomaly conventional scoring handles imprecisely. Four blind spots, all pointing the same direction: understatement of the true cost of deferral.\n\n[application] Why economists get bigger numbers\nThis is exactly why economic and academic estimates of carry reform tend to come out larger than the official score, and now you can name the reasons precisely. Economic estimates often discount future revenue flows to present value, painting a different picture than the nominal approach. They model the full lifecycle of carry rather than just receipts inside a ten-year window. They frequently model the entire base of carry income, including fund types outside the scorekeeper's detailed modelling. And they attempt to quantify the deferral subsidy directly and add it to the rate-change revenue, producing a larger figure for the true cost of current treatment. The same logic underlies the effective-lifetime-rate framework we use elsewhere — that low single-digit effective rate is an economic model reflecting rate, deferral, and step-up across a whole career. It is not an official score, and the official methodology neither uses nor produces it. The two are answering different questions.\n\n[recap] Read the score correctly\nSo to summarise: official scoring for deferred-income provisions uses conventional nominal methodology that does not discount future tax payments, does not separately score the deferral subsidy embedded in current law, and is confined to a ten-year window that misses lifetime carry impacts. Together these features cause official scores for carry reform to systematically understate the true present-value cost of deferral — and that is the single largest source of divergence between official scores and economic estimates. The practical takeaway is a reading skill. When you see an official carry-reform score, read it for what it is: a nominal, ten-year, rate-focused fiscal estimate built for the Congressional budget framework — not a complete economic measure of what the deferral subsidy actually costs.\n\n[end_card] Test yourself\nBefore you move on, try these from memory. Why does counting a future tax dollar as equal to a present one cause the score to understate the cost of deferral? Why is the deferral subsidy never scored as a provision — where does it actually live? And name two reasons economic estimates of the same reform come out larger than the official score. Answer each one yourself first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The Sinema IRA Carry Revenue Reconciliation note explains why the $13bn vs. $180bn figures measure different reforms. But it doesn't explain why JCT scores for the same reform can differ so substantially from economic estimates. This note provides that technical explanation: the JCT methodology, its conventions for deferred income provisions, and why those conventions produce scores that systematically understate the present-value fiscal cost of carry deferral.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>JCT revenue scoring for deferred income provisions (including PE carry reform) uses conventional static scoring within the 10-year budget window, which systematically understates the present-value cost of carry deferral because it counts nominal future revenue receipts as equivalent to current revenue without discounting — meaning JCT scores for rate-only carry reform capture only the first-order rate differential, not the full deferral time-value subsidy that constitutes approximately 40% of the total GP lifetime tax advantage.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>The JCT is the official scorekeeper for Congressional tax legislation. When Congress considers a tax change, the JCT estimates how much revenue it will raise or cost over the next 10 years.</p><p>For carry reform, the JCT counts the revenue that will be raised from carry taxed at higher rates. But it doesn't discount for the fact that carry distributed 7 years from now is worth less in present-value terms than carry distributed today. A $1 of tax in year 7 is worth about $0.71 today at a 5% discount rate — but JCT scores it as worth the same $1.</p><p>This means JCT scores for carry reform overstate the short-term revenue and don't fully account for the long-term deferral subsidy. The total economic value of the deferral subsidy — which represents approximately 40% of the total GP lifetime tax advantage — is not separately scored or captured.</p><p>---</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### How JCT Scores Tax Legislation</p><p><strong>Conventional scoring methodology:</strong> JCT uses conventional scoring — it estimates revenue changes over the standard 10-year budget window without discounting future receipts to present value. This matches Congressional Budget Office (CBO) baseline methodology and is the standard used for all federal budget scoring.</p><p><strong>Behavioural assumptions:</strong> JCT uses a mix of static and conventional dynamic assumptions. \"Static\" scoring assumes taxpayer behaviour is completely unchanged by the tax reform. \"Conventional\" scoring incorporates first-order behavioural responses (e.g., timing changes, limited income shifting) but not macroeconomic feedback effects. Full dynamic scoring (macroeconomic growth effects) is sometimes provided but is not the official baseline.</p><p><strong>For carry reform specifically:</strong> JCT scores the difference in tax revenue between: (a) current law (carry at 23.8%) and (b) proposed law (carry at a higher rate or with broader application). The score assumes a given volume of carry distributions will occur over the 10-year window and calculates the rate differential on those distributions.</p><p>### How JCT Scores Are Limited for Deferred Income</p><p><strong>Problem 1 — No present-value discounting:</strong> JCT scores nominal future revenue. A carry tax payment due in year 8 of the budget window is scored the same as one due in year 1. The present-value of a year-8 payment at 5% discount rate is 69% of a year-1 payment. By counting them equivalently, JCT overstates the present value of revenue from carry reform provisions that accelerate taxation (mark-to-market) and understates the present value cost of the current deferral subsidy.</p><p><strong>Problem 2 — Scoring window limitation:</strong> The 10-year window captures carry distributions from funds currently in operation and funds raised during the window. Carry from funds raised late in the window (year 8-10) will be distributed primarily after the window closes. JCT scores only the in-window carry; the full lifetime revenue impact is not captured.</p><p><strong>Problem 3 — Deferral value is not separately scored:</strong> The deferral subsidy (the government provides an interest-free loan by allowing carry taxes to be deferred 7 years) is not a separate provision in the tax code — it is an implicit benefit of the realisation-based system. JCT does not score \"the value of the deferral subsidy\" because there is no provision to score; the subsidy exists in the baseline. A reform that converts carry to mark-to-market would be scored for the revenue from accelerated taxation, but not compared against the economic value of the deferral subsidy that is eliminated.</p><p><strong>Problem 4 — Behavioural timing effects:</strong> When carry is taxed at higher rates, some GPs will accelerate carry distributions before reform takes effect. When mark-to-market is proposed, GPs may distribute carry in anticipation. These behavioural timing responses can produce scoring anomalies: a provision may score high revenue in years 1-2 (as GPs accelerate distributions before higher rates apply) but negative revenue in years 3-10 (as distributions are reduced after pre-acceleration). JCT conventional scoring handles this imprecisely.</p><p>### Why Economic Estimates Differ from JCT Scores</p><p>Academic and advocacy estimates of carry reform revenue typically differ from JCT scores because:</p><ol><li><strong>Present-value methodology:</strong> Economic estimates may discount future revenue flows, showing a different revenue picture than JCT's nominal approach</li><li><strong>Comprehensive base:</strong> Economic estimates often model all PE carry income (including fund types outside JCT's detailed modelling), while JCT focuses on the specific provision's direct impact</li><li><strong>Deferral adjustment:</strong> Economic estimates may attempt to calculate the deferral subsidy separately and add it to the rate-change revenue — producing a larger \"true cost\" of current carry treatment</li><li><strong>No 10-year window:</strong> Economic estimates model the full lifecycle carry impact, not just 10-year window receipts</li></ol><p><strong>Specific implication for Effective Lifetime Tax Rate in PE:</strong> The effective lifetime rate calculation (13.5% base case) is an economic model, not a JCT score. The 13.5% reflects the present-value impact of rate, deferral, and step-up across a career — a framework that JCT methodology does not use or produce.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### How JCT Scores Tax Legislation</p><p><strong>Conventional scoring methodology:</strong> JCT uses conventional scoring — it estimates revenue changes over the standard 10-year budget window without discounting future receipts to present value. This matches Congressional Budget Office (CBO) baseline methodology and is the standard used for all federal budget scoring.</p><p><strong>Behavioural assumptions:</strong> JCT uses a mix of static and conventional dynamic assumptions. \"Static\" scoring assumes taxpayer behaviour is completely unchanged by the tax reform. \"Conventional\" scoring incorporates first-order behavioural responses (e.g., timing changes, limited income shifting) but not macroeconomic feedback effects. Full dynamic scoring (macroeconomic growth effects) is sometimes provided but is not the official baseline.</p><p><strong>For carry reform specifically:</strong> JCT scores the difference in tax revenue between: (a) current law (carry at 23.8%) and (b) proposed law (carry at a higher rate or with broader application). The score assumes a given volume of carry distributions will occur over the 10-year window and calculates the rate differential on those distributions.</p><p>### How JCT Scores Are Limited for Deferred Income</p><p><strong>Problem 1 — No present-value discounting:</strong> JCT scores nominal future revenue. A carry tax payment due in year 8 of the budget window is scored the same as one due in year 1. The present-value of a year-8 payment at 5% discount rate is 69% of a year-1 payment. By counting them equivalently, JCT overstates the present value of revenue from carry reform provisions that accelerate taxation (mark-to-market) and understates the present value cost of the current deferral subsidy.</p><p><strong>Problem 2 — Scoring window limitation:</strong> The 10-year window captures carry distributions from funds currently in operation and funds raised during the window. Carry from funds raised late in the window (year 8-10) will be distributed primarily after the window closes. JCT scores only the in-window carry; the full lifetime revenue impact is not captured.</p><p><strong>Problem 3 — Deferral value is not separately scored:</strong> The deferral subsidy (the government provides an interest-free loan by allowing carry taxes to be deferred 7 years) is not a separate provision in the tax code — it is an implicit benefit of the realisation-based system. JCT does not score \"the value of the deferral subsidy\" because there is no provision to score; the subsidy exists in the baseline. A reform that converts carry to mark-to-market would be scored for the revenue from accelerated taxation, but not compared against the economic value of the deferral subsidy that is eliminated.</p><p><strong>Problem 4 — Behavioural timing effects:</strong> When carry is taxed at higher rates, some GPs will accelerate carry distributions before reform takes effect. When mark-to-market is proposed, GPs may distribute carry in anticipation. These behavioural timing responses can produce scoring anomalies: a provision may score high revenue in years 1-2 (as GPs accelerate distributions before higher rates apply) but negative revenue in years 3-10 (as distributions are reduced after pre-acceleration). JCT conventional scoring handles this imprecisely.</p><p>### Why Economic Estimates Differ from JCT Scores</p><p>Academic and advocacy estimates of carry reform revenue typically differ from JCT scores because:</p><ol><li><strong>Present-value methodology:</strong> Economic estimates may discount future revenue flows, showing a different revenue picture than JCT's nominal approach</li><li><strong>Comprehensive base:</strong> Economic estimates often model all PE carry income (including fund types outside JCT's detailed modelling), while JCT focuses on the specific provision's direct impact</li><li><strong>Deferral adjustment:</strong> Economic estimates may attempt to calculate the deferral subsidy separately and add it to the rate-change revenue — producing a larger \"true cost\" of current carry treatment</li><li><strong>No 10-year window:</strong> Economic estimates model the full lifecycle carry impact, not just 10-year window receipts</li></ol><p><strong>Specific implication for Effective Lifetime Tax Rate in PE:</strong> The effective lifetime rate calculation (13.5% base case) is an economic model, not a JCT score. The 13.5% reflects the present-value impact of rate, deferral, and step-up across a career — a framework that JCT methodology does not use or produce.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### How JCT Scores Tax Legislation</p><p><strong>Conventional scoring methodology:</strong> JCT uses conventional scoring — it estimates revenue changes over the standard 10-year budget window without discounting future receipts to present value. This matches Congressional Budget Office (CBO) baseline methodology and is the standard used for all federal budget scoring.</p><p><strong>Behavioural assumptions:</strong> JCT uses a mix of static and conventional dynamic assumptions. \"Static\" scoring assumes taxpayer behaviour is completely unchanged by the tax reform. \"Conventional\" scoring incorporates first-order behavioural responses (e.g., timing changes, limited income shifting) but not macroeconomic feedback effects. Full dynamic scoring (macroeconomic growth effects) is sometimes provided but is not the official baseline.</p><p><strong>For carry reform specifically:</strong> JCT scores the difference in tax revenue between: (a) current law (carry at 23.8%) and (b) proposed law (carry at a higher rate or with broader application). The score assumes a given volume of carry distributions will occur over the 10-year window and calculates the rate differential on those distributions.</p><p>### How JCT Scores Are Limited for Deferred Income</p><p><strong>Problem 1 — No present-value discounting:</strong> JCT scores nominal future revenue. A carry tax payment due in year 8 of the budget window is scored the same as one due in year 1. The present-value of a year-8 payment at 5% discount rate is 69% of a year-1 payment. By counting them equivalently, JCT overstates the present value of revenue from carry reform provisions that accelerate taxation (mark-to-market) and understates the present value cost of the current deferral subsidy.</p><p><strong>Problem 2 — Scoring window limitation:</strong> The 10-year window captures carry distributions from funds currently in operation and funds raised during the window. Carry from funds raised late in the window (year 8-10) will be distributed primarily after the window closes. JCT scores only the in-window carry; the full lifetime revenue impact is not captured.</p><p><strong>Problem 3 — Deferral value is not separately scored:</strong> The deferral subsidy (the government provides an interest-free loan by allowing carry taxes to be deferred 7 years) is not a separate provision in the tax code — it is an implicit benefit of the realisation-based system. JCT does not score \"the value of the deferral subsidy\" because there is no provision to score; the subsidy exists in the baseline. A reform that converts carry to mark-to-market would be scored for the revenue from accelerated taxation, but not compared against the economic value of the deferral subsidy that is eliminated.</p><p><strong>Problem 4 — Behavioural timing effects:</strong> When carry is taxed at higher rates, some GPs will accelerate carry distributions before reform takes effect. When mark-to-market is proposed, GPs may distribute carry in anticipation. These behavioural timing responses can produce scoring anomalies: a provision may score high revenue in years 1-2 (as GPs accelerate distributions before higher rates apply) but negative revenue in years 3-10 (as distributions are reduced after pre-acceleration). JCT conventional scoring handles this imprecisely.</p><p>### Why Economic Estimates Differ from JCT Scores</p><p>Academic and advocacy estimates of carry reform revenue typically differ from JCT scores because:</p><ol><li><strong>Present-value methodology:</strong> Economic estimates may discount future revenue flows, showing a different revenue picture than JCT's nominal approach</li><li><strong>Comprehensive base:</strong> Economic estimates often model all PE carry income (including fund types outside JCT's detailed modelling), while JCT focuses on the specific provision's direct impact</li><li><strong>Deferral adjustment:</strong> Economic estimates may attempt to calculate the deferral subsidy separately and add it to the rate-change revenue — producing a larger \"true cost\" of current carry treatment</li><li><strong>No 10-year window:</strong> Economic estimates model the full lifecycle carry impact, not just 10-year window receipts</li></ol><p><strong>Specific implication for Effective Lifetime Tax Rate in PE:</strong> The effective lifetime rate calculation (13.5% base case) is an economic model, not a JCT score. The 13.5% reflects the present-value impact of rate, deferral, and step-up across a career — a framework that JCT methodology does not use or produce.</p><p>---</p>"}, "6": {"section": "Summary", "html": "<p>JCT scoring for deferred income provisions uses conventional nominal methodology that does not discount future tax payments, does not separately score the deferral subsidy in current law, and is limited to a 10-year budget window that misses lifetime carry impacts. These methodological features cause JCT scores for carry reform to systematically understate the true present-value fiscal cost of carry deferral — the largest source of divergence between JCT official scores and economic or advocacy estimates of carry reform revenue. Understanding this methodology is essential for interpreting carry reform revenue claims in the policy debate.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>JCT scoring for deferred income provisions uses conventional nominal methodology that does not discount future tax payments, does not separately score the deferral subsidy in current law, and is limited to a 10-year budget window that misses lifetime carry impacts. These methodological features cause JCT scores for carry reform to systematically understate the true present-value fiscal cost of carry deferral — the largest source of divergence between JCT official scores and economic or advocacy estimates of carry reform revenue. Understanding this methodology is essential for interpreting carry reform revenue claims in the policy debate.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

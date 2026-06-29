@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-accountability-mechanisms", "title": "PE Accountability Mechanisms", "draft_watermark": false, "estimated_runtime_sec": 450, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Who can hold PE to account", "on_screen_bullets": ["Outcomes follow the architecture", "Change outcomes, change constraints", "Who sues, discloses, examines whom"], "narration": "If the course's central thesis is right — that PE's outcomes, good and bad, are the predictable products of its incentive architecture and regulatory environment — then changing those outcomes means changing the accountability mechanisms that constrain, or fail to constrain, that architecture. This lesson is the cross-sector complement to the essential-services toolkit. The toolkit addressed what happens inside healthcare or housing; this addresses the accountability architecture that either lets those sector tools work or explains why they fail. The concrete questions are: who can sue whom, who must disclose what to whom, who examines PE's conduct and with what authority, and what happens when PE actors breach their obligations. The answer reveals a structural gap — and naming that gap precisely is what tells you which reforms could actually close it.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A four-layer suite", "on_screen_bullets": ["LP rights, SEC, antitrust, liability", "Protects investors well", "Fails workers and communities"], "narration": "The definition. PE accountability mechanisms are the suite of tools — spanning LP contractual governance rights, SEC regulatory disclosure and examination, federal enforcement by the FTC and DOJ, portfolio-company transparency requirements, and personal-liability proposals — through which PE fund managers can be held accountable to their investors, their portfolio companies' workers and communities, and public regulatory standards. And their current inadequacy is exactly what explains why PE's incentive architecture keeps producing predictable negative outcomes despite decades of documented harm. A real suite of tools, pointed mostly at the wrong target.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "mermaid", "source_section": "Plain-English Explanation", "on_screen_title": "The four layers", "on_screen_bullets": ["Contract, then regulator", "Then antitrust, then liability", "Harm sits below the reach"], "mermaid": "graph TD\n    L1[\"Layer 1: LP contract<br/>(LPA, LPAC, removal)\"] --> GP[\"PE General Partner\"]\n    L2[\"Layer 2: SEC<br/>(Form ADV/PF, exams)\"] --> GP\n    L3[\"Layer 3: Antitrust<br/>(FTC / DOJ)\"] --> GP\n    L4[\"Layer 4: Personal liability<br/>(SWSLA — unenacted)\"] -.->|barely exists| GP\n    GP --> PC[\"Portfolio companies\"]\n    PC --> H[\"Workers, communities,<br/>service users (no seat)\"]", "narration": "Here's the architecture on screen, in four layers. Layer one, LP contractual accountability: when an investor commits to a fund, the limited-partnership agreement is the primary accountability document, specifying what the GP must report, which decisions need consent, and when LPs can remove the GP — enforceable in court, but only between the parties, not by any regulator. Layer two, SEC regulatory accountability: a registered adviser must file Form ADV and Form PF and submit to examination, and the SEC can bring enforcement actions for fraud or breach of fiduciary duty, regardless of what the contract says. Layer three, federal antitrust: the FTC and DOJ can challenge transactions and practices that harm competition, operating at the market-structure level. And layer four, personal liability: proposals to make GPs personally co-liable for portfolio-company debts — which largely does not exist in current US law, shown dotted on the diagram. Now look at where the harm actually lands: at the bottom, with the portfolio companies and then the workers, communities, and service users — who have no seat in any of the four layers. Layers one and two protect the most sophisticated parties, the LP investors; layers three and four would protect everyone else, but one is capacity-constrained and the other doesn't exist. That gap between where the tools point and where the harm falls is the entire lesson.", "est_sec": 56}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "Layer 1 — LP Contractual Governance Rights", "on_screen_title": "Layer 1: LP contract", "on_screen_bullets": ["LPAC, key person, removal", "Protects LP economics", "Workers aren't party to it"], "narration": "Take the layers in detail, starting with the contractual one. The limited-partnership agreement carries three main accountability tools. The advisory committee, usually the five-to-ten largest investors, approves certain conflicts, reviews valuations, and receives extra disclosure — but its members owe duties to their own interests, not to all investors or to portfolio-company workers, so committee consent to a conflict doesn't mean the conflict was beneficial. Key-person provisions tie the fund to named individuals, letting investors suspend or wind down if a lead partner leaves — but enforcement requires coordination and the willingness to trigger it, so in practice these are rarely invoked. And removal rights let investors remove the GP for cause, or occasionally without cause at a high supermajority threshold — the ultimate sanction, but hard to organise and laden with litigation risk, so it's almost never used. The voluntary ILPA Principles push for stronger standards, partially adopted by the major firms with carve-outs. The crucial gap across all of it: these rights protect LP economic interests — fee disclosure, carry calculation, reporting — but they do nothing for portfolio-company workers, communities, or service users, who are not parties to the agreement and have no governance rights within it. LP governance is necessary for LP protection and insufficient for everyone else.", "est_sec": 56}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Layer 2 — SEC Regulatory Accountability", "on_screen_title": "Layer 2: the SEC, weakened", "on_screen_bullets": ["Form ADV public, Form PF confidential", "Enforcement: small vs revenue", "2023 rules vacated June 2024"], "narration": "Layer two, SEC regulation, rests on the Investment Advisers Act as amended by Dodd-Frank. Registered advisers file Form ADV, a public disclosure of business, fees, and conflicts, though it's self-reported and largely unverified before filing. They also file Form PF, confidential fund-level data the SEC uses for systemic-risk monitoring — which gives regulators visibility but gives investors and the public nothing. The SEC examines each adviser on average only once every seven-to-ten years, given roughly fifteen thousand registered advisers against limited resources. And under the Act's antifraud provision, the SEC has brought enforcement actions for fee-calculation and disclosure failures and improper expense allocation — for example penalties in the tens of millions against major firms for sharing deal expenses improperly or for fee-disclosure failures. But those penalties are typically small relative to GP revenue and address specific instances rather than the underlying incentive architecture. The most significant attempt to expand this layer — the twenty-twenty-three Private Fund Adviser Rules, which would have required quarterly fee statements, annual audits, fairness opinions on GP-led secondaries, and limits on certain practices — was vacated by the Fifth Circuit in June twenty-twenty-four, on the reasoning that the Act's clients are the funds, not the investors, so the SEC lacked authority to protect LPs directly. The most comprehensive US PE accountability regime ever attempted was eliminated before most of it took effect, reverting the SEC to the pre-existing baseline.", "est_sec": 64}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Layer 4 — Personal Liability and Portfolio Company Accountability (Largely Proposed)", "on_screen_title": "Layers 3 and 4: the gap", "on_screen_bullets": ["Antitrust: reactive, capacity-bound", "Limited-liability wall protects GP", "SWSLA would pierce it — unenacted"], "narration": "Layers three and four are where the gap becomes structural. Layer three, antitrust: the FTC and DOJ can block, unwind, or condition PE consolidation, and can address roll-up effects that single-transaction review misses — but it's reactive and slow, acting after concentration is established, and the agencies together simply cannot match PE's acquisition pace across healthcare, real estate, and financial services. Layer four is the heart of the matter: the limited-liability wall. PE fund general partners are insulated from portfolio-company liabilities by the partnership structure, so when a PE-owned company goes bankrupt — Envision, Toys R Us, Sears — the GP does not share in those liabilities, even as the fund collected management and monitoring fees throughout the hold. That is the fundamental accountability gap for workers, pensioners, and service users. The Stop Wall Street Looting Act would pierce that wall in specific circumstances: co-liability for portfolio-company debts incurred during PE ownership, clawback of dividends taken before a bankruptcy, caps on monitoring fees, and priority for worker severance. But it has never been enacted — introduced repeatedly, never advancing past committee, against heavy industry lobbying. The closest existing mechanism, the WARN Act's sixty-day layoff-notice requirement, creates liability only for the portfolio company, not the fund, so workers receive pennies on the dollar as unsecured creditors. The wall holds.", "est_sec": 62}, {"n": 7, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Envision: all four layers fail", "on_screen_bullets": ["$9.9bn 2018 buyout, 2023 bankruptcy", "Each layer reached the GP, not the harm", "Only sector law bit"], "narration": "Watch all four layers operate, and fail, in one case: KKR's nine-point-nine-billion-dollar acquisition of Envision Healthcare in twenty-eighteen, and its bankruptcy in twenty-twenty-three with roughly seven billion in debt. Layer one, the contract: investors received quarterly reporting and could engage the advisory committee, but their rights never extended to Envision's billing practices, staffing, or layoff compliance — those were GP operational decisions. Layer two, the SEC: the firm filed its forms and disclosed its conflict policy, but the SEC brought no action related to Envision's operations, because the Act's investor-protection orientation simply does not reach patient billing. Layer three, antitrust: the market-power mechanism here, surprise out-of-network billing, was ultimately addressed by sector-specific legislation, the No Surprises Act, rather than by an antitrust challenge to the original acquisition. And layer four, personal liability: none applied — the partners shared in none of the bankruptcy liabilities, the fund kept its fees throughout, and Envision's workers and physicians were left as unsecured creditors. The decisive point: the only accountability mechanism that materially affected the investment was sector-specific legislation, the No Surprises Act — not the general PE accountability architecture, which reached the GP at every layer but never reached the harm.", "est_sec": 56}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["LP rights ≠ stakeholder protection", "SEC oversight just got narrower", "Accountability isn't prohibition"], "narration": "Four corrections to close. First, the belief that LP governance rights provide adequate PE accountability — true only for LP investors; those rights are sophisticated and increasingly standardised, but they're contractual between GPs and investors and do nothing for workers, residents, patients, or communities, so that gap is structural and can't be closed by improving LP governance. Second, the belief that the SEC regulates PE, so accountability exists — true in a narrow sense, but the Fifth Circuit's twenty-twenty-four vacatur removed the most significant expansion in decades, and the Act's orientation runs to investors, not to the broader affected parties. Third, the belief that antitrust addresses the gap — it addresses only market concentration, not leverage-driven portfolio harm, not the holding-period mismatch, not the incentive architecture itself; it's one layer, not the solution. And fourth, the industry's claim that personal-liability proposals would destroy PE — contested, because PE in the UK, Germany, and France operates under stronger investor and portfolio-company protections without the asset class collapsing, so the framing conflates accountability with prohibition. To recap: accountability operates at four layers all aimed at the fund and investor level, while PE's gravest harms occur at the portfolio-company and market-structure levels, with the limited-liability wall as the structural cause — which is why closing the gap requires all three reform tracks at once. Next we ask the deeper question this raises: under what conditions is PE's whole system self-correcting, or not — its systemic risk.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The four accountability layers all reached KKR as GP in the Envision case, yet none reached the workers harmed. Explain the structural reason — name the 'wall' involved. Then: why does the IAA's 'clients are funds, not LPs' interpretation matter for the 2023 SEC rules?", "narration": "Before the next lesson, reason it through. In the Envision case, all four accountability layers reached the general partner, yet none reached the workers who were harmed — explain the structural reason, and name the wall involved. And why did the interpretation that the Act's clients are the funds, not the investors, doom the twenty-twenty-three SEC rules? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE Accountability Mechanisms\n\n[hook] Who can hold PE to account\nIf the course's central thesis is right — that PE's outcomes, good and bad, are the predictable products of its incentive architecture and regulatory environment — then changing those outcomes means changing the accountability mechanisms that constrain, or fail to constrain, that architecture. This lesson is the cross-sector complement to the essential-services toolkit. The toolkit addressed what happens inside healthcare or housing; this addresses the accountability architecture that either lets those sector tools work or explains why they fail. The concrete questions are: who can sue whom, who must disclose what to whom, who examines PE's conduct and with what authority, and what happens when PE actors breach their obligations. The answer reveals a structural gap — and naming that gap precisely is what tells you which reforms could actually close it.\n\n[definition] A four-layer suite\nThe definition. PE accountability mechanisms are the suite of tools — spanning LP contractual governance rights, SEC regulatory disclosure and examination, federal enforcement by the FTC and DOJ, portfolio-company transparency requirements, and personal-liability proposals — through which PE fund managers can be held accountable to their investors, their portfolio companies' workers and communities, and public regulatory standards. And their current inadequacy is exactly what explains why PE's incentive architecture keeps producing predictable negative outcomes despite decades of documented harm. A real suite of tools, pointed mostly at the wrong target.\n\n[intuition] The four layers\nHere's the architecture on screen, in four layers. Layer one, LP contractual accountability: when an investor commits to a fund, the limited-partnership agreement is the primary accountability document, specifying what the GP must report, which decisions need consent, and when LPs can remove the GP — enforceable in court, but only between the parties, not by any regulator. Layer two, SEC regulatory accountability: a registered adviser must file Form ADV and Form PF and submit to examination, and the SEC can bring enforcement actions for fraud or breach of fiduciary duty, regardless of what the contract says. Layer three, federal antitrust: the FTC and DOJ can challenge transactions and practices that harm competition, operating at the market-structure level. And layer four, personal liability: proposals to make GPs personally co-liable for portfolio-company debts — which largely does not exist in current US law, shown dotted on the diagram. Now look at where the harm actually lands: at the bottom, with the portfolio companies and then the workers, communities, and service users — who have no seat in any of the four layers. Layers one and two protect the most sophisticated parties, the LP investors; layers three and four would protect everyone else, but one is capacity-constrained and the other doesn't exist. That gap between where the tools point and where the harm falls is the entire lesson.\n\n[mechanics] Layer 1: LP contract\nTake the layers in detail, starting with the contractual one. The limited-partnership agreement carries three main accountability tools. The advisory committee, usually the five-to-ten largest investors, approves certain conflicts, reviews valuations, and receives extra disclosure — but its members owe duties to their own interests, not to all investors or to portfolio-company workers, so committee consent to a conflict doesn't mean the conflict was beneficial. Key-person provisions tie the fund to named individuals, letting investors suspend or wind down if a lead partner leaves — but enforcement requires coordination and the willingness to trigger it, so in practice these are rarely invoked. And removal rights let investors remove the GP for cause, or occasionally without cause at a high supermajority threshold — the ultimate sanction, but hard to organise and laden with litigation risk, so it's almost never used. The voluntary ILPA Principles push for stronger standards, partially adopted by the major firms with carve-outs. The crucial gap across all of it: these rights protect LP economic interests — fee disclosure, carry calculation, reporting — but they do nothing for portfolio-company workers, communities, or service users, who are not parties to the agreement and have no governance rights within it. LP governance is necessary for LP protection and insufficient for everyone else.\n\n[mechanics] Layer 2: the SEC, weakened\nLayer two, SEC regulation, rests on the Investment Advisers Act as amended by Dodd-Frank. Registered advisers file Form ADV, a public disclosure of business, fees, and conflicts, though it's self-reported and largely unverified before filing. They also file Form PF, confidential fund-level data the SEC uses for systemic-risk monitoring — which gives regulators visibility but gives investors and the public nothing. The SEC examines each adviser on average only once every seven-to-ten years, given roughly fifteen thousand registered advisers against limited resources. And under the Act's antifraud provision, the SEC has brought enforcement actions for fee-calculation and disclosure failures and improper expense allocation — for example penalties in the tens of millions against major firms for sharing deal expenses improperly or for fee-disclosure failures. But those penalties are typically small relative to GP revenue and address specific instances rather than the underlying incentive architecture. The most significant attempt to expand this layer — the twenty-twenty-three Private Fund Adviser Rules, which would have required quarterly fee statements, annual audits, fairness opinions on GP-led secondaries, and limits on certain practices — was vacated by the Fifth Circuit in June twenty-twenty-four, on the reasoning that the Act's clients are the funds, not the investors, so the SEC lacked authority to protect LPs directly. The most comprehensive US PE accountability regime ever attempted was eliminated before most of it took effect, reverting the SEC to the pre-existing baseline.\n\n[mechanics] Layers 3 and 4: the gap\nLayers three and four are where the gap becomes structural. Layer three, antitrust: the FTC and DOJ can block, unwind, or condition PE consolidation, and can address roll-up effects that single-transaction review misses — but it's reactive and slow, acting after concentration is established, and the agencies together simply cannot match PE's acquisition pace across healthcare, real estate, and financial services. Layer four is the heart of the matter: the limited-liability wall. PE fund general partners are insulated from portfolio-company liabilities by the partnership structure, so when a PE-owned company goes bankrupt — Envision, Toys R Us, Sears — the GP does not share in those liabilities, even as the fund collected management and monitoring fees throughout the hold. That is the fundamental accountability gap for workers, pensioners, and service users. The Stop Wall Street Looting Act would pierce that wall in specific circumstances: co-liability for portfolio-company debts incurred during PE ownership, clawback of dividends taken before a bankruptcy, caps on monitoring fees, and priority for worker severance. But it has never been enacted — introduced repeatedly, never advancing past committee, against heavy industry lobbying. The closest existing mechanism, the WARN Act's sixty-day layoff-notice requirement, creates liability only for the portfolio company, not the fund, so workers receive pennies on the dollar as unsecured creditors. The wall holds.\n\n[example] Envision: all four layers fail\nWatch all four layers operate, and fail, in one case: KKR's nine-point-nine-billion-dollar acquisition of Envision Healthcare in twenty-eighteen, and its bankruptcy in twenty-twenty-three with roughly seven billion in debt. Layer one, the contract: investors received quarterly reporting and could engage the advisory committee, but their rights never extended to Envision's billing practices, staffing, or layoff compliance — those were GP operational decisions. Layer two, the SEC: the firm filed its forms and disclosed its conflict policy, but the SEC brought no action related to Envision's operations, because the Act's investor-protection orientation simply does not reach patient billing. Layer three, antitrust: the market-power mechanism here, surprise out-of-network billing, was ultimately addressed by sector-specific legislation, the No Surprises Act, rather than by an antitrust challenge to the original acquisition. And layer four, personal liability: none applied — the partners shared in none of the bankruptcy liabilities, the fund kept its fees throughout, and Envision's workers and physicians were left as unsecured creditors. The decisive point: the only accountability mechanism that materially affected the investment was sector-specific legislation, the No Surprises Act — not the general PE accountability architecture, which reached the GP at every layer but never reached the harm.\n\n[pitfalls] What people get wrong\nFour corrections to close. First, the belief that LP governance rights provide adequate PE accountability — true only for LP investors; those rights are sophisticated and increasingly standardised, but they're contractual between GPs and investors and do nothing for workers, residents, patients, or communities, so that gap is structural and can't be closed by improving LP governance. Second, the belief that the SEC regulates PE, so accountability exists — true in a narrow sense, but the Fifth Circuit's twenty-twenty-four vacatur removed the most significant expansion in decades, and the Act's orientation runs to investors, not to the broader affected parties. Third, the belief that antitrust addresses the gap — it addresses only market concentration, not leverage-driven portfolio harm, not the holding-period mismatch, not the incentive architecture itself; it's one layer, not the solution. And fourth, the industry's claim that personal-liability proposals would destroy PE — contested, because PE in the UK, Germany, and France operates under stronger investor and portfolio-company protections without the asset class collapsing, so the framing conflates accountability with prohibition. To recap: accountability operates at four layers all aimed at the fund and investor level, while PE's gravest harms occur at the portfolio-company and market-structure levels, with the limited-liability wall as the structural cause — which is why closing the gap requires all three reform tracks at once. Next we ask the deeper question this raises: under what conditions is PE's whole system self-correcting, or not — its systemic risk.\n\nEnd-card question: The four accountability layers all reached KKR as GP in the Envision case, yet none reached the workers harmed. Explain the structural reason — name the 'wall' involved. Then: why does the IAA's 'clients are funds, not LPs' interpretation matter for the 2023 SEC rules?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The course's central thesis is that PE outcomes — positive and negative — are the predictable products of its incentive architecture, regulatory environment, and the actors within it. If that thesis is correct, then changing outcomes requires changing the accountability mechanisms that constrain (or fail to constrain) that architecture.</p><p>This note is the structural complement to Essential Services Regulatory Toolkit. The toolkit addresses sector-specific failure modes (what happens in healthcare, housing, nursing homes). This note addresses the cross-sector accountability architecture that either enables those sector-specific tools to work, or explains why they fail: who can sue whom, who must disclose what to whom, who examines PE's conduct and with what authority, and what happens when PE actors breach their obligations.</p><p>Understanding accountability mechanisms matters for a practitioner at CVC Secondary Partners because: 1. LP governance rights (LPAC membership, consent rights, key person provisions) are the accountability mechanisms most directly relevant to CVC's role — they are the rights negotiated in the LPA that flow into the K-1-generating fund relationships 2. SEC reporting requirements (Form PF, Form ADV) are the regulatory accountability layer that CVC's fund counterparties (KKR, Apollo, Blackstone) must satisfy — understanding these requirements contextualises what information CVC has access to and why 3. The collapse of the SEC's 2023 Private Fund Adviser Rules (Fifth Circuit 2024) is the most important recent accountability failure — understanding why it happened explains the current state of the accountability gap</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE accountability mechanisms are the suite of tools — spanning LP contractual governance rights, SEC regulatory disclosure and examination, federal enforcement by FTC and DOJ, portfolio company transparency requirements, and personal liability proposals — through which PE fund managers can be held accountable to their investors, their portfolio companies' workers and communities, and public regulatory standards, and whose current inadequacy explains why PE's incentive architecture continues to produce predictable negative outcomes despite decades of documented harm.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Accountability in PE operates at four distinct layers:</p><p><strong>Layer 1 — LP contractual accountability (private, fund-level):</strong> When CVC Secondary Partners invests in a KKR fund as an LP, the Limited Partnership Agreement (LPA) is the primary accountability document. It specifies: what KKR must report to CVC, what decisions require LP consent, what happens if a key person leaves, and under what conditions LPs can remove KKR as GP. These rights exist privately between the parties — they are enforceable in court but not by any regulator. Think of this as the contractual governance layer.</p><p><strong>Layer 2 — SEC regulatory accountability (public regulatory, adviser-level):</strong> KKR, as a registered investment adviser under the Investment Advisers Act, must file Form ADV (describing its business and conflicts) and Form PF (disclosing fund-level data to the SEC) and submit to SEC examination. The SEC has authority to bring enforcement actions for violations of the Advisers Act (fraud, breach of fiduciary duty, disclosure failures). This is the public regulatory accountability layer — it operates regardless of what the LPA says.</p><p><strong>Layer 3 — Federal antitrust and consumer protection accountability (public regulatory, transaction-level):</strong> FTC and DOJ can challenge PE transactions and practices that violate antitrust law. This operates at the market structure level — it is not about the GP-LP relationship but about how PE's consolidation affects competition. This accountability layer is independent of both the LPA and the SEC. See FTC Antitrust Enforcement in PE.</p><p><strong>Layer 4 — Personal liability and portfolio company accountability (proposed, largely unenacted):</strong> The Stop Wall Street Looting Act proposes making PE fund general partners personally co-liable for portfolio company debts — extending accountability from the fund level (where it currently sits) to the individual partner level. This layer largely does not exist in current US law.</p><p>The accountability gap is the mismatch between the harm PE can cause (workers, communities, essential services) and the mechanisms available to address it. Layers 1 and 2 protect LP investors (the most sophisticated parties); Layers 3 and 4 would protect the broader affected parties, but Layer 3 is capacity-constrained and Layer 4 does not exist.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>KKR, Envision Healthcare, and the Accountability Layers in Action</strong></p><p>KKR's $9.9bn acquisition of Envision Healthcare (2018) and subsequent bankruptcy (2023) is the most comprehensive PE accountability case study available.</p><p><strong>Layer 1 (LP contractual):</strong> LPs in KKR's fund that held Envision received quarterly reporting and could engage the LPAC. As Envision's debt became distressed, LPs were informed through the normal reporting cycle. LP governance rights within the LPA did not include rights over Envision's billing practices, staffing decisions, or WARN compliance — those were GP operational decisions within the GP's discretionary authority.</p><p><strong>Layer 2 (SEC regulatory):</strong> KKR filed Form PF data reflecting Envision's position in the fund. KKR's Form ADV disclosed its conflict of interest policy for portfolio company monitoring fees. The SEC did not bring an enforcement action related to Envision's operations — the IAA's investor-protection orientation does not encompass patient billing practices.</p><p><strong>Layer 3 (antitrust):</strong> The NSA addressed the market power mechanism (out-of-network billing) directly through legislation rather than antitrust enforcement. The FTC was not reported to have brought an antitrust case challenging KKR's original acquisition of Envision as creating physician market concentration [needs-verification on whether FTC reviewed the transaction].</p><p><strong>Layer 4 (personal liability):</strong> No personal liability mechanism applied. KKR's partners did not share in Envision's bankruptcy liabilities. The fund received management fees and monitoring fees throughout the hold period. Workers at Envision received bankruptcy-process treatment of their claims as unsecured creditors.</p><p><strong>The accountability gap in numbers:</strong> - Envision filed for bankruptcy with approximately $7bn in debt - KKR's fund had collected management fees and monitoring fees throughout the hold period [needs-verification on fee amounts] - Workers and physicians employed by Envision received no protection from the limited liability wall - The NSA was the only accountability mechanism that materially affected KKR's Envision investment thesis — and it did so through sector-specific legislation, not through the general PE accountability architecture</p><p><strong>CVC connection:</strong> CVC Secondary Partners holds LP positions in funds that include KKR vehicles. The K-1 income allocations CVC processes from KKR funds reflect the economic outputs of portfolio company operations — including any management fee income and carry that accrued to KKR during Envision's hold period. The accountability architecture that failed Envision's workers does not affect K-1 reporting — it is invisible in the data pipeline, but it shaped the distributions that the K-1 ultimately reflects.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>\"LP governance rights provide adequate PE accountability.\"</strong> True only for LP investors — false for portfolio company stakeholders. LPA governance rights are sophisticated and becoming more standardised through ILPA Principles. But they are contractual between GPs and LPs, protecting LP economic interests. They do not protect workers, residents of PE-owned housing, patients in PE-owned healthcare facilities, or communities that lose essential services. The accountability gap for these parties is structural and cannot be closed through LP governance improvements alone.</p><p><strong>\"The SEC regulates PE firms, so accountability exists.\"</strong> True in a narrow sense — registered PE advisers are subject to SEC examination and IAA enforcement. But the Fifth Circuit's 2024 vacatur of the Private Fund Adviser Rules removed the most significant expansion of this accountability in decades. And the IAA's investor-protection orientation means SEC accountability runs to LP investors, not to the broader affected parties whose interests the accountability gap most acutely affects.</p><p><strong>\"Antitrust enforcement addresses PE's accountability gap.\"</strong> Antitrust addresses a specific dimension of PE harm — market concentration and competitive effects. It does not address leverage-driven portfolio company harm (workers at PE-bankrupt retailers face no antitrust remedy), holding period mismatch (PE exiting before stakeholders can respond has no antitrust dimension), or the incentive architecture that drives these outcomes. Antitrust is one accountability layer, not the accountability solution.</p><p><strong>\"The SWSLA would destroy PE investment.\"</strong> This is the industry's primary argument against personal liability proposals. The empirical claim is contested — PE in the UK, Germany, and France operates under stronger LP and portfolio company protections without destroying the asset class. The accountability gap in US PE law is significantly wider than in EU equivalents. The industry's framing conflates accountability with prohibition.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

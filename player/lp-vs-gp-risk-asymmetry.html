@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lp-vs-gp-risk-asymmetry", "title": "LP vs GP Risk Asymmetry", "draft_watermark": false, "estimated_runtime_sec": 338, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The foundational imbalance", "on_screen_bullets": ["Investors fund almost all capital", "Managers capture the upside", "It shapes every governance fight"], "narration": "There is one structural imbalance that sits underneath nearly every argument in fund economics: the asymmetry between how much capital investors put at risk and how much the managers actually have on the line. It shapes everything downstream — why investors push for bigger manager commitments, why the industry argued so hard over clawback provisions, why the famous billionaire-factory critique landed as a genuine crisis of narrative. Understanding this asymmetry is the key to judging whether the whole incentive structure of private equity produces alignment or misalignment between managers and their investors. And it is the economic engine behind the wealth-concentration story the field keeps circling back to. So this lesson is about a single, sharp idea: the manager holds the upside, the investor holds the downside, and that split is no accident.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Unlimited up, limited down", "on_screen_bullets": ["Carry is a call option", "Manager risks 1-2% only", "Investors bear the rest"], "narration": "Here is the definition. The investor-manager risk asymmetry is the structural imbalance whereby managers capture unlimited upside through carried interest — economically a call option on the portfolio's excess returns — while bearing only limited downside, namely their own commitment of typically one to two percent of the fund. The investors, meanwhile, put up the other ninety-eight or ninety-nine percent of the capital at risk and receive eighty percent of profits above the hurdle. The phrase to lock in is call option. Carry behaves like an option the managers own for free, and that single framing explains the entire shape of the incentives. The upside is open-ended; the downside is capped at a thin slice. Hold that, because everything else is a consequence of it.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Ninety-eight and two", "on_screen_bullets": ["One partner funds, one works", "Success splits unevenly upward", "Loss falls almost entirely on funder"], "narration": "Make it concrete with two partners starting a venture. One puts in ninety-eight and does none of the work — that is the investor. The other puts in two and does all the work — that is the manager. If the venture succeeds and doubles, the investor gets their capital back plus most of the profit above their preferred return, and the manager gets their small stake back plus a twenty percent slice of the profit. But if the venture halves in value, the investor loses a large chunk of their ninety-eight, while the manager loses only part of their two. The manager's loss is bounded; the manager's gain is not. That is the asymmetry in one image. And it means the manager's incentives look less like those of a true co-investor who feels losses symmetrically, and more like those of someone holding a lottery ticket — a huge payoff if it hits, a small loss if it does not.", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Carry as a call option", "on_screen_bullets": ["Strike is the hurdle", "Premium is zero", "Volatility increases its value"], "narration": "Let me make the option analogy precise, because it does real analytical work. Carried interest is economically equivalent to a call option written by the investors and owned by the managers. The underlying is the portfolio's total value. The strike price is the hurdle — the preferred return the investors must receive first. The expiry is the fund's life. And the premium the managers pay for this option is zero — it is simply granted as part of the fund economics. Now recall the basic property of a call option: its value rises with volatility, because more variance in outcomes increases the chance of a big payoff while the downside stays capped. So option theory predicts something uncomfortable: a holder of a free call option is incentivised to take more risk than is optimal for the person who wrote it. Translated, the manager's carry incentivises maximising volatility, not minimising loss — which is a fundamentally different objective from what the investor, bearing the downside, actually wants.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The guaranteed fee floor", "on_screen_bullets": ["Management fee regardless of results", "Three-tier manager economics", "Even a losing fund pays the manager"], "narration": "There is a second layer that deepens the asymmetry: the management fee. On top of the call-option carry, managers collect an annual fee on committed capital that is guaranteed regardless of performance. Over a fund's investment period this can amount to a very large, certain sum — income the manager keeps whether the fund triples or halves. This produces a three-tier manager economics structure. Tier one, the management fee: guaranteed, performance-independent. Tier two, the return on the manager's own commitment: genuinely aligned, since it moves with the fund. And tier three, the carry: a call-option payoff, aligned on the upside but not on the downside. The consequence is stark and worth sitting with: even a meaningfully loss-making fund can leave the manager financially whole, or better, through fee income alone — because only carry can be clawed back, never the fees — while the investors absorb the full capital loss. The fee floor is what converts a bad outcome for investors into a survivable one for managers.", "est_sec": 56}, {"n": 6, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Whole through the fees", "on_screen_bullets": ["Loss scenario for the fund", "Manager's tiny capital hit", "Fees more than cover it"], "narration": "Walk a representative large fund through a loss scenario to see the fee floor in action. Suppose the fund returns well below the capital invested. The investors take an enormous loss, proportional to their share of the capital — that is the bulk of the fund. The manager's own commitment also loses value, but it is a tiny fraction, so the dollar loss on the manager's capital is small. Meanwhile, the management fees collected over the fund's life — a substantial sum — are not returned; only carry is subject to clawback, and in a losing fund there was no carry to claw back. Net the pieces together and the manager's small capital loss is dwarfed by the fees retained, so the manager ends up net positive on the whole fund even as investors suffer a major loss. That single comparison is the entire asymmetry made vivid: the manager loses a little capital and keeps a lot of fees, while the investors bear nearly all of the real economic loss.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The billionaire-factory critique", "on_screen_bullets": ["Vast carry on tiny capital", "Concentrated in few hands", "But human capital is real too"], "narration": "This asymmetry is the basis of the well-known billionaire-factory critique. The argument runs like this: over a roughly ten-year window, managers across the industry collectively earned on the order of hundreds of billions in carried interest, while the manager commitment capital genuinely at risk across all those funds was a tiny fraction of that — a sliver, perhaps a few percent of total assets. So a relatively small group transformed a modest amount of at-risk capital into enormous profit through the free call option embedded in carry, and the gains concentrated in very few hands. The counter-argument is fair and also true: managers invest real human capital — time, reputation, career risk — and carry is not costless, since it requires beating the hurdle, which is genuinely uncertain. The honest working position holds both at once: the asymmetry is a designed feature meant to attract talent and align managers with the upside, but the lack of downside symmetry means manager risk-taking is not aligned with investor risk exposure — especially where carry is reachable through leverage rather than real operational value creation.", "est_sec": 56}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Commitment may not be own capital", "Clawback misses the fees", "More carry worsens alignment"], "narration": "Four misconceptions worth dismantling. First, that a one-or-two-percent commitment means real skin in the game — it depends entirely on how it is funded, because if it comes from recycled management fees, the manager's genuine personal capital at risk can be close to nothing, which is exactly why funding disclosure is now urged. Second, that carry aligns managers and investors perfectly — it aligns on the upside but not on downside risk-taking, because the call-option structure rewards volatility, not loss avoidance. Third, that clawback fixes the asymmetry — it applies only to carry, never to the management fees, so a manager in a losing fund keeps the fee income that offsets most or all of their capital loss. And fourth, the counterintuitive one: that a higher carry percentage would improve alignment — false; raising carry increases the call-option value and pushes managers toward more risk, whereas lower carry paired with a larger manager commitment would actually improve downside alignment.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "A feature, not a bug", "on_screen_bullets": ["Free option plus guaranteed fees", "Managers whole, investors exposed", "The thesis question remains"], "narration": "So to summarise: the investor-manager risk asymmetry is the defining structural feature of fund economics. Managers hold a free call option on twenty percent of profits above the hurdle, funded entirely by investor capital, while bearing limited downside through a commitment of just one or two percent. Guaranteed fee income provides a floor that often leaves managers in losing funds financially whole while investors absorb the full capital loss. Clawback corrects part of the after-the-fact asymmetry but is imperfectly enforced and never touches the fees. This structure has produced extraordinary personal wealth for successful managers, and the investor community's response has been incremental — pushing for bigger commitments, tighter clawbacks, more fee transparency — rather than structural. The asymmetry is not a bug; it is a designed feature meant to attract talent. The deeper question the field keeps forcing is whether the resulting incentive architecture produces good outcomes not just for the manager-investor split, but for the companies, workers, and communities where the capital actually lands.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Why is carry a call option?", "How can a losing fund still pay the manager?", "Why does more carry worsen alignment?"], "narration": "Before you finish, answer these from memory. In what sense is carried interest economically a call option, and what are its strike and premium? How can a manager end up net positive on a fund that lost money for its investors? And why would raising the carry percentage actually worsen, rather than improve, alignment on downside risk? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LP vs GP Risk Asymmetry\n\n[hook] The foundational imbalance\nThere is one structural imbalance that sits underneath nearly every argument in fund economics: the asymmetry between how much capital investors put at risk and how much the managers actually have on the line. It shapes everything downstream — why investors push for bigger manager commitments, why the industry argued so hard over clawback provisions, why the famous billionaire-factory critique landed as a genuine crisis of narrative. Understanding this asymmetry is the key to judging whether the whole incentive structure of private equity produces alignment or misalignment between managers and their investors. And it is the economic engine behind the wealth-concentration story the field keeps circling back to. So this lesson is about a single, sharp idea: the manager holds the upside, the investor holds the downside, and that split is no accident.\n\n[definition] Unlimited up, limited down\nHere is the definition. The investor-manager risk asymmetry is the structural imbalance whereby managers capture unlimited upside through carried interest — economically a call option on the portfolio's excess returns — while bearing only limited downside, namely their own commitment of typically one to two percent of the fund. The investors, meanwhile, put up the other ninety-eight or ninety-nine percent of the capital at risk and receive eighty percent of profits above the hurdle. The phrase to lock in is call option. Carry behaves like an option the managers own for free, and that single framing explains the entire shape of the incentives. The upside is open-ended; the downside is capped at a thin slice. Hold that, because everything else is a consequence of it.\n\n[intuition] Ninety-eight and two\nMake it concrete with two partners starting a venture. One puts in ninety-eight and does none of the work — that is the investor. The other puts in two and does all the work — that is the manager. If the venture succeeds and doubles, the investor gets their capital back plus most of the profit above their preferred return, and the manager gets their small stake back plus a twenty percent slice of the profit. But if the venture halves in value, the investor loses a large chunk of their ninety-eight, while the manager loses only part of their two. The manager's loss is bounded; the manager's gain is not. That is the asymmetry in one image. And it means the manager's incentives look less like those of a true co-investor who feels losses symmetrically, and more like those of someone holding a lottery ticket — a huge payoff if it hits, a small loss if it does not.\n\n[mechanics] Carry as a call option\nLet me make the option analogy precise, because it does real analytical work. Carried interest is economically equivalent to a call option written by the investors and owned by the managers. The underlying is the portfolio's total value. The strike price is the hurdle — the preferred return the investors must receive first. The expiry is the fund's life. And the premium the managers pay for this option is zero — it is simply granted as part of the fund economics. Now recall the basic property of a call option: its value rises with volatility, because more variance in outcomes increases the chance of a big payoff while the downside stays capped. So option theory predicts something uncomfortable: a holder of a free call option is incentivised to take more risk than is optimal for the person who wrote it. Translated, the manager's carry incentivises maximising volatility, not minimising loss — which is a fundamentally different objective from what the investor, bearing the downside, actually wants.\n\n[mechanics] The guaranteed fee floor\nThere is a second layer that deepens the asymmetry: the management fee. On top of the call-option carry, managers collect an annual fee on committed capital that is guaranteed regardless of performance. Over a fund's investment period this can amount to a very large, certain sum — income the manager keeps whether the fund triples or halves. This produces a three-tier manager economics structure. Tier one, the management fee: guaranteed, performance-independent. Tier two, the return on the manager's own commitment: genuinely aligned, since it moves with the fund. And tier three, the carry: a call-option payoff, aligned on the upside but not on the downside. The consequence is stark and worth sitting with: even a meaningfully loss-making fund can leave the manager financially whole, or better, through fee income alone — because only carry can be clawed back, never the fees — while the investors absorb the full capital loss. The fee floor is what converts a bad outcome for investors into a survivable one for managers.\n\n[example] Whole through the fees\nWalk a representative large fund through a loss scenario to see the fee floor in action. Suppose the fund returns well below the capital invested. The investors take an enormous loss, proportional to their share of the capital — that is the bulk of the fund. The manager's own commitment also loses value, but it is a tiny fraction, so the dollar loss on the manager's capital is small. Meanwhile, the management fees collected over the fund's life — a substantial sum — are not returned; only carry is subject to clawback, and in a losing fund there was no carry to claw back. Net the pieces together and the manager's small capital loss is dwarfed by the fees retained, so the manager ends up net positive on the whole fund even as investors suffer a major loss. That single comparison is the entire asymmetry made vivid: the manager loses a little capital and keeps a lot of fees, while the investors bear nearly all of the real economic loss.\n\n[application] The billionaire-factory critique\nThis asymmetry is the basis of the well-known billionaire-factory critique. The argument runs like this: over a roughly ten-year window, managers across the industry collectively earned on the order of hundreds of billions in carried interest, while the manager commitment capital genuinely at risk across all those funds was a tiny fraction of that — a sliver, perhaps a few percent of total assets. So a relatively small group transformed a modest amount of at-risk capital into enormous profit through the free call option embedded in carry, and the gains concentrated in very few hands. The counter-argument is fair and also true: managers invest real human capital — time, reputation, career risk — and carry is not costless, since it requires beating the hurdle, which is genuinely uncertain. The honest working position holds both at once: the asymmetry is a designed feature meant to attract talent and align managers with the upside, but the lack of downside symmetry means manager risk-taking is not aligned with investor risk exposure — especially where carry is reachable through leverage rather than real operational value creation.\n\n[application] Four myths\nFour misconceptions worth dismantling. First, that a one-or-two-percent commitment means real skin in the game — it depends entirely on how it is funded, because if it comes from recycled management fees, the manager's genuine personal capital at risk can be close to nothing, which is exactly why funding disclosure is now urged. Second, that carry aligns managers and investors perfectly — it aligns on the upside but not on downside risk-taking, because the call-option structure rewards volatility, not loss avoidance. Third, that clawback fixes the asymmetry — it applies only to carry, never to the management fees, so a manager in a losing fund keeps the fee income that offsets most or all of their capital loss. And fourth, the counterintuitive one: that a higher carry percentage would improve alignment — false; raising carry increases the call-option value and pushes managers toward more risk, whereas lower carry paired with a larger manager commitment would actually improve downside alignment.\n\n[recap] A feature, not a bug\nSo to summarise: the investor-manager risk asymmetry is the defining structural feature of fund economics. Managers hold a free call option on twenty percent of profits above the hurdle, funded entirely by investor capital, while bearing limited downside through a commitment of just one or two percent. Guaranteed fee income provides a floor that often leaves managers in losing funds financially whole while investors absorb the full capital loss. Clawback corrects part of the after-the-fact asymmetry but is imperfectly enforced and never touches the fees. This structure has produced extraordinary personal wealth for successful managers, and the investor community's response has been incremental — pushing for bigger commitments, tighter clawbacks, more fee transparency — rather than structural. The asymmetry is not a bug; it is a designed feature meant to attract talent. The deeper question the field keeps forcing is whether the resulting incentive architecture produces good outcomes not just for the manager-investor split, but for the companies, workers, and communities where the capital actually lands.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. In what sense is carried interest economically a call option, and what are its strike and premium? How can a manager end up net positive on a fund that lost money for its investors? And why would raising the carry percentage actually worsen, rather than improve, alignment on downside risk? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The asymmetry between LP capital exposure and GP economic participation is the foundational tension in PE fund economics. It shapes every major governance question: why LPs push for higher GP commitments, why ILPA advocated for stronger clawback provisions, why Phalippou's \"Billionaire Factory\" calculation caused a crisis of narrative for the industry. Understanding this asymmetry is essential to evaluating whether the PE incentive architecture — with its 2-and-20 structure — produces alignment or misalignment between GP and LP interests. It is also the economic mechanism underlying the wealth concentration findings documented in PE and Wealth Concentration. This note was flagged by two synthesis notes (S2, S3) as the missing analysis of carry as a derivative instrument.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The LP–GP risk asymmetry is the structural imbalance in PE fund economics whereby GPs capture unlimited upside through carried interest (a call option on the portfolio's excess returns) while bearing limited downside (only their GP commitment, typically 1–2% of fund capital), while LPs bear 98–99% of the capital at risk and receive 80% of profits above the hurdle.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine two people start a business together. Person A (the LP) puts in £98 and does none of the work. Person B (the GP) puts in £2 and does all the work. If the business succeeds and is worth £200, Person A gets £80 (their capital back plus 80% of the £100 profit above their preferred return). Person B gets £22 (their capital back plus 20% of the profit). But if the business fails and is worth only £50, Person A loses £48 of their original £98 investment. Person B only loses £1 of their £2 contribution.</p><p>The GP's loss is bounded. The GP's gain is not. This is the asymmetry. And it means GP incentives are closer to those of a lottery ticket holder (huge payoff if things go well, small loss if they don't) than those of a genuine co-investor who feels losses symmetrically.</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### The GP Commitment: The Skin in the Game <strong>Standard structure:</strong> - GPs are required to commit 1–2% of total fund capital from their own resources - On a £2bn fund: GP commitment = £20–40m - This represents the \"skin in the game\" — the amount the GP loses in a zero-return scenario</p><p><strong>ILPA recommendation:</strong> 1% minimum floor; 2–5% preferred range to create meaningful alignment <strong>Large GP practice:</strong> Mega-GPs (KKR, Blackstone) typically commit at the low end of this range (1–1.5%) despite their personal wealth being orders of magnitude larger <strong>Source of GP commitment:</strong> Historically funded from recycled management fees; increasingly funded from personal GP partner capital; some GPs borrow from banks to fund the commitment (further reducing the economic bite of the loss)</p><p>### Carry as a Call Option: The Options Analysis <strong>Formal structure:</strong> Carried interest is economically equivalent to a call option written by LPs and owned by GPs, with the following characteristics: - <strong>Underlying:</strong> The portfolio's total value (distributed + unrealised NAV) - <strong>Strike price:</strong> The hurdle rate (typically 8% preferred return on committed capital) - <strong>Expiry:</strong> Fund life (typically 10–12 years) - <strong>Premium:</strong> Zero (the GP pays no premium for this option; it is granted as part of the fund economics)</p><p><strong>Option payoff:</strong> - If portfolio value exceeds the hurdle: GPs receive 20% of the excess above the hurdle (and above the catch-up threshold) - If portfolio value is below the hurdle: GPs receive zero carry (but retain management fees and their GP commitment principal, with only the commitment at risk)</p><p><strong>Asymmetric P&amp;L profile:</strong> | Scenario | LP outcome | GP outcome | |---|---|---| | Fund returns 3× (excellent) | Capital recovered + 80% of profit | 20% carry (massive upside) | | Fund returns 1.5× (mediocre) | Capital recovered + 80% small profit | Small or zero carry | | Fund returns 0.8× (loss) | Capital loss on 98-99% of fund | Loss only on GP commitment (1-2%) |</p><p>In a loss scenario, a GP whose fund returns 0.8× on a £2bn fund: - LPs lose: 0.20 × £1,960m = £392m - GP loses: 0.20 × £40m (1-2% GP commitment) = £8m - <strong>Ratio: LPs bear 98% of the economic loss; GP bears 2%</strong></p><p>### The Phalippou Calculation Phalippou (2020) calculated that GPs earned approximately $230 billion in carried interest from 2006 to 2015, funded primarily by LP capital (primarily pension funds, endowments, and sovereign wealth funds). The corresponding GP commitment capital at risk across all these funds was approximately $10 billion (1–2% of total AUM). This is the \"Billionaire Factory\" argument: a group of fund managers transformed $10bn of at-risk capital into $230bn of profit through the call option embedded in carried interest — and the gains were concentrated in the hands of a small number of individuals.</p><p><strong>Counter-argument:</strong> GPs also invested significant human capital (time, reputation, career risk) and the management fee structure compensates this; carry is not costless — it requires above-hurdle performance, which is uncertain.</p><p><strong>Working position:</strong> Both are true simultaneously. Carry is economically equivalent to a call option with zero premium, creating extraordinary upside for GPs who outperform. The structural asymmetry is a feature of the model, not a flaw — it aligns GP interests with LP upside. But the asymmetry in downside means GP risk-taking incentives are not symmetrically aligned with LP risk exposure, particularly in strategies where the \"carry\" is accessible through leverage rather than genuine operational value creation.</p><p>### Management Fee as Guaranteed Income Floor Beyond the asymmetric carry, GPs also receive management fees (typically 1.5–2% of committed capital per year during the investment period). On a £2bn fund with a 2% management fee for 5 years: - Management fees: 2% × £2bn × 5 = £200m in guaranteed income regardless of performance - Even a zero-carry fund generates £200m for the GP; LPs receive nothing from management fees (these are costs, not returns) - Metrick &amp; Yasuda (2010) found management fees alone are worth ~80bps of committed capital annually in present value terms — a substantial guaranteed return on the GP's minimal capital commitment</p><p>This creates a three-tiered GP economics structure: 1. Management fee: guaranteed, regardless of performance 2. GP commitment return: proportional to fund return (aligned) 3. Carry: call option payoff, only above hurdle (aligned on upside, not downside)</p><p>### The Downside Asymmetry and Risk-Taking Incentives <strong>Theoretical prediction:</strong> Option theory predicts that holders of call options benefit from volatility — higher variance in outcomes increases option value. A GP whose carry is a call option should, theoretically, be incentivised to take more risk than is optimal for LP welfare.</p><p><strong>Empirical question:</strong> Whether PE GPs actually over-lever relative to LP preferences is contested. Evidence: - Leverage ratios in PE LBOs increased consistently from 4× in the 1980s to 6-7× in 2006-2007 and 2019-2021 [needs-verification on trends] - Peak leverage vintages (2006-2007, 2019-2021) correspond to periods where carry option value was highest (low rates, high deal multiples) - Post-2022 rate shock disproportionately affected highly leveraged portfolio companies — consistent with GPs having over-levered relative to LP risk preferences</p><p><strong>ILPA position on GP commitment size as alignment tool:</strong> - Higher GP commitment reduces the asymmetry: a GP who commits 5% loses 5× as much per deal as a 1% commitment GP - But even at 5%, the carry asymmetry dominates: on a 3× fund, the GP earns carry worth many multiples of their commitment loss - There is no commitment level that eliminates the call option structure of carry — it is inherent to the 20% profit share model</p><p>### Clawback as Partial Asymmetry Correction Clawback provisions are the primary mechanism for correcting the asymmetry ex post. If a GP receives carry on early exits and later deals underperform, the clawback requires the GP to return the excess carry to LPs.</p><p><strong>Effectiveness:</strong> Limited — clawback provisions are complex to enforce, particularly: - Against GPs who have distributed the carry proceeds to individual partners who may have spent them - In international funds where clawback enforcement is contractual but lacks regulatory backing - See Clawback Enforcement Mechanisms for the mechanics of enforcement failure</p><p>### The GP Commitment Funding Mechanism <strong>The recycled management fee method:</strong> GPs often fund their GP commitment by directing a portion of management fee income into the fund. This means: - The GP's \"skin in the game\" is not actually their own capital — it is capital that LPs effectively paid (through management fees) and GPs then re-contributed - ILPA now recommends disclosure of how the GP commitment is funded - Implication: if the GP commitment is funded from management fees, the net economic alignment effect is smaller than the nominal 1–2% suggests</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The GP Commitment: The Skin in the Game <strong>Standard structure:</strong> - GPs are required to commit 1–2% of total fund capital from their own resources - On a £2bn fund: GP commitment = £20–40m - This represents the \"skin in the game\" — the amount the GP loses in a zero-return scenario</p><p><strong>ILPA recommendation:</strong> 1% minimum floor; 2–5% preferred range to create meaningful alignment <strong>Large GP practice:</strong> Mega-GPs (KKR, Blackstone) typically commit at the low end of this range (1–1.5%) despite their personal wealth being orders of magnitude larger <strong>Source of GP commitment:</strong> Historically funded from recycled management fees; increasingly funded from personal GP partner capital; some GPs borrow from banks to fund the commitment (further reducing the economic bite of the loss)</p><p>### Carry as a Call Option: The Options Analysis <strong>Formal structure:</strong> Carried interest is economically equivalent to a call option written by LPs and owned by GPs, with the following characteristics: - <strong>Underlying:</strong> The portfolio's total value (distributed + unrealised NAV) - <strong>Strike price:</strong> The hurdle rate (typically 8% preferred return on committed capital) - <strong>Expiry:</strong> Fund life (typically 10–12 years) - <strong>Premium:</strong> Zero (the GP pays no premium for this option; it is granted as part of the fund economics)</p><p><strong>Option payoff:</strong> - If portfolio value exceeds the hurdle: GPs receive 20% of the excess above the hurdle (and above the catch-up threshold) - If portfolio value is below the hurdle: GPs receive zero carry (but retain management fees and their GP commitment principal, with only the commitment at risk)</p><p><strong>Asymmetric P&amp;L profile:</strong> | Scenario | LP outcome | GP outcome | |---|---|---| | Fund returns 3× (excellent) | Capital recovered + 80% of profit | 20% carry (massive upside) | | Fund returns 1.5× (mediocre) | Capital recovered + 80% small profit | Small or zero carry | | Fund returns 0.8× (loss) | Capital loss on 98-99% of fund | Loss only on GP commitment (1-2%) |</p><p>In a loss scenario, a GP whose fund returns 0.8× on a £2bn fund: - LPs lose: 0.20 × £1,960m = £392m - GP loses: 0.20 × £40m (1-2% GP commitment) = £8m - <strong>Ratio: LPs bear 98% of the economic loss; GP bears 2%</strong></p><p>### The Phalippou Calculation Phalippou (2020) calculated that GPs earned approximately $230 billion in carried interest from 2006 to 2015, funded primarily by LP capital (primarily pension funds, endowments, and sovereign wealth funds). The corresponding GP commitment capital at risk across all these funds was approximately $10 billion (1–2% of total AUM). This is the \"Billionaire Factory\" argument: a group of fund managers transformed $10bn of at-risk capital into $230bn of profit through the call option embedded in carried interest — and the gains were concentrated in the hands of a small number of individuals.</p><p><strong>Counter-argument:</strong> GPs also invested significant human capital (time, reputation, career risk) and the management fee structure compensates this; carry is not costless — it requires above-hurdle performance, which is uncertain.</p><p><strong>Working position:</strong> Both are true simultaneously. Carry is economically equivalent to a call option with zero premium, creating extraordinary upside for GPs who outperform. The structural asymmetry is a feature of the model, not a flaw — it aligns GP interests with LP upside. But the asymmetry in downside means GP risk-taking incentives are not symmetrically aligned with LP risk exposure, particularly in strategies where the \"carry\" is accessible through leverage rather than genuine operational value creation.</p><p>### Management Fee as Guaranteed Income Floor Beyond the asymmetric carry, GPs also receive management fees (typically 1.5–2% of committed capital per year during the investment period). On a £2bn fund with a 2% management fee for 5 years: - Management fees: 2% × £2bn × 5 = £200m in guaranteed income regardless of performance - Even a zero-carry fund generates £200m for the GP; LPs receive nothing from management fees (these are costs, not returns) - Metrick &amp; Yasuda (2010) found management fees alone are worth ~80bps of committed capital annually in present value terms — a substantial guaranteed return on the GP's minimal capital commitment</p><p>This creates a three-tiered GP economics structure: 1. Management fee: guaranteed, regardless of performance 2. GP commitment return: proportional to fund return (aligned) 3. Carry: call option payoff, only above hurdle (aligned on upside, not downside)</p><p>### The Downside Asymmetry and Risk-Taking Incentives <strong>Theoretical prediction:</strong> Option theory predicts that holders of call options benefit from volatility — higher variance in outcomes increases option value. A GP whose carry is a call option should, theoretically, be incentivised to take more risk than is optimal for LP welfare.</p><p><strong>Empirical question:</strong> Whether PE GPs actually over-lever relative to LP preferences is contested. Evidence: - Leverage ratios in PE LBOs increased consistently from 4× in the 1980s to 6-7× in 2006-2007 and 2019-2021 [needs-verification on trends] - Peak leverage vintages (2006-2007, 2019-2021) correspond to periods where carry option value was highest (low rates, high deal multiples) - Post-2022 rate shock disproportionately affected highly leveraged portfolio companies — consistent with GPs having over-levered relative to LP risk preferences</p><p><strong>ILPA position on GP commitment size as alignment tool:</strong> - Higher GP commitment reduces the asymmetry: a GP who commits 5% loses 5× as much per deal as a 1% commitment GP - But even at 5%, the carry asymmetry dominates: on a 3× fund, the GP earns carry worth many multiples of their commitment loss - There is no commitment level that eliminates the call option structure of carry — it is inherent to the 20% profit share model</p><p>### Clawback as Partial Asymmetry Correction Clawback provisions are the primary mechanism for correcting the asymmetry ex post. If a GP receives carry on early exits and later deals underperform, the clawback requires the GP to return the excess carry to LPs.</p><p><strong>Effectiveness:</strong> Limited — clawback provisions are complex to enforce, particularly: - Against GPs who have distributed the carry proceeds to individual partners who may have spent them - In international funds where clawback enforcement is contractual but lacks regulatory backing - See Clawback Enforcement Mechanisms for the mechanics of enforcement failure</p><p>### The GP Commitment Funding Mechanism <strong>The recycled management fee method:</strong> GPs often fund their GP commitment by directing a portion of management fee income into the fund. This means: - The GP's \"skin in the game\" is not actually their own capital — it is capital that LPs effectively paid (through management fees) and GPs then re-contributed - ILPA now recommends disclosure of how the GP commitment is funded - Implication: if the GP commitment is funded from management fees, the net economic alignment effect is smaller than the nominal 1–2% suggests</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>KKR Fund XI (hypothetical illustration based on known fund parameters):</strong> Assume KKR Fund XI: $15bn fund, 1.5% GP commitment = $225m GP commitment. Management fees: 1.75% × $15bn × 5 years = $1.3bn management fees.</p><p>In a strong-return scenario (3× gross MOIC): - Total fund value at exit: $45bn - LP capital returned: $14.775bn (their 98.5% × $15bn invested) - Profits above invested capital: $30bn - Above hurdle (8% preferred return) carry pool: approximately $5bn [simplified — actual calculation accounts for IRR timing] - GP carry (20%): $1bn - LP share of carry pool (80%): $4bn</p><p>GP total economics: $225m returned capital + $1bn carry + $1.3bn management fees = $2.5bn GP capital at risk: $225m</p><p>In a loss scenario (0.7× gross MOIC): - Total fund value at exit: $10.5bn - LP loss: (1 - 0.7) × $14.775bn = $4.4bn LP capital lost - GP loss: (1 - 0.7) × $225m = $68m GP capital lost - GP management fees retained: $1.3bn (not returned — only carry is clawed back) - <strong>Net GP outcome in loss scenario: -$68m capital loss, but +$1.3bn management fees = net positive $1.2bn</strong></p><p>This calculation illustrates why even a significantly loss-making fund can leave GPs financially whole through management fee income, while LPs bear the full capital loss.</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### The GP Commitment: The Skin in the Game <strong>Standard structure:</strong> - GPs are required to commit 1–2% of total fund capital from their own resources - On a £2bn fund: GP commitment = £20–40m - This represents the \"skin in the game\" — the amount the GP loses in a zero-return scenario</p><p><strong>ILPA recommendation:</strong> 1% minimum floor; 2–5% preferred range to create meaningful alignment <strong>Large GP practice:</strong> Mega-GPs (KKR, Blackstone) typically commit at the low end of this range (1–1.5%) despite their personal wealth being orders of magnitude larger <strong>Source of GP commitment:</strong> Historically funded from recycled management fees; increasingly funded from personal GP partner capital; some GPs borrow from banks to fund the commitment (further reducing the economic bite of the loss)</p><p>### Carry as a Call Option: The Options Analysis <strong>Formal structure:</strong> Carried interest is economically equivalent to a call option written by LPs and owned by GPs, with the following characteristics: - <strong>Underlying:</strong> The portfolio's total value (distributed + unrealised NAV) - <strong>Strike price:</strong> The hurdle rate (typically 8% preferred return on committed capital) - <strong>Expiry:</strong> Fund life (typically 10–12 years) - <strong>Premium:</strong> Zero (the GP pays no premium for this option; it is granted as part of the fund economics)</p><p><strong>Option payoff:</strong> - If portfolio value exceeds the hurdle: GPs receive 20% of the excess above the hurdle (and above the catch-up threshold) - If portfolio value is below the hurdle: GPs receive zero carry (but retain management fees and their GP commitment principal, with only the commitment at risk)</p><p><strong>Asymmetric P&amp;L profile:</strong> | Scenario | LP outcome | GP outcome | |---|---|---| | Fund returns 3× (excellent) | Capital recovered + 80% of profit | 20% carry (massive upside) | | Fund returns 1.5× (mediocre) | Capital recovered + 80% small profit | Small or zero carry | | Fund returns 0.8× (loss) | Capital loss on 98-99% of fund | Loss only on GP commitment (1-2%) |</p><p>In a loss scenario, a GP whose fund returns 0.8× on a £2bn fund: - LPs lose: 0.20 × £1,960m = £392m - GP loses: 0.20 × £40m (1-2% GP commitment) = £8m - <strong>Ratio: LPs bear 98% of the economic loss; GP bears 2%</strong></p><p>### The Phalippou Calculation Phalippou (2020) calculated that GPs earned approximately $230 billion in carried interest from 2006 to 2015, funded primarily by LP capital (primarily pension funds, endowments, and sovereign wealth funds). The corresponding GP commitment capital at risk across all these funds was approximately $10 billion (1–2% of total AUM). This is the \"Billionaire Factory\" argument: a group of fund managers transformed $10bn of at-risk capital into $230bn of profit through the call option embedded in carried interest — and the gains were concentrated in the hands of a small number of individuals.</p><p><strong>Counter-argument:</strong> GPs also invested significant human capital (time, reputation, career risk) and the management fee structure compensates this; carry is not costless — it requires above-hurdle performance, which is uncertain.</p><p><strong>Working position:</strong> Both are true simultaneously. Carry is economically equivalent to a call option with zero premium, creating extraordinary upside for GPs who outperform. The structural asymmetry is a feature of the model, not a flaw — it aligns GP interests with LP upside. But the asymmetry in downside means GP risk-taking incentives are not symmetrically aligned with LP risk exposure, particularly in strategies where the \"carry\" is accessible through leverage rather than genuine operational value creation.</p><p>### Management Fee as Guaranteed Income Floor Beyond the asymmetric carry, GPs also receive management fees (typically 1.5–2% of committed capital per year during the investment period). On a £2bn fund with a 2% management fee for 5 years: - Management fees: 2% × £2bn × 5 = £200m in guaranteed income regardless of performance - Even a zero-carry fund generates £200m for the GP; LPs receive nothing from management fees (these are costs, not returns) - Metrick &amp; Yasuda (2010) found management fees alone are worth ~80bps of committed capital annually in present value terms — a substantial guaranteed return on the GP's minimal capital commitment</p><p>This creates a three-tiered GP economics structure: 1. Management fee: guaranteed, regardless of performance 2. GP commitment return: proportional to fund return (aligned) 3. Carry: call option payoff, only above hurdle (aligned on upside, not downside)</p><p>### The Downside Asymmetry and Risk-Taking Incentives <strong>Theoretical prediction:</strong> Option theory predicts that holders of call options benefit from volatility — higher variance in outcomes increases option value. A GP whose carry is a call option should, theoretically, be incentivised to take more risk than is optimal for LP welfare.</p><p><strong>Empirical question:</strong> Whether PE GPs actually over-lever relative to LP preferences is contested. Evidence: - Leverage ratios in PE LBOs increased consistently from 4× in the 1980s to 6-7× in 2006-2007 and 2019-2021 [needs-verification on trends] - Peak leverage vintages (2006-2007, 2019-2021) correspond to periods where carry option value was highest (low rates, high deal multiples) - Post-2022 rate shock disproportionately affected highly leveraged portfolio companies — consistent with GPs having over-levered relative to LP risk preferences</p><p><strong>ILPA position on GP commitment size as alignment tool:</strong> - Higher GP commitment reduces the asymmetry: a GP who commits 5% loses 5× as much per deal as a 1% commitment GP - But even at 5%, the carry asymmetry dominates: on a 3× fund, the GP earns carry worth many multiples of their commitment loss - There is no commitment level that eliminates the call option structure of carry — it is inherent to the 20% profit share model</p><p>### Clawback as Partial Asymmetry Correction Clawback provisions are the primary mechanism for correcting the asymmetry ex post. If a GP receives carry on early exits and later deals underperform, the clawback requires the GP to return the excess carry to LPs.</p><p><strong>Effectiveness:</strong> Limited — clawback provisions are complex to enforce, particularly: - Against GPs who have distributed the carry proceeds to individual partners who may have spent them - In international funds where clawback enforcement is contractual but lacks regulatory backing - See Clawback Enforcement Mechanisms for the mechanics of enforcement failure</p><p>### The GP Commitment Funding Mechanism <strong>The recycled management fee method:</strong> GPs often fund their GP commitment by directing a portion of management fee income into the fund. This means: - The GP's \"skin in the game\" is not actually their own capital — it is capital that LPs effectively paid (through management fees) and GPs then re-contributed - ILPA now recommends disclosure of how the GP commitment is funded - Implication: if the GP commitment is funded from management fees, the net economic alignment effect is smaller than the nominal 1–2% suggests</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"1% GP commitment means the GP has real skin in the game.\"</strong> The absolute alignment depends on whether the commitment is funded from personal capital. If funded from recycled management fees, the actual personal capital commitment may be near zero.</li><li><strong>\"Carry aligns GP and LP interests perfectly.\"</strong> Carry aligns on the upside; it does not align on downside risk-taking. The call option structure incentivises volatility maximisation, not loss minimisation.</li><li><strong>\"Clawback provisions fix the asymmetry.\"</strong> Clawback applies only to carry, not management fees. GPs in loss-making funds retain management fee income that compensates for most or all of their capital loss.</li><li><strong>\"Higher carry percentage would improve alignment.\"</strong> False — higher carry increases the call option value, further incentivising risk-taking. Lower carry (with higher GP commitment) would improve downside alignment more effectively.</li></ol>"}, "8": {"section": "Summary", "html": "<p>The LP–GP risk asymmetry is the defining structural feature of PE fund economics: GPs hold a call option (carried interest, 20% of profits above the hurdle) with zero premium, funded entirely by LP capital, while bearing limited downside through a GP commitment of only 1–2% of total fund capital. Management fee income provides a guaranteed floor regardless of performance, meaning GPs in loss-making funds often emerge financially whole while LPs bear the full capital loss. Clawback provisions partially correct the ex-post asymmetry but are imperfectly enforced and do not address management fee retention. This structure has generated extraordinary personal wealth for successful buyout GPs — the basis of Phalippou's Billionaire Factory calculation — while the LP community's response (ILPA pushing for higher GP commitments, enhanced clawback terms, and management fee transparency) has been incremental rather than structural. The asymmetry is not a bug in the PE model; it is a designed feature intended to attract talented GPs. The question the course thesis forces is whether the resulting incentive architecture produces optimal outcomes not just for GP–LP economics, but for the companies, workers, and communities in which PE capital is deployed.</p>"}, "9": {"section": "Summary", "html": "<p>The LP–GP risk asymmetry is the defining structural feature of PE fund economics: GPs hold a call option (carried interest, 20% of profits above the hurdle) with zero premium, funded entirely by LP capital, while bearing limited downside through a GP commitment of only 1–2% of total fund capital. Management fee income provides a guaranteed floor regardless of performance, meaning GPs in loss-making funds often emerge financially whole while LPs bear the full capital loss. Clawback provisions partially correct the ex-post asymmetry but are imperfectly enforced and do not address management fee retention. This structure has generated extraordinary personal wealth for successful buyout GPs — the basis of Phalippou's Billionaire Factory calculation — while the LP community's response (ILPA pushing for higher GP commitments, enhanced clawback terms, and management fee transparency) has been incremental rather than structural. The asymmetry is not a bug in the PE model; it is a designed feature intended to attract talented GPs. The question the course thesis forces is whether the resulting incentive architecture produces optimal outcomes not just for GP–LP economics, but for the companies, workers, and communities in which PE capital is deployed.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "the-meaningful-lp-access-economics", "title": "The Meaningful LP Access Economics", "draft_watermark": false, "estimated_runtime_sec": 336, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Governance tools assume a seat", "on_screen_bullets": ["All LP tools need enforcement", "Enforcement needs a seat", "The seat is commercially earned"], "narration": "Every tool of investor programme management — the policy statement, performance attribution, governance rights, concentration monitoring — quietly assumes the investor can actually enforce them. But enforcement requires the manager to give the investor a seat at the table, and that seat is commercially contingent: the manager offers governance rights in proportion to how much the investor matters to the fundraise. This creates a hard stratification. There are meaningful investors — large enough to matter commercially, who receive side letters, committee seats, co-investment, and bespoke reporting. And there are standard investors — below the threshold, who get only the baseline terms the agreement gives everyone. The crucial, uncomfortable point is that the entire governance toolkit describes the meaningful-investor experience. It does not describe what most investors actually get. This is not a footnote; it is a fundamental limit on the idea that the model is well-governed.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Governance stratified by size", "on_screen_bullets": ["Rights scale with commitment", "A threshold excludes most", "Tools only work above it"], "narration": "Here is the definition. The meaningful-investor access economics describes the stratification of governance rights — side letters, committee seats, co-investment, the most-favoured-nation election, enhanced reporting — by commitment size, creating a structural hierarchy in which the tools that make governance effective are only available above a threshold that excludes the majority of investors. The key idea is that these are not universal rights; they are commercial privileges granted to investors who write big enough cheques. Below the threshold, you receive the standard package and nothing more. So when a governance framework describes all these powerful tools, it is implicitly describing the experience of a minority of large investors — and the framework's promise of well-governance can only function for that subset.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Two tiers of shareholder", "on_screen_bullets": ["Small: same report, no seat", "Large: board seat, special terms", "Only one universal right"], "narration": "Think of fund governance like a shareholders' meeting with two tiers. The smaller investors get the same annual report, the same distributions, and a vote only on the rare decisions requiring everyone's approval — but no board seat, no right to request extra data, no special terms. The larger investors get seats on the governing committee, access to non-public updates, the ability to invest alongside the fund in specific deals, and better economics negotiated privately. The single right that, in theory, applies equally to all is the most-favoured-nation election: if a large investor negotiated better terms, a smaller one can elect to receive those same terms. But exercising it requires knowing what terms the large investors actually got — which requires reading the agreement carefully and having a lawyer review confidential side letters, tools that smaller investors typically cannot afford. So the system works as described for the institutions large enough to participate in it, and much more weakly for everyone else.", "est_sec": 54}, {"n": 4, "beat": "mechanics", "visual": "mermaid", "source_section": "Technical Explanation", "on_screen_title": "The access ladder", "on_screen_bullets": ["Bigger cheque, more rights", "Thresholds rise by fund size", "Committee seat is the top rung"], "narration": "Governance rights form a ladder, with each rung gated by commitment size, as the diagram shows. At the bottom, any investor gets the baseline agreement rights and, on paper, the most-favoured-nation election. A larger cheque unlocks co-investment first-look, because managers only want co-investors who can write meaningful amounts quickly. Larger still unlocks a genuine side-letter negotiation, because the legal cost of one is only justified above a certain size. Higher again, enhanced operational reporting, which a manager only bothers to provide for a commercially material investor. And at the top rung sits the governing-committee seat, awarded to the handful of largest investors by commitment. Crucially, these thresholds are not published, and they rise with fund size and manager prestige: a seat at a modest fund might take a few percent, while a seat at a giant flagship fund takes a far larger absolute sum. The ladder is real, and where you sit on it is set almost entirely by the size of your cheque relative to the fund.", "mermaid": "flowchart TD\n  A[Any commitment<br/>baseline rights + MFN on paper] --> B[Larger cheque<br/>co-investment first-look]\n  B --> C[Larger still<br/>side-letter negotiation]\n  C --> D[Higher<br/>enhanced reporting]\n  D --> E[Top rung<br/>governing-committee seat]", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The most-favoured-nation catch", "on_screen_bullets": ["Tiered: small only matches small", "Confidential side letters hide terms", "Legal election cost bites"], "narration": "The most-favoured-nation election is the most democratic-sounding tool, so it deserves scrutiny — because in practice it is hobbled three ways. First, it is tiered: the clause typically only lets an investor match terms granted to others of comparable size, so a small investor can match other small investors, not the large ones who negotiated the genuinely valuable terms. Second, disclosure opacity: you can only elect a term if you know it exists, and side letters are confidential, so unless you separately negotiated the right to see the full list of others' terms, you cannot know what to elect. And third, the election cost: even with disclosure, reviewing all those side letters to identify what to claim requires real legal work, which is a meaningful fraction of a small commitment but trivial for a large one. So the tool most programmes teach as a universal right is precisely the one most smaller investors cannot practically exercise. It democratises governance in theory far more than it does in fact.", "est_sec": 54}, {"n": 6, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three ways up the ladder", "on_screen_bullets": ["Anchor an emerging manager", "Pool through a fund-of-funds", "Aggregate via a secondary fund"], "narration": "Smaller investors do have three pathways to reach governance rights above their natural threshold, each with a cost. First, anchoring an emerging manager: commit early and at a significant share to a first or second fund, and the manager, needing you to reach a first close, will grant committee seats and side-letter rights at a lower threshold — the trade-off being unproven, first-fund risk. Second, pooling through a fund-of-funds: many small investors aggregate into one large vehicle that qualifies for governance rights none could reach alone — the trade-off being an extra layer of fees that eats into net returns. Third, aggregating through a secondary fund: a secondary buyer accumulates exposure at scale, but inherits positions rather than negotiating fresh terms, so its governance depends on whatever the original investor had, and it carries the secondary buyer's structural governance deficit. The honest conclusion across all three is the same: governance access is purchasable through aggregation, but the fee cost roughly offsets the governance benefit. The democratisation is real, but it is not free.", "est_sec": 56}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The rising threshold", "on_screen_bullets": ["Flagship funds quadrupled in size", "Same cheque, smaller share", "Mid-size investors priced out"], "narration": "There is a structural trend worth flagging: the threshold for governance access has been rising. As the top managers have raised progressively larger flagship funds, the absolute commitment needed for a committee seat has climbed, because the seat goes by your share of the fund. A given commitment that bought a meaningful few-percent stake at a mid-sized fund a decade ago is now a fraction of a percent at a giant fund — too small for the manager to prioritise the relationship. The consequence is that investors who could access committee seats at the largest managers a decade ago now need several times the commitment for the same access. And the institutions squeezed out are the mid-sized ones — large enough to commit meaningfully in absolute terms, but too small relative to the swelling fund size to matter to the manager. So the mega-fund effect has quietly pushed effective governance access upward into an ever-smaller set of truly enormous investors.", "est_sec": 52}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Not all LPs have equal rights", "Fund-of-funds isn't free access", "Large LPs face the concentration trap"], "narration": "Four misconceptions to dismantle. First, that all investors in a fund have the same rights — they have the same minimum rights, but side letters differentiate them by size, and most investors have no idea what others' side letters contain. Second, that the most-favoured-nation clause ensures equal treatment — it is tiered and depends on disclosure most investors lack, so it is far more democratic in theory than in practice. Third, that a fund-of-funds solves the access problem — it provides access intermediated through a fee layer, and pooled net-of-all-fees returns systematically lag direct returns, so the governance is bought at a real cost. And fourth, that large investors are simply better off in every respect — not so; the largest investors face the concentration trap, where the very scale that earns a committee seat also leaves them trapped in the relationship. Size buys access and creates dependence at the same time.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Excluded from the economics", "on_screen_bullets": ["Governance is size-stratified", "Aggregation costs offset benefit", "Not excluded from PE, from its economics"], "narration": "So to summarise: the meaningful-investor access economics reveals a structural stratification of governance by size. The governance tools the framework describes are commercially contingent — managers grant them in proportion to financial importance to the fundraise — and below a threshold, investors receive only standard terms with no practical access to those tools. The most-favoured-nation clause is the most democratic in name but is limited by tiering, disclosure opacity, and election costs. Smaller investors can reach governance through anchoring, fund-of-funds pooling, or secondary aggregation, but each carries a fee cost that partly offsets the benefit. And the mega-fund effect has raised the threshold over time, concentrating effective oversight in fewer, larger institutions. The sharpest way to state the conclusion: smaller investors are not excluded from private equity itself — they are excluded from the economics of private equity that only large direct investors can access.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What gates the access ladder?", "Why is MFN weak in practice?", "What is the mega-fund effect?"], "narration": "Before you finish, answer these from memory. What determines where an investor sits on the governance access ladder? Why does the most-favoured-nation clause fail to democratise access in practice — name its three limitations. And what is the mega-fund effect, and which investors has it priced out of governance access? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The Meaningful LP Access Economics\n\n[hook] Governance tools assume a seat\nEvery tool of investor programme management — the policy statement, performance attribution, governance rights, concentration monitoring — quietly assumes the investor can actually enforce them. But enforcement requires the manager to give the investor a seat at the table, and that seat is commercially contingent: the manager offers governance rights in proportion to how much the investor matters to the fundraise. This creates a hard stratification. There are meaningful investors — large enough to matter commercially, who receive side letters, committee seats, co-investment, and bespoke reporting. And there are standard investors — below the threshold, who get only the baseline terms the agreement gives everyone. The crucial, uncomfortable point is that the entire governance toolkit describes the meaningful-investor experience. It does not describe what most investors actually get. This is not a footnote; it is a fundamental limit on the idea that the model is well-governed.\n\n[definition] Governance stratified by size\nHere is the definition. The meaningful-investor access economics describes the stratification of governance rights — side letters, committee seats, co-investment, the most-favoured-nation election, enhanced reporting — by commitment size, creating a structural hierarchy in which the tools that make governance effective are only available above a threshold that excludes the majority of investors. The key idea is that these are not universal rights; they are commercial privileges granted to investors who write big enough cheques. Below the threshold, you receive the standard package and nothing more. So when a governance framework describes all these powerful tools, it is implicitly describing the experience of a minority of large investors — and the framework's promise of well-governance can only function for that subset.\n\n[intuition] Two tiers of shareholder\nThink of fund governance like a shareholders' meeting with two tiers. The smaller investors get the same annual report, the same distributions, and a vote only on the rare decisions requiring everyone's approval — but no board seat, no right to request extra data, no special terms. The larger investors get seats on the governing committee, access to non-public updates, the ability to invest alongside the fund in specific deals, and better economics negotiated privately. The single right that, in theory, applies equally to all is the most-favoured-nation election: if a large investor negotiated better terms, a smaller one can elect to receive those same terms. But exercising it requires knowing what terms the large investors actually got — which requires reading the agreement carefully and having a lawyer review confidential side letters, tools that smaller investors typically cannot afford. So the system works as described for the institutions large enough to participate in it, and much more weakly for everyone else.\n\n[mechanics] The access ladder\nGovernance rights form a ladder, with each rung gated by commitment size, as the diagram shows. At the bottom, any investor gets the baseline agreement rights and, on paper, the most-favoured-nation election. A larger cheque unlocks co-investment first-look, because managers only want co-investors who can write meaningful amounts quickly. Larger still unlocks a genuine side-letter negotiation, because the legal cost of one is only justified above a certain size. Higher again, enhanced operational reporting, which a manager only bothers to provide for a commercially material investor. And at the top rung sits the governing-committee seat, awarded to the handful of largest investors by commitment. Crucially, these thresholds are not published, and they rise with fund size and manager prestige: a seat at a modest fund might take a few percent, while a seat at a giant flagship fund takes a far larger absolute sum. The ladder is real, and where you sit on it is set almost entirely by the size of your cheque relative to the fund.\n\n[mechanics] The most-favoured-nation catch\nThe most-favoured-nation election is the most democratic-sounding tool, so it deserves scrutiny — because in practice it is hobbled three ways. First, it is tiered: the clause typically only lets an investor match terms granted to others of comparable size, so a small investor can match other small investors, not the large ones who negotiated the genuinely valuable terms. Second, disclosure opacity: you can only elect a term if you know it exists, and side letters are confidential, so unless you separately negotiated the right to see the full list of others' terms, you cannot know what to elect. And third, the election cost: even with disclosure, reviewing all those side letters to identify what to claim requires real legal work, which is a meaningful fraction of a small commitment but trivial for a large one. So the tool most programmes teach as a universal right is precisely the one most smaller investors cannot practically exercise. It democratises governance in theory far more than it does in fact.\n\n[application] Three ways up the ladder\nSmaller investors do have three pathways to reach governance rights above their natural threshold, each with a cost. First, anchoring an emerging manager: commit early and at a significant share to a first or second fund, and the manager, needing you to reach a first close, will grant committee seats and side-letter rights at a lower threshold — the trade-off being unproven, first-fund risk. Second, pooling through a fund-of-funds: many small investors aggregate into one large vehicle that qualifies for governance rights none could reach alone — the trade-off being an extra layer of fees that eats into net returns. Third, aggregating through a secondary fund: a secondary buyer accumulates exposure at scale, but inherits positions rather than negotiating fresh terms, so its governance depends on whatever the original investor had, and it carries the secondary buyer's structural governance deficit. The honest conclusion across all three is the same: governance access is purchasable through aggregation, but the fee cost roughly offsets the governance benefit. The democratisation is real, but it is not free.\n\n[application] The rising threshold\nThere is a structural trend worth flagging: the threshold for governance access has been rising. As the top managers have raised progressively larger flagship funds, the absolute commitment needed for a committee seat has climbed, because the seat goes by your share of the fund. A given commitment that bought a meaningful few-percent stake at a mid-sized fund a decade ago is now a fraction of a percent at a giant fund — too small for the manager to prioritise the relationship. The consequence is that investors who could access committee seats at the largest managers a decade ago now need several times the commitment for the same access. And the institutions squeezed out are the mid-sized ones — large enough to commit meaningfully in absolute terms, but too small relative to the swelling fund size to matter to the manager. So the mega-fund effect has quietly pushed effective governance access upward into an ever-smaller set of truly enormous investors.\n\n[application] Four myths\nFour misconceptions to dismantle. First, that all investors in a fund have the same rights — they have the same minimum rights, but side letters differentiate them by size, and most investors have no idea what others' side letters contain. Second, that the most-favoured-nation clause ensures equal treatment — it is tiered and depends on disclosure most investors lack, so it is far more democratic in theory than in practice. Third, that a fund-of-funds solves the access problem — it provides access intermediated through a fee layer, and pooled net-of-all-fees returns systematically lag direct returns, so the governance is bought at a real cost. And fourth, that large investors are simply better off in every respect — not so; the largest investors face the concentration trap, where the very scale that earns a committee seat also leaves them trapped in the relationship. Size buys access and creates dependence at the same time.\n\n[recap] Excluded from the economics\nSo to summarise: the meaningful-investor access economics reveals a structural stratification of governance by size. The governance tools the framework describes are commercially contingent — managers grant them in proportion to financial importance to the fundraise — and below a threshold, investors receive only standard terms with no practical access to those tools. The most-favoured-nation clause is the most democratic in name but is limited by tiering, disclosure opacity, and election costs. Smaller investors can reach governance through anchoring, fund-of-funds pooling, or secondary aggregation, but each carries a fee cost that partly offsets the benefit. And the mega-fund effect has raised the threshold over time, concentrating effective oversight in fewer, larger institutions. The sharpest way to state the conclusion: smaller investors are not excluded from private equity itself — they are excluded from the economics of private equity that only large direct investors can access.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What determines where an investor sits on the governance access ladder? Why does the most-favoured-nation clause fail to democratise access in practice — name its three limitations. And what is the mega-fund effect, and which investors has it priced out of governance access? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>All five tools of LP programme management — IPS, performance attribution, governance rights, concentration monitoring, and portfolio construction — presuppose that LPs can enforce them. But enforcement requires the GP to give the LP a seat at the table, and that seat is commercially contingent: the GP offers governance rights proportional to the LP's commercial importance to the fundraise.</p><p>This creates a structural stratification: - <strong>\"Meaningful LPs\"</strong> — institutions large enough to matter commercially; they receive side letters, LPAC seats, co-investment allocations, and bespoke reporting - <strong>\"Standard LPs\"</strong> — institutions below the commercial threshold; they receive standard LPA terms, standard quarterly reports, and no governance rights beyond what the LPA requires for all LPs</p><p>The course's governance tools — all of them — describe the meaningful LP experience. They do not describe the experience of most LP investors by count. This is not a minor qualification; it is a fundamental limitation on the thesis's \"well-governed\" condition. Well-governance through LP tools can only function for the subset of LPs large enough to exercise those tools.</p><p>For a secondary fund administrator processing K-1 allocations, the practical implication: the governance rights described in LP Governance Rights in Practice and Side Letters are the rights of the original LPs who committed at scale. When CVC Secondary Partners acquires a position from a smaller LP who had none of these rights, the governance gap is not correctable — it was structural from day one.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The meaningful LP access economics describes the stratification of LP governance rights — side letters, LPAC seats, co-investment rights, MFN elections, and enhanced reporting — by commitment size, creating a structural hierarchy where the tools that make LP programme governance effective are only available above a threshold that excludes the majority of LP investors.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of PE fund governance like a shareholders' meeting with two tiers: institutional and retail.</p><p>The retail shareholders (smaller LPs) get the same annual report, the same dividend payment, and the same vote — but only on decisions that require all shareholder approval. They have no seat on the board. They cannot request additional data. They cannot negotiate special terms.</p><p>The institutional shareholders (larger LPs) get seats on the board (LPAC). They can request non-public financial updates from management (enhanced reporting). They can invest alongside the company in specific deals (co-investment). They negotiated better economics than the retail shareholders (side letters with reduced carry, better hurdles, fee waivers).</p><p>The only right that applies equally to all shareholders is the Most Favoured Nation clause — if an institutional shareholder negotiated better terms, the retail shareholder can elect to receive those same terms. But exercising MFN rights requires the retail shareholder to know what terms the institutional shareholders received, which requires reading the LPA carefully and having a lawyer review side letters — tools that smaller LPs typically cannot afford.</p><p>This is the meaningful LP stratification: the governance system works as described for institutions large enough to participate in it. It works much more weakly for everyone else.</p><p>---</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### The Governance Rights Access Ladder</p><p>LP governance rights are stratified by commitment size in approximate tiers:</p><p>| Governance Right | Approx. Minimum Commitment | Why This Threshold | |---|---|---| | Standard LP rights (LPA only) | Any amount | All LPs receive LPA-defined rights regardless of size | | MFN clause (automatic if in LPA) | Any amount | Most Favoured Nation clauses typically apply to all LPs; practical exercise requires legal review | | Co-investment right (first look) | $25-50m+ in typical mid-cap buyout | GP wants co-investors who can write meaningful cheques; sub-$25m LPs cannot | | Side letter negotiation (meaningful) | $50-100m+ in fund | Legal cost of side letter negotiation ($25-50k) is only justifiable at sufficient commitment size; GP only engages below $50m for strategic LPs (anchor investors in emerging managers) | | Enhanced reporting (quarterly operational) | $75-100m+ | GP has no operational incentive to provide beyond standard reporting unless LP is commercially material | | LPAC seat | $100-200m+ (fund-size dependent) | GPs typically award 5-8 LPAC seats; seats go to top 5-8 LPs by commitment | | LPAC seat in flagship top-tier fund (KKR, BX) | $250-500m+ | Seats in the most over-subscribed funds go to the LP relationships most commercially important to the GP |</p><p>These thresholds are not published — they are negotiated and estimated based on market practice. The precise threshold for any given fund depends on fund size (larger fund = higher threshold for LPAC), GP tier (Tier 1 = higher threshold for any governance right), and cycle (in over-subscribed markets, GPs can demand higher commitments for governance rights).</p><p>---</p><p>### The Three Access Pathways for Smaller LPs</p><p>Smaller LPs have three mechanisms to access governance rights beyond their natural commitment threshold:</p><p><strong>1. Anchor investor status in emerging managers</strong> Committing early and at significant percentage to an emerging manager (first or second fund) gives an LP disproportionate governance influence. The GP needs the LP's commitment to reach first close and will grant LPAC seats and side letter rights at lower commitment thresholds to secure an anchor.</p><p>Trade-off: exposure to first-fund risk; track record is unproven. This is the primary mechanism by which endowments access governance rights in PE — by betting on emerging managers early.</p><p><strong>2. LP aggregation through funds of funds</strong> A fund of funds (FoF) aggregates commitments from many smaller LPs into a larger vehicle that commits to underlying PE funds at scale. The FoF's pooled commitment qualifies for governance rights that individual LP members could not achieve.</p><p>Trade-off: additional fee layer (FoF charges 50-100bps management fee + 5-10% performance fee on top of underlying GP fees). The governance access gain is purchased at a cost in net returns.</p><p><strong>3. Secondary fund intermediation</strong> Secondary funds like CVC Secondary Partners buy LP positions at scale, sometimes accumulating exposure to a GP family that aggregates above the meaningful LP threshold. However, secondary buyers inherit positions rather than negotiating fresh terms — the governance rights depend on what the original LP had (see Secondary Transaction DD — LP Governance Rights Transfer).</p><p>CVC-specific: when CVC aggregates positions in a single GP family across multiple secondary purchases, its combined economic weight may eventually support a side letter negotiation or LPAC seat request at the GP — but only if the aggregated position is large enough and CVC has established a direct relationship with the GP's investor relations team.</p><p>---</p><p>### The MFN Clause: The Most Democratic Governance Tool</p><p>The Most Favoured Nation (MFN) clause is the single governance tool that is theoretically available to all LPs, regardless of size. An MFN clause gives each LP the right to receive any term granted to another LP in the same fund that is more favourable to it.</p><p><strong>How MFN works in practice:</strong> 1. LP A commits $500m and negotiates a 17.5% carry rate (vs. the standard 20%) 2. LP B commits $20m (standard terms — 20% carry) 3. LP B has an MFN clause 4. LP B exercises MFN and receives 17.5% carry</p><p>In theory, MFN clauses democratise governance rights: any right negotiated by a large LP automatically flows to all LPs who elect to receive it.</p><p><strong>In practice, MFN clauses have three limitations:</strong></p><ol><li><strong>Tier-based MFN.</strong> Most LPAs have tiered MFN clauses: \"LP shall have MFN rights with respect to all LPs committing less than $[X]m.\" LPs above the threshold have a different MFN tier. LP B at $20m has MFN only against other LPs committing &lt;$100m — not against LP A at $500m.</li></ol><ol><li><strong>Disclosure opacity.</strong> LP B can only exercise MFN if it knows what terms LP A negotiated. Side letters are confidential. Unless LP B's own side letter requires disclosure of all other LPs' side letter terms, LP B cannot know what to elect. Some LPs negotiate \"MFN disclosure rights\" — the right to see the complete list of all material side letter terms — but this itself requires negotiating leverage.</li></ol><ol><li><strong>Practical election costs.</strong> Even with disclosure, electing MFN terms requires legal review of all disclosed side letters (typically $10-30k in legal costs). For a $20m LP, this is 0.05-0.15% of commitment — meaningful. For a $500m LP, it is negligible.</li></ol><p>The MFN clause is the governance tool most LP programmes teach as a right. It is the tool that most smaller LPs cannot practically exercise without legal support and disclosure that is not contractually guaranteed.</p><p>---</p><p>### The Rising Threshold</p><p>The governance access threshold has risen over the past decade, reflecting the structural shift in PE toward larger flagship funds:</p><p><strong>Mechanism:</strong> As top-tier GPs have raised progressively larger funds (KKR Americas XIV: $19bn; Blackstone BCP X: $30bn+; Apollo Natural Resources XI: $25bn), the absolute commitment required for LPAC representation has risen. A $150m LPAC threshold at a $5bn fund = 3% of fund; the same $150m at a $20bn fund = 0.75% — too small for the GP to prioritize the relationship.</p><p><strong>Consequence:</strong> The LP institutions that could access LPAC seats at $100-150m commitments a decade ago now need $300-400m commitments for the same governance access at the largest funds. This has pushed governance access upward into a smaller set of truly institutional investors.</p><p><strong>Who has been excluded:</strong> Mid-size pension funds ($2-5bn PE programme), endowments, family offices, and state funds with PE allocations below ~$1bn have seen their governance access at Tier 1 GPs erode over the past decade. They are large enough to commit meaningfully in absolute terms, but too small relative to the fund size to matter to the GP.</p><p>---</p><p>### The Fee-for-Access Trade-Off in Aggregation Vehicles</p><p>| Access Vehicle | Access Level | Fee Cost | Governance Quality | |---|---|---|---| | Direct LP (small) | Low (no LPAC, no side letter) | 2/20 (standard) | Weak — LPA terms only | | FoF (aggregated) | Medium (FoF has governance rights) | 2/20 + 0.5/5 (FoF layer) | Medium — governance intermediated through FoF, not direct LP-GP | | Secondary fund (CVC-type) | Acquired (inherited from original LP) | 2/20 + 0.75/7.5 (secondary GP carry) | Variable — depends on original LP governance rights | | Direct LP (large / \"meaningful\") | High (LPAC, side letters, co-invest) | 2/20 (often better via side letter) | Strong — direct contractual governance |</p><p>The fee-for-access trade-off shows that smaller LPs who access governance through aggregation vehicles pay for that access through an additional fee layer. The democratisation of governance is real but it is not free.</p><p>---</p><p>### Does Democratisation Work?</p><p>The three aggregation mechanisms (emerging manager anchoring, funds of funds, secondary intermediation) provide partial democratisation of governance access. The question is whether the governance gained through aggregation actually improves outcomes for the underlying LP investors.</p><p><strong>Evidence it works:</strong> - FoF managers with scale access (LPAC seats, co-investment) consistently report better net co-investment terms than small LPs can achieve directly - Endowments using the emerging manager anchor strategy (Yale, MIT) have achieved governance access at emerging GPs that later became top-tier, capturing early-vintage returns that institutional LPs could not access</p><p><strong>Evidence it doesn't fully work:</strong> - FoF net returns are systematically lower than direct LP returns (Phalippou et al.: FoF net-of-all-fees returns lag direct LP returns by 100-200bps on average) - The governance intermediation through a FoF is not the same as direct LP governance: FoF managers optimise for their LP base (the FoF investors), not necessarily for the same outcome as a direct LP with aligned interests - Secondary fund governance (CVC-type) operates with structural governance deficit (no fresh side letter rights at inherited positions)</p><p>The honest conclusion: aggregation vehicles provide governance access at a cost, and the cost in fees approximately offsets the benefit from governance. Smaller LPs are not structurally excluded from PE — they are structurally excluded from the <em>economics</em> of PE that only large direct LPs can access.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Governance Rights Access Ladder</p><p>LP governance rights are stratified by commitment size in approximate tiers:</p><p>| Governance Right | Approx. Minimum Commitment | Why This Threshold | |---|---|---| | Standard LP rights (LPA only) | Any amount | All LPs receive LPA-defined rights regardless of size | | MFN clause (automatic if in LPA) | Any amount | Most Favoured Nation clauses typically apply to all LPs; practical exercise requires legal review | | Co-investment right (first look) | $25-50m+ in typical mid-cap buyout | GP wants co-investors who can write meaningful cheques; sub-$25m LPs cannot | | Side letter negotiation (meaningful) | $50-100m+ in fund | Legal cost of side letter negotiation ($25-50k) is only justifiable at sufficient commitment size; GP only engages below $50m for strategic LPs (anchor investors in emerging managers) | | Enhanced reporting (quarterly operational) | $75-100m+ | GP has no operational incentive to provide beyond standard reporting unless LP is commercially material | | LPAC seat | $100-200m+ (fund-size dependent) | GPs typically award 5-8 LPAC seats; seats go to top 5-8 LPs by commitment | | LPAC seat in flagship top-tier fund (KKR, BX) | $250-500m+ | Seats in the most over-subscribed funds go to the LP relationships most commercially important to the GP |</p><p>These thresholds are not published — they are negotiated and estimated based on market practice. The precise threshold for any given fund depends on fund size (larger fund = higher threshold for LPAC), GP tier (Tier 1 = higher threshold for any governance right), and cycle (in over-subscribed markets, GPs can demand higher commitments for governance rights).</p><p>---</p><p>### The Three Access Pathways for Smaller LPs</p><p>Smaller LPs have three mechanisms to access governance rights beyond their natural commitment threshold:</p><p><strong>1. Anchor investor status in emerging managers</strong> Committing early and at significant percentage to an emerging manager (first or second fund) gives an LP disproportionate governance influence. The GP needs the LP's commitment to reach first close and will grant LPAC seats and side letter rights at lower commitment thresholds to secure an anchor.</p><p>Trade-off: exposure to first-fund risk; track record is unproven. This is the primary mechanism by which endowments access governance rights in PE — by betting on emerging managers early.</p><p><strong>2. LP aggregation through funds of funds</strong> A fund of funds (FoF) aggregates commitments from many smaller LPs into a larger vehicle that commits to underlying PE funds at scale. The FoF's pooled commitment qualifies for governance rights that individual LP members could not achieve.</p><p>Trade-off: additional fee layer (FoF charges 50-100bps management fee + 5-10% performance fee on top of underlying GP fees). The governance access gain is purchased at a cost in net returns.</p><p><strong>3. Secondary fund intermediation</strong> Secondary funds like CVC Secondary Partners buy LP positions at scale, sometimes accumulating exposure to a GP family that aggregates above the meaningful LP threshold. However, secondary buyers inherit positions rather than negotiating fresh terms — the governance rights depend on what the original LP had (see Secondary Transaction DD — LP Governance Rights Transfer).</p><p>CVC-specific: when CVC aggregates positions in a single GP family across multiple secondary purchases, its combined economic weight may eventually support a side letter negotiation or LPAC seat request at the GP — but only if the aggregated position is large enough and CVC has established a direct relationship with the GP's investor relations team.</p><p>---</p><p>### The MFN Clause: The Most Democratic Governance Tool</p><p>The Most Favoured Nation (MFN) clause is the single governance tool that is theoretically available to all LPs, regardless of size. An MFN clause gives each LP the right to receive any term granted to another LP in the same fund that is more favourable to it.</p><p><strong>How MFN works in practice:</strong> 1. LP A commits $500m and negotiates a 17.5% carry rate (vs. the standard 20%) 2. LP B commits $20m (standard terms — 20% carry) 3. LP B has an MFN clause 4. LP B exercises MFN and receives 17.5% carry</p><p>In theory, MFN clauses democratise governance rights: any right negotiated by a large LP automatically flows to all LPs who elect to receive it.</p><p><strong>In practice, MFN clauses have three limitations:</strong></p><ol><li><strong>Tier-based MFN.</strong> Most LPAs have tiered MFN clauses: \"LP shall have MFN rights with respect to all LPs committing less than $[X]m.\" LPs above the threshold have a different MFN tier. LP B at $20m has MFN only against other LPs committing &lt;$100m — not against LP A at $500m.</li></ol><ol><li><strong>Disclosure opacity.</strong> LP B can only exercise MFN if it knows what terms LP A negotiated. Side letters are confidential. Unless LP B's own side letter requires disclosure of all other LPs' side letter terms, LP B cannot know what to elect. Some LPs negotiate \"MFN disclosure rights\" — the right to see the complete list of all material side letter terms — but this itself requires negotiating leverage.</li></ol><ol><li><strong>Practical election costs.</strong> Even with disclosure, electing MFN terms requires legal review of all disclosed side letters (typically $10-30k in legal costs). For a $20m LP, this is 0.05-0.15% of commitment — meaningful. For a $500m LP, it is negligible.</li></ol><p>The MFN clause is the governance tool most LP programmes teach as a right. It is the tool that most smaller LPs cannot practically exercise without legal support and disclosure that is not contractually guaranteed.</p><p>---</p><p>### The Rising Threshold</p><p>The governance access threshold has risen over the past decade, reflecting the structural shift in PE toward larger flagship funds:</p><p><strong>Mechanism:</strong> As top-tier GPs have raised progressively larger funds (KKR Americas XIV: $19bn; Blackstone BCP X: $30bn+; Apollo Natural Resources XI: $25bn), the absolute commitment required for LPAC representation has risen. A $150m LPAC threshold at a $5bn fund = 3% of fund; the same $150m at a $20bn fund = 0.75% — too small for the GP to prioritize the relationship.</p><p><strong>Consequence:</strong> The LP institutions that could access LPAC seats at $100-150m commitments a decade ago now need $300-400m commitments for the same governance access at the largest funds. This has pushed governance access upward into a smaller set of truly institutional investors.</p><p><strong>Who has been excluded:</strong> Mid-size pension funds ($2-5bn PE programme), endowments, family offices, and state funds with PE allocations below ~$1bn have seen their governance access at Tier 1 GPs erode over the past decade. They are large enough to commit meaningfully in absolute terms, but too small relative to the fund size to matter to the GP.</p><p>---</p><p>### The Fee-for-Access Trade-Off in Aggregation Vehicles</p><p>| Access Vehicle | Access Level | Fee Cost | Governance Quality | |---|---|---|---| | Direct LP (small) | Low (no LPAC, no side letter) | 2/20 (standard) | Weak — LPA terms only | | FoF (aggregated) | Medium (FoF has governance rights) | 2/20 + 0.5/5 (FoF layer) | Medium — governance intermediated through FoF, not direct LP-GP | | Secondary fund (CVC-type) | Acquired (inherited from original LP) | 2/20 + 0.75/7.5 (secondary GP carry) | Variable — depends on original LP governance rights | | Direct LP (large / \"meaningful\") | High (LPAC, side letters, co-invest) | 2/20 (often better via side letter) | Strong — direct contractual governance |</p><p>The fee-for-access trade-off shows that smaller LPs who access governance through aggregation vehicles pay for that access through an additional fee layer. The democratisation of governance is real but it is not free.</p><p>---</p><p>### Does Democratisation Work?</p><p>The three aggregation mechanisms (emerging manager anchoring, funds of funds, secondary intermediation) provide partial democratisation of governance access. The question is whether the governance gained through aggregation actually improves outcomes for the underlying LP investors.</p><p><strong>Evidence it works:</strong> - FoF managers with scale access (LPAC seats, co-investment) consistently report better net co-investment terms than small LPs can achieve directly - Endowments using the emerging manager anchor strategy (Yale, MIT) have achieved governance access at emerging GPs that later became top-tier, capturing early-vintage returns that institutional LPs could not access</p><p><strong>Evidence it doesn't fully work:</strong> - FoF net returns are systematically lower than direct LP returns (Phalippou et al.: FoF net-of-all-fees returns lag direct LP returns by 100-200bps on average) - The governance intermediation through a FoF is not the same as direct LP governance: FoF managers optimise for their LP base (the FoF investors), not necessarily for the same outcome as a direct LP with aligned interests - Secondary fund governance (CVC-type) operates with structural governance deficit (no fresh side letter rights at inherited positions)</p><p>The honest conclusion: aggregation vehicles provide governance access at a cost, and the cost in fees approximately offsets the benefit from governance. Smaller LPs are not structurally excluded from PE — they are structurally excluded from the <em>economics</em> of PE that only large direct LPs can access.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### The Governance Rights Access Ladder</p><p>LP governance rights are stratified by commitment size in approximate tiers:</p><p>| Governance Right | Approx. Minimum Commitment | Why This Threshold | |---|---|---| | Standard LP rights (LPA only) | Any amount | All LPs receive LPA-defined rights regardless of size | | MFN clause (automatic if in LPA) | Any amount | Most Favoured Nation clauses typically apply to all LPs; practical exercise requires legal review | | Co-investment right (first look) | $25-50m+ in typical mid-cap buyout | GP wants co-investors who can write meaningful cheques; sub-$25m LPs cannot | | Side letter negotiation (meaningful) | $50-100m+ in fund | Legal cost of side letter negotiation ($25-50k) is only justifiable at sufficient commitment size; GP only engages below $50m for strategic LPs (anchor investors in emerging managers) | | Enhanced reporting (quarterly operational) | $75-100m+ | GP has no operational incentive to provide beyond standard reporting unless LP is commercially material | | LPAC seat | $100-200m+ (fund-size dependent) | GPs typically award 5-8 LPAC seats; seats go to top 5-8 LPs by commitment | | LPAC seat in flagship top-tier fund (KKR, BX) | $250-500m+ | Seats in the most over-subscribed funds go to the LP relationships most commercially important to the GP |</p><p>These thresholds are not published — they are negotiated and estimated based on market practice. The precise threshold for any given fund depends on fund size (larger fund = higher threshold for LPAC), GP tier (Tier 1 = higher threshold for any governance right), and cycle (in over-subscribed markets, GPs can demand higher commitments for governance rights).</p><p>---</p><p>### The Three Access Pathways for Smaller LPs</p><p>Smaller LPs have three mechanisms to access governance rights beyond their natural commitment threshold:</p><p><strong>1. Anchor investor status in emerging managers</strong> Committing early and at significant percentage to an emerging manager (first or second fund) gives an LP disproportionate governance influence. The GP needs the LP's commitment to reach first close and will grant LPAC seats and side letter rights at lower commitment thresholds to secure an anchor.</p><p>Trade-off: exposure to first-fund risk; track record is unproven. This is the primary mechanism by which endowments access governance rights in PE — by betting on emerging managers early.</p><p><strong>2. LP aggregation through funds of funds</strong> A fund of funds (FoF) aggregates commitments from many smaller LPs into a larger vehicle that commits to underlying PE funds at scale. The FoF's pooled commitment qualifies for governance rights that individual LP members could not achieve.</p><p>Trade-off: additional fee layer (FoF charges 50-100bps management fee + 5-10% performance fee on top of underlying GP fees). The governance access gain is purchased at a cost in net returns.</p><p><strong>3. Secondary fund intermediation</strong> Secondary funds like CVC Secondary Partners buy LP positions at scale, sometimes accumulating exposure to a GP family that aggregates above the meaningful LP threshold. However, secondary buyers inherit positions rather than negotiating fresh terms — the governance rights depend on what the original LP had (see Secondary Transaction DD — LP Governance Rights Transfer).</p><p>CVC-specific: when CVC aggregates positions in a single GP family across multiple secondary purchases, its combined economic weight may eventually support a side letter negotiation or LPAC seat request at the GP — but only if the aggregated position is large enough and CVC has established a direct relationship with the GP's investor relations team.</p><p>---</p><p>### The MFN Clause: The Most Democratic Governance Tool</p><p>The Most Favoured Nation (MFN) clause is the single governance tool that is theoretically available to all LPs, regardless of size. An MFN clause gives each LP the right to receive any term granted to another LP in the same fund that is more favourable to it.</p><p><strong>How MFN works in practice:</strong> 1. LP A commits $500m and negotiates a 17.5% carry rate (vs. the standard 20%) 2. LP B commits $20m (standard terms — 20% carry) 3. LP B has an MFN clause 4. LP B exercises MFN and receives 17.5% carry</p><p>In theory, MFN clauses democratise governance rights: any right negotiated by a large LP automatically flows to all LPs who elect to receive it.</p><p><strong>In practice, MFN clauses have three limitations:</strong></p><ol><li><strong>Tier-based MFN.</strong> Most LPAs have tiered MFN clauses: \"LP shall have MFN rights with respect to all LPs committing less than $[X]m.\" LPs above the threshold have a different MFN tier. LP B at $20m has MFN only against other LPs committing &lt;$100m — not against LP A at $500m.</li></ol><ol><li><strong>Disclosure opacity.</strong> LP B can only exercise MFN if it knows what terms LP A negotiated. Side letters are confidential. Unless LP B's own side letter requires disclosure of all other LPs' side letter terms, LP B cannot know what to elect. Some LPs negotiate \"MFN disclosure rights\" — the right to see the complete list of all material side letter terms — but this itself requires negotiating leverage.</li></ol><ol><li><strong>Practical election costs.</strong> Even with disclosure, electing MFN terms requires legal review of all disclosed side letters (typically $10-30k in legal costs). For a $20m LP, this is 0.05-0.15% of commitment — meaningful. For a $500m LP, it is negligible.</li></ol><p>The MFN clause is the governance tool most LP programmes teach as a right. It is the tool that most smaller LPs cannot practically exercise without legal support and disclosure that is not contractually guaranteed.</p><p>---</p><p>### The Rising Threshold</p><p>The governance access threshold has risen over the past decade, reflecting the structural shift in PE toward larger flagship funds:</p><p><strong>Mechanism:</strong> As top-tier GPs have raised progressively larger funds (KKR Americas XIV: $19bn; Blackstone BCP X: $30bn+; Apollo Natural Resources XI: $25bn), the absolute commitment required for LPAC representation has risen. A $150m LPAC threshold at a $5bn fund = 3% of fund; the same $150m at a $20bn fund = 0.75% — too small for the GP to prioritize the relationship.</p><p><strong>Consequence:</strong> The LP institutions that could access LPAC seats at $100-150m commitments a decade ago now need $300-400m commitments for the same governance access at the largest funds. This has pushed governance access upward into a smaller set of truly institutional investors.</p><p><strong>Who has been excluded:</strong> Mid-size pension funds ($2-5bn PE programme), endowments, family offices, and state funds with PE allocations below ~$1bn have seen their governance access at Tier 1 GPs erode over the past decade. They are large enough to commit meaningfully in absolute terms, but too small relative to the fund size to matter to the GP.</p><p>---</p><p>### The Fee-for-Access Trade-Off in Aggregation Vehicles</p><p>| Access Vehicle | Access Level | Fee Cost | Governance Quality | |---|---|---|---| | Direct LP (small) | Low (no LPAC, no side letter) | 2/20 (standard) | Weak — LPA terms only | | FoF (aggregated) | Medium (FoF has governance rights) | 2/20 + 0.5/5 (FoF layer) | Medium — governance intermediated through FoF, not direct LP-GP | | Secondary fund (CVC-type) | Acquired (inherited from original LP) | 2/20 + 0.75/7.5 (secondary GP carry) | Variable — depends on original LP governance rights | | Direct LP (large / \"meaningful\") | High (LPAC, side letters, co-invest) | 2/20 (often better via side letter) | Strong — direct contractual governance |</p><p>The fee-for-access trade-off shows that smaller LPs who access governance through aggregation vehicles pay for that access through an additional fee layer. The democratisation of governance is real but it is not free.</p><p>---</p><p>### Does Democratisation Work?</p><p>The three aggregation mechanisms (emerging manager anchoring, funds of funds, secondary intermediation) provide partial democratisation of governance access. The question is whether the governance gained through aggregation actually improves outcomes for the underlying LP investors.</p><p><strong>Evidence it works:</strong> - FoF managers with scale access (LPAC seats, co-investment) consistently report better net co-investment terms than small LPs can achieve directly - Endowments using the emerging manager anchor strategy (Yale, MIT) have achieved governance access at emerging GPs that later became top-tier, capturing early-vintage returns that institutional LPs could not access</p><p><strong>Evidence it doesn't fully work:</strong> - FoF net returns are systematically lower than direct LP returns (Phalippou et al.: FoF net-of-all-fees returns lag direct LP returns by 100-200bps on average) - The governance intermediation through a FoF is not the same as direct LP governance: FoF managers optimise for their LP base (the FoF investors), not necessarily for the same outcome as a direct LP with aligned interests - Secondary fund governance (CVC-type) operates with structural governance deficit (no fresh side letter rights at inherited positions)</p><p>The honest conclusion: aggregation vehicles provide governance access at a cost, and the cost in fees approximately offsets the benefit from governance. Smaller LPs are not structurally excluded from PE — they are structurally excluded from the <em>economics</em> of PE that only large direct LPs can access.</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### The Governance Rights Access Ladder</p><p>LP governance rights are stratified by commitment size in approximate tiers:</p><p>| Governance Right | Approx. Minimum Commitment | Why This Threshold | |---|---|---| | Standard LP rights (LPA only) | Any amount | All LPs receive LPA-defined rights regardless of size | | MFN clause (automatic if in LPA) | Any amount | Most Favoured Nation clauses typically apply to all LPs; practical exercise requires legal review | | Co-investment right (first look) | $25-50m+ in typical mid-cap buyout | GP wants co-investors who can write meaningful cheques; sub-$25m LPs cannot | | Side letter negotiation (meaningful) | $50-100m+ in fund | Legal cost of side letter negotiation ($25-50k) is only justifiable at sufficient commitment size; GP only engages below $50m for strategic LPs (anchor investors in emerging managers) | | Enhanced reporting (quarterly operational) | $75-100m+ | GP has no operational incentive to provide beyond standard reporting unless LP is commercially material | | LPAC seat | $100-200m+ (fund-size dependent) | GPs typically award 5-8 LPAC seats; seats go to top 5-8 LPs by commitment | | LPAC seat in flagship top-tier fund (KKR, BX) | $250-500m+ | Seats in the most over-subscribed funds go to the LP relationships most commercially important to the GP |</p><p>These thresholds are not published — they are negotiated and estimated based on market practice. The precise threshold for any given fund depends on fund size (larger fund = higher threshold for LPAC), GP tier (Tier 1 = higher threshold for any governance right), and cycle (in over-subscribed markets, GPs can demand higher commitments for governance rights).</p><p>---</p><p>### The Three Access Pathways for Smaller LPs</p><p>Smaller LPs have three mechanisms to access governance rights beyond their natural commitment threshold:</p><p><strong>1. Anchor investor status in emerging managers</strong> Committing early and at significant percentage to an emerging manager (first or second fund) gives an LP disproportionate governance influence. The GP needs the LP's commitment to reach first close and will grant LPAC seats and side letter rights at lower commitment thresholds to secure an anchor.</p><p>Trade-off: exposure to first-fund risk; track record is unproven. This is the primary mechanism by which endowments access governance rights in PE — by betting on emerging managers early.</p><p><strong>2. LP aggregation through funds of funds</strong> A fund of funds (FoF) aggregates commitments from many smaller LPs into a larger vehicle that commits to underlying PE funds at scale. The FoF's pooled commitment qualifies for governance rights that individual LP members could not achieve.</p><p>Trade-off: additional fee layer (FoF charges 50-100bps management fee + 5-10% performance fee on top of underlying GP fees). The governance access gain is purchased at a cost in net returns.</p><p><strong>3. Secondary fund intermediation</strong> Secondary funds like CVC Secondary Partners buy LP positions at scale, sometimes accumulating exposure to a GP family that aggregates above the meaningful LP threshold. However, secondary buyers inherit positions rather than negotiating fresh terms — the governance rights depend on what the original LP had (see Secondary Transaction DD — LP Governance Rights Transfer).</p><p>CVC-specific: when CVC aggregates positions in a single GP family across multiple secondary purchases, its combined economic weight may eventually support a side letter negotiation or LPAC seat request at the GP — but only if the aggregated position is large enough and CVC has established a direct relationship with the GP's investor relations team.</p><p>---</p><p>### The MFN Clause: The Most Democratic Governance Tool</p><p>The Most Favoured Nation (MFN) clause is the single governance tool that is theoretically available to all LPs, regardless of size. An MFN clause gives each LP the right to receive any term granted to another LP in the same fund that is more favourable to it.</p><p><strong>How MFN works in practice:</strong> 1. LP A commits $500m and negotiates a 17.5% carry rate (vs. the standard 20%) 2. LP B commits $20m (standard terms — 20% carry) 3. LP B has an MFN clause 4. LP B exercises MFN and receives 17.5% carry</p><p>In theory, MFN clauses democratise governance rights: any right negotiated by a large LP automatically flows to all LPs who elect to receive it.</p><p><strong>In practice, MFN clauses have three limitations:</strong></p><ol><li><strong>Tier-based MFN.</strong> Most LPAs have tiered MFN clauses: \"LP shall have MFN rights with respect to all LPs committing less than $[X]m.\" LPs above the threshold have a different MFN tier. LP B at $20m has MFN only against other LPs committing &lt;$100m — not against LP A at $500m.</li></ol><ol><li><strong>Disclosure opacity.</strong> LP B can only exercise MFN if it knows what terms LP A negotiated. Side letters are confidential. Unless LP B's own side letter requires disclosure of all other LPs' side letter terms, LP B cannot know what to elect. Some LPs negotiate \"MFN disclosure rights\" — the right to see the complete list of all material side letter terms — but this itself requires negotiating leverage.</li></ol><ol><li><strong>Practical election costs.</strong> Even with disclosure, electing MFN terms requires legal review of all disclosed side letters (typically $10-30k in legal costs). For a $20m LP, this is 0.05-0.15% of commitment — meaningful. For a $500m LP, it is negligible.</li></ol><p>The MFN clause is the governance tool most LP programmes teach as a right. It is the tool that most smaller LPs cannot practically exercise without legal support and disclosure that is not contractually guaranteed.</p><p>---</p><p>### The Rising Threshold</p><p>The governance access threshold has risen over the past decade, reflecting the structural shift in PE toward larger flagship funds:</p><p><strong>Mechanism:</strong> As top-tier GPs have raised progressively larger funds (KKR Americas XIV: $19bn; Blackstone BCP X: $30bn+; Apollo Natural Resources XI: $25bn), the absolute commitment required for LPAC representation has risen. A $150m LPAC threshold at a $5bn fund = 3% of fund; the same $150m at a $20bn fund = 0.75% — too small for the GP to prioritize the relationship.</p><p><strong>Consequence:</strong> The LP institutions that could access LPAC seats at $100-150m commitments a decade ago now need $300-400m commitments for the same governance access at the largest funds. This has pushed governance access upward into a smaller set of truly institutional investors.</p><p><strong>Who has been excluded:</strong> Mid-size pension funds ($2-5bn PE programme), endowments, family offices, and state funds with PE allocations below ~$1bn have seen their governance access at Tier 1 GPs erode over the past decade. They are large enough to commit meaningfully in absolute terms, but too small relative to the fund size to matter to the GP.</p><p>---</p><p>### The Fee-for-Access Trade-Off in Aggregation Vehicles</p><p>| Access Vehicle | Access Level | Fee Cost | Governance Quality | |---|---|---|---| | Direct LP (small) | Low (no LPAC, no side letter) | 2/20 (standard) | Weak — LPA terms only | | FoF (aggregated) | Medium (FoF has governance rights) | 2/20 + 0.5/5 (FoF layer) | Medium — governance intermediated through FoF, not direct LP-GP | | Secondary fund (CVC-type) | Acquired (inherited from original LP) | 2/20 + 0.75/7.5 (secondary GP carry) | Variable — depends on original LP governance rights | | Direct LP (large / \"meaningful\") | High (LPAC, side letters, co-invest) | 2/20 (often better via side letter) | Strong — direct contractual governance |</p><p>The fee-for-access trade-off shows that smaller LPs who access governance through aggregation vehicles pay for that access through an additional fee layer. The democratisation of governance is real but it is not free.</p><p>---</p><p>### Does Democratisation Work?</p><p>The three aggregation mechanisms (emerging manager anchoring, funds of funds, secondary intermediation) provide partial democratisation of governance access. The question is whether the governance gained through aggregation actually improves outcomes for the underlying LP investors.</p><p><strong>Evidence it works:</strong> - FoF managers with scale access (LPAC seats, co-investment) consistently report better net co-investment terms than small LPs can achieve directly - Endowments using the emerging manager anchor strategy (Yale, MIT) have achieved governance access at emerging GPs that later became top-tier, capturing early-vintage returns that institutional LPs could not access</p><p><strong>Evidence it doesn't fully work:</strong> - FoF net returns are systematically lower than direct LP returns (Phalippou et al.: FoF net-of-all-fees returns lag direct LP returns by 100-200bps on average) - The governance intermediation through a FoF is not the same as direct LP governance: FoF managers optimise for their LP base (the FoF investors), not necessarily for the same outcome as a direct LP with aligned interests - Secondary fund governance (CVC-type) operates with structural governance deficit (no fresh side letter rights at inherited positions)</p><p>The honest conclusion: aggregation vehicles provide governance access at a cost, and the cost in fees approximately offsets the benefit from governance. Smaller LPs are not structurally excluded from PE — they are structurally excluded from the <em>economics</em> of PE that only large direct LPs can access.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"All LPs in a fund have the same rights.\"</strong> All LPs have the <em>minimum</em> rights guaranteed in the LPA. The actual rights landscape is shaped by side letters that differentiate LPs by size and relationship. Most LPs have no idea what other LPs' side letters contain.</p><p><strong>Misconception 2: \"The MFN clause ensures all LPs receive the same treatment.\"</strong> MFN clauses have tiers (LPs above certain commitments have separate MFN rights from LPs below). Exercising MFN requires knowing what terms to elect, which requires disclosure rights that many LPs do not have. MFN is more democratic in theory than in practice.</p><p><strong>Misconception 3: \"Funds of funds solve the governance access problem.\"</strong> Funds of funds provide governance access intermediated through a fee layer. The FoF manager's governance interests may not perfectly align with individual LP investors in the FoF. Net-of-all-fees returns from FoFs are systematically lower than direct LP returns.</p><p><strong>Misconception 4: \"Large LPs are better off than small LPs in all respects.\"</strong> Large LPs face the concentration trap (LP Concentrated Position Governance): their governance access comes at the cost of concentration risk. The LP that is large enough to have an LPAC seat is also large enough to be trapped in the relationship.</p><p><strong>Misconception 5: \"The GP sets governance terms; the LP either accepts or walks.\"</strong> For meaningful LPs, governance terms are negotiated. The LP has real leverage at the commitment decision. The misconception is common because standard LPs genuinely do have no negotiating power — but standard LP experience is not universal LP experience.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>The meaningful LP access economics reveals a structural stratification of PE governance by LP size. The governance tools that the LP programme management framework describes — side letters, LPAC seats, co-investment rights, MFN elections, enhanced reporting — are commercially contingent: GPs offer them in proportion to the LP's financial importance to the fundraise. Below a commitment threshold (approximately $50-100m for side letters, $100-200m for LPAC at typical mid-market funds), LPs receive standard LPA terms and have no practical access to the governance tools the framework assumes.</p><p>The MFN clause is the most democratic governance tool — available to all LPs — but it is limited in practice by tiered MFN structures, disclosure opacity, and legal election costs. Smaller LPs can access governance through aggregation vehicles (emerging manager anchoring, funds of funds, secondary funds) but each comes with a fee cost that partially offsets the governance benefit.</p><p>The meaningful LP threshold has risen over 20 years due to the mega-fund effect: as flagship PE funds grew from $5bn to $20bn+, the absolute commitment required for LPAC representation approximately tripled. This has reduced the number of LP institutions that qualify as governance-capable at Tier 1 GPs, concentrating effective governance oversight in a smaller set of very large institutions.</p><p>For CVC Secondary Partners: the two-level stratification means CVC provides meaningful LP governance to its own LP investors (pension funds committing at scale to CVC), while CVC itself holds a governance deficit position relative to the underlying GPs (KKR, Apollo, Blackstone) whose fund positions CVC has acquired secondarily with no fresh governance rights.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>The meaningful LP access economics reveals a structural stratification of PE governance by LP size. The governance tools that the LP programme management framework describes — side letters, LPAC seats, co-investment rights, MFN elections, enhanced reporting — are commercially contingent: GPs offer them in proportion to the LP's financial importance to the fundraise. Below a commitment threshold (approximately $50-100m for side letters, $100-200m for LPAC at typical mid-market funds), LPs receive standard LPA terms and have no practical access to the governance tools the framework assumes.</p><p>The MFN clause is the most democratic governance tool — available to all LPs — but it is limited in practice by tiered MFN structures, disclosure opacity, and legal election costs. Smaller LPs can access governance through aggregation vehicles (emerging manager anchoring, funds of funds, secondary funds) but each comes with a fee cost that partially offsets the governance benefit.</p><p>The meaningful LP threshold has risen over 20 years due to the mega-fund effect: as flagship PE funds grew from $5bn to $20bn+, the absolute commitment required for LPAC representation approximately tripled. This has reduced the number of LP institutions that qualify as governance-capable at Tier 1 GPs, concentrating effective governance oversight in a smaller set of very large institutions.</p><p>For CVC Secondary Partners: the two-level stratification means CVC provides meaningful LP governance to its own LP investors (pension funds committing at scale to CVC), while CVC itself holds a governance deficit position relative to the underlying GPs (KKR, Apollo, Blackstone) whose fund positions CVC has acquired secondarily with no fresh governance rights.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "regulatory-success-conditions-comparative-analysis", "title": "Regulatory Success Conditions — Comparative Analysis", "draft_watermark": false, "estimated_runtime_sec": 450, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Which reforms can actually pass", "on_screen_bullets": ["Knowing the tools isn't enough", "Two characteristic errors", "Intuition into calculation"], "narration": "We've covered the toolkit, the politics, and the capture. This lesson turns all of it into a predictive framework — because knowing the regulatory instruments exist and knowing which can actually be deployed in a given political environment are different questions. Without a framework, advocates make two characteristic errors. The first is overgeneralising from the No Surprises Act: people say it worked, so replicate it for housing — but that fails, because the conditions that made the Act achievable don't exist in rental housing. The second is dismissing the whole approach: the repeated failures of bigger reforms suggest PE regulation is always impossible — but that misses the genuine successes that have occurred under the right conditions. The success-conditions framework gives precise predictions: which harms are regulatable now, which need a forcing event, and which are structurally blocked until deeper reform. It turns advocacy from political intuition into strategic calculation.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Five conditions to align", "on_screen_bullets": ["Concentration, sympathy, fracture", "Authority, enforcement scale", "NSA met all five; SWSLA fails three"], "narration": "The definition. The Regulatory Success Conditions framework identifies five structural conditions — problem concentration, victim sympatheticness, industry fracture, regulatory authority clarity, and enforcement scalability — whose simultaneous alignment predicts whether essential-services regulation achieves durable outcomes. The No Surprises Act of twenty-twenty-two is the archetypal success, meeting all five, and the Stop Wall Street Looting Act, still unenacted, is the archetypal failure, with three conditions structurally absent. Five conditions, all of which must align — and the framework's power is in predicting which alignments are reachable and which are not.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The five-dial lock", "on_screen_bullets": ["All five dials must line up", "Stuck dial = stalled reform", "Forcing event can jolt one open"], "narration": "Plain English. Think of passing a PE regulation like opening a combination lock with five dials — all five must line up simultaneously for the lock to open, and if any one is stuck, the reform stalls, unless a forcing event like a major scandal or crisis temporarily jolts the stuck dial open. The five dials, in plain questions. One: is the harm specific enough to tell a news story about? A patient hit with a twenty-seven-thousand-dollar surprise anaesthesia bill they never authorised, yes; PE raises rents across the housing market, no. Two: are the victims sympathetic enough to mobilise voters? A patient in a medical emergency, maximally; an institutional investor, not at all. Three: is anyone inside the industry split from those being regulated? Hospital systems wanted PE-owned emergency staffing stopped because those firms used surprise billing as a weapon against them — that split passed the Act. Four: does the regulator already have the authority? Medicare's agency can set conditions of participation; the SEC, after a court said so, cannot regulate the fund-investor relationship. And five: can the rule actually be enforced at scale? Don't bill patients out-of-network without consent is checkable from billing records; making partners personally liable for portfolio-company debts requires case-by-case litigation through layers of corporate structure. The Act opened all five dials; the bigger looting bill is stuck on three. That's the entire explanation of why one passed and the other has sat in committee across three Congresses.", "est_sec": 56}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "The Five Conditions Defined", "on_screen_title": "The five conditions defined", "on_screen_bullets": ["Concentration: a two-step story", "Authority: binary, post-Loper Bright", "Scale: per-transaction beats litigation"], "narration": "Now define each dial precisely, because the precision is what makes the framework predictive. Condition one, problem concentration: the harm must trace to a specific identifiable PE practice, and the test is whether a journalist can name a specific victim, a specific company, and a specific dollar amount with a causal chain no more than two steps long — a surprise bill is one step, nursing-home mortality is three with contested causation, and housing unaffordability is diffuse. Condition two, victim sympatheticness: the harmed party must be identifiable and sympathetic, running from a patient in an emergency who could not refuse exposure, down through captive nursing-home residents and tenants, to sophisticated investors and indirectly-harmed pensioners who generate no public sympathy. Condition three, industry fracture: part of the regulated industry must have an economic interest in the regulation passing — this is the most underappreciated and most actionable condition, because hospital systems backing the No Surprises Act mattered more than any patient testimony. Condition four, regulatory authority clarity: the regulator must have existing statutory authority that survives the post-Loper-Bright requirement of clear Congressional authorisation, with Medicare's conditions of participation at the top, antitrust authority high, and the SEC's adviser authority now constrained after the court ruling. And condition five, enforcement scalability: the remedy must be administrable at scale, where a per-transaction billing prohibition is checkable from machine-readable data, a staffing ratio requires inspections, antitrust requires years-long case-by-case litigation, and partner co-liability requires proving causation through the corporate veil in every single bankruptcy — qualitatively the hardest to scale.", "est_sec": 64}, {"n": 5, "beat": "example", "visual": "table", "source_section": "NSA vs. SWSLA: The Two Poles", "on_screen_title": "The two poles", "on_screen_bullets": ["NSA: all five, Envision Ch11 result", "SWSLA: fails three structurally", "Same framework, opposite outcome"], "narration": "Put the two poles side by side. The No Surprises Act met all five dials. Problem concentration was very high — papers ran individual family stories with exact figures like twenty-seven-thousand-four-hundred dollars for an in-network emergency visit, a one-step causal chain. Victim sympathy was maximal — patients in emergencies, the least voluntary exposure imaginable. Industry fracture was present — hospital systems backed reform both because out-of-network billing damaged their reputation with patients who blamed the hospital and because staffing firms used it as leverage in contract negotiations, so the hospital association's support proved decisive. Authority was clear — Congress enacted it directly through an appropriations act, so there was no administrative-rulemaking vulnerability. And enforcement scaled — insurance claims data is machine-readable, so every bill is an automatically monitorable compliance event. The result was decisive: the surprise-billing premium that the PE-backed Envision's model depended on was eliminated, and Envision filed Chapter Eleven in May twenty-twenty-three with around five-point-six billion in debt — the strongest possible evidence the regulation targeted a real PE-specific revenue mechanism. Now the Stop Wall Street Looting Act, which would make partners co-liable for portfolio debts and claw back pre-bankruptcy dividends. It fails three conditions structurally: industry fracture is absent, because every partner faces higher liability and the whole industry opposes it uniformly; authority clarity is absent, because it requires new legislation spanning securities, bankruptcy, and labour law across three committee jurisdictions; and enforcement scalability is very low, requiring contested litigation through the corporate veil in each bankruptcy. Introduced in three consecutive Congresses, it has never left committee. Same framework, opposite poles.", "est_sec": 64}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "The Sixth Condition: Market Access Incentive (EU-Specific)", "on_screen_title": "The sixth, EU-only condition", "on_screen_bullets": ["AIFMD scored only moderate", "EU passport realigned big firms", "No US equivalent benefit"], "narration": "There's a sixth condition that explains a puzzle — why Europe's AIFMD succeeded despite scoring only moderately on the standard five. The answer is a structural factor unique to the EU: the passport created a positive compliance incentive. PE managers who accepted AIFMD authorisation, with all its depositary, reporting, and anti-asset-stripping obligations, gained the right to market their funds to institutional investors across all twenty-seven member states without registering separately in each one. So cross-border managers faced a real calculation — compliance cost versus access to over five trillion euros of European institutional capital without twenty-seven separate applications — and the large diversified managers concluded the passport was worth it, investing in compliance, while smaller domestic managers opposed it but were politically outnumbered by those who stood to gain. In effect, the passport manufactured an industry fracture that the standard conditions lacked. And here's the sharp comparative point: there is no US equivalent. US firms operating domestically face only the cost side of any SEC regulation, with no market-access benefit that would realign a portion of the industry in favour of compliance. That structural absence — not the separation of powers alone — is a key reason EU comprehensive regulation succeeded while US administrative rulemaking has not.", "est_sec": 52}, {"n": 7, "beat": "mechanics", "visual": "mermaid", "source_section": "Summary", "on_screen_title": "The governance trap", "on_screen_bullets": ["Tier 1 wins relieve pressure", "Architectural reform stalls", "New harms keep emerging"], "narration": "The framework produces a hardness gradient and, with it, the deepest structural insight of the whole regulation section — the governance trap, shown here as a loop. Map the harms against the five conditions and you get tiers, from Tier 1 — narrow mechanism-level prohibitions with clear agency authority and sympathetic individual victims, achievable under normal politics — up to Tier 4, architectural reform requiring Congressional action against unified industry opposition, achievable only through major forcing events. Now follow the loop. A specific harm becomes visible, like surprise billing. A Tier 1 win addresses it, like the No Surprises Act. That visible win relieves the political pressure that had been building. With pressure relieved, the architectural, incentive-level reform stalls. And because the underlying incentive architecture is untouched, it generates a new harm somewhere else — and the loop restarts. That's the trap: easy wins on specific harms keep discharging the political energy that architectural reform would need, producing an equilibrium where symptoms are treated one at a time while the machine that produces them runs on. Notice the historical corollary on the diagram's logic — the genuine Tier 3-and-4 PE reforms, FIRREA, the Dodd-Frank provisions, all rode legislative vehicles created by broader financial crises, not standalone PE campaigns. Which makes the single most undervalued reform strategy having pre-positioned, ready-drafted legislative text waiting before the next forcing event arrives.", "mermaid": "graph LR\n    H[\"Specific harm<br/>becomes visible\"] --> T1[\"Tier 1 win<br/>(e.g. NSA)\"]\n    T1 --> R[\"Political pressure<br/>relieved\"]\n    R --> S[\"Architectural reform<br/>stalls\"]\n    S --> A[\"Incentive architecture<br/>untouched\"]\n    A --> N[\"New harm emerges<br/>elsewhere\"]\n    N --> H", "est_sec": 58}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["NSA model isn't universal", "Authority can't be drafted around", "AIFMD ≠ bold SEC rulemaking"], "narration": "Four corrections to close. First, the belief that the No Surprises Act proved PE healthcare can be regulated, so just replicate it — it worked because hospital-system industry fracture was present, which is specific to surprise billing; nursing-home regulation, physician roll-ups, and hospital-closure rules have no equivalent industry split, so each sector needs its own conditions analysis. Second, the belief that industry opposition always defeats reform — in the No Surprises Act the PE and staffing industry spent over forty million lobbying and lost decisively, so opposition is a significant constraint, not an absolute veto, when victim sympathy and industry fracture both align. Third, the belief that regulatory authority is just a technical obstacle you can draft around — after the recent Supreme Court doctrine, authority is the primary battleground for legal challenge and cannot be assumed from broad statutory grants, which is why the SEC's twenty-twenty-three rules were legally vulnerable from the day they issued and the vacatur was predictable. And fourth, the belief that AIFMD's success proves bold SEC rulemaking could do the same here — AIFMD was legislation passed by the EU Parliament, not administrative rulemaking, and it had the passport incentive that realigned industry, neither of which exists for US SEC action, so AIFMD proves architectural reform is achievable through legislation, not through rulemaking under current authority. To recap: five conditions must align, a sixth explains the EU, the hardness gradient sorts what's achievable from what isn't, and the governance trap explains why easy wins can perpetuate the system they appear to fix. Next we turn that gradient into a sequencing strategy — which reforms to pursue, and in what order.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Both the NSA and the SWSLA target PE harms, but one passed and one never left committee. Using the five conditions, explain the THREE that the SWSLA fails. Then: explain the 'governance trap' — how can a Tier 1 win actually delay architectural reform?", "narration": "Before the next lesson, reason it through. Both the No Surprises Act and the Stop Wall Street Looting Act target PE harms, but one passed and one never left committee — using the five conditions, name and explain the three that the looting act fails. And explain the governance trap: how can a Tier 1 regulatory win actually delay the deeper architectural reform? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Regulatory Success Conditions — Comparative Analysis\n\n[hook] Which reforms can actually pass\nWe've covered the toolkit, the politics, and the capture. This lesson turns all of it into a predictive framework — because knowing the regulatory instruments exist and knowing which can actually be deployed in a given political environment are different questions. Without a framework, advocates make two characteristic errors. The first is overgeneralising from the No Surprises Act: people say it worked, so replicate it for housing — but that fails, because the conditions that made the Act achievable don't exist in rental housing. The second is dismissing the whole approach: the repeated failures of bigger reforms suggest PE regulation is always impossible — but that misses the genuine successes that have occurred under the right conditions. The success-conditions framework gives precise predictions: which harms are regulatable now, which need a forcing event, and which are structurally blocked until deeper reform. It turns advocacy from political intuition into strategic calculation.\n\n[definition] Five conditions to align\nThe definition. The Regulatory Success Conditions framework identifies five structural conditions — problem concentration, victim sympatheticness, industry fracture, regulatory authority clarity, and enforcement scalability — whose simultaneous alignment predicts whether essential-services regulation achieves durable outcomes. The No Surprises Act of twenty-twenty-two is the archetypal success, meeting all five, and the Stop Wall Street Looting Act, still unenacted, is the archetypal failure, with three conditions structurally absent. Five conditions, all of which must align — and the framework's power is in predicting which alignments are reachable and which are not.\n\n[intuition] The five-dial lock\nPlain English. Think of passing a PE regulation like opening a combination lock with five dials — all five must line up simultaneously for the lock to open, and if any one is stuck, the reform stalls, unless a forcing event like a major scandal or crisis temporarily jolts the stuck dial open. The five dials, in plain questions. One: is the harm specific enough to tell a news story about? A patient hit with a twenty-seven-thousand-dollar surprise anaesthesia bill they never authorised, yes; PE raises rents across the housing market, no. Two: are the victims sympathetic enough to mobilise voters? A patient in a medical emergency, maximally; an institutional investor, not at all. Three: is anyone inside the industry split from those being regulated? Hospital systems wanted PE-owned emergency staffing stopped because those firms used surprise billing as a weapon against them — that split passed the Act. Four: does the regulator already have the authority? Medicare's agency can set conditions of participation; the SEC, after a court said so, cannot regulate the fund-investor relationship. And five: can the rule actually be enforced at scale? Don't bill patients out-of-network without consent is checkable from billing records; making partners personally liable for portfolio-company debts requires case-by-case litigation through layers of corporate structure. The Act opened all five dials; the bigger looting bill is stuck on three. That's the entire explanation of why one passed and the other has sat in committee across three Congresses.\n\n[mechanics] The five conditions defined\nNow define each dial precisely, because the precision is what makes the framework predictive. Condition one, problem concentration: the harm must trace to a specific identifiable PE practice, and the test is whether a journalist can name a specific victim, a specific company, and a specific dollar amount with a causal chain no more than two steps long — a surprise bill is one step, nursing-home mortality is three with contested causation, and housing unaffordability is diffuse. Condition two, victim sympatheticness: the harmed party must be identifiable and sympathetic, running from a patient in an emergency who could not refuse exposure, down through captive nursing-home residents and tenants, to sophisticated investors and indirectly-harmed pensioners who generate no public sympathy. Condition three, industry fracture: part of the regulated industry must have an economic interest in the regulation passing — this is the most underappreciated and most actionable condition, because hospital systems backing the No Surprises Act mattered more than any patient testimony. Condition four, regulatory authority clarity: the regulator must have existing statutory authority that survives the post-Loper-Bright requirement of clear Congressional authorisation, with Medicare's conditions of participation at the top, antitrust authority high, and the SEC's adviser authority now constrained after the court ruling. And condition five, enforcement scalability: the remedy must be administrable at scale, where a per-transaction billing prohibition is checkable from machine-readable data, a staffing ratio requires inspections, antitrust requires years-long case-by-case litigation, and partner co-liability requires proving causation through the corporate veil in every single bankruptcy — qualitatively the hardest to scale.\n\n[example] The two poles\nPut the two poles side by side. The No Surprises Act met all five dials. Problem concentration was very high — papers ran individual family stories with exact figures like twenty-seven-thousand-four-hundred dollars for an in-network emergency visit, a one-step causal chain. Victim sympathy was maximal — patients in emergencies, the least voluntary exposure imaginable. Industry fracture was present — hospital systems backed reform both because out-of-network billing damaged their reputation with patients who blamed the hospital and because staffing firms used it as leverage in contract negotiations, so the hospital association's support proved decisive. Authority was clear — Congress enacted it directly through an appropriations act, so there was no administrative-rulemaking vulnerability. And enforcement scaled — insurance claims data is machine-readable, so every bill is an automatically monitorable compliance event. The result was decisive: the surprise-billing premium that the PE-backed Envision's model depended on was eliminated, and Envision filed Chapter Eleven in May twenty-twenty-three with around five-point-six billion in debt — the strongest possible evidence the regulation targeted a real PE-specific revenue mechanism. Now the Stop Wall Street Looting Act, which would make partners co-liable for portfolio debts and claw back pre-bankruptcy dividends. It fails three conditions structurally: industry fracture is absent, because every partner faces higher liability and the whole industry opposes it uniformly; authority clarity is absent, because it requires new legislation spanning securities, bankruptcy, and labour law across three committee jurisdictions; and enforcement scalability is very low, requiring contested litigation through the corporate veil in each bankruptcy. Introduced in three consecutive Congresses, it has never left committee. Same framework, opposite poles.\n\n[mechanics] The sixth, EU-only condition\nThere's a sixth condition that explains a puzzle — why Europe's AIFMD succeeded despite scoring only moderately on the standard five. The answer is a structural factor unique to the EU: the passport created a positive compliance incentive. PE managers who accepted AIFMD authorisation, with all its depositary, reporting, and anti-asset-stripping obligations, gained the right to market their funds to institutional investors across all twenty-seven member states without registering separately in each one. So cross-border managers faced a real calculation — compliance cost versus access to over five trillion euros of European institutional capital without twenty-seven separate applications — and the large diversified managers concluded the passport was worth it, investing in compliance, while smaller domestic managers opposed it but were politically outnumbered by those who stood to gain. In effect, the passport manufactured an industry fracture that the standard conditions lacked. And here's the sharp comparative point: there is no US equivalent. US firms operating domestically face only the cost side of any SEC regulation, with no market-access benefit that would realign a portion of the industry in favour of compliance. That structural absence — not the separation of powers alone — is a key reason EU comprehensive regulation succeeded while US administrative rulemaking has not.\n\n[mechanics] The governance trap\nThe framework produces a hardness gradient and, with it, the deepest structural insight of the whole regulation section — the governance trap, shown here as a loop. Map the harms against the five conditions and you get tiers, from Tier 1 — narrow mechanism-level prohibitions with clear agency authority and sympathetic individual victims, achievable under normal politics — up to Tier 4, architectural reform requiring Congressional action against unified industry opposition, achievable only through major forcing events. Now follow the loop. A specific harm becomes visible, like surprise billing. A Tier 1 win addresses it, like the No Surprises Act. That visible win relieves the political pressure that had been building. With pressure relieved, the architectural, incentive-level reform stalls. And because the underlying incentive architecture is untouched, it generates a new harm somewhere else — and the loop restarts. That's the trap: easy wins on specific harms keep discharging the political energy that architectural reform would need, producing an equilibrium where symptoms are treated one at a time while the machine that produces them runs on. Notice the historical corollary on the diagram's logic — the genuine Tier 3-and-4 PE reforms, FIRREA, the Dodd-Frank provisions, all rode legislative vehicles created by broader financial crises, not standalone PE campaigns. Which makes the single most undervalued reform strategy having pre-positioned, ready-drafted legislative text waiting before the next forcing event arrives.\n\n[pitfalls] What people get wrong\nFour corrections to close. First, the belief that the No Surprises Act proved PE healthcare can be regulated, so just replicate it — it worked because hospital-system industry fracture was present, which is specific to surprise billing; nursing-home regulation, physician roll-ups, and hospital-closure rules have no equivalent industry split, so each sector needs its own conditions analysis. Second, the belief that industry opposition always defeats reform — in the No Surprises Act the PE and staffing industry spent over forty million lobbying and lost decisively, so opposition is a significant constraint, not an absolute veto, when victim sympathy and industry fracture both align. Third, the belief that regulatory authority is just a technical obstacle you can draft around — after the recent Supreme Court doctrine, authority is the primary battleground for legal challenge and cannot be assumed from broad statutory grants, which is why the SEC's twenty-twenty-three rules were legally vulnerable from the day they issued and the vacatur was predictable. And fourth, the belief that AIFMD's success proves bold SEC rulemaking could do the same here — AIFMD was legislation passed by the EU Parliament, not administrative rulemaking, and it had the passport incentive that realigned industry, neither of which exists for US SEC action, so AIFMD proves architectural reform is achievable through legislation, not through rulemaking under current authority. To recap: five conditions must align, a sixth explains the EU, the hardness gradient sorts what's achievable from what isn't, and the governance trap explains why easy wins can perpetuate the system they appear to fix. Next we turn that gradient into a sequencing strategy — which reforms to pursue, and in what order.\n\nEnd-card question: Both the NSA and the SWSLA target PE harms, but one passed and one never left committee. Using the five conditions, explain the THREE that the SWSLA fails. Then: explain the 'governance trap' — how can a Tier 1 win actually delay architectural reform?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The Essential Services Regulatory Toolkit documents six categories of regulatory instrument that can govern PE in essential services. The Synthesis - The Three Reform Tracks establishes that Track 2 (essential services toolkit) is the most frequently deployable reform track — more achievable than Track 1 (IAA amendment requiring Congressional action) or Track 3 (incentive architecture reform). But knowing the instruments exist and knowing which instruments can actually be deployed in a given political environment are different questions.</p><p>Without a predictive framework, advocates make two characteristic errors:</p><p><strong>Error 1 — Overgeneralising from NSA success.</strong> \"The NSA model worked; replicate it for housing\" fails because the conditions that made the NSA achievable — hospital system industry fracture, individually identified patient victims, clear ACA authority — do not exist in rental housing or portfolio company worker protection contexts.</p><p><strong>Error 2 — Dismissing Track 2 entirely.</strong> The SWSLA's repeated failure, the Fifth Circuit's SEC vacatur, and the carried interest lobby's string of victories suggest that PE regulation is always politically impossible. This misses that the NSA, the CMS staffing mandate, and FTC physician roll-up enforcement have succeeded under the right conditions.</p><p>The success conditions framework provides precise predictions: which harms are regulatable under current conditions, which require forcing events (crisis, scandal, investigative journalism), and which are structurally blocked until architecture-level reform (Tracks 1 and 3) creates new regulatory space. This turns advocacy from political intuition into strategic calculation.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The Regulatory Success Conditions framework identifies five structural conditions — problem concentration, victim sympatheticness, industry fracture, regulatory authority clarity, and enforcement scalability — whose simultaneous alignment predicts whether Track 2 essential services regulation achieves durable outcomes, with the No Surprises Act (2022) as the archetypal success case (all five conditions met) and the SWSLA (unenacted) as the archetypal failure case (three conditions structurally absent).</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of passing a PE regulation like opening a combination lock with five dials. All five dials must line up simultaneously for the lock to open. If any dial is stuck, the regulation stalls — unless a forcing event (a major scandal, a financial crisis, a ProPublica investigation) temporarily forces the stuck dial open.</p><p>The five dials are:</p><ol><li><strong>Is the harm specific enough to tell a news story about?</strong> A patient receiving a $27,000 surprise anaesthesia bill they never authorised = yes. \"PE raises rents across the housing market\" = no.</li></ol><ol><li><strong>Are the victims sympathetic enough to mobilise voters?</strong> A patient in a medical emergency is maximally sympathetic; an institutional pension fund LP is not.</li></ol><ol><li><strong>Is anyone inside the industry split from those being regulated?</strong> Hospital systems wanted PE-owned emergency staffing companies stopped because those companies were using surprise billing as a negotiating weapon against hospitals. That split passed the NSA. When no industry segment benefits from a regulation, the full industry lobbying apparatus opposes it.</li></ol><ol><li><strong>Does the regulator already have the authority?</strong> CMS can set Medicare conditions of participation; the SEC cannot regulate PE fund adviser-LP relationships after the Fifth Circuit said so. Authority that doesn't exist must come from Congress first.</li></ol><ol><li><strong>Can the rule actually be enforced at scale?</strong> \"Don't bill patients out-of-network without consent\" is enforceable by reviewing billing records. \"GPs are personally liable for portfolio company debts\" requires case-by-case litigation through multiple corporate layers.</li></ol><p>The NSA opened all five dials. The SWSLA is stuck on three dials structurally. That is the complete explanation of why one law passed and the other has been introduced in three Congresses without leaving committee.</p><p>---</p>"}, "6": {"section": "Summary", "html": "<p>The Regulatory Success Conditions framework establishes that Track 2 essential services regulation is not uniformly deployable — it operates only when five structural conditions simultaneously align: problem concentration, victim sympatheticness, industry fracture, regulatory authority clarity, and enforcement scalability. The NSA met all five in 2020; the SWSLA fails three structurally. A sixth condition — market access incentive — explains AIFMD's EU success but has no US equivalent.</p><p>Mapping PE essential services harms against the five conditions produces a hardness gradient from Tier 1 (narrow mechanism-level prohibitions with CMS/FTC authority and sympathetic individual victims — achievable under normal political conditions) to Tier 4 (architectural reform requiring Congressional action against unified industry opposition — achievable only through major forcing events). The governance trap emerges from this gradient: Tier 1 wins relieve political pressure for Tier 3-4 architectural reform, creating equilibrium where specific harms are addressed while the incentive architecture generating new harms remains intact. Historical Tier 3-4 PE reforms (FIRREA, Dodd-Frank PE provisions) have required riding legislative vehicles created by broader financial crises, not standalone PE reform campaigns — which means having pre-positioned legislative text ready before the next forcing event is the most undervalued element of long-term reform strategy.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>\"The NSA proved PE healthcare can be regulated — replicate the model.\"</strong> The NSA worked because hospital system industry fracture was present, which is specific to the surprise billing context. In nursing home regulation, physician practice consolidation, and hospital closure restrictions, there is no equivalent industry split creating a powerful ally for regulation. Each PE healthcare sector requires its own conditions analysis.</p><p><strong>\"Industry opposition always defeats regulatory reform.\"</strong> In the NSA, the PE and staffing industry spent $40m+ in lobbying and lost decisively. Industry opposition is a significant constraint, not an absolute veto — when both victim sympatheticness and industry fracture conditions are met simultaneously, industry opposition can be overcome.</p><p><strong>\"Regulatory authority is just a technical obstacle that can be drafted around.\"</strong> Post-MQD and Loper Bright, regulatory authority is the primary battleground for legal challenge and cannot be assumed from broad statutory grants. The SEC 2023 rules were legally vulnerable from the day they were issued; the Fifth Circuit vacatur was predictable by anyone who read <em>West Virginia v. EPA</em> carefully. Authority clarity must be assessed before advocacy resources are committed to a regulatory campaign.</p><p><strong>\"EU AIFMD success proves US SEC rulemaking is achievable if the SEC is bold enough.\"</strong> AIFMD was enacted by the EU Parliament — legislation, not administrative rulemaking. It also benefited from the EU passport incentive that realigned industry interest. Neither condition is present in US SEC administrative action. AIFMD's success is evidence that architecture-level reform is <em>achievable through legislation</em> — not that it is achievable through SEC rulemaking under current IAA authority.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

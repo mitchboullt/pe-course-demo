@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "interest-coverage-ratio-in-lbos", "title": "Interest Coverage Ratio in LBOs", "draft_watermark": false, "estimated_runtime_sec": 410, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Can it actually pay?", "on_screen_bullets": ["Leverage: how much debt", "ICR: can the company afford it", "The early-warning system"], "narration": "The leverage ratio tells lenders how much debt exists. The interest coverage ratio tells them something more urgent: whether the company can actually pay for it. In an LBO, with debt typically five or six times EBITDA, even a modest dip in earnings can collapse coverage to dangerous levels and trip a covenant — handing lenders the right to demand immediate repayment or seize control. ICR is the early-warning system that decides whether a leveraged company survives a downturn. If leverage is the size of the burden, coverage is whether your shoulders can carry it.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "EBITDA over interest", "on_screen_bullets": ["How many times EBITDA covers interest", "Below ~1.5–2.0x is dangerous", "Distress early-warning"], "narration": "The definition. The interest coverage ratio measures how many times a company's EBITDA covers its annual cash interest expense. A ratio below roughly one-and-a-half to two times signals dangerous proximity to financial distress in a leveraged buyout. Above that, comfortable; below it, you're one bad quarter from a problem.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Covering the mortgage", "on_screen_bullets": ["£50k income, £20k mortgage = 2.5x", "Income to £25k → 1.25x", "At £20k income → break-even"], "narration": "Picture earning fifty thousand a year with mortgage payments of twenty thousand. Your coverage is fifty over twenty — two-and-a-half times. For every pound of mortgage obligation, you earn two-pounds-fifty, so you have real headroom: you could absorb a forty percent income drop and still pay. Now your income falls to twenty-five thousand. Coverage drops to twenty-five over twenty — one-point-two-five times. You're barely covering it. Another twenty percent fall, to twenty thousand, and you break even — you earn exactly what you owe. Below that, you're insolvent. PE runs this identical calculation: the company's EBITDA is the income, and the annual cash interest on all the debt is the mortgage payment.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Financial breathing room", "on_screen_bullets": ["3.0x → survive a 67% EBITDA fall", "1.5x → only a 33% fall", "Squeezed by lower EBITDA + higher rates"], "narration": "Think of ICR as financial breathing room. Like a runner's lung capacity, it tells you how much reserve you have. An ICR of three times means the company could lose two-thirds — sixty-seven percent — of its EBITDA before it can't pay interest. An ICR of one-and-a-half means it can only withstand a thirty-three percent decline. Below one times, it can't service the debt at all. And here's the classic LBO distress scenario: in a downturn, EBITDA falls — constricting the breathing room from one side. And if interest rates rise at the same time, the interest bill grows — constricting it from the other. That double squeeze, lower earnings and higher rates hitting coverage simultaneously, is exactly what pushed over-levered post-2021 deals toward distress.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Which interest counts?", "on_screen_bullets": ["EBITDA ÷ cash interest (standard)", "EBIT ÷ interest (stricter)", "PIK usually excluded"], "narration": "Mechanically, there are several ICR variants. The most common in LBO credit agreements is EBITDA over cash interest expense. A stricter version uses EBIT over interest, deducting depreciation to be more conservative. Some lenders use EBITDA minus capex over interest, tougher still. But the standard test puts EBITDA on top and cash interest — not PIK — on the bottom, and that detail matters enormously. PIK interest accrues but requires no cash payment, so it's usually excluded from the coverage test. Which means a company can look perfectly compliant on its ICR covenant while its total debt is quietly compounding through PIK in the background — passing the test the lenders watch, even as the real obligation grows. Always check which interest the covenant actually measures.", "est_sec": 56}, {"n": 6, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Watching coverage erode", "on_screen_bullets": ["Healthy at entry (e.g. 2.5x+)", "EBITDA dip + rate rise compress it", "Toward the covenant trip-wire"], "narration": "Take a PE-backed business-services firm. At acquisition it's structured to sit comfortably — EBITDA covers its cash interest a healthy couple of times over, say two-and-a-half times, with deliberate headroom because lenders insist on a cushion. Then the scenario the model is supposed to stress-test actually happens. A demand softening trims EBITDA. And floating-rate debt means that as the base rate climbs, the cash interest bill rises too. Coverage gets squeezed from both ends at once, drifting down toward the covenant's minimum — the trip-wire below which lenders gain rights. The lesson the worked example teaches is the asymmetry: the company built in headroom at entry precisely because coverage is the metric that fails first in a downturn, long before leverage looks alarming on its own. ICR is the canary; leverage is the coal it's measured against.", "est_sec": 56}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Coverage fails before leverage", "PIK can mask the true burden", "Floating rates move the denominator"], "narration": "Three corrections. First, in a downturn it's coverage, not leverage, that fails first — leverage is a balance-sheet snapshot, but interest must be paid in cash every period, so a company can look acceptably levered while its ICR is breaching. Watch coverage as the live indicator. Second, PIK can mask the true burden — because PIK interest is excluded from the standard test, a company can stay covenant-compliant while its debt compounds; a clean-looking ICR doesn't always mean a healthy capital structure. And third, with floating-rate debt the denominator moves on you — a rate rise increases the cash interest bill directly, so coverage can deteriorate even if EBITDA is flat, which is why interest-rate hedging is a live concern in leveraged deals.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The survival metric", "on_screen_bullets": ["EBITDA ÷ cash interest", "Below ~1.5–2.0x is dangerous", "The first thing to fail in distress"], "narration": "To recap. The interest coverage ratio — EBITDA over cash interest — measures whether a company can actually afford its debt, and a reading below roughly one-and-a-half to two times signals real distress risk. It's the metric that fails first in a downturn, squeezed from both sides when EBITDA falls and rates rise together. Watch the definition carefully — cash interest, usually excluding PIK — because that's where a compounding debt load can hide. Read together, leverage and coverage answer the two questions every lender asks: how much debt is there, and can the company pay for it. With both ratios in hand, the next lesson assembles them into the full machine: the LBO model architecture.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A company has £40m EBITDA and £16m of annual cash interest. What is its ICR, and how large an EBITDA fall could it absorb before coverage hits 1.0x?", "narration": "Before the next lesson, run the numbers. Forty million of EBITDA against sixteen million of cash interest — what's the coverage ratio, and how far could EBITDA fall before coverage hits one times? Work it through, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "A company has $45M EBITDA and $18M annual cash interest expense. What is the ICR?", "answer": "$45M / $18M = **2.5x**"}, {"label": "Q2.", "question": "SOFR rises 250bps. The company has $250M TLB at SOFR+375bps. By how much does annual cash interest increase?", "answer": "$250M × 2.5% = **$6.25M** additional annual interest."}, {"label": "Q3.", "question": "With a 2.0x ICR covenant and $20M annual cash interest, what is the minimum EBITDA the company can have before breaching the covenant?", "answer": "Minimum EBITDA = 2.0 × $20M = **$40M**."}, {"label": "Q4.", "question": "Why is PIK interest excluded from the ICR denominator in most credit agreements?", "answer": "PIK does not require a cash payment — it accretes the principal balance. ICR tests whether cash earnings cover cash obligations, so PIK is excluded."}, {"label": "Q5.", "question": "What is an equity cure and when would a PE sponsor use it?", "answer": "An equity cure is a fresh equity injection treated (in the covenant calculation) as added EBITDA or debt reduction — lifting ICR above the floor to avoid a breach. Used when EBITDA has temporarily fallen below the passing level."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Interest Coverage Ratio in LBOs\n\n[hook] Can it actually pay?\nThe leverage ratio tells lenders how much debt exists. The interest coverage ratio tells them something more urgent: whether the company can actually pay for it. In an LBO, with debt typically five or six times EBITDA, even a modest dip in earnings can collapse coverage to dangerous levels and trip a covenant — handing lenders the right to demand immediate repayment or seize control. ICR is the early-warning system that decides whether a leveraged company survives a downturn. If leverage is the size of the burden, coverage is whether your shoulders can carry it.\n\n[definition] EBITDA over interest\nThe definition. The interest coverage ratio measures how many times a company's EBITDA covers its annual cash interest expense. A ratio below roughly one-and-a-half to two times signals dangerous proximity to financial distress in a leveraged buyout. Above that, comfortable; below it, you're one bad quarter from a problem.\n\n[intuition] Covering the mortgage\nPicture earning fifty thousand a year with mortgage payments of twenty thousand. Your coverage is fifty over twenty — two-and-a-half times. For every pound of mortgage obligation, you earn two-pounds-fifty, so you have real headroom: you could absorb a forty percent income drop and still pay. Now your income falls to twenty-five thousand. Coverage drops to twenty-five over twenty — one-point-two-five times. You're barely covering it. Another twenty percent fall, to twenty thousand, and you break even — you earn exactly what you owe. Below that, you're insolvent. PE runs this identical calculation: the company's EBITDA is the income, and the annual cash interest on all the debt is the mortgage payment.\n\n[intuition] Financial breathing room\nThink of ICR as financial breathing room. Like a runner's lung capacity, it tells you how much reserve you have. An ICR of three times means the company could lose two-thirds — sixty-seven percent — of its EBITDA before it can't pay interest. An ICR of one-and-a-half means it can only withstand a thirty-three percent decline. Below one times, it can't service the debt at all. And here's the classic LBO distress scenario: in a downturn, EBITDA falls — constricting the breathing room from one side. And if interest rates rise at the same time, the interest bill grows — constricting it from the other. That double squeeze, lower earnings and higher rates hitting coverage simultaneously, is exactly what pushed over-levered post-2021 deals toward distress.\n\n[mechanics] Which interest counts?\nMechanically, there are several ICR variants. The most common in LBO credit agreements is EBITDA over cash interest expense. A stricter version uses EBIT over interest, deducting depreciation to be more conservative. Some lenders use EBITDA minus capex over interest, tougher still. But the standard test puts EBITDA on top and cash interest — not PIK — on the bottom, and that detail matters enormously. PIK interest accrues but requires no cash payment, so it's usually excluded from the coverage test. Which means a company can look perfectly compliant on its ICR covenant while its total debt is quietly compounding through PIK in the background — passing the test the lenders watch, even as the real obligation grows. Always check which interest the covenant actually measures.\n\n[worked-example] Watching coverage erode\nTake a PE-backed business-services firm. At acquisition it's structured to sit comfortably — EBITDA covers its cash interest a healthy couple of times over, say two-and-a-half times, with deliberate headroom because lenders insist on a cushion. Then the scenario the model is supposed to stress-test actually happens. A demand softening trims EBITDA. And floating-rate debt means that as the base rate climbs, the cash interest bill rises too. Coverage gets squeezed from both ends at once, drifting down toward the covenant's minimum — the trip-wire below which lenders gain rights. The lesson the worked example teaches is the asymmetry: the company built in headroom at entry precisely because coverage is the metric that fails first in a downturn, long before leverage looks alarming on its own. ICR is the canary; leverage is the coal it's measured against.\n\n[pitfalls] What people get wrong\nThree corrections. First, in a downturn it's coverage, not leverage, that fails first — leverage is a balance-sheet snapshot, but interest must be paid in cash every period, so a company can look acceptably levered while its ICR is breaching. Watch coverage as the live indicator. Second, PIK can mask the true burden — because PIK interest is excluded from the standard test, a company can stay covenant-compliant while its debt compounds; a clean-looking ICR doesn't always mean a healthy capital structure. And third, with floating-rate debt the denominator moves on you — a rate rise increases the cash interest bill directly, so coverage can deteriorate even if EBITDA is flat, which is why interest-rate hedging is a live concern in leveraged deals.\n\n[recap] The survival metric\nTo recap. The interest coverage ratio — EBITDA over cash interest — measures whether a company can actually afford its debt, and a reading below roughly one-and-a-half to two times signals real distress risk. It's the metric that fails first in a downturn, squeezed from both sides when EBITDA falls and rates rise together. Watch the definition carefully — cash interest, usually excluding PIK — because that's where a compounding debt load can hide. Read together, leverage and coverage answer the two questions every lender asks: how much debt is there, and can the company pay for it. With both ratios in hand, the next lesson assembles them into the full machine: the LBO model architecture.\n\nQ: A company has $45M EBITDA and $18M annual cash interest expense. What is the ICR?\nA: $45M / $18M = **2.5x**\nQ: SOFR rises 250bps. The company has $250M TLB at SOFR+375bps. By how much does annual cash interest increase?\nA: $250M × 2.5% = **$6.25M** additional annual interest.\nQ: With a 2.0x ICR covenant and $20M annual cash interest, what is the minimum EBITDA the company can have before breaching the covenant?\nA: Minimum EBITDA = 2.0 × $20M = **$40M**.\nQ: Why is PIK interest excluded from the ICR denominator in most credit agreements?\nA: PIK does not require a cash payment — it accretes the principal balance. ICR tests whether cash earnings cover cash obligations, so PIK is excluded.\nQ: What is an equity cure and when would a PE sponsor use it?\nA: An equity cure is a fresh equity injection treated (in the covenant calculation) as added EBITDA or debt reduction — lifting ICR above the floor to avoid a breach. Used when EBITDA has temporarily fallen below the passing level.\nEnd-card question: A company has £40m EBITDA and £16m of annual cash interest. What is its ICR, and how large an EBITDA fall could it absorb before coverage hits 1.0x?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The leverage ratio tells lenders how much debt exists. The ICR tells them whether the company can actually pay for it. In an LBO, where debt is typically 5-6x EBITDA, a relatively small deterioration in earnings can collapse coverage to dangerous levels and trigger covenant breaches — giving lenders the right to demand immediate repayment or take control. ICR is the early warning system that determines whether a leveraged company will survive a downturn.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The interest coverage ratio (ICR) measures how many times a company's EBITDA covers its annual cash interest expense — a ratio below 1.5-2.0x signals dangerous proximity to financial distress in a leveraged buyout.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you earn £50,000 a year and you have mortgage payments of £20,000. Your \"coverage\" of that payment is £50,000 / £20,000 = 2.5x. For every £1 of mortgage obligation, you earn £2.50. You have headroom — you could afford the mortgage even if your income fell by 40%.</p><p>Now imagine your income falls to £25,000. Coverage drops to £25,000 / £20,000 = 1.25x. You are barely covering your mortgage. A further 20% income fall (to £20,000) and you break even — you earn exactly what you owe. Below that, you are insolvent.</p><p>Private equity does this same calculation for the companies they own. The company's EBITDA is the \"income.\" The annual cash interest expense on all debt is the \"obligation.\" The ratio tells you how much buffer exists.</p><p><strong>Formula: ICR = EBITDA / Cash Interest Expense</strong></p><p>A 2.0x ICR means the company earns twice its interest bill. For every £1 of interest, the business generates £2 of EBITDA. The excess £1 covers tax, capex, working capital, and debt repayment.</p><p>Typical LBO covenant minimum: 1.5-2.5x. Below the covenant floor, lenders have the right to accelerate repayment — forcing a distressed sale at the worst possible time.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>ICR is your <strong>financial breathing room</strong>. If you are a runner, your VO2 max determines how much oxygen you can use — an analogous measure of operational reserve. An ICR of 3.0x means the company could lose 67% of its EBITDA before it cannot pay interest. An ICR of 1.5x means it can only afford a 33% EBITDA decline. Below 1.0x, the company cannot service its debt at all.</p><p>In a recession or operational downturn, the company's EBITDA falls — constricting its breathing room. Simultaneously, if rates rise, the interest bill grows — constricting it from the other side. The ICR squeeze from both directions simultaneously (lower EBITDA + higher rates) is the classic LBO distress trigger.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>ICR formula variants:</strong></p><p>| Formula | When Used | |---|---| | EBITDA / Cash Interest Expense | Most common in LBO credit agreements | | EBIT / Interest Expense | More conservative; deducts depreciation | | EBITDA / Total Interest (cash + PIK) | Rarely; PIK usually excluded | | (EBITDA - Capex) / Interest | Lender-specific; more conservative |</p><p>The most common LBO definition uses EBITDA in the numerator and cash interest (not PIK) in the denominator. This is significant: PIK interest accrues but does not require cash payment, so it is frequently excluded from the ICR test. A company may be \"compliant\" on ICR while its total debt is compounding via PIK — see PIK Notes.</p><p><strong>ICR vs. DSCR (Debt Service Coverage Ratio):</strong> - ICR = EBITDA / Interest — measures coverage of interest payments only - DSCR = EBITDA / (Interest + Principal Amortisation) — measures coverage of total debt service</p><p>DSCR is stricter because it includes scheduled principal repayments. A company with acceptable ICR may still fail DSCR if amortisation is significant. In covenant-lite structures, many PE deals only have an ICR test (not DSCR) because TLB amortisation is only 1%/year.</p><p><strong>Why EBITDA is used (not net income or free cash flow):</strong> EBITDA excludes interest, tax, depreciation, and amortisation — making it a cross-company comparable measure of operating cash generation. It is imperfect (ignores capex and working capital), but it is the established market convention for LBO covenant testing. Lenders normalise EBITDA for one-off items (see EBITDA Add-Backs and Adjustments).</p><p><strong>Typical ICR covenant levels:</strong></p><p>| Deal Type | Typical ICR Covenant Floor | |---|---| | Investment-grade (non-LBO) | 3.0-4.0x | | Large-cap LBO | 2.0-2.5x | | Mid-market LBO | 1.5-2.0x | | Covenant-lite (no maintenance test) | N/A — incurrence only |</p><p><strong>How maintenance covenants work:</strong> In traditional loan structures, the ICR covenant is tested every quarter. If EBITDA falls (or interest rises, e.g., due to SOFR increase), ICR may breach the covenant threshold. A breach: 1. Does not automatically cause default 2. Triggers a \"cure\" period (typically 30-60 days) during which the borrower must remedy the breach 3. Cure options: equity injection (PE fund injects cash to reduce debt), negotiated waiver (lenders agree to suspend testing), or asset sale 4. If not cured: lenders may accelerate (demand all debt repaid immediately) — which typically forces a sale</p><p><strong>How rising interest rates affect ICR:</strong> TLBs are floating rate (SOFR + spread). If SOFR rises 300bps, a $300M TLB at SOFR+400 goes from costing: - SOFR 3%: total rate 7%, interest $21M/year - SOFR 6%: total rate 10%, interest $30M/year</p><p>That $9M increase in interest expense directly reduces ICR. If EBITDA = $40M: - ICR at SOFR 3%: $40M / $21M = 1.90x - ICR at SOFR 6%: $40M / $30M = 1.33x — potentially below covenant floor</p><p>This is the fundamental risk of the 2022-2023 rate environment for PE-backed companies [needs-verification on scale of impact].</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Company: PE-backed business services firm</strong></p><p>At acquisition: - EBITDA: $40M - TLB: $200M at SOFR (4%) + 400bps = 8% = $16M interest - Mezz: $40M at 11% cash = $4.4M interest - <strong>Total cash interest: $20.4M</strong> - <strong>ICR: $40M / $20.4M = 1.96x</strong> - <strong>Covenant: minimum 1.5x</strong> - <strong>Headroom: $40M vs. $30.6M break-even (EBITDA could fall 23.5%)</strong></p><p>Year 2 — recession hits: - EBITDA falls to $30M (25% decline) - SOFR rises from 4% to 6%: TLB rate = 10%, interest = $20M - Mezz interest unchanged: $4.4M - <strong>Total cash interest: $24.4M</strong> - <strong>ICR: $30M / $24.4M = 1.23x</strong> - <strong>BELOW the 1.5x covenant floor — BREACH</strong></p><p>PE sponsor response: - Injects $30M equity cure (classified as EBITDA add-on in covenant calculation) - Adjusted EBITDA for test: $30M + notional $8M credit from cure = $38M - Adjusted ICR: $38M / $24.4M = 1.56x — just above the 1.5x floor - Lenders grant waiver, grant 6-month suspension of covenant, and require quarterly performance reports</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"ICR and leverage ratio are the same thing.\"</strong> Completely different. Leverage ratio = debt / EBITDA (measures the stock of debt). ICR = EBITDA / interest expense (measures the flow of interest payments). A company can have high leverage but high ICR if rates are low; or moderate leverage but low ICR if rates are high.</p><p><strong>Misconception 2: \"A breach of ICR covenant means immediate bankruptcy.\"</strong> A breach triggers lender rights but not automatic insolvency. Lenders typically negotiate cure mechanisms and waivers before accelerating debt — acceleration is a last resort because it forces a fire sale that often recovers less for lenders than an orderly workout.</p><p><strong>Misconception 3: \"PIK interest counts in the ICR denominator.\"</strong> Usually not — credit agreements typically define interest for ICR purposes as cash interest only. This is a critical modelling detail.</p><p><strong>Misconception 4: \"Cov-lite deals have no financial tests.\"</strong> Cov-lite deals have no maintenance financial covenants. They still have incurrence covenants (limiting additional debt, dividends, asset sales). They also still have events of default (payment default, bankruptcy). It is not a blank cheque — it is a different type of constraint.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The interest coverage ratio (EBITDA / cash interest expense) is the primary measure of an LBO company's ability to service its debt in real time. A ratio of 2.0x means the company earns double its annual interest bill — providing buffer against earnings declines. LBO covenants typically require minimum ICR of 1.5-2.5x, tested quarterly. Covenant breaches give lenders intervention rights, potentially forcing distressed sales. Rising SOFR compresses ICR for floating-rate borrowers; PIK interest is usually excluded from the denominator. The post-2012 shift to covenant-lite structures has eliminated maintenance ICR testing in most large-cap LBOs — replacing quarterly protection with incurrence-only constraints that activate only when specific actions are taken.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

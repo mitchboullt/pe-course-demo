@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "exit-optionality-in-pe", "title": "Exit Optionality in PE", "draft_watermark": false, "estimated_runtime_sec": 330, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Exits are built in year one", "on_screen_bullets": ["Not a year-five decision", "Early choices open or close routes", "Value and exit are one decision"], "narration": "Most teaching frames exit-route selection as a year-five decision: what is the best way to sell this asset now? But experienced practitioners know the truth is different — exit optionality is built, or destroyed, by decisions made in year one. A first-hundred-day plan that cuts costs aggressively maximises short-term earnings but may strip out the management depth a public listing requires. A buy-and-build that bolts on a dozen acquisitions may create value but produce a fragmented business no strategic buyer wants to absorb. A debt structure with aggressive dividend recaps may deliver early returns but destroy the deleveraging profile that makes a sale to another fund credible. So the deep idea of this lesson is that value-creation decisions and exit decisions are the same decisions — made years apart, but necessarily made together.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Keeping routes open", "on_screen_bullets": ["Preserve multiple exit paths", "Deliberate early investments", "Not single-path dependency"], "narration": "Here is the definition. Exit optionality is the active strategy of preserving multiple viable exit routes — a public listing, a strategic sale, or a sale to another financial buyer — throughout the holding period, by making deliberate operational and governance investments that keep each route open, rather than optimising exclusively for one path and discovering its constraints only at year five. The key word is active. Optionality is not something you happen to have; it is something you spend money and discipline to maintain. And it is the opposite of single-path dependency, where a manager has accidentally foreclosed every route but one and arrives at exit as a price-taker. Hold that contrast: deliberately maintained options versus an accidentally narrowed funnel.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Renovate for any buyer", "on_screen_bullets": ["Kitchen suits everyone", "Niche features narrow buyers", "Broad appeal preserves options"], "narration": "Picture renovating a house to sell it. You could redo the kitchen, which adds value for almost every buyer; install a specialist wine cellar, which only appeals to collectors; or add a pool, which families love but some buyers actively dislike. If you are certain you will only ever sell to a collector, build the cellar. But if you want to keep your options open — to sell to a family, a downsizer, or a collector — you do the kitchen first, because it preserves the broadest set of buyers. Private equity is the same. The first-hundred-day plan is your renovation budget. Invest in strong management, clean financial reporting, and genuine earnings growth, and you build a business attractive to strategic buyers, financial buyers, and public-market investors alike. Cut too deep and under-invest, and you might look good on this year's earnings while quietly destroying the optionality to exit through a listing or to a premium strategic buyer.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Multiple job offers", "on_screen_bullets": ["One qualification: take what's offered", "Several options: real leverage", "Run a competitive process"], "narration": "Another model: exit optionality is like keeping several job applications live rather than targeting one employer. If you are only qualified for one specific role, you take whatever salary that one employer offers — you are a price-taker. If you are qualified for several types of role at several employers, you have genuine negotiating leverage, and you can close a deal on your own timeline. Managers who maintain a listing, a strategic sale, and a financial-buyer sale all at once can run a truly competitive process, forcing the buyers to compete and lifting the price. Managers who have accidentally foreclosed two of the three routes are price-takers in the one channel that remains. The difference at the exit table is enormous, and it traces directly back to whether the optionality was deliberately preserved years earlier. Competition is what gets the best price, and optionality is what creates the competition.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three routes, three checklists", "on_screen_bullets": ["Listing needs depth and reporting", "Strategic needs differentiation", "Financial buyer needs headroom"], "narration": "Each exit route has its own distinct set of prerequisites, and meeting one route's requirements does not get you the others — that is precisely why optionality takes deliberate effort. A public listing demands management depth, with public-company-grade finance leadership and independent governance, plus serious revenue scale, robust reporting infrastructure, a credible growth story, a clean legal structure, and a diversified customer base — heavy customer concentration is a red flag. A strategic sale demands differentiation — something a strategic buyer cannot simply build themselves, like technology, market position, or regulatory approvals — plus clean integration of any acquisitions and obvious, quantifiable synergies. And a sale to another financial buyer demands leverage headroom, because the next buyer needs room to re-lever the company, plus a continuing growth story they can underwrite, since if all the earnings improvement has already been extracted, there is no thesis left for them to buy. Three routes, three different checklists — and you have to satisfy all of them at once to keep all three open.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "mermaid", "source_section": "Technical Explanation", "on_screen_title": "The optionality funnel", "on_screen_bullets": ["Early decisions foreclose routes", "Listing first, then strategic, then financial", "Survivors set the exit price"], "narration": "Think of optionality as a funnel that narrows over the hold, as the diagram shows. In year one, all three routes are theoretically available. Then the management-team decisions of the first hundred days either preserve or foreclose the listing route — cut the senior finance capability to save cost, and you cannot rebuild public-company-grade management in time. Next, the buy-and-build execution over the following years either maintains the strategic-sale route, if acquisitions are genuinely integrated, or complicates it, if you have left a tangle of half-integrated platforms. Then the leverage and dividend decisions either maintain the financial-buyer route, if the company has deleveraged and left headroom, or foreclose it, if a dividend recap has re-levered it. By the time you reach exit, only the routes that survived this funnel remain viable — and they determine the multiple you can actually achieve. The earlier a route is foreclosed, the less negotiating leverage the manager has when it finally matters.", "mermaid": "flowchart TD\n  Y1[Year 1: all three routes open] --> M[Management decisions<br/>first hundred days]\n  M --> L[Listing route: kept or foreclosed]\n  L --> B[Buy-and-build execution]\n  B --> S[Strategic sale: kept or complicated]\n  S --> D[Leverage and dividend decisions]\n  D --> F[Financial-buyer sale: kept or foreclosed]\n  F --> E[Surviving routes set the exit price]", "est_sec": 56}, {"n": 7, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Preserved versus destroyed", "on_screen_bullets": ["Hotel deal invested through the crisis", "Toy retailer foreclosed every route", "Optionality decided the outcome"], "narration": "Two contrasting cases make this vivid. In the first, a very large hotel business was bought at extreme leverage right before a financial crisis and spent years in covenant-management territory. Yet the owner made one decisive optionality-preserving choice: rather than extract, it invested in the brand and the customer-loyalty infrastructure, which kept the business strategically valuable and listing-credible even through the worst of the distress. By the time markets recovered, it was not just a deleveraged asset but a genuinely transformed business with a public-market story — and the listing produced an enormous profit. Now the contrast: a famous toy retailer, bought at high leverage that left no room to re-lever, so the financial-buyer route was foreclosed from day one. The competitive threat demanded heavy capital investment to defend its position, which the debt prevented; declining revenue foreclosed a listing; and no strategic buyer wanted the liability. With every route closed, the only remaining option was bankruptcy — the complete absence of optionality producing the worst possible outcome for everyone involved.", "est_sec": 56}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Route isn't chosen at year five", "More routes isn't always better", "A financial-buyer sale isn't guaranteed"], "narration": "Four misconceptions to correct. First, that the exit route is chosen at year five — it is largely determined by year two through the operational decisions of the first-hundred-day plan, so by year five managers are executing the routes that remain, not choosing freely. Second, that more routes is always better — maintaining three routes means investing in three sets of prerequisites, so optimal optionality may mean keeping a clear primary plus one credible backup, rather than three half-built routes. Third, that a sale to another financial buyer is always available as a fallback — it is not; that buyer needs to underwrite a fresh value-creation case, so if the first owner has already captured most of the achievable improvement, the route is foreclosed for lack of a thesis. And fourth, that listing optionality is about timing the market — it is mainly about the operational and management preparation that takes a couple of years to build, so readiness matters far more than timing.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Decided in the first 100 days", "on_screen_bullets": ["Optionality costs upfront", "Routes foreclose early", "Competition lifts the exit price"], "narration": "So to summarise: exit optionality is the discipline of preserving a listing, a strategic sale, and a financial-buyer sale throughout the hold through deliberate operational and governance investments, rather than accidentally foreclosing routes through early decisions optimised for the wrong time horizon. A listing needs management depth and reporting infrastructure; a strategic sale needs integration quality and clear synergies; a financial-buyer sale needs leverage headroom and a remaining growth story. These requirements partially conflict — high leverage forecloses the financial-buyer route, aggressive cost-cutting forecloses the listing, and rapid unintegrated acquisition forecloses the strategic sale. The deepest lesson is that exit decisions are not made at exit; they are made in the first hundred days. Maintaining genuine optionality costs something upfront — in management investment, deferred dividends, and integration discipline — but it pays off at exit by preserving the competitive tension across multiple buyer pools that actually lifts the price.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["When is the route really decided?", "What does each route require?", "What forecloses the financial-buyer sale?"], "narration": "Before you finish, answer these from memory. At what point in the hold is the exit route actually determined, and through which decisions? What is the distinct core requirement of each of the three exit routes? And what specifically forecloses the option of selling to another financial buyer? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Exit Optionality in PE\n\n[hook] Exits are built in year one\nMost teaching frames exit-route selection as a year-five decision: what is the best way to sell this asset now? But experienced practitioners know the truth is different — exit optionality is built, or destroyed, by decisions made in year one. A first-hundred-day plan that cuts costs aggressively maximises short-term earnings but may strip out the management depth a public listing requires. A buy-and-build that bolts on a dozen acquisitions may create value but produce a fragmented business no strategic buyer wants to absorb. A debt structure with aggressive dividend recaps may deliver early returns but destroy the deleveraging profile that makes a sale to another fund credible. So the deep idea of this lesson is that value-creation decisions and exit decisions are the same decisions — made years apart, but necessarily made together.\n\n[definition] Keeping routes open\nHere is the definition. Exit optionality is the active strategy of preserving multiple viable exit routes — a public listing, a strategic sale, or a sale to another financial buyer — throughout the holding period, by making deliberate operational and governance investments that keep each route open, rather than optimising exclusively for one path and discovering its constraints only at year five. The key word is active. Optionality is not something you happen to have; it is something you spend money and discipline to maintain. And it is the opposite of single-path dependency, where a manager has accidentally foreclosed every route but one and arrives at exit as a price-taker. Hold that contrast: deliberately maintained options versus an accidentally narrowed funnel.\n\n[intuition] Renovate for any buyer\nPicture renovating a house to sell it. You could redo the kitchen, which adds value for almost every buyer; install a specialist wine cellar, which only appeals to collectors; or add a pool, which families love but some buyers actively dislike. If you are certain you will only ever sell to a collector, build the cellar. But if you want to keep your options open — to sell to a family, a downsizer, or a collector — you do the kitchen first, because it preserves the broadest set of buyers. Private equity is the same. The first-hundred-day plan is your renovation budget. Invest in strong management, clean financial reporting, and genuine earnings growth, and you build a business attractive to strategic buyers, financial buyers, and public-market investors alike. Cut too deep and under-invest, and you might look good on this year's earnings while quietly destroying the optionality to exit through a listing or to a premium strategic buyer.\n\n[intuition] Multiple job offers\nAnother model: exit optionality is like keeping several job applications live rather than targeting one employer. If you are only qualified for one specific role, you take whatever salary that one employer offers — you are a price-taker. If you are qualified for several types of role at several employers, you have genuine negotiating leverage, and you can close a deal on your own timeline. Managers who maintain a listing, a strategic sale, and a financial-buyer sale all at once can run a truly competitive process, forcing the buyers to compete and lifting the price. Managers who have accidentally foreclosed two of the three routes are price-takers in the one channel that remains. The difference at the exit table is enormous, and it traces directly back to whether the optionality was deliberately preserved years earlier. Competition is what gets the best price, and optionality is what creates the competition.\n\n[mechanics] Three routes, three checklists\nEach exit route has its own distinct set of prerequisites, and meeting one route's requirements does not get you the others — that is precisely why optionality takes deliberate effort. A public listing demands management depth, with public-company-grade finance leadership and independent governance, plus serious revenue scale, robust reporting infrastructure, a credible growth story, a clean legal structure, and a diversified customer base — heavy customer concentration is a red flag. A strategic sale demands differentiation — something a strategic buyer cannot simply build themselves, like technology, market position, or regulatory approvals — plus clean integration of any acquisitions and obvious, quantifiable synergies. And a sale to another financial buyer demands leverage headroom, because the next buyer needs room to re-lever the company, plus a continuing growth story they can underwrite, since if all the earnings improvement has already been extracted, there is no thesis left for them to buy. Three routes, three different checklists — and you have to satisfy all of them at once to keep all three open.\n\n[mechanics] The optionality funnel\nThink of optionality as a funnel that narrows over the hold, as the diagram shows. In year one, all three routes are theoretically available. Then the management-team decisions of the first hundred days either preserve or foreclose the listing route — cut the senior finance capability to save cost, and you cannot rebuild public-company-grade management in time. Next, the buy-and-build execution over the following years either maintains the strategic-sale route, if acquisitions are genuinely integrated, or complicates it, if you have left a tangle of half-integrated platforms. Then the leverage and dividend decisions either maintain the financial-buyer route, if the company has deleveraged and left headroom, or foreclose it, if a dividend recap has re-levered it. By the time you reach exit, only the routes that survived this funnel remain viable — and they determine the multiple you can actually achieve. The earlier a route is foreclosed, the less negotiating leverage the manager has when it finally matters.\n\n[example] Preserved versus destroyed\nTwo contrasting cases make this vivid. In the first, a very large hotel business was bought at extreme leverage right before a financial crisis and spent years in covenant-management territory. Yet the owner made one decisive optionality-preserving choice: rather than extract, it invested in the brand and the customer-loyalty infrastructure, which kept the business strategically valuable and listing-credible even through the worst of the distress. By the time markets recovered, it was not just a deleveraged asset but a genuinely transformed business with a public-market story — and the listing produced an enormous profit. Now the contrast: a famous toy retailer, bought at high leverage that left no room to re-lever, so the financial-buyer route was foreclosed from day one. The competitive threat demanded heavy capital investment to defend its position, which the debt prevented; declining revenue foreclosed a listing; and no strategic buyer wanted the liability. With every route closed, the only remaining option was bankruptcy — the complete absence of optionality producing the worst possible outcome for everyone involved.\n\n[application] Four myths\nFour misconceptions to correct. First, that the exit route is chosen at year five — it is largely determined by year two through the operational decisions of the first-hundred-day plan, so by year five managers are executing the routes that remain, not choosing freely. Second, that more routes is always better — maintaining three routes means investing in three sets of prerequisites, so optimal optionality may mean keeping a clear primary plus one credible backup, rather than three half-built routes. Third, that a sale to another financial buyer is always available as a fallback — it is not; that buyer needs to underwrite a fresh value-creation case, so if the first owner has already captured most of the achievable improvement, the route is foreclosed for lack of a thesis. And fourth, that listing optionality is about timing the market — it is mainly about the operational and management preparation that takes a couple of years to build, so readiness matters far more than timing.\n\n[recap] Decided in the first 100 days\nSo to summarise: exit optionality is the discipline of preserving a listing, a strategic sale, and a financial-buyer sale throughout the hold through deliberate operational and governance investments, rather than accidentally foreclosing routes through early decisions optimised for the wrong time horizon. A listing needs management depth and reporting infrastructure; a strategic sale needs integration quality and clear synergies; a financial-buyer sale needs leverage headroom and a remaining growth story. These requirements partially conflict — high leverage forecloses the financial-buyer route, aggressive cost-cutting forecloses the listing, and rapid unintegrated acquisition forecloses the strategic sale. The deepest lesson is that exit decisions are not made at exit; they are made in the first hundred days. Maintaining genuine optionality costs something upfront — in management investment, deferred dividends, and integration discipline — but it pays off at exit by preserving the competitive tension across multiple buyer pools that actually lifts the price.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. At what point in the hold is the exit route actually determined, and through which decisions? What is the distinct core requirement of each of the three exit routes? And what specifically forecloses the option of selling to another financial buyer? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Exit route selection is framed in most PE teaching as a Year-5 decision: \"what is the best way to exit this asset now?\" But experienced practitioners understand that exit optionality is built — or destroyed — by decisions made in Year 1. A 100-day plan that extracts costs aggressively maximises short-term EBITDA but may eliminate the management depth required for an IPO. A buy-and-build that adds 12 bolt-on acquisitions may create strategic value but produce a complex, fragmented business that no strategic buyer wants to absorb. A debt structure with aggressive dividend recapitalisations may deliver near-term returns but eliminates the deleveraging profile that makes an SBO credible. Understanding exit optionality means understanding that value creation decisions and exit decisions are the same decisions — made years apart but necessarily made together.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Exit optionality is the active strategy of preserving multiple viable exit routes (IPO, strategic sale, secondary buyout) throughout the hold period by making deliberate operational and governance investments that keep each route open, rather than optimising exclusively for one exit path and discovering its constraints only at Year 5.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you are renovating a house to sell it. You could renovate the kitchen (which increases value for most buyers), put in a specialist wine cellar (which increases value only for wine collectors), or add a swimming pool (which is valued by families but reduces value for elderly buyers). If you only plan to sell to wine collectors, you'd do the cellar. But if you want to keep your options open — sell to a family, an elderly couple, or a wine collector — you do the kitchen first.</p><p>PE is the same. The 100-day plan is your renovation budget. If you invest in strong management systems, good financial reporting, and genuine EBITDA growth, you build a business that is attractive to strategic buyers, financial buyers (SBO), and public market investors (IPO). If you cut too deep and under-invest, you might look good on EBITDA this year but destroy the optionality to exit via IPO or strategic sale to a premium buyer.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Exit optionality is like maintaining multiple job applications rather than targeting one employer. If you are only qualified for one specific role, you take whatever salary that employer offers. If you are qualified for three types of roles at multiple employers, you have negotiating leverage — and the ability to close a deal on your own timeline. PE GPs who maintain IPO, strategic, and SBO optionality simultaneously can run a true competitive process; GPs who have accidentally foreclosed two routes are price takers in the one remaining channel.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Three Exit Routes and Their Requirements Each exit route has a specific set of requirements. Meeting one route's requirements does not guarantee meeting the others. Exit optionality means maintaining the prerequisites for all three simultaneously.</p><p>#### IPO-Ready Requirements 1. <strong>Management team depth:</strong> Public company CFO (investor relations, SEC reporting experience), independent directors, audit committee, compensation committee — building this costs money and time 2. <strong>Revenue scale:</strong> Generally $200m+ annual revenue for a credible institutional IPO; some sectors accept lower 3. <strong>EBITDA margin profile:</strong> Visible margin trajectory (growing margins tell a better story than high but declining margins) 4. <strong>Growth narrative:</strong> Public investors buy growth stories; businesses optimised purely for margin with limited growth are valued lower in public markets 5. <strong>Reporting infrastructure:</strong> GAAP/IFRS-compliant financials, strong internal controls, audit readiness — requires investment in systems (ERP, financial reporting) 6. <strong>Customer concentration:</strong> Greater than 20–30% revenue from one customer is a red flag for public market investors 7. <strong>Clean legal structure:</strong> Resolved litigation, clean IP ownership, no related-party transactions that would need unwinding post-IPO</p><p>#### Strategic Sale Requirements 1. <strong>Differentiation:</strong> Why would a strategic pay a premium over a financial buyer? Must have something they cannot build — technology, market position, customer relationships, regulatory approvals 2. <strong>Clean integration:</strong> Bolt-on acquisitions must be substantially integrated before sale — strategic buyers do not want to acquire a management headache on top of 12 partially integrated platforms 3. <strong>Revenue synergy clarity:</strong> Strategic buyers pay for synergies; the company must be positioned so synergies are obvious and quantifiable 4. <strong>Management team retention:</strong> Strategics often want key management to stay; earn-outs depend on it 5. <strong>Buyer universe breadth:</strong> The more potential strategic buyers, the more competitive the process and the higher the price</p><p>#### SBO (Secondary Buyout) Requirements 1. <strong>Deleveraging profile:</strong> The next PE buyer needs to re-lever the company at entry; this requires sufficient leverage capacity remaining — ideally the company has paid down 2–3× of its original leverage over the hold 2. <strong>Continuing growth story:</strong> SBO buyers need to build their own value creation case; if all EBITDA improvement has already been extracted, there is no thesis 3. <strong>Management team:</strong> Strong, incentivised management who will sign new MIPs with the next buyer 4. <strong>Moderate EBITDA complexity:</strong> SBO buyers run their own LBO models; a complex, multi-entity structure increases execution risk 5. <strong>Fair valuation expectations:</strong> SBO buyers are disciplined on entry multiples; if the GP's return requires an exit multiple above what a financial buyer will pay, the SBO route is unavailable</p><p>### How 100-Day Plan Decisions Foreclose or Preserve Routes</p><p><strong>Decision 1: Management team investment</strong> - Hiring a high-quality CFO with public company experience (cost: £500k–£1m/year above market): <strong>preserves IPO optionality</strong> - Cutting the CFO role and using a part-qualified FD to save cost: <strong>forecloses IPO optionality within 12–18 months of this decision</strong> (rebuilding public-company-grade management takes 2–3 years)</p><p><strong>Decision 2: Buy-and-build execution</strong> - Executing 8–12 bolt-on acquisitions rapidly without integration: creates EBITDA growth but <strong>forecloses strategic sale</strong> (buyers see management distraction and integration risk) and <strong>complicates IPO</strong> (complex structure, multi-entity reporting) - Executing 2–3 high-quality integrated bolt-ons: preserves all three exit routes (strategic, SBO, IPO)</p><p><strong>Decision 3: Dividend recapitalisation</strong> - Taking a dividend recap in Year 2 (refinancing to extract equity): immediately returns capital but <strong>forecloses SBO route</strong> (company is heavily re-levered, leaving no room for next buyer) and <strong>complicates IPO</strong> (high leverage is penalised by public market investors) - Refusing the recap and accepting delayed LP distributions: preserves SBO and IPO optionality</p><p><strong>Decision 4: Revenue base concentration</strong> - Winning one transformative contract that constitutes 40% of revenue: increases EBITDA but <strong>forecloses IPO</strong> (customer concentration red flag) and creates execution risk for strategic sale - Maintaining diversified revenue: preserves all exit routes</p><p>### Mapping the Exit Route Funnel Optionality operates as a funnel: the more preparation investments made, the more routes remain viable.</p><p>The earlier options are foreclosed, the less negotiating leverage the GP has in exit discussions.</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### The Three Exit Routes and Their Requirements Each exit route has a specific set of requirements. Meeting one route's requirements does not guarantee meeting the others. Exit optionality means maintaining the prerequisites for all three simultaneously.</p><p>#### IPO-Ready Requirements 1. <strong>Management team depth:</strong> Public company CFO (investor relations, SEC reporting experience), independent directors, audit committee, compensation committee — building this costs money and time 2. <strong>Revenue scale:</strong> Generally $200m+ annual revenue for a credible institutional IPO; some sectors accept lower 3. <strong>EBITDA margin profile:</strong> Visible margin trajectory (growing margins tell a better story than high but declining margins) 4. <strong>Growth narrative:</strong> Public investors buy growth stories; businesses optimised purely for margin with limited growth are valued lower in public markets 5. <strong>Reporting infrastructure:</strong> GAAP/IFRS-compliant financials, strong internal controls, audit readiness — requires investment in systems (ERP, financial reporting) 6. <strong>Customer concentration:</strong> Greater than 20–30% revenue from one customer is a red flag for public market investors 7. <strong>Clean legal structure:</strong> Resolved litigation, clean IP ownership, no related-party transactions that would need unwinding post-IPO</p><p>#### Strategic Sale Requirements 1. <strong>Differentiation:</strong> Why would a strategic pay a premium over a financial buyer? Must have something they cannot build — technology, market position, customer relationships, regulatory approvals 2. <strong>Clean integration:</strong> Bolt-on acquisitions must be substantially integrated before sale — strategic buyers do not want to acquire a management headache on top of 12 partially integrated platforms 3. <strong>Revenue synergy clarity:</strong> Strategic buyers pay for synergies; the company must be positioned so synergies are obvious and quantifiable 4. <strong>Management team retention:</strong> Strategics often want key management to stay; earn-outs depend on it 5. <strong>Buyer universe breadth:</strong> The more potential strategic buyers, the more competitive the process and the higher the price</p><p>#### SBO (Secondary Buyout) Requirements 1. <strong>Deleveraging profile:</strong> The next PE buyer needs to re-lever the company at entry; this requires sufficient leverage capacity remaining — ideally the company has paid down 2–3× of its original leverage over the hold 2. <strong>Continuing growth story:</strong> SBO buyers need to build their own value creation case; if all EBITDA improvement has already been extracted, there is no thesis 3. <strong>Management team:</strong> Strong, incentivised management who will sign new MIPs with the next buyer 4. <strong>Moderate EBITDA complexity:</strong> SBO buyers run their own LBO models; a complex, multi-entity structure increases execution risk 5. <strong>Fair valuation expectations:</strong> SBO buyers are disciplined on entry multiples; if the GP's return requires an exit multiple above what a financial buyer will pay, the SBO route is unavailable</p><p>### How 100-Day Plan Decisions Foreclose or Preserve Routes</p><p><strong>Decision 1: Management team investment</strong> - Hiring a high-quality CFO with public company experience (cost: £500k–£1m/year above market): <strong>preserves IPO optionality</strong> - Cutting the CFO role and using a part-qualified FD to save cost: <strong>forecloses IPO optionality within 12–18 months of this decision</strong> (rebuilding public-company-grade management takes 2–3 years)</p><p><strong>Decision 2: Buy-and-build execution</strong> - Executing 8–12 bolt-on acquisitions rapidly without integration: creates EBITDA growth but <strong>forecloses strategic sale</strong> (buyers see management distraction and integration risk) and <strong>complicates IPO</strong> (complex structure, multi-entity reporting) - Executing 2–3 high-quality integrated bolt-ons: preserves all three exit routes (strategic, SBO, IPO)</p><p><strong>Decision 3: Dividend recapitalisation</strong> - Taking a dividend recap in Year 2 (refinancing to extract equity): immediately returns capital but <strong>forecloses SBO route</strong> (company is heavily re-levered, leaving no room for next buyer) and <strong>complicates IPO</strong> (high leverage is penalised by public market investors) - Refusing the recap and accepting delayed LP distributions: preserves SBO and IPO optionality</p><p><strong>Decision 4: Revenue base concentration</strong> - Winning one transformative contract that constitutes 40% of revenue: increases EBITDA but <strong>forecloses IPO</strong> (customer concentration red flag) and creates execution risk for strategic sale - Maintaining diversified revenue: preserves all exit routes</p><p>### Mapping the Exit Route Funnel Optionality operates as a funnel: the more preparation investments made, the more routes remain viable.</p><p>The earlier options are foreclosed, the less negotiating leverage the GP has in exit discussions.</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Hilton Hotels — Blackstone (2007–2018):</strong> Blackstone acquired Hilton in 2007 at peak leverage (£20bn+ debt on a £26bn EV). During the GFC, Hilton was technically in covenant default territory. But Blackstone's key optionality-preservation decision was investing heavily in Hilton's brand architecture and customer loyalty programme (Hilton Honors) — investments that maintained strategic value and IPO credibility even during the debt restructuring period. By 2013, when Blackstone took Hilton public (the largest hotel IPO in history), Hilton was not just a de-levered asset; it was a structurally transformed business with a credible public company story. Total Blackstone profit: ~$14bn. <strong>Key lesson:</strong> Blackstone maintained IPO optionality through the most adverse hold period in modern PE history by investing in brand and customer infrastructure rather than extracting.</p><p><strong>Contrast — Toys R Us (KKR/Bain/Vornado, 2005–2017):</strong> The Toys R Us LBO was structurally optionality-destroying from entry: high leverage ($5bn on a business generating $400m EBITDA) left no room for re-levering (eliminating SBO). The competitive threat from Amazon and Walmart required heavy capital investment to defend market position — which the leverage prevented. IPO optionality was foreclosed by declining revenue. Strategic sale optionality was unavailable because no strategic buyer wanted the liability. By 2017, the only remaining option was Chapter 11 — the complete absence of exit optionality produced the worst possible outcome for LPs, employees, and creditors. [needs-verification on specific numbers]</p><p><strong>KKR / Alliance Boots (2007–2012):</strong> KKR acquired Alliance Boots with a primary thesis of strategic sale (to a healthcare or pharmacy major). The 100-day plan preserved both the strategic sale and SBO routes by investing in Alliance Boots' pharmaceutical manufacturing business (making it more strategically attractive) while maintaining clean financials (SBO-ready). In 2012, Walgreens acquired 45% of Alliance Boots for $6.7bn, with an option to acquire the remaining 55% — a strategic sale that returned ~3× equity in 5 years. IPO optionality was never seriously pursued but was maintained as a backstop. <strong>Key lesson:</strong> Having a clear primary exit thesis (strategic sale) with preserved backup options (SBO) produces better negotiating outcomes than single-path dependency.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Exit route is chosen at Year 5.\"</strong> The exit route is largely determined by Year 2 through operational decisions made in the 100-day plan. By Year 5, GPs are executing the routes that remain viable, not choosing freely.</li><li><strong>\"More exit routes is always better.\"</strong> Maintaining three routes simultaneously requires investment in each route's prerequisites. Optimal optionality may mean maintaining two routes (primary + one credible backup) rather than three partial routes.</li><li><strong>\"An SBO is always available as a fallback.\"</strong> SBO requires the next buyer to underwrite a credible value creation case. If the first GP has already captured most achievable EBITDA improvement, the SBO route is foreclosed because no financial buyer can build a compelling entry thesis.</li><li><strong>\"IPO optionality is about IPO timing.\"</strong> IPO optionality is primarily about operational and management preparation that takes 2–3 years to build — timing is secondary to readiness.</li></ol>"}, "8": {"section": "Summary", "html": "<p>Exit optionality in PE is the discipline of preserving multiple viable exit routes — IPO, strategic sale, secondary buyout — throughout the hold period through deliberate operational and governance investments, rather than accidentally foreclosing routes through 100-day plan decisions that optimise for the wrong time horizon. IPO optionality requires management depth, reporting infrastructure, and revenue diversity; strategic sale requires integration quality and synergy clarity; SBO requires leverage headroom and continuing value creation narrative. These requirements partially conflict — high leverage forecloses SBO; aggressive cost-cutting forecloses IPO; rapid buy-and-build without integration forecloses strategic sale. The best PE practitioners understand that exit decisions are not made at exit; they are made in the 100-day plan. Maintaining genuine optionality costs something upfront — in management investment, deferred dividend recaps, and integration discipline — but it produces better outcomes at exit by preserving competitive tension across multiple buyer pools.</p>"}, "9": {"section": "Summary", "html": "<p>Exit optionality in PE is the discipline of preserving multiple viable exit routes — IPO, strategic sale, secondary buyout — throughout the hold period through deliberate operational and governance investments, rather than accidentally foreclosing routes through 100-day plan decisions that optimise for the wrong time horizon. IPO optionality requires management depth, reporting infrastructure, and revenue diversity; strategic sale requires integration quality and synergy clarity; SBO requires leverage headroom and continuing value creation narrative. These requirements partially conflict — high leverage forecloses SBO; aggressive cost-cutting forecloses IPO; rapid buy-and-build without integration forecloses strategic sale. The best PE practitioners understand that exit decisions are not made at exit; they are made in the 100-day plan. Maintaining genuine optionality costs something upfront — in management investment, deferred dividend recaps, and integration discipline — but it produces better outcomes at exit by preserving competitive tension across multiple buyer pools.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

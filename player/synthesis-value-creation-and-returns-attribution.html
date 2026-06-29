@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-value-creation-and-returns-attribution", "title": "Synthesis: Value Creation and Returns Attribution", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "Actions map to sources", "on_screen_bullets": ["Every action → one return source", "MIP decides which gets done", "The alignment triangle"], "narration": "Value creation catalogues what GPs do to portfolio companies; the three sources of returns explain where returns come from. These two frameworks are usually taught separately, as if operational actions and financial outcomes live in different worlds. They don't. Every operational action a sponsor takes maps directly and exclusively to one of three return sources — there is no fourth category. And once you see that mapping, a second connection appears: the management incentive plan, the MIP, determines which actions management is actually motivated to execute. If the MIP incentivises a different set of actions from those the thesis depends on, the investment plan is quietly undermined by the GP's own incentive system. The synthesis is a triangle: operational actions drive return sources drive exit value; and MIP structure drives management behaviour, which drives which actions actually get executed. The triangle only works when all three sides are aligned.", "est_sec": 52}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "The silent misalignment", "on_screen_bullets": ["Value creation needs prioritisation", "Spot MIP misalignment early", "Attribute returns honestly"], "narration": "Studying value creation without return attribution gives you a list of tools with no way to prioritise. Studying attribution without value creation gives you a mathematical framework with no operational content. And studying MIPs without connecting them to return sources gives you an incentive plan that can be legally sound and commercially reasonable while still systematically motivating management to do the wrong things. Mastering this synthesis lets you evaluate a GP's claimed value-creation plan against which return source it actually targets and whether that source is realistic; identify MIP misalignment before it becomes a problem — if the thesis is margin expansion but the MIP pays on revenue growth, management will optimise revenue, not margins, and the attribution will miss; attribute historical returns honestly, separating management's operational work from the market doing the work via re-rating and from financial engineering via leverage; and design a MIP from first principles, starting from the thesis and its primary return source rather than from market convention.", "est_sec": 54}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "Three buckets, three MIPs", "on_screen_bullets": ["Margin/revenue → Source 1", "Buy-build/re-rating → Source 2", "Working capital/paydown → Source 3"], "narration": "The concept map sorts every action into three buckets and then matches MIPs to them. Operational actions: cost reduction, pricing, procurement, and revenue growth all drive EBITDA growth — Source 1; and buy-and-build drives both Source 1, through synergies, and Source 2, through the scale premium, since small operators trade at five-to-seven times while platforms command ten-to-fourteen. Market and strategic positioning: improving revenue quality, riding sector tailwinds, and building an IPO narrative all drive multiple expansion — Source 2, much of it partly outside the GP's control. And capital structure: free-cash-flow discipline and working-capital optimisation accelerate debt paydown — Source 3 — while a dividend recap reverses it, extracting equity and boosting IRR not MOIC. Then the MIP layer. An exit-value MIP pays management on total equity value, rewarding all three sources including market beta they didn't create, and is silent on which lever to prioritise. An EBITDA-milestone MIP directly incentivises Source 1 but can conflict with buy-and-build, because acquisitions temporarily dip margins, and it's blind to multiple expansion. And a hybrid ratchet MIP, where management equity rises as the exit multiple rises, incentivises both operational delivery and buyer competition at exit — the best fit for theses that depend on both Source 1 and Source 2.", "est_sec": 62}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Same deal, three theses", "on_screen_bullets": ["Operational: £50→£72m, 2.76x", "Buy-build: 11x re-rate, 3.48x", "Sector ride: 13x re-rate, 4.04x"], "narration": "Run the same deal through three theses — an industrial services business, fifty million EBITDA, bought at eight times, four hundred million enterprise value, two hundred sixty of debt, a hundred forty of equity. Thesis one, operational improvement, targeting Source 1: management closes a margin gap, EBITDA grows from fifty to seventy-two million, no acquisitions, no re-rating; at the same eight-times exit that's five hundred seventy-six million enterprise value, debt paid to a hundred ninety, equity three hundred eighty-six — a two-point-seven-six MOIC. The fitting MIP is a margin milestone, eighteen to twenty-two percent, plus an exit ratchet; the wrong MIP, a revenue-growth milestone, would push management to win thin-margin contracts and the margin gain would disappoint. Thesis two, buy-and-build, targeting Source 2: four add-ons at an average five-and-a-half times build combined EBITDA to seventy-two-and-a-half million, and the platform re-rates to eleven times — seven hundred ninety-seven million enterprise value, equity four hundred eighty-seven, a three-point-four-eight MOIC. Here the MIP must reward acquisition completion and integration; an EBITDA-margin milestone would make management resist the very acquisitions the thesis needs, because each one compresses margins during integration. Thesis three, the sector ride, also Source 2 but from market re-rating: management just stabilises the business, EBITDA drifts from fifty to sixty million, and the sector re-rates to thirteen times — seven hundred eighty million, equity five hundred sixty-five, a four-point-oh-four MOIC, the highest of the three. The fitting MIP is a pure exit ratchet, but with a twist: management's marginal contribution here is low, so the MIP should be sized smaller, since they earned the return largely because of macro, not their own work.", "est_sec": 70}, {"n": 5, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Value creation isn't sufficient", "Multiple expansion can be macro luck", "Exit-value MIP gives no signal"], "narration": "Four things people miss. First, value creation is everything and returns follow automatically — no; a GP can double EBITDA and still produce mediocre LP returns if the multiple compresses, if leverage was too high to allow operational investment, or if the exit market is frozen; Source 1 is necessary but not sufficient, and a team paid only on EBITDA will be demoralised when great delivery meets a compressed multiple. Second, multiple expansion is what makes PE returns great and operational work is secondary — but multiple expansion is partly outside the GP's control; in the 2010s falling rates inflated all multiples, so a large slice of that decade's PE outperformance was a macro gift, and GPs who built exit-value MIPs around it rewarded management for tailwinds, then found, when rates rose and multiples compressed, that no one was incentivised to drive the EBITDA growth that was now the only reliable source. Third, the MIP aligns management with the GP and that's all it needs to do — but a generic exit-value MIP pays management partly for what the market and leverage did, neither of which needed management action, and worse, it's silent on which actions to prioritise when there are trade-offs, so management pursues its own preferred strategy. And fourth, EBITDA improvement equals returns improvement — no, whether raised enterprise value becomes equity return depends on leverage and the exit multiple; the same forty-percent EBITDA gain produces a far larger equity return at six-times leverage than at two, which is exactly why MIPs in highly-levered deals structurally pay out more for the same operational work.", "est_sec": 64}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Practical Example: The Thesis-to-MIP Design Chain", "on_screen_title": "Defence electronics, designed right", "on_screen_bullets": ["EBITDA milestones, no revenue target", "£80m→£115m, exit 13x = £1.495bn", "Ratchet to 12% → £108.6m to management"], "narration": "Now a case designed from the thesis down — an illustrative defence-electronics deal. The thesis: a market-leading supplier of niche subsystems, eighty-five percent government-contracted revenue, where the opportunity is procurement consolidation and pricing power, with a strategic sale to a defence prime as the exit; so the primary source is Source 1, margin-driven EBITDA growth, plus a Source 2 strategic premium. The MIP is built straight from that. EBITDA-margin milestones at years two and four, so management vests in stages and can't wait until exit to be rewarded; good-leaver and bad-leaver provisions so they can't cash out voluntarily without forfeit; and an exit ratchet lifting management equity from eight to twelve percent if MOIC exceeds three times — aligning them with the very premium the GP is chasing from strategic buyers. Crucially, no revenue-growth milestone, because the thesis is margin on a stable government base, and a revenue target would distort attention. Over the hold, EBITDA grows from eighty to a hundred fifteen million via procurement savings and pricing resets, plus two non-dilutive technology bolt-ons; management hits both milestones and stays fully aligned. At exit, four primes are approached, two bid, and the winner pays thirteen times a hundred fifteen — one-point-four-nine-five billion enterprise value, the premium reflecting strategic value and competitive tension. Net of debt, that's a gross MOIC of about four-point-three-five, which trips the three-times ratchet to twelve percent equity, paying management roughly a hundred-eight-point-six million. The design achieved exactly what it should: management stayed, focused on margin not empire-building, and competed hard for the best exit price — no conflict between thesis and incentives at any stage. A generic exit-value MIP would have produced the same payout but with misaligned behaviour the GP would then have had to manage through governance instead of incentives.", "est_sec": 70}, {"n": 7, "beat": "intuition", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "The design chain", "on_screen_bullets": ["Thesis → source → levers → MIP → behaviour", "Every link must be consistent", "Or you hired no one to build it"], "narration": "Pull it together as a chain. The correct design sequence is: investment thesis, then primary return source, then the value-creation levers that drive that source, then the MIP metrics that measure those levers, then the management behaviours those metrics produce. Every link has to be consistent. Start from market convention instead — ten percent of sweet equity, an exit-value ratchet, because that's what everyone does — and you may get a commercially standard MIP that's strategically misaligned with the actual thesis. And the most costly alignment failures in PE are not loud disagreements between GP and management about strategy; they're silent misalignments where management rationally optimises its incentive while the GP's thesis goes unexecuted. If the chain breaks at any link, the returns assumption is, in effect, a plan for a company that no one has been hired to build.", "est_sec": 48}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Actions, sources, incentives", "on_screen_bullets": ["Every action → one of three sources", "MIP is the transmission belt", "Match metric to the thesis's source"], "narration": "To recap. Every operational action in PE maps to one of three return sources — EBITDA growth, multiple expansion, or debt paydown — and that mapping isn't obvious when you study the tools in isolation, where margin improvement just looks like operational work and buy-and-build just looks like an acquisitions strategy. The investment thesis should specify which source it primarily depends on before the value-creation plan is even built. The MIP is the transmission mechanism between the thesis and management's daily decisions, and a MIP structured around the wrong metric — revenue growth for a margin thesis, EBITDA for a buy-and-build thesis — creates systematic pressure to do the wrong things. The design chain runs thesis, to primary return source, to levers, to MIP metrics, to behaviours; every link must hold. Next we move from the portfolio company up to the fund itself — fund economics and LP alignment.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A GP's thesis is buy-and-build (returns from multiple expansion via scale), but its MIP pays management on EBITDA-margin milestones. Why does this misalign management — and what is the correct MIP-design sequence starting from the thesis?", "narration": "Before the next lesson, answer both. A GP's thesis is buy-and-build, where returns come from multiple expansion via scale — but its MIP pays management on EBITDA-margin milestones. Why does that misalign management with the thesis? And what is the correct sequence for designing a MIP, starting from the investment thesis itself? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: Value Creation and Returns Attribution\n\n[hook] Actions map to sources\nValue creation catalogues what GPs do to portfolio companies; the three sources of returns explain where returns come from. These two frameworks are usually taught separately, as if operational actions and financial outcomes live in different worlds. They don't. Every operational action a sponsor takes maps directly and exclusively to one of three return sources — there is no fourth category. And once you see that mapping, a second connection appears: the management incentive plan, the MIP, determines which actions management is actually motivated to execute. If the MIP incentivises a different set of actions from those the thesis depends on, the investment plan is quietly undermined by the GP's own incentive system. The synthesis is a triangle: operational actions drive return sources drive exit value; and MIP structure drives management behaviour, which drives which actions actually get executed. The triangle only works when all three sides are aligned.\n\n[intuition] The silent misalignment\nStudying value creation without return attribution gives you a list of tools with no way to prioritise. Studying attribution without value creation gives you a mathematical framework with no operational content. And studying MIPs without connecting them to return sources gives you an incentive plan that can be legally sound and commercially reasonable while still systematically motivating management to do the wrong things. Mastering this synthesis lets you evaluate a GP's claimed value-creation plan against which return source it actually targets and whether that source is realistic; identify MIP misalignment before it becomes a problem — if the thesis is margin expansion but the MIP pays on revenue growth, management will optimise revenue, not margins, and the attribution will miss; attribute historical returns honestly, separating management's operational work from the market doing the work via re-rating and from financial engineering via leverage; and design a MIP from first principles, starting from the thesis and its primary return source rather than from market convention.\n\n[mechanics] Three buckets, three MIPs\nThe concept map sorts every action into three buckets and then matches MIPs to them. Operational actions: cost reduction, pricing, procurement, and revenue growth all drive EBITDA growth — Source 1; and buy-and-build drives both Source 1, through synergies, and Source 2, through the scale premium, since small operators trade at five-to-seven times while platforms command ten-to-fourteen. Market and strategic positioning: improving revenue quality, riding sector tailwinds, and building an IPO narrative all drive multiple expansion — Source 2, much of it partly outside the GP's control. And capital structure: free-cash-flow discipline and working-capital optimisation accelerate debt paydown — Source 3 — while a dividend recap reverses it, extracting equity and boosting IRR not MOIC. Then the MIP layer. An exit-value MIP pays management on total equity value, rewarding all three sources including market beta they didn't create, and is silent on which lever to prioritise. An EBITDA-milestone MIP directly incentivises Source 1 but can conflict with buy-and-build, because acquisitions temporarily dip margins, and it's blind to multiple expansion. And a hybrid ratchet MIP, where management equity rises as the exit multiple rises, incentivises both operational delivery and buyer competition at exit — the best fit for theses that depend on both Source 1 and Source 2.\n\n[worked-example] Same deal, three theses\nRun the same deal through three theses — an industrial services business, fifty million EBITDA, bought at eight times, four hundred million enterprise value, two hundred sixty of debt, a hundred forty of equity. Thesis one, operational improvement, targeting Source 1: management closes a margin gap, EBITDA grows from fifty to seventy-two million, no acquisitions, no re-rating; at the same eight-times exit that's five hundred seventy-six million enterprise value, debt paid to a hundred ninety, equity three hundred eighty-six — a two-point-seven-six MOIC. The fitting MIP is a margin milestone, eighteen to twenty-two percent, plus an exit ratchet; the wrong MIP, a revenue-growth milestone, would push management to win thin-margin contracts and the margin gain would disappoint. Thesis two, buy-and-build, targeting Source 2: four add-ons at an average five-and-a-half times build combined EBITDA to seventy-two-and-a-half million, and the platform re-rates to eleven times — seven hundred ninety-seven million enterprise value, equity four hundred eighty-seven, a three-point-four-eight MOIC. Here the MIP must reward acquisition completion and integration; an EBITDA-margin milestone would make management resist the very acquisitions the thesis needs, because each one compresses margins during integration. Thesis three, the sector ride, also Source 2 but from market re-rating: management just stabilises the business, EBITDA drifts from fifty to sixty million, and the sector re-rates to thirteen times — seven hundred eighty million, equity five hundred sixty-five, a four-point-oh-four MOIC, the highest of the three. The fitting MIP is a pure exit ratchet, but with a twist: management's marginal contribution here is low, so the MIP should be sized smaller, since they earned the return largely because of macro, not their own work.\n\n[pitfalls] What siloed study misses\nFour things people miss. First, value creation is everything and returns follow automatically — no; a GP can double EBITDA and still produce mediocre LP returns if the multiple compresses, if leverage was too high to allow operational investment, or if the exit market is frozen; Source 1 is necessary but not sufficient, and a team paid only on EBITDA will be demoralised when great delivery meets a compressed multiple. Second, multiple expansion is what makes PE returns great and operational work is secondary — but multiple expansion is partly outside the GP's control; in the 2010s falling rates inflated all multiples, so a large slice of that decade's PE outperformance was a macro gift, and GPs who built exit-value MIPs around it rewarded management for tailwinds, then found, when rates rose and multiples compressed, that no one was incentivised to drive the EBITDA growth that was now the only reliable source. Third, the MIP aligns management with the GP and that's all it needs to do — but a generic exit-value MIP pays management partly for what the market and leverage did, neither of which needed management action, and worse, it's silent on which actions to prioritise when there are trade-offs, so management pursues its own preferred strategy. And fourth, EBITDA improvement equals returns improvement — no, whether raised enterprise value becomes equity return depends on leverage and the exit multiple; the same forty-percent EBITDA gain produces a far larger equity return at six-times leverage than at two, which is exactly why MIPs in highly-levered deals structurally pay out more for the same operational work.\n\n[worked-example] Defence electronics, designed right\nNow a case designed from the thesis down — an illustrative defence-electronics deal. The thesis: a market-leading supplier of niche subsystems, eighty-five percent government-contracted revenue, where the opportunity is procurement consolidation and pricing power, with a strategic sale to a defence prime as the exit; so the primary source is Source 1, margin-driven EBITDA growth, plus a Source 2 strategic premium. The MIP is built straight from that. EBITDA-margin milestones at years two and four, so management vests in stages and can't wait until exit to be rewarded; good-leaver and bad-leaver provisions so they can't cash out voluntarily without forfeit; and an exit ratchet lifting management equity from eight to twelve percent if MOIC exceeds three times — aligning them with the very premium the GP is chasing from strategic buyers. Crucially, no revenue-growth milestone, because the thesis is margin on a stable government base, and a revenue target would distort attention. Over the hold, EBITDA grows from eighty to a hundred fifteen million via procurement savings and pricing resets, plus two non-dilutive technology bolt-ons; management hits both milestones and stays fully aligned. At exit, four primes are approached, two bid, and the winner pays thirteen times a hundred fifteen — one-point-four-nine-five billion enterprise value, the premium reflecting strategic value and competitive tension. Net of debt, that's a gross MOIC of about four-point-three-five, which trips the three-times ratchet to twelve percent equity, paying management roughly a hundred-eight-point-six million. The design achieved exactly what it should: management stayed, focused on margin not empire-building, and competed hard for the best exit price — no conflict between thesis and incentives at any stage. A generic exit-value MIP would have produced the same payout but with misaligned behaviour the GP would then have had to manage through governance instead of incentives.\n\n[intuition] The design chain\nPull it together as a chain. The correct design sequence is: investment thesis, then primary return source, then the value-creation levers that drive that source, then the MIP metrics that measure those levers, then the management behaviours those metrics produce. Every link has to be consistent. Start from market convention instead — ten percent of sweet equity, an exit-value ratchet, because that's what everyone does — and you may get a commercially standard MIP that's strategically misaligned with the actual thesis. And the most costly alignment failures in PE are not loud disagreements between GP and management about strategy; they're silent misalignments where management rationally optimises its incentive while the GP's thesis goes unexecuted. If the chain breaks at any link, the returns assumption is, in effect, a plan for a company that no one has been hired to build.\n\n[recap] Actions, sources, incentives\nTo recap. Every operational action in PE maps to one of three return sources — EBITDA growth, multiple expansion, or debt paydown — and that mapping isn't obvious when you study the tools in isolation, where margin improvement just looks like operational work and buy-and-build just looks like an acquisitions strategy. The investment thesis should specify which source it primarily depends on before the value-creation plan is even built. The MIP is the transmission mechanism between the thesis and management's daily decisions, and a MIP structured around the wrong metric — revenue growth for a margin thesis, EBITDA for a buy-and-build thesis — creates systematic pressure to do the wrong things. The design chain runs thesis, to primary return source, to levers, to MIP metrics, to behaviours; every link must hold. Next we move from the portfolio company up to the fund itself — fund economics and LP alignment.\n\nEnd-card question: A GP's thesis is buy-and-build (returns from multiple expansion via scale), but its MIP pays management on EBITDA-margin milestones. Why does this misalign management — and what is the correct MIP-design sequence starting from the thesis?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>Value Creation in Private Equity catalogues <em>what</em> GPs do to portfolio companies. Three Sources of PE Returns explains <em>where</em> returns come from. But these two frameworks are taught separately, as if operational actions and financial outcomes exist in different worlds. They do not.</p><p>Every operational action a PE sponsor takes maps directly and exclusively to one of three return sources. There is no fourth category. Once you understand this mapping, a second connection becomes visible: Management Incentive Plans determine which operational actions management is financially motivated to execute. If the MIP incentivises a different set of actions from those required by the investment thesis — because the MIP structure does not match the return source the thesis depends on — the investment plan is undermined by the incentive system the GP designed.</p><p>The synthesis: <strong>operational actions → return sources → exit value; MIP structure → management behaviour → which operational actions actually get executed</strong>. The triangle only works when all three sides are aligned.</p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying value creation separately from return attribution produces a list of operational tools with no framework for prioritisation. Studying return attribution without value creation produces a mathematical framework with no operational content. Studying MIPs without connecting them to return sources produces an incentive plan that may be legally sound and commercially reasonable while still systematically motivating management to do the wrong things.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Evaluate a GP's claimed value creation plan</strong> against which return source it actually targets, and whether that source is realistic given entry multiples and macro conditions</li><li><strong>Identify MIP misalignment before it becomes a problem</strong>: if the GP's thesis is \"margin expansion drives returns\" but the MIP is based on revenue growth milestones, management will optimise for revenue, not margins — and the return attribution will miss its target</li><li><strong>Attribute historical PE returns honestly</strong>: when a PE deal produces a strong exit, determine how much came from management's operational work vs. the market doing the work for them (sector re-rating) vs. financial engineering (leverage)</li><li><strong>Design a MIP from first principles</strong>: starting from the investment thesis and its primary return source, not from market convention</li></ul><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>The three-thesis test</strong>: consider how the action → return source → MIP alignment plays out across three different investment theses for the same deal.</p><p><strong>Same company, same entry price, three different theses:</strong> - Company: industrial services business, £50M EBITDA, acquired at 8x = £400M EV - Entry debt: £260M (5.2x leverage) - Entry equity: £140M</p><p>---</p><p><strong>Thesis 1: \"Operational improvement\" — return source is EBITDA growth</strong></p><p><em>Investment rationale:</em> Management has underinvested in procurement and pricing. Margins are 15% below sector average. A focused operational programme can close the gap.</p><p><em>Primary return source targeted:</em> Source 1 (EBITDA growth) — no assumption of multiple expansion.</p><p><em>Value creation actions:</em> - 100-day plan: centralised procurement, SKU rationalisation, price increase on legacy contracts - Year 1-3: EBITDA from £50M → £72M (+44%) - No acquisitions, no revenue growth investment</p><p><em>Exit: same 8x multiple (no expansion), EBITDA £72M</em> - Exit EV: 8x £72M = £576M - Debt paydown (from FCF): £260M → £190M - Exit equity: £576M - £190M = £386M - Gross MOIC: £386M / £140M = <strong>2.76x</strong></p><p><em>MIP design that fits this thesis:</em> - EBITDA margin milestone: 18% → 22% triggers MIP vest - Exit value ratchet above 2.5x MOIC - <strong>Correct</strong>: management is incentivised exactly on the lever the GP needs executed - <strong>Wrong MIP that would undermine it</strong>: revenue growth milestone → management focuses on winning new contracts at thin margins, EBITDA growth disappoints</p><p>---</p><p><strong>Thesis 2: \"Buy-and-build\" — return source is multiple expansion (multiple arbitrage)</strong></p><p><em>Investment rationale:</em> The sector is fragmented. Platform companies trade at 10-12x; individual operators trade at 5-6x. Build scale through add-ons; exit the combined entity at a premium.</p><p><em>Primary return source targeted:</em> Source 2 (multiple expansion) — EBITDA growth from synergies is secondary.</p><p><em>Value creation actions:</em> - 100-day plan: hire M&amp;A director, identify 5 acquisition targets - Year 1-4: complete 4 add-ons at average 5.5x EBITDA each (total paid: £80M for £14.5M EBITDA) - Synergies add £8M EBITDA; combined EBITDA: £50M + £14.5M + £8M = £72.5M - No margin improvement investment (management bandwidth is consumed by integrations)</p><p><em>Exit: re-rated to 11x multiple because of scale and platform status</em> - Exit EV: 11x £72.5M = £797M - Debt: £260M entry + £80M add-on debt - some paydown = £310M remaining - Exit equity: £797M - £310M = £487M - Gross MOIC: £487M / £140M (ignoring add-on equity for simplicity) = <strong>3.48x</strong></p><p><em>MIP design that fits this thesis:</em> - Add-on acquisition milestone: MIP pool grows as each acquisition completes and integrates - Revenue synergy target: cross-sell milestone 12 months post-acquisition - Exit ratchet linked to combined EBITDA (not margin %) - <strong>Wrong MIP that would undermine it</strong>: EBITDA margin milestone → management resists acquisitions (each deal compresses margins during integration) and the buy-and-build strategy stalls</p><p>---</p><p><strong>Thesis 3: \"Sector ride\" — return source is multiple expansion (market re-rating)</strong></p><p><em>Investment rationale:</em> The sector is a strong structural growth beneficiary (e.g., digital infrastructure, healthcare services). Entry multiple is 8x but sector is re-rating toward 13-15x. Limited operational improvement needed; just hold the asset and let the market do the work.</p><p><em>Primary return source targeted:</em> Source 2 (multiple expansion from market re-rating) — management doesn't need to dramatically change the business.</p><p><em>Value creation actions:</em> - Minimal: stabilise management team, maintain revenue growth in line with sector, don't break what works - EBITDA grows organically from £50M to £60M (+20%)</p><p><em>Exit: sector re-rates, exit at 13x</em> - Exit EV: 13x £60M = £780M - Debt: £260M → £215M (some paydown) - Exit equity: £780M - £215M = £565M - Gross MOIC: £565M / £140M = <strong>4.04x</strong></p><p><em>MIP design that fits this thesis:</em> - Pure exit-value ratchet above 2.5x MOIC - No EBITDA milestones (you don't need management to take operational risk; you need them to not disrupt the asset) - <strong>Problem</strong>: management earns a large MIP primarily because of sector macro, not their work — is this efficient? From GP's perspective, yes (management retention matters); from LP's perspective, the MIP cost is high relative to management's contribution to that specific return - <strong>GP insight</strong>: in a sector-ride thesis, the MIP should be sized smaller than in an operational thesis, since management's <em>marginal</em> contribution to returns is lower</p><p>---</p>"}, "4": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"Value creation is everything — returns follow automatically.\"</p><p>A GP who executes a perfect operational plan (doubling EBITDA) can still produce mediocre LP returns if the multiple compresses at exit, or if leverage was set too high to allow operational investment, or if the exit market is frozen at Year 5. Value creation (Source 1) is necessary but not sufficient. The return depends on all three sources. A management team incentivised only on EBITDA metrics will be confused and demoralised when strong operational delivery produces a modest return because the multiple compressed.</p><p>### 2. \"Multiple expansion is what makes PE returns great — operational work is secondary.\"</p><p>Multiple expansion is partially outside the GP's control. In the 2010s, falling interest rates inflated all asset multiples — PE returns were partially a macro gift, not GP skill. Research suggests a significant portion of PE outperformance in the 2010-2020 decade came from multiple expansion attributable to the rate environment rather than operational value creation. GPs who designed their value creation plans around multiple expansion assumptions — and built MIPs around exit value — rewarded management for market tailwinds rather than operational delivery. When rates rose in 2022-2023 and multiples compressed, those same GPs had portfolios where management was not incentivised to aggressively drive the EBITDA growth that is now the only reliable return source.</p><p>### 3. \"The MIP aligns management with the GP — that's all it needs to do.\"</p><p>The MIP aligns management with exit value. Exit value combines all three return sources, but management only controls one (EBITDA growth) and partially influences a second (multiple expansion via quality-of-earnings and exit narrative). A generic exit-value MIP therefore pays management partly for what the market did and partly for what leverage did — neither of which required management action.</p><p>More critically, a generic exit-value MIP does not tell management <em>which actions to prioritise</em> when there are trade-offs. Should management grow revenue aggressively (investing now, hurting near-term margins) or cut costs and expand margins (better near-term EBITDA but possibly slower growth)? The answer depends on which return source the investment thesis depends on. A MIP that ties exclusively to final exit value is silent on this — it gives management no signal about which path the GP is counting on. The result is often management pursuing their own preferred strategy rather than the GP's intended one.</p><p>### 4. \"EBITDA improvement is the same as returns improvement.\"</p><p>EBITDA improvement is Return Source 1 — it raises enterprise value. But whether that raised enterprise value translates proportionally into equity return depends on leverage (how much debt is sitting between EV and equity) and the multiple (whether EV is valued at exit at the same or different multiple than the improvement warranted).</p><p>Specifically: a 40% EBITDA improvement on a company with 6x leverage translates to a much larger equity return than the same improvement on a company with 2x leverage — because the same absolute EV gain accrues to a smaller equity base. A management team delivered the same operational result in both cases, but the equity MIP payout is dramatically different. This is why MIPs in highly leveraged buyouts structurally produce larger management payouts for the same operational work — and why some LPs question MIP sizing in peak-leverage deals.</p><p>---</p>"}, "5": {"section": "Practical Example: The Thesis-to-MIP Design Chain", "html": "<p><strong>Advent International's acquisition of Cobham Advanced Electronic Systems (illustrative, representative)</strong></p><p><em>Thesis (sourcing):</em> Defence electronics is a structurally growing sector. The target is the market-leading supplier in two niche subsystems. Revenue is 85% government-contracted, recurring. The operational opportunity is procurement consolidation and pricing power realisation. The exit thesis is strategic sale to a US or European defence prime.</p><p><em>Return source prioritised:</em> Primarily Source 1 (EBITDA growth from margin expansion) + Source 2 (strategic sale premium — defence primes will pay a control premium for the technology). Source 3 (debt paydown) is secondary given the stable cash flows.</p><p><em>MIP structure designed from the thesis:</em> - EBITDA margin milestone: Year 2 and Year 4 (triggers partial vest at each stage — management can't wait until exit to be rewarded) - Leaver provisions: good leaver (illness, death) vs. bad leaver (resignation, misconduct) — management cannot cash out voluntarily without forfeit - Exit ratchet: management equity stake increases from 8% to 12% if MOIC exceeds 3x — aligns management with the exit value premium the GP is seeking from strategic buyers - No revenue growth milestone — the thesis is margin improvement on a stable government revenue base, not top-line growth; a revenue growth milestone would distort management attention</p><p><em>Hold period (Years 1-5):</em> - EBITDA: £80M → £115M (+44%) via procurement savings and pricing resets - Two add-on acquisitions closed (technology bolt-ons, not margin-dilutive) - Management hit Year 2 EBITDA milestone: partial vest triggered, team retained - Management hit Year 4 EBITDA milestone: second tranche vest, team highly aligned</p><p><em>Exit:</em> - Strategic sale process: four defence primes approached, two bid - Final price: 13x £115M EBITDA = £1.495B EV (premium reflects strategic value + competitive tension) - Entry EV was 9x £80M = £720M. Entry debt £450M, exit debt £320M. - Exit equity: £1.495B - £320M = £1.175B - Entry equity: £270M - Gross MOIC: 4.35x → management equity ratchets to 12% (3x trigger hit) - Management MIP: 12% × (£1.175B - £270M) = 12% × £905M = <strong>£108.6M to management</strong></p><p><em>What the MIP design achieved:</em> - Management stayed through the full hold (leaver provisions prevented mid-hold departures at a critical juncture) - Management focused on margin improvement (EBITDA milestones) not revenue empire-building - Management competed aggressively for the best strategic exit price (exit ratchet made them equity partners in the exit auction) - No conflict between GP's thesis and management's incentives at any stage</p><p><em>What a generic exit-value MIP would have done differently:</em> - No interim milestones → management might have resisted Year 1-2 cost programmes (painful short-term) in favour of revenue investments (visible short-term growth narrative) - No EBITDA-specific targets → management might have over-invested in growth to tell a \"growth story\" to exit buyers, damaging the margin expansion narrative the strategic buyers valued most - Same payout but with misaligned behaviours that the GP would have had to manage through governance, not incentives</p><p>---</p>"}, "6": {"section": "Core Connection", "html": "<p>Value Creation in Private Equity catalogues <em>what</em> GPs do to portfolio companies. Three Sources of PE Returns explains <em>where</em> returns come from. But these two frameworks are taught separately, as if operational actions and financial outcomes exist in different worlds. They do not.</p><p>Every operational action a PE sponsor takes maps directly and exclusively to one of three return sources. There is no fourth category. Once you understand this mapping, a second connection becomes visible: Management Incentive Plans determine which operational actions management is financially motivated to execute. If the MIP incentivises a different set of actions from those required by the investment thesis — because the MIP structure does not match the return source the thesis depends on — the investment plan is undermined by the incentive system the GP designed.</p><p>The synthesis: <strong>operational actions → return sources → exit value; MIP structure → management behaviour → which operational actions actually get executed</strong>. The triangle only works when all three sides are aligned.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Every operational action in private equity maps to one of three return sources: EBITDA growth, multiple expansion, or debt paydown. The mapping is not obvious when you study value creation tools in isolation — EBITDA Margin Improvement looks like \"operational improvement,\" and Buy and Build Strategy looks like \"acquisitions strategy.\" But they are, respectively, tools for Return Source 1 and Return Source 2, and the investment thesis should specify which source it primarily depends on before the value creation plan is built.</p><p>Management Incentive Plans are the transmission mechanism between the investment thesis and management's day-to-day decisions. A MIP structured around the wrong metric — revenue growth for a margin-improvement thesis, or EBITDA for a buy-and-build thesis — creates systematic pressure for management to do the wrong things. The most costly alignment failures in PE are not disagreements between GP and management about strategy — they are silent misalignments where management rationally optimises their incentive while the GP's thesis goes unexecuted.</p><p>The design chain is: investment thesis → primary return source → value creation levers → MIP metrics → management behaviours. Every link must be consistent, or the returns assumption is a plan for a company that no one has been hired to build.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

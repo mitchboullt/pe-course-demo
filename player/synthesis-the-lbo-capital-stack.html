@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-the-lbo-capital-stack", "title": "Synthesis: The LBO Capital Stack", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "Six concepts, one system", "on_screen_bullets": ["Debt sets the risk/return envelope", "Return sources live inside it", "Waterfall = EV minus debt"], "narration": "Welcome to the core synthesis phase, where concepts you've learned separately reveal themselves as a single system. The capital stack is studied as a financing topic, the three return sources as a performance topic, the waterfall as fund economics, and coverage ratios and cov-lite as credit topics. But in practice all six are one system with one governing logic: the debt stack determines the risk-return envelope, within which the three return sources are either available or foreclosed, and from which the waterfall is funded when exits occur. Three connections make this concrete — debt composition determines which return sources you can pursue; the coverage ratio and covenant structure set the equity floor; and net debt at exit determines what the waterfall actually distributes. The GP and LP are never splitting enterprise value — they're splitting what's left after every lender is repaid in full.", "est_sec": 50}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "From description to interaction", "on_screen_bullets": ["Most can describe each concept", "Few can explain the interaction", "Trace debt design → LP net return"], "narration": "Why does this synthesis matter? Most PE students can describe what a term loan B is, what coverage measures, what cov-lite means, and how the waterfall works. Far fewer can explain how these concepts interact to produce a specific pattern of equity returns, risk exposure, and LP distributions. Mastering the synthesis lets you do five things: evaluate a capital structure against an investment thesis — not just is this leverage achievable, but does this debt composition enable the return sources my thesis depends on; calculate the true equity floor in a downside, not the theoretical EV but EV minus the debt still outstanding after PIK compounding and partial amortisation; understand why cov-lite has a genuinely different risk profile beyond the legal explanation; trace the path from debt architecture all the way to LP net return; and spot when a structure is optimised for gross return at the expense of LP net return — where a GP maximises leverage to amplify its carry on the upside while LPs bear the equity-floor risk on the downside.", "est_sec": 54}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "Four steps, entry to exit", "on_screen_bullets": ["1: stack designed at entry", "2: return sources in the envelope", "3: ICR governs the floor; 4: net debt → waterfall"], "narration": "The concept map runs in four steps from entry to exit. Step one: the debt stack is designed at entry — it sets the total leverage quantum, the cash interest burden that becomes the coverage denominator, the non-cash burden if PIK is used, and the lender protections, covenanted or cov-lite. Step two: the three return sources operate only within the envelope the stack creates — EBITDA growth needs free cash flow that a high interest burden consumes; multiple expansion needs business improvement that needs that same investment; and debt paydown needs free cash flow above interest, which PIK compounding actively reverses by growing the debt instead. Step three: the coverage ratio governs the equity floor throughout the hold — above a covenant threshold the GP keeps control and can pursue the plan; below it, in a covenanted structure, lenders gain workout rights and may force a sale at a distress price; and below one-times coverage in any structure, cash interest can't be paid, PIK starts accruing, and the floor drops further. Step four: at exit, net debt determines what reaches the waterfall — take the exit enterprise value, subtract the term-loan balance after amortisation and sweeps, subtract the PIK balance with its compounded interest, subtract any drawn revolver and unreturned recap proceeds, and what remains is the net equity that begins the waterfall. The waterfall has no knowledge of the debt stack — it only sees the equity that survives it.", "est_sec": 66}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Same deal, three stacks", "on_screen_bullets": ["£40m→£55m EBITDA, exit 9x = £495m", "Stack A conservative; B cov-lite; C PIK", "Only the capital stack changes"], "narration": "Here's the synthesis made vivid: the same operational performance, three different capital stacks, three different outcomes. A firm acquires an industrial services company — entry EBITDA forty million, entry EV eight times, three hundred twenty million, a five-year hold. In all three scenarios the operations are identical: EBITDA grows from forty to fifty-five million and the exit multiple is nine times, so the exit enterprise value is nine times fifty-five — four hundred ninety-five million. The only variable is the stack at entry. Stack A, conservative and covenanted: three-point-six times leverage, a term loan B and an amortising term loan A, a hundred seventy-five million of equity, entry coverage of four-point-four times against a two-and-a-half-times covenant. Stack B, aggressive cov-lite: a single cov-lite term loan B, four times leverage, a hundred sixty million of equity, coverage three-point-three, and crucially no covenant. Stack C, PIK-augmented cov-lite: that same cov-lite term loan B plus eighty million of PIK mezzanine at twelve percent, total leverage six times, but only eighty million of equity, with coverage measured on cash debt only. Same business, same growth — but three radically different bets, all decided at the moment the structure was chosen.", "est_sec": 62}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Highest upside, lowest floor", "on_screen_bullets": ["A: net 2.10x, hard floor", "B: net 2.03x, soft floor", "C: net 2.44x — but full wipeout in distress"], "narration": "Now run them to exit on the good outcome. Stack A pays its debt down to eighty million, leaving four hundred fifteen million of net equity — a gross MOIC of two-point-three-seven and, after the waterfall, an LP net MOIC of two-point-one-zero. Stack B, with higher interest eating into paydown, exits with a hundred thirty million of debt and three hundred sixty-five million of net equity — gross two-point-two-eight, LP net two-point-zero-three. Stack C is the striking one: the term loan pays down to a hundred thirty, but the PIK has compounded from eighty to a hundred forty-one million, so total exit debt is two hundred seventy-one — yet because only eighty million of equity went in, the gross MOIC is two-point-eight-zero and the LP net MOIC two-point-four-four, the highest of all three. But look at the downside test. If recovery fails and EBITDA stays at twenty-six million, Stack C exits at a six-times distress multiple, a hundred fifty-six million, against debt of two hundred forty-six — the equity is entirely wiped out, the LP loses its whole eighty million, and carry is zero. The insight in one line: Stack C produces the highest LP net return in the good outcome and the fastest path to total destruction in the bad one. Stack A is the most protected but caps the upside; Stack B is the modern market default. The capital-stack choice is ultimately a bet on the distribution of outcomes — confidence in the value-creation plan argues for C, material uncertainty argues for A's equity floor.", "est_sec": 70}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["PIK helps AND hurts — silently", "Cov-lite lowers the tail floor", "Waterfall gets EV minus ALL debt"], "narration": "Four things people miss by studying these in isolation. First, PIK notes are good for equity because they don't consume cash — true but incomplete; they preserve free cash flow but compound the principal, so at twelve percent they roughly double in six years, consuming exit equity at an accelerating rate, and because PIK is excluded from the coverage denominator, studying coverage alone makes it look like PIK improves health while the balance silently swells. Second, cov-lite protects sponsors from lender interference — true, but it changes the timing and mechanism of distress, not the economics; a covenant intervenes early and keeps the floor high, while cov-lite lets deterioration run further, raising returns in the middle of the distribution but lowering recovery in the tail. Third, the leverage ratio is the primary risk metric — but leverage tells you how much debt exists while coverage tells you whether it can be serviced right now, and the same five-times company is comfortable at three percent rates and in distress at eight. And fourth, the waterfall distributes the exit value — no, it distributes exit equity, which is enterprise value minus all outstanding debt, including PIK compounding, drawn revolver, and any recap debt; a five-hundred-million exit with three hundred fifty million of debt distributes only a hundred fifty, and an LP who invested two hundred is already in a loss before the waterfall even begins.", "est_sec": 66}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Practical Example: The £50M EBITDA Software Company", "on_screen_title": "The £50m software company", "on_screen_bullets": ["12x = £600m; Advisor A: 6x + PIK", "Advisor B: 4x TLB only", "Right answer depends on the thesis"], "narration": "Make it a live decision. A firm evaluates a B2B software company — fifty million of EBITDA, a twelve-times entry bid, six hundred million enterprise value; the rates here are illustrative. Two advisors propose different structures. The investment banker, Advisor A, says: software has stable recurring revenue, so do six-times leverage — two hundred million of cov-lite term loan B and a hundred million of PIK mezz at thirteen percent — an equity cheque of only three hundred million; any EBITDA improvement generates exceptional equity returns, the PIK preserves cash for reinvestment, and the business doesn't need covenants. The credit fund, Advisor B, pushes back: twelve times is expensive, a twenty-percent EBITDA miss takes coverage to dangerous territory, and if the software market re-rates from twelve times to nine during the hold, you exit at four hundred fifty million but owe three hundred million of term loan plus PIK compounded to a hundred forty-five — you've broken even on enterprise value while the debt consumed the entire equity gain; better to do four-times leverage, term loan only, a lower ceiling but you survive a thirty-percent miss and exit cleanly. Who's right? It depends entirely on the thesis. If it's organic SaaS growth of thirty-percent-plus, the growth outruns the PIK and Advisor A is defensible. If it's operational stabilisation toward a strategic sale, Advisor B is safer, because a strategic premium won't overcome a PIK hole. And if the entry multiple is already twelve, with little room for multiple expansion, Advisor B is strongly preferable — returns must come from EBITDA growth, which needs free cash flow, which means less leverage, not more. That's the PIK paradox: it was proposed to preserve cash for operations, but it accumulates faster than the cash it preserves can pay it down.", "est_sec": 74}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Debt shapes the return", "on_screen_bullets": ["Waterfall distributes EV minus debt", "Aggressive: max gross, deepest holes", "Conservative: capped upside, protected floor"], "narration": "To recap. The LBO capital stack is the risk-return architecture of every PE deal. The debt structure and leverage ratio establish how much debt, in what form, at what cost; the coverage ratio measures whether it can be serviced as earnings fluctuate, setting a dynamic floor on the equity that survives to the waterfall; cov-lite changes who controls the timing of distress resolution — not whether distress occurs but how deep it gets before intervention; and the three return sources reveal which source each debt choice enables or forecloses, with PIK preserving cash but compounding debt, and high cash interest constraining both investment and paydown at once. The unifying logic: the waterfall distributes EV minus debt, so every entry decision — leverage level, cash versus PIK, covenanted versus cov-lite — directly determines how much equity survives to be distributed. Aggressive, PIK-heavy, cov-lite structures maximise gross MOIC in good outcomes but dig deeper equity holes in bad ones; conservative, covenanted structures cap the upside but provide the floor that protects LP net returns when the thesis underdelivers. Next we extend this same logic one step further — into LBO returns and the waterfall.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The waterfall distributes 'EV minus debt', not EV. Using the PIK-heavy Stack C, explain why it produces the HIGHEST LP net MOIC in the good outcome yet a total wipeout in the bad one — what single mechanism drives both?", "narration": "Before the next lesson, reason it through. The waterfall distributes enterprise value minus debt, not enterprise value itself. Take the PIK-heavy Stack C from this lesson: explain why it produces the highest LP net MOIC in the good outcome and yet a total equity wipeout in the bad one — and name the single mechanism that drives both results. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: The LBO Capital Stack\n\n[hook] Six concepts, one system\nWelcome to the core synthesis phase, where concepts you've learned separately reveal themselves as a single system. The capital stack is studied as a financing topic, the three return sources as a performance topic, the waterfall as fund economics, and coverage ratios and cov-lite as credit topics. But in practice all six are one system with one governing logic: the debt stack determines the risk-return envelope, within which the three return sources are either available or foreclosed, and from which the waterfall is funded when exits occur. Three connections make this concrete — debt composition determines which return sources you can pursue; the coverage ratio and covenant structure set the equity floor; and net debt at exit determines what the waterfall actually distributes. The GP and LP are never splitting enterprise value — they're splitting what's left after every lender is repaid in full.\n\n[intuition] From description to interaction\nWhy does this synthesis matter? Most PE students can describe what a term loan B is, what coverage measures, what cov-lite means, and how the waterfall works. Far fewer can explain how these concepts interact to produce a specific pattern of equity returns, risk exposure, and LP distributions. Mastering the synthesis lets you do five things: evaluate a capital structure against an investment thesis — not just is this leverage achievable, but does this debt composition enable the return sources my thesis depends on; calculate the true equity floor in a downside, not the theoretical EV but EV minus the debt still outstanding after PIK compounding and partial amortisation; understand why cov-lite has a genuinely different risk profile beyond the legal explanation; trace the path from debt architecture all the way to LP net return; and spot when a structure is optimised for gross return at the expense of LP net return — where a GP maximises leverage to amplify its carry on the upside while LPs bear the equity-floor risk on the downside.\n\n[mechanics] Four steps, entry to exit\nThe concept map runs in four steps from entry to exit. Step one: the debt stack is designed at entry — it sets the total leverage quantum, the cash interest burden that becomes the coverage denominator, the non-cash burden if PIK is used, and the lender protections, covenanted or cov-lite. Step two: the three return sources operate only within the envelope the stack creates — EBITDA growth needs free cash flow that a high interest burden consumes; multiple expansion needs business improvement that needs that same investment; and debt paydown needs free cash flow above interest, which PIK compounding actively reverses by growing the debt instead. Step three: the coverage ratio governs the equity floor throughout the hold — above a covenant threshold the GP keeps control and can pursue the plan; below it, in a covenanted structure, lenders gain workout rights and may force a sale at a distress price; and below one-times coverage in any structure, cash interest can't be paid, PIK starts accruing, and the floor drops further. Step four: at exit, net debt determines what reaches the waterfall — take the exit enterprise value, subtract the term-loan balance after amortisation and sweeps, subtract the PIK balance with its compounded interest, subtract any drawn revolver and unreturned recap proceeds, and what remains is the net equity that begins the waterfall. The waterfall has no knowledge of the debt stack — it only sees the equity that survives it.\n\n[worked-example] Same deal, three stacks\nHere's the synthesis made vivid: the same operational performance, three different capital stacks, three different outcomes. A firm acquires an industrial services company — entry EBITDA forty million, entry EV eight times, three hundred twenty million, a five-year hold. In all three scenarios the operations are identical: EBITDA grows from forty to fifty-five million and the exit multiple is nine times, so the exit enterprise value is nine times fifty-five — four hundred ninety-five million. The only variable is the stack at entry. Stack A, conservative and covenanted: three-point-six times leverage, a term loan B and an amortising term loan A, a hundred seventy-five million of equity, entry coverage of four-point-four times against a two-and-a-half-times covenant. Stack B, aggressive cov-lite: a single cov-lite term loan B, four times leverage, a hundred sixty million of equity, coverage three-point-three, and crucially no covenant. Stack C, PIK-augmented cov-lite: that same cov-lite term loan B plus eighty million of PIK mezzanine at twelve percent, total leverage six times, but only eighty million of equity, with coverage measured on cash debt only. Same business, same growth — but three radically different bets, all decided at the moment the structure was chosen.\n\n[worked-example] Highest upside, lowest floor\nNow run them to exit on the good outcome. Stack A pays its debt down to eighty million, leaving four hundred fifteen million of net equity — a gross MOIC of two-point-three-seven and, after the waterfall, an LP net MOIC of two-point-one-zero. Stack B, with higher interest eating into paydown, exits with a hundred thirty million of debt and three hundred sixty-five million of net equity — gross two-point-two-eight, LP net two-point-zero-three. Stack C is the striking one: the term loan pays down to a hundred thirty, but the PIK has compounded from eighty to a hundred forty-one million, so total exit debt is two hundred seventy-one — yet because only eighty million of equity went in, the gross MOIC is two-point-eight-zero and the LP net MOIC two-point-four-four, the highest of all three. But look at the downside test. If recovery fails and EBITDA stays at twenty-six million, Stack C exits at a six-times distress multiple, a hundred fifty-six million, against debt of two hundred forty-six — the equity is entirely wiped out, the LP loses its whole eighty million, and carry is zero. The insight in one line: Stack C produces the highest LP net return in the good outcome and the fastest path to total destruction in the bad one. Stack A is the most protected but caps the upside; Stack B is the modern market default. The capital-stack choice is ultimately a bet on the distribution of outcomes — confidence in the value-creation plan argues for C, material uncertainty argues for A's equity floor.\n\n[pitfalls] What siloed study misses\nFour things people miss by studying these in isolation. First, PIK notes are good for equity because they don't consume cash — true but incomplete; they preserve free cash flow but compound the principal, so at twelve percent they roughly double in six years, consuming exit equity at an accelerating rate, and because PIK is excluded from the coverage denominator, studying coverage alone makes it look like PIK improves health while the balance silently swells. Second, cov-lite protects sponsors from lender interference — true, but it changes the timing and mechanism of distress, not the economics; a covenant intervenes early and keeps the floor high, while cov-lite lets deterioration run further, raising returns in the middle of the distribution but lowering recovery in the tail. Third, the leverage ratio is the primary risk metric — but leverage tells you how much debt exists while coverage tells you whether it can be serviced right now, and the same five-times company is comfortable at three percent rates and in distress at eight. And fourth, the waterfall distributes the exit value — no, it distributes exit equity, which is enterprise value minus all outstanding debt, including PIK compounding, drawn revolver, and any recap debt; a five-hundred-million exit with three hundred fifty million of debt distributes only a hundred fifty, and an LP who invested two hundred is already in a loss before the waterfall even begins.\n\n[worked-example] The £50m software company\nMake it a live decision. A firm evaluates a B2B software company — fifty million of EBITDA, a twelve-times entry bid, six hundred million enterprise value; the rates here are illustrative. Two advisors propose different structures. The investment banker, Advisor A, says: software has stable recurring revenue, so do six-times leverage — two hundred million of cov-lite term loan B and a hundred million of PIK mezz at thirteen percent — an equity cheque of only three hundred million; any EBITDA improvement generates exceptional equity returns, the PIK preserves cash for reinvestment, and the business doesn't need covenants. The credit fund, Advisor B, pushes back: twelve times is expensive, a twenty-percent EBITDA miss takes coverage to dangerous territory, and if the software market re-rates from twelve times to nine during the hold, you exit at four hundred fifty million but owe three hundred million of term loan plus PIK compounded to a hundred forty-five — you've broken even on enterprise value while the debt consumed the entire equity gain; better to do four-times leverage, term loan only, a lower ceiling but you survive a thirty-percent miss and exit cleanly. Who's right? It depends entirely on the thesis. If it's organic SaaS growth of thirty-percent-plus, the growth outruns the PIK and Advisor A is defensible. If it's operational stabilisation toward a strategic sale, Advisor B is safer, because a strategic premium won't overcome a PIK hole. And if the entry multiple is already twelve, with little room for multiple expansion, Advisor B is strongly preferable — returns must come from EBITDA growth, which needs free cash flow, which means less leverage, not more. That's the PIK paradox: it was proposed to preserve cash for operations, but it accumulates faster than the cash it preserves can pay it down.\n\n[recap] Debt shapes the return\nTo recap. The LBO capital stack is the risk-return architecture of every PE deal. The debt structure and leverage ratio establish how much debt, in what form, at what cost; the coverage ratio measures whether it can be serviced as earnings fluctuate, setting a dynamic floor on the equity that survives to the waterfall; cov-lite changes who controls the timing of distress resolution — not whether distress occurs but how deep it gets before intervention; and the three return sources reveal which source each debt choice enables or forecloses, with PIK preserving cash but compounding debt, and high cash interest constraining both investment and paydown at once. The unifying logic: the waterfall distributes EV minus debt, so every entry decision — leverage level, cash versus PIK, covenanted versus cov-lite — directly determines how much equity survives to be distributed. Aggressive, PIK-heavy, cov-lite structures maximise gross MOIC in good outcomes but dig deeper equity holes in bad ones; conservative, covenanted structures cap the upside but provide the floor that protects LP net returns when the thesis underdelivers. Next we extend this same logic one step further — into LBO returns and the waterfall.\n\nEnd-card question: The waterfall distributes 'EV minus debt', not EV. Using the PIK-heavy Stack C, explain why it produces the HIGHEST LP net MOIC in the good outcome yet a total wipeout in the bad one — what single mechanism drives both?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>The LBO capital stack is studied as a financing topic — which layers exist, what they cost, what protections they carry. The three sources of PE returns are studied as a performance topic — EBITDA growth, multiple expansion, debt paydown. The distribution waterfall is studied as a fund economics topic — how exit proceeds are split between LPs and GP. The interest coverage ratio and covenant-lite structures are studied as credit topics — how financial health is measured and how lenders protect themselves.</p><p>In practice, all six concepts are a single system with a single governing logic: <strong>the debt stack determines the risk/return envelope, within which the three return sources are either available or foreclosed, and from which the waterfall is funded when exits occur.</strong></p><p>The three connections that this synthesis exists to reveal:</p><p><strong>Connection 1: Debt composition → Return sources available.</strong> The leverage ratio and debt mix determine which of the three return sources can realistically be pursued. High leverage amplifies returns when things go well, but the interest burden consumes FCF that could otherwise accelerate debt paydown (Source 3) or fund operational investment (Source 1). PIK notes preserve FCF (enabling Source 1) but compound the debt burden (penalising Source 3). The GP who installs a capital stack without thinking about which return source it enables is building a financing structure for an undefined investment thesis.</p><p><strong>Connection 2: ICR and covenant structure → Equity value floor.</strong> The interest coverage ratio determines whether the business can service its debt as earnings fluctuate. Maintenance covenants create a formal trip-wire: breach the ICR covenant, and lenders gain workout rights — potentially forcing a sale at an inopportune time and crystallising losses. Cov-lite removes that trip-wire, giving the GP operational flexibility to manage through a downturn. But the ICR still governs the practical floor: below a certain coverage level, cash interest cannot be paid, and PIK starts accruing instead — compounding the debt load and pushing the equity value floor lower.</p><p><strong>Connection 3: Net debt at exit → What the waterfall actually distributes.</strong> The waterfall distributes exit enterprise value <em>minus net debt</em>. If the debt stack has been paid down aggressively during the hold (large amortisation, strong FCF sweeps), more equity reaches the waterfall. If PIK has been compounding, or the RCF was drawn, or a dividend recap added new debt, less equity reaches the waterfall. The GP and LP are not splitting the EV — they are splitting what's left after every lender has been repaid in full.</p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Most PE students can describe what a TLB is, what the ICR measures, what cov-lite means, and how the waterfall works. Few can explain how these concepts interact to produce a specific pattern of equity returns, risk exposure, and LP distributions.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Evaluate a capital structure against an investment thesis</strong> — not just \"is this leverage level achievable?\" but \"does this debt composition enable the return sources my thesis depends on?\"</li><li><strong>Calculate the true equity floor in a downside scenario</strong> — not the theoretical EV, but EV minus the debt that will still be outstanding after PIK compounding, RCF draws, and partial amortisation</li><li><strong>Understand why cov-lite has a different risk profile from covenanted debt</strong> beyond the regulatory/legal explanation — specifically, how removing maintenance covenants changes the timing and magnitude of equity losses in distress</li><li><strong>Trace the path from debt architecture to LP net return</strong> — every debt decision at entry affects what reaches the waterfall at exit, which determines what LPs actually receive as net IRR and MOIC</li><li><strong>Identify when a capital structure is optimised for gross return at the expense of LP net return</strong> — a GP who maximises leverage benefits from amplified carry on the upside while LPs bear the equity floor risk on the downside</li></ul><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>The same operational performance, three different capital stacks, three different outcomes</strong></p><p>A PE firm acquires an industrial services company: - Entry EBITDA: £40M - Entry EV: 8x = £320M - Hold period: 5 years - Operational outcome (same in all three scenarios): EBITDA grows from £40M to £55M - Exit multiple: 9x (same in all three scenarios) - Exit EV: 9x £55M = £495M</p><p>The capital stack at entry is the only variable.</p><p>---</p><p>### Stack A — Conservative Covenanted (4.5x leverage, TLB only, ICR covenant at 2.5x)</p><p>| Item | Amount | |---|---| | Senior TLB | £110M at ~6.5% cash interest = £7.2M/year | | Senior TLA | £35M amortising at ~5.5% = £1.9M/year | | Total debt | £145M (3.6x leverage) | | Equity | £175M | | Entry ICR | £40M / £9.1M = <strong>4.4x</strong> | | ICR covenant | 2.5x |</p><p><em>Year 5 outcome (EBITDA £55M, exit at 9x = £495M):</em> - TLA fully amortised to £0; TLB paid to £80M (£30M swept from FCF) - Net exit equity: £495M − £80M = <strong>£415M</strong> - Gross MOIC: £415M / £175M = <strong>2.37x</strong></p><p><em>Downside test (EBITDA falls to £26M in Year 3):</em> - ICR: £26M / £9.1M = 2.86x — above 2.5x covenant ✅ (barely) - GP retains control; manages through recovery</p><p><em>Waterfall:</em> - LP capital: £175M returned (Tier 1) - Preferred return: 8% simple × £175M × 5y = £70M (Tier 2) - GP catch-up: £70M × 0.2/0.8 = £17.5M (Tier 3) - 80/20 split: £415M − £175M − £70M − £17.5M = £152.5M → LP gets £122M, GP gets £30.5M (Tier 4) - <strong>LP net MOIC: (£175M + £70M + £122M) / £175M = £367M / £175M = 2.10x</strong> - <strong>GP carry: £48M</strong></p><p>---</p><p>### Stack B — Aggressive Cov-Lite (5.5x leverage, TLB cov-lite, no ICR covenant)</p><p>| Item | Amount | |---|---| | Senior TLB (cov-lite) | £160M at ~7.5% cash interest = £12M/year | | RCF (undrawn) | £20M facility | | Total debt | £160M (4.0x leverage) | | Equity | £160M | | Entry ICR | £40M / £12M = <strong>3.3x</strong> | | ICR covenant | <strong>None</strong> (cov-lite) |</p><p><em>Year 5 outcome (EBITDA £55M, exit at 9x = £495M):</em> - TLB paid to £130M (£30M swept; less aggressive amortisation than Stack A due to higher interest cost) - Net exit equity: £495M − £130M = <strong>£365M</strong> - Gross MOIC: £365M / £160M = <strong>2.28x</strong></p><p><em>Downside test (EBITDA falls to £26M in Year 3):</em> - ICR: £26M / £12M = 2.2x — <strong>below</strong> what a 2.5x covenant would have required - But NO covenant → lenders cannot accelerate - GP can continue operating; FCF = £26M − £12M = £14M remaining after interest (tight but survivable) - GP has time to implement recovery plan</p><p><em>Waterfall:</em> - LP capital: £160M returned - Preferred return: 8% × £160M × 5y = £64M - GP catch-up: £64M × 0.2/0.8 = £16M - 80/20 split: £365M − £160M − £64M − £16M = £125M → LP £100M, GP £25M - <strong>LP net MOIC: (£160M + £64M + £100M) / £160M = £324M / £160M = 2.03x</strong> - <strong>GP carry: £41M</strong></p><p>---</p><p>### Stack C — PIK-Augmented Cov-Lite (6x leverage, cov-lite TLB + PIK mezz)</p><p>| Item | Amount | |---|---| | Senior TLB (cov-lite) | £160M at 7.5% cash = £12M/year | | PIK mezzanine | £80M at 12% PIK (no cash) — compounds to £141M over 5 years | | Total debt entry | £240M (6.0x leverage) | | Equity | £80M | | Entry ICR (cash only) | £40M / £12M = <strong>3.3x</strong> (PIK excluded — non-cash) | | ICR covenant | None |</p><p><em>Year 5 outcome (EBITDA £55M, exit at 9x = £495M):</em> - TLB paid to £130M (same FCF sweep as Stack B — PIK doesn't consume cash) - PIK compounded: £80M × 1.12^5 = <strong>£141M</strong> - Total exit debt: £130M + £141M = <strong>£271M</strong> - Net exit equity: £495M − £271M = <strong>£224M</strong> - Gross MOIC: £224M / £80M = <strong>2.80x</strong> — highest gross MOIC of all three stacks</p><p><em>Downside test (EBITDA falls to £26M in Year 3):</em> - ICR (cash): £26M / £12M = 2.2x — serviceable; no covenant - FCF available: £14M (more than Stack A which had less PIK but similar interest) - GP can invest in recovery plan; PIK continues compounding silently - <strong>The hidden risk:</strong> if recovery fails and EBITDA stays at £26M for all 5 years:   - Exit EV at 6x £26M (distress multiple) = £156M   - TLB at exit: £105M (some paydown from £14M FCF × 5 years)   - PIK at exit (5 years compounding on £80M): £141M   - Total debt: £246M &gt; Exit EV £156M → <strong>equity is wiped out</strong>   - LP lost entire £80M invested; GP carry = £0</p><p><em>Waterfall (good outcome):</em> - LP capital: £80M returned - Preferred return: 8% × £80M × 5y = £32M - GP catch-up: £32M × 0.2/0.8 = £8M - 80/20 split: £224M − £80M − £32M − £8M = £104M → LP £83.2M, GP £20.8M - <strong>LP net MOIC: (£80M + £32M + £83.2M) / £80M = £195.2M / £80M = 2.44x</strong> — highest LP net MOIC - <strong>GP carry: £28.8M</strong> — smallest in absolute terms (smallest fund commitment)</p><p>---</p><p>### Summary: Same Deal, Three Different Risk/Return Profiles</p><p>| | Stack A (Conservative) | Stack B (Cov-Lite) | Stack C (PIK + Cov-Lite) | |---|---|---|---| | Entry leverage | 3.6x | 4.0x | 6.0x | | Annual cash interest | £9.1M | £12M | £12M | | Entry ICR | 4.4x | 3.3x | 3.3x (cash only) | | Equity invested | £175M | £160M | £80M | | Exit debt outstanding | £80M | £130M | £271M | | Net to waterfall | £415M | £365M | £224M | | <strong>Gross MOIC</strong> | <strong>2.37x</strong> | <strong>2.28x</strong> | <strong>2.80x</strong> | | <strong>LP Net MOIC</strong> | <strong>2.10x</strong> | <strong>2.03x</strong> | <strong>2.44x</strong> | | Equity wipeout threshold | EV &lt; £80M | EV &lt; £130M | EV &lt; £271M | | Downside control | Hard floor (covenant) | Soft floor (no covenant) | No floor until full wipeout |</p><p><strong>The key insight from this table:</strong> Stack C produces the highest LP net MOIC in the good outcome — but also the fastest path to total equity destruction in the bad outcome. Stack A is the most protected on the downside but caps upside. Stack B is the modern market default — cov-lite flexibility with moderate leverage.</p><p>The capital stack choice is ultimately a bet on the distribution of possible outcomes: if the GP is confident the value creation plan will succeed, Stack C maximises LP returns. If there is material uncertainty about the operational plan, Stack A provides the equity floor that prevents total loss.</p><p>---</p>"}, "4": {"section": "How They Interact in Practice", "html": "<p><strong>The same operational performance, three different capital stacks, three different outcomes</strong></p><p>A PE firm acquires an industrial services company: - Entry EBITDA: £40M - Entry EV: 8x = £320M - Hold period: 5 years - Operational outcome (same in all three scenarios): EBITDA grows from £40M to £55M - Exit multiple: 9x (same in all three scenarios) - Exit EV: 9x £55M = £495M</p><p>The capital stack at entry is the only variable.</p><p>---</p><p>### Stack A — Conservative Covenanted (4.5x leverage, TLB only, ICR covenant at 2.5x)</p><p>| Item | Amount | |---|---| | Senior TLB | £110M at ~6.5% cash interest = £7.2M/year | | Senior TLA | £35M amortising at ~5.5% = £1.9M/year | | Total debt | £145M (3.6x leverage) | | Equity | £175M | | Entry ICR | £40M / £9.1M = <strong>4.4x</strong> | | ICR covenant | 2.5x |</p><p><em>Year 5 outcome (EBITDA £55M, exit at 9x = £495M):</em> - TLA fully amortised to £0; TLB paid to £80M (£30M swept from FCF) - Net exit equity: £495M − £80M = <strong>£415M</strong> - Gross MOIC: £415M / £175M = <strong>2.37x</strong></p><p><em>Downside test (EBITDA falls to £26M in Year 3):</em> - ICR: £26M / £9.1M = 2.86x — above 2.5x covenant ✅ (barely) - GP retains control; manages through recovery</p><p><em>Waterfall:</em> - LP capital: £175M returned (Tier 1) - Preferred return: 8% simple × £175M × 5y = £70M (Tier 2) - GP catch-up: £70M × 0.2/0.8 = £17.5M (Tier 3) - 80/20 split: £415M − £175M − £70M − £17.5M = £152.5M → LP gets £122M, GP gets £30.5M (Tier 4) - <strong>LP net MOIC: (£175M + £70M + £122M) / £175M = £367M / £175M = 2.10x</strong> - <strong>GP carry: £48M</strong></p><p>---</p><p>### Stack B — Aggressive Cov-Lite (5.5x leverage, TLB cov-lite, no ICR covenant)</p><p>| Item | Amount | |---|---| | Senior TLB (cov-lite) | £160M at ~7.5% cash interest = £12M/year | | RCF (undrawn) | £20M facility | | Total debt | £160M (4.0x leverage) | | Equity | £160M | | Entry ICR | £40M / £12M = <strong>3.3x</strong> | | ICR covenant | <strong>None</strong> (cov-lite) |</p><p><em>Year 5 outcome (EBITDA £55M, exit at 9x = £495M):</em> - TLB paid to £130M (£30M swept; less aggressive amortisation than Stack A due to higher interest cost) - Net exit equity: £495M − £130M = <strong>£365M</strong> - Gross MOIC: £365M / £160M = <strong>2.28x</strong></p><p><em>Downside test (EBITDA falls to £26M in Year 3):</em> - ICR: £26M / £12M = 2.2x — <strong>below</strong> what a 2.5x covenant would have required - But NO covenant → lenders cannot accelerate - GP can continue operating; FCF = £26M − £12M = £14M remaining after interest (tight but survivable) - GP has time to implement recovery plan</p><p><em>Waterfall:</em> - LP capital: £160M returned - Preferred return: 8% × £160M × 5y = £64M - GP catch-up: £64M × 0.2/0.8 = £16M - 80/20 split: £365M − £160M − £64M − £16M = £125M → LP £100M, GP £25M - <strong>LP net MOIC: (£160M + £64M + £100M) / £160M = £324M / £160M = 2.03x</strong> - <strong>GP carry: £41M</strong></p><p>---</p><p>### Stack C — PIK-Augmented Cov-Lite (6x leverage, cov-lite TLB + PIK mezz)</p><p>| Item | Amount | |---|---| | Senior TLB (cov-lite) | £160M at 7.5% cash = £12M/year | | PIK mezzanine | £80M at 12% PIK (no cash) — compounds to £141M over 5 years | | Total debt entry | £240M (6.0x leverage) | | Equity | £80M | | Entry ICR (cash only) | £40M / £12M = <strong>3.3x</strong> (PIK excluded — non-cash) | | ICR covenant | None |</p><p><em>Year 5 outcome (EBITDA £55M, exit at 9x = £495M):</em> - TLB paid to £130M (same FCF sweep as Stack B — PIK doesn't consume cash) - PIK compounded: £80M × 1.12^5 = <strong>£141M</strong> - Total exit debt: £130M + £141M = <strong>£271M</strong> - Net exit equity: £495M − £271M = <strong>£224M</strong> - Gross MOIC: £224M / £80M = <strong>2.80x</strong> — highest gross MOIC of all three stacks</p><p><em>Downside test (EBITDA falls to £26M in Year 3):</em> - ICR (cash): £26M / £12M = 2.2x — serviceable; no covenant - FCF available: £14M (more than Stack A which had less PIK but similar interest) - GP can invest in recovery plan; PIK continues compounding silently - <strong>The hidden risk:</strong> if recovery fails and EBITDA stays at £26M for all 5 years:   - Exit EV at 6x £26M (distress multiple) = £156M   - TLB at exit: £105M (some paydown from £14M FCF × 5 years)   - PIK at exit (5 years compounding on £80M): £141M   - Total debt: £246M &gt; Exit EV £156M → <strong>equity is wiped out</strong>   - LP lost entire £80M invested; GP carry = £0</p><p><em>Waterfall (good outcome):</em> - LP capital: £80M returned - Preferred return: 8% × £80M × 5y = £32M - GP catch-up: £32M × 0.2/0.8 = £8M - 80/20 split: £224M − £80M − £32M − £8M = £104M → LP £83.2M, GP £20.8M - <strong>LP net MOIC: (£80M + £32M + £83.2M) / £80M = £195.2M / £80M = 2.44x</strong> — highest LP net MOIC - <strong>GP carry: £28.8M</strong> — smallest in absolute terms (smallest fund commitment)</p><p>---</p><p>### Summary: Same Deal, Three Different Risk/Return Profiles</p><p>| | Stack A (Conservative) | Stack B (Cov-Lite) | Stack C (PIK + Cov-Lite) | |---|---|---|---| | Entry leverage | 3.6x | 4.0x | 6.0x | | Annual cash interest | £9.1M | £12M | £12M | | Entry ICR | 4.4x | 3.3x | 3.3x (cash only) | | Equity invested | £175M | £160M | £80M | | Exit debt outstanding | £80M | £130M | £271M | | Net to waterfall | £415M | £365M | £224M | | <strong>Gross MOIC</strong> | <strong>2.37x</strong> | <strong>2.28x</strong> | <strong>2.80x</strong> | | <strong>LP Net MOIC</strong> | <strong>2.10x</strong> | <strong>2.03x</strong> | <strong>2.44x</strong> | | Equity wipeout threshold | EV &lt; £80M | EV &lt; £130M | EV &lt; £271M | | Downside control | Hard floor (covenant) | Soft floor (no covenant) | No floor until full wipeout |</p><p><strong>The key insight from this table:</strong> Stack C produces the highest LP net MOIC in the good outcome — but also the fastest path to total equity destruction in the bad outcome. Stack A is the most protected on the downside but caps upside. Stack B is the modern market default — cov-lite flexibility with moderate leverage.</p><p>The capital stack choice is ultimately a bet on the distribution of possible outcomes: if the GP is confident the value creation plan will succeed, Stack C maximises LP returns. If there is material uncertainty about the operational plan, Stack A provides the equity floor that prevents total loss.</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"PIK notes are good for equity because they don't consume cash.\"</p><p>PIK notes preserve FCF, which is correct — they do not require cash interest payments. But they compound their principal balance, which means they consume exit equity at an accelerating rate as the hold extends. At 12% PIK, principal doubles in approximately 6 years. A £60M PIK note becomes £120M before the fund's 10-year life is up. The GP who uses PIK to \"preserve FCF for operations\" is borrowing against the exit — and the compounding works against the waterfall's ability to generate LP distributions. Studying ICR in isolation (PIK is excluded from the denominator and looks like it improves coverage) misses the silent accumulation in the principal balance.</p><p>### 2. \"Covenant-lite protects PE sponsors from lender interference.\"</p><p>This is true but incomplete. Cov-lite changes the <em>timing</em> and <em>mechanism</em> of distress resolution, not the fundamental economics. In a covenanted structure, EBITDA deterioration triggers lender control at an early stage — the equity floor is high (lenders intervene before equity is fully impaired). In a cov-lite structure, EBITDA can deteriorate further before anyone formally intervenes — the equity floor is lower. This means cov-lite raises expected returns in the middle distribution of outcomes (GP can manage through moderate deterioration), but lowers recovery in tail scenarios (no intervention until equity is deeply impaired or gone). Studying covenant structures without the waterfall makes cov-lite look purely beneficial; connecting it to the distribution waterfall reveals the floor-lowering effect on LP net recovery in severe downturns.</p><p>### 3. \"The leverage ratio is the primary risk metric for an LBO.\"</p><p>The leverage ratio (Debt/EBITDA) tells you how much debt exists. The interest coverage ratio (EBITDA/Cash Interest) tells you whether the debt can be serviced from operations <em>right now</em>. Both are essential, and they can tell contradictory stories: - A 5x leveraged company at 3% interest rates has cash interest = 15% of EBITDA — serviceable, high ICR - The same 5x leveraged company at 8% interest rates has cash interest = 40% of EBITDA — distress territory The leverage ratio is a static snapshot at entry. The ICR is a dynamic measure of survivability as rates change and EBITDA fluctuates. Return Source 3 (debt paydown) depends entirely on whether ICR is high enough that FCF exceeds interest requirements — not just on whether the leverage ratio looks manageable at entry.</p><p>### 4. \"The waterfall distributes the exit value.\"</p><p>The waterfall distributes <em>exit equity value</em> — which is exit enterprise value <em>minus</em> all debt outstanding. The two can be very different numbers. A company with exit EV of £500M but £350M of debt outstanding (after PIK compounding, RCF draws, and a dividend recap) distributes only £150M through the waterfall. The LP who invested £200M is already in a loss position before the waterfall even begins. Studying the waterfall without understanding what debt load it inherits from the capital stack — including PIK compounding, recycled debt, and post-recap leverage — produces a model that looks clean on paper and surprises on execution.</p><p>---</p>"}, "6": {"section": "Practical Example: The £50M EBITDA Software Company", "html": "<p><strong>Authentic patterns, illustrative figures [needs-verification for specific rates]</strong></p><p>A PE firm evaluates acquiring a B2B software company. EBITDA: £50M. Entry multiple bid: 12x = £600M EV. Two advisors propose different capital structures.</p><p><strong>Advisor A — Investment banker:</strong> \"Software companies have stable recurring revenue. You can do 6x leverage = £300M debt with a mix of £200M TLB (cov-lite, SOFR+475) and £100M PIK mezz at 13%. The equity cheque is only £300M — any improvement in EBITDA generates exceptional equity returns. The PIK preserves FCF for reinvestment. You don't need covenants — the business is resilient.\"</p><p><strong>Advisor B — Credit fund:</strong> \"Software at 12x entry is expensive. At 6x leverage, a 20% EBITDA miss reduces your ICR on the TLB alone to £40M / £15M = 2.7x — workable, but one more bad quarter and you're in territory where the PIK is compounding fast. If the software market re-rates from 12x to 9x during your hold, you'll exit at 9x £50M = £450M but owe £300M TLB + PIK compounded to £145M = £445M — you've essentially broken even on EV but the debt has consumed all the equity gain. I'd suggest 4x leverage at £200M TLB only — lower returns ceiling but you survive a 30% EBITDA miss and still exit cleanly.\"</p><p><strong>The synthesis question:</strong> Which capital structure is appropriate?</p><p>The answer depends entirely on the investment thesis:</p><ul class='notelist'><li><strong>If the thesis is organic SaaS growth</strong> (Source 1: strong EBITDA growth expected, 30%+ annual growth): Advisor A is defensible. The growth rate will outrun the PIK compounding. ICR will improve as EBITDA scales rapidly. High leverage amplifies the already-strong returns.</li></ul><ul class='notelist'><li><strong>If the thesis is operational stabilisation + strategic sale</strong> (Sources 1 and 2: modest EBITDA growth + strategic premium at exit): Advisor B is safer. The 20% EBITDA miss scenario is realistic. The strategic buyer premium won't overcome a PIK hole. The waterfall needs clean equity — not equity that's been consumed by £145M of compounded PIK.</li></ul><ul class='notelist'><li><strong>If the entry multiple is already 12x</strong> (limited multiple expansion room, Source 2 constrained): Advisor B is strongly preferable. With little room for multiple expansion and PIK compounding working against Source 3, returns must come entirely from Source 1 (EBITDA growth). Preserving FCF for operations requires minimising cash interest burden, which means <em>less</em> leverage, not more. The PIK paradox: it was proposed to preserve FCF for operations, but it accumulates faster than the FCF it preserves can pay it down.</li></ul><p>This is the capital stack decision as a synthesis problem: leverage level, debt composition (cash vs. PIK), covenant structure, and investment thesis must all be internally consistent. An inconsistency at entry produces a five-year operating period where the capital structure fights the value creation plan.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The LBO capital stack is the risk/return architecture of every PE deal. LBO Debt and Capital Structure and Leverage Ratio in LBOs establish the structure: how much debt, in what form, at what cost. Interest Coverage Ratio in LBOs measures whether that debt can be serviced as earnings fluctuate, setting a dynamic floor on the equity value that survives to the Waterfall Mechanics. Covenant-Lite Structures changes who controls the timing of distress resolution — not whether distress occurs, but how deep it gets before intervention. Three Sources of PE Returns reveals which return source each debt design choice enables or constrains: PIK preserves FCF (enabling Source 1) but compounds debt (penalising Source 3); high cash interest constrains both operational investment and debt paydown simultaneously.</p><p>The unifying logic: the waterfall distributes EV <em>minus debt</em>. Every debt decision made at entry — leverage level, cash vs. PIK, covenanted vs. cov-lite — directly determines how much equity survives to be distributed. High-leverage, PIK-heavy, cov-lite structures maximise gross MOIC in good outcomes but create deeper equity holes in bad ones and produce the smallest waterfall distributions relative to EV. Conservative, covenanted structures limit upside but provide the equity floor that protects LP net returns when the operational thesis doesn't fully deliver.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

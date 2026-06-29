@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "892-sovereign-government-exemption-mechanics", "title": "The Sovereign Government Tax Exemption", "draft_watermark": false, "estimated_runtime_sec": 344, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "When there's no treaty", "on_screen_bullets": ["Gulf sovereign funds, huge investors", "No tax treaty exists", "Need a different exemption"], "narration": "Some of the largest investors in private equity are Gulf-region sovereign wealth funds — the state investment vehicles of countries that, crucially, levy no income tax at home and therefore have no income tax treaty with the United States. That single fact breaks the usual playbook. The treaty-rate and blocker architecture that other foreign investors rely on to reduce US withholding simply is not available to them, because it depends on a treaty that does not exist. So they need a different path to US tax exemption entirely. This lesson is about that path — the sovereign-government exemption — which gives a qualifying state investor a direct route to exemption with no treaty and no blocker required, provided it stays on the right side of one bright line. Understanding it changes how their allocations are withheld and reported.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Exemption for passive state investment", "on_screen_bullets": ["Covers passive investment income", "Excludes commercial activity", "Doesn't auto-cover real property"], "narration": "Here is the definition. The sovereign-government exemption frees foreign governments and the entities they wholly own from US income tax on certain US investment income — interest, dividends, and gains from US stocks and bonds, including fund interests. But it comes with two hard limits that you must hold onto. First, it does not cover income from commercial activity — running a business, as opposed to passively investing. And second, it does not automatically cover gains from US real property, which sit under the separate real-property regime and require their own analysis. So the headline is generous — direct exemption, no treaty needed — but it is bounded by a commercial-activity exclusion and a real-property carve-out. Those two limits are where all the nuance lives.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Diplomatic immunity for capital", "on_screen_bullets": ["Immunity for investing", "Not for running a business", "Real estate is excluded"], "narration": "The mental model that makes this click is diplomatic immunity for capital. The reasoning Congress used is the same logic behind diplomatic immunity: taxing a foreign government on its investment returns creates friction and deters capital, so grant an exemption. And like diplomatic immunity, it has limits that track intuition. A diplomat is immune while going about official business but not while running an illicit operation; a sovereign fund is exempt while investing but not while operating a US business. So a sovereign fund buying a passive stake in a fund is covered; a sovereign fund directly running, say, a chain of restaurants is not. And the real-property carve-out is like the rule that even diplomats must obey local property law — the US treats real-estate gains differently, and the sovereign exemption does not provide blanket immunity there. Investing: immune. Operating: not. Real estate: handled separately.", "est_sec": 50}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Who qualifies", "on_screen_bullets": ["Government or wholly-owned entity", "100% ownership, strictly", "Non-traded or corporate form"], "narration": "Now the qualification test, which is stricter than people expect. There are two ways to be a qualifying entity. One is the foreign government acting directly as an investor — rare, since most invest through dedicated vehicles. The other is a controlled entity: an entity wholly owned by a foreign government and organised under foreign law. And wholly owned means exactly that — one hundred percent. This is enforced strictly: even a ninety-nine percent stake fails, with the minority slice disqualifying the whole entity from controlled-entity status. Funds work around this, when needed, by stacking multiple layers that are each fully government-owned. On top of full ownership, the entity must also be the right shape — typically a corporation, or an entity whose interests cannot be traded or sold, or an integral part of the government itself. Most purpose-built sovereign investment vehicles, being fully owned and non-traded, comfortably meet this — but the hundred-percent rule is the one that trips up loosely-structured arrangements.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The commercial-activity line", "on_screen_bullets": ["Passive fund investing is fine", "Operating control crosses the line", "Stay passive to preserve status"], "narration": "The most important operational question is where passive investing ends and commercial activity begins, because crossing that line forfeits the exemption on the relevant income. The reassuring answer, and settled market practice, is that passive investment in a fund is generally not commercial activity — even though the underlying portfolio companies are obviously commercial businesses. The logic is that the sovereign fund is a passive investor; it does not control or operate those companies. The income flows through from the fund's activities, but the sovereign fund's own activity is passive investment, not the conduct of a business. The risk zone is when the sovereign fund takes on an operational role — active decision-making authority over specific portfolio-company operations, or a direct co-investment with hands-on involvement. To stay safe, sovereign funds deliberately keep their fund positions purely passive. The principle to remember: it is the sovereign fund's own conduct that is tested, not the nature of the businesses it indirectly owns.", "est_sec": 54}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The real-property gap", "on_screen_bullets": ["Exemption doesn't override it", "Separate analysis needed", "Pension exemption may not apply"], "narration": "Now the carve-out that catches people, and it is worth being precise about. The sovereign exemption does not override the US real-property regime. A foreign government is still a foreign person for those rules, so if a fund holds US real estate and sells it, the sovereign fund's share of that gain can be exposed despite the exemption covering everything else. There are routes to relief, but they are separate analyses: holding the property through a domestically-controlled real-estate trust, or qualifying for the special pension-fund exemption from the real-property regime. And here is the subtle trap — that pension-fund exemption is designed for genuine pension funds, so a true retirement-focused state fund might qualify, while a general-purpose sovereign wealth fund generally cannot. So the practical result is a split outcome on the statement: the interest, dividend, and ordinary capital-gain allocations are exempt under the sovereign rule, but any real-property gain line requires its own, separate real-property analysis.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Why it beats a blocker", "on_screen_bullets": ["No corporate tax layer", "No treaty required", "Reporting still required at zero"], "narration": "Step back to the economics, because this is why the exemption matters so much. The alternative for a non-treaty, non-sovereign investor is an offshore blocker — which works, but at the cost of a layer of US corporate tax inside the blocker plus the entity overhead. The sovereign exemption produces a strictly better outcome: zero US income tax on investment gains, no blocker, no treaty. On a large portfolio with meaningful annual gains, that corporate-tax layer avoided is enormous. A few misconceptions to clear, though. The exemption does not cover everything — commercial-activity income and real-property gains fall outside it. A ninety-nine percent owned entity does not qualify; the ownership bar is one hundred percent. And critically, an exempt sovereign investor still receives the standard tax statements and information returns — the reporting obligation exists even when the tax liability is zero. Exempt from tax is not exempt from paperwork.", "est_sec": 52}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Direct exemption, two limits", "on_screen_bullets": ["Passive investment income exempt", "Stay passive, watch real property", "Identified by a special certificate"], "narration": "So to summarise: the sovereign-government exemption gives foreign governments and their wholly-owned entities exemption from US tax on passive investment income, and for non-treaty Gulf sovereign funds it is the primary structural protection that enables large-scale US private equity investment without the corporate-tax cost of a blocker. Two limits define its edges: the commercial-activity exception, which means the sovereign fund must stay a passive investor and avoid operating the underlying companies; and the real-property carve-out, which means real-estate gains need a separate analysis. Operationally, these investors are identified by a distinct certification — not the ordinary treaty form — are treated as exempt for cross-border reporting, and require separate real-property analysis on any property-gain allocation. The throughline: direct exemption, generous but bounded, and conditional on staying passive.", "est_sec": 48}, {"n": 9, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What two limits bound it?", "Why is passive status essential?", "Why beat a blocker?"], "narration": "Before you move on, answer these from memory. What are the two key limits that bound the sovereign-government exemption? Why must a sovereign fund stay a passive investor, and what kind of involvement would cross the commercial-activity line? And why does this exemption produce a better economic outcome than an offshore blocker for a non-treaty sovereign investor? Work through your own answers first, then check the flashcards.", "est_sec": 32}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The Sovereign Government Tax Exemption\n\n[hook] When there's no treaty\nSome of the largest investors in private equity are Gulf-region sovereign wealth funds — the state investment vehicles of countries that, crucially, levy no income tax at home and therefore have no income tax treaty with the United States. That single fact breaks the usual playbook. The treaty-rate and blocker architecture that other foreign investors rely on to reduce US withholding simply is not available to them, because it depends on a treaty that does not exist. So they need a different path to US tax exemption entirely. This lesson is about that path — the sovereign-government exemption — which gives a qualifying state investor a direct route to exemption with no treaty and no blocker required, provided it stays on the right side of one bright line. Understanding it changes how their allocations are withheld and reported.\n\n[definition] Exemption for passive state investment\nHere is the definition. The sovereign-government exemption frees foreign governments and the entities they wholly own from US income tax on certain US investment income — interest, dividends, and gains from US stocks and bonds, including fund interests. But it comes with two hard limits that you must hold onto. First, it does not cover income from commercial activity — running a business, as opposed to passively investing. And second, it does not automatically cover gains from US real property, which sit under the separate real-property regime and require their own analysis. So the headline is generous — direct exemption, no treaty needed — but it is bounded by a commercial-activity exclusion and a real-property carve-out. Those two limits are where all the nuance lives.\n\n[intuition] Diplomatic immunity for capital\nThe mental model that makes this click is diplomatic immunity for capital. The reasoning Congress used is the same logic behind diplomatic immunity: taxing a foreign government on its investment returns creates friction and deters capital, so grant an exemption. And like diplomatic immunity, it has limits that track intuition. A diplomat is immune while going about official business but not while running an illicit operation; a sovereign fund is exempt while investing but not while operating a US business. So a sovereign fund buying a passive stake in a fund is covered; a sovereign fund directly running, say, a chain of restaurants is not. And the real-property carve-out is like the rule that even diplomats must obey local property law — the US treats real-estate gains differently, and the sovereign exemption does not provide blanket immunity there. Investing: immune. Operating: not. Real estate: handled separately.\n\n[mechanics] Who qualifies\nNow the qualification test, which is stricter than people expect. There are two ways to be a qualifying entity. One is the foreign government acting directly as an investor — rare, since most invest through dedicated vehicles. The other is a controlled entity: an entity wholly owned by a foreign government and organised under foreign law. And wholly owned means exactly that — one hundred percent. This is enforced strictly: even a ninety-nine percent stake fails, with the minority slice disqualifying the whole entity from controlled-entity status. Funds work around this, when needed, by stacking multiple layers that are each fully government-owned. On top of full ownership, the entity must also be the right shape — typically a corporation, or an entity whose interests cannot be traded or sold, or an integral part of the government itself. Most purpose-built sovereign investment vehicles, being fully owned and non-traded, comfortably meet this — but the hundred-percent rule is the one that trips up loosely-structured arrangements.\n\n[mechanics] The commercial-activity line\nThe most important operational question is where passive investing ends and commercial activity begins, because crossing that line forfeits the exemption on the relevant income. The reassuring answer, and settled market practice, is that passive investment in a fund is generally not commercial activity — even though the underlying portfolio companies are obviously commercial businesses. The logic is that the sovereign fund is a passive investor; it does not control or operate those companies. The income flows through from the fund's activities, but the sovereign fund's own activity is passive investment, not the conduct of a business. The risk zone is when the sovereign fund takes on an operational role — active decision-making authority over specific portfolio-company operations, or a direct co-investment with hands-on involvement. To stay safe, sovereign funds deliberately keep their fund positions purely passive. The principle to remember: it is the sovereign fund's own conduct that is tested, not the nature of the businesses it indirectly owns.\n\n[mechanics] The real-property gap\nNow the carve-out that catches people, and it is worth being precise about. The sovereign exemption does not override the US real-property regime. A foreign government is still a foreign person for those rules, so if a fund holds US real estate and sells it, the sovereign fund's share of that gain can be exposed despite the exemption covering everything else. There are routes to relief, but they are separate analyses: holding the property through a domestically-controlled real-estate trust, or qualifying for the special pension-fund exemption from the real-property regime. And here is the subtle trap — that pension-fund exemption is designed for genuine pension funds, so a true retirement-focused state fund might qualify, while a general-purpose sovereign wealth fund generally cannot. So the practical result is a split outcome on the statement: the interest, dividend, and ordinary capital-gain allocations are exempt under the sovereign rule, but any real-property gain line requires its own, separate real-property analysis.\n\n[application] Why it beats a blocker\nStep back to the economics, because this is why the exemption matters so much. The alternative for a non-treaty, non-sovereign investor is an offshore blocker — which works, but at the cost of a layer of US corporate tax inside the blocker plus the entity overhead. The sovereign exemption produces a strictly better outcome: zero US income tax on investment gains, no blocker, no treaty. On a large portfolio with meaningful annual gains, that corporate-tax layer avoided is enormous. A few misconceptions to clear, though. The exemption does not cover everything — commercial-activity income and real-property gains fall outside it. A ninety-nine percent owned entity does not qualify; the ownership bar is one hundred percent. And critically, an exempt sovereign investor still receives the standard tax statements and information returns — the reporting obligation exists even when the tax liability is zero. Exempt from tax is not exempt from paperwork.\n\n[recap] Direct exemption, two limits\nSo to summarise: the sovereign-government exemption gives foreign governments and their wholly-owned entities exemption from US tax on passive investment income, and for non-treaty Gulf sovereign funds it is the primary structural protection that enables large-scale US private equity investment without the corporate-tax cost of a blocker. Two limits define its edges: the commercial-activity exception, which means the sovereign fund must stay a passive investor and avoid operating the underlying companies; and the real-property carve-out, which means real-estate gains need a separate analysis. Operationally, these investors are identified by a distinct certification — not the ordinary treaty form — are treated as exempt for cross-border reporting, and require separate real-property analysis on any property-gain allocation. The throughline: direct exemption, generous but bounded, and conditional on staying passive.\n\n[end_card] Test yourself\nBefore you move on, answer these from memory. What are the two key limits that bound the sovereign-government exemption? Why must a sovereign fund stay a passive investor, and what kind of involvement would cross the commercial-activity line? And why does this exemption produce a better economic outcome than an offshore blocker for a non-treaty sovereign investor? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Gulf sovereign wealth funds — ADIA (Abu Dhabi Investment Authority), PIF (Saudi Arabia's Public Investment Fund), QIA (Qatar Investment Authority) — are among the world's largest LP investors in PE funds. Unlike Norwegian GPFG (which operates under a treaty framework) or US pension funds (tax-exempt under §501(c)), Gulf SWFs have no income tax treaty with the United States because their home countries impose no income tax on investment returns. This creates a unique problem: the entire Cayman blocker + treaty rate architecture documented in Cayman Blocker Structural Mechanics and Economics is unavailable to them.</p><p>§892 is the statutory solution that fills this gap. It provides Gulf SWF LPs with a direct path to US tax exemption without requiring a treaty or a blocker structure — as long as their investment activity is passive (portfolio investment) rather than commercial activity. Understanding §892 is directly relevant to processing K-1 allocations at CVC Secondary Partners: if ADIA or PIF is in CVC's LP register, the withholding and reporting obligations under §1446, §1445, and Form 1042-S look materially different from treaty investors or Cayman-blocked investors.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>§892 of the Internal Revenue Code exempts foreign governments and their wholly-owned \"controlled entities\" from US federal income tax on certain US-sourced investment income — including interest, dividends, and capital gains from stocks and bonds — but this exemption does not cover income from \"commercial activity,\" does not automatically extend to FIRPTA gains on US real property, and is certified via Form W-8EXP rather than the treaty-based W-8BEN-E used by most other non-US investors.</p><p>---</p>"}, "2": {"section": "Mental Model / Analogy", "html": "<p>Think of §892 as the \"diplomatic immunity\" of the US tax system. When a foreign government invests in US securities, the US Congress decided that taxing sovereign governments on their investment returns creates diplomatic friction and deters capital — so it granted an exemption analogous to diplomatic immunity.</p><p>Like diplomatic immunity, the §892 exemption has limits. Diplomats can't use their immunity to commit serious crimes; foreign governments can't use §892 to avoid tax on commercial businesses they operate in the US. A diplomat driving a car is covered by immunity; a diplomat running a drug operation is not. A SWF buying LP interests in a PE fund is covered; a SWF directly operating a restaurant chain in the US is not.</p><p>The FIRPTA limitation is like a diplomatic exclusion for real estate: even diplomats must comply with local zoning and property laws. The US treats real property gains differently, and §892 doesn't provide blanket immunity there.</p><p>---</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### Statutory Basis</p><p>§892(a)(1) provides:</p><p>&gt; \"The income of foreign governments received from investments in the United States in stocks, bonds, or other domestic securities, owned by foreign governments, or from interest on deposits in banks in the United States of moneys belonging to such foreign governments, or from any other source within the United States, shall not be included in gross income and shall be exempt from taxation under this subtitle.\"</p><p>§892(a)(2) extends this to international organisations. §892(b) provides that this exemption does not apply to income derived from the conduct of any commercial activity.</p><p>### Three-Part §892 Qualification Test</p><p><strong>Element 1 — Qualifying Entity</strong></p><p>There are two categories: - <strong>Foreign government itself:</strong> A sovereign state acting directly as an investor. Rare in PE context — most sovereigns invest through dedicated vehicles. - <strong>Controlled entity (Treas. Reg. §1.892-5T):</strong> An entity that is wholly owned by a foreign government (directly or indirectly, 100% beneficial interest) and that is organised under the laws of a foreign country. The 100% ownership requirement is strict — a minority ownership position (even 99%) disqualifies the controlled entity.</p><p>Critically, the controlled entity must ALSO meet one of the following: 1. It is organised as a corporation, or 2. Its beneficial interest cannot be sold, transferred, pledged, or otherwise disposed of by the foreign government (i.e., it is not a publicly traded entity), or 3. It is an integral part of the foreign government.</p><p>Most SWF LP vehicles are purpose-built, 100% government-owned, and non-traded — they typically meet the controlled entity definition.</p><p><strong>Element 2 — Qualifying Income Character</strong></p><p>Even for a qualifying entity, only certain income is exempt: - Interest on US obligations (government bonds, corporate bonds) - Dividends from US corporations - Capital gains from the sale of US stocks and bonds (including LP interests in PE funds) - Income from banking and financing activities that are incidental to governmental functions</p><p>The exempt income does NOT include: - Income from commercial activity (the main exclusion) - Income from banking/financing activities that are NOT incidental to governmental functions</p><p><strong>Element 3 — Not Engaged in Commercial Activity</strong></p><p>The critical limitation. Under Treas. Reg. §1.892-4T, a controlled entity is considered to be \"engaged in commercial activity\" if it: 1. Conducts any commercial activity, whether or not related to its governmental functions 2. Receives income from commercial activity of any kind</p><p>The practical question for PE fund LPs: does passive LP investment in a PE fund constitute \"commercial activity\"?</p><p>IRS position and market practice: <strong>Passive LP investment in a PE fund is generally NOT commercial activity</strong>, even though the underlying portfolio companies conduct commercial activity. The SWF is a passive investor; it does not control or operate the portfolio companies. The income it receives (capital gain allocations, dividend allocations) flows through from the PE fund's activities, but the SWF's own activity is passive investment — not the conduct of a business.</p><p>The risk area: if the SWF takes on an operational role (e.g., joining the LPAC with active decision-making authority over specific portfolio company operations, or co-investing directly with operational involvement), the commercial activity line may be crossed. In practice, Gulf SWFs structure their PE LP positions carefully to remain passive to preserve §892 status.</p><p>### The FIRPTA Problem</p><p>§892 does NOT automatically override FIRPTA. §897 treats gains from USRPIs as effectively connected income, and Treas. Reg. §1.897-9T confirms that foreign governments are \"foreign persons\" for FIRPTA purposes.</p><p><strong>What this means in practice:</strong></p><p>If a PE fund holds US real estate (directly or through a REIT structure) and sells it, the foreign government LP's allocable share of the gain is subject to FIRPTA — even if §892 would otherwise exempt the income.</p><p><strong>Available relief:</strong></p><ol><li><strong>Domestically Controlled REIT Exception:</strong> If the PE fund holds US real estate through a REIT that is more than 50% owned by US persons, non-US shareholders may be exempt from FIRPTA on sale of REIT shares. This is a common PE real estate fund structuring tool.</li></ol><ol><li><strong>§897(l) Qualified Foreign Pension Fund (QFPF) Exemption (PATH Act 2015):</strong> A separate FIRPTA exemption for entities that: (a) have no single individual with &gt;5% interest; (b) are established to provide retirement or pension benefits; (c) are subject to government regulation in the home country. Norway's GPFG arguably qualifies; traditional SWFs like ADIA and PIF may not (they are general sovereign wealth funds, not specifically pension funds). The QFPF analysis is separate from §892.</li></ol><ol><li><strong>Fund-level FIRPTA Certificate:</strong> If the PE fund can certify that it is \"domestically controlled\" (&gt;50% US ownership), foreign LP gains from fund-level dispositions may be exempt. Difficult to achieve when Gulf SWFs are large LPs.</li></ol><p><strong>The practical result for most Gulf SWF LPs:</strong> §892 exempts their PE fund K-1 allocations of interest, dividends, and capital gains from stocks/bonds. But K-1 Box 10 (§1231 gains from real property) and real estate-related gains require separate FIRPTA analysis.</p><p>### W-8EXP Certification Procedure</p><p>Form W-8EXP is the withholding certificate for: - Foreign governments (Part II — Line 9) - International organisations (Part III) - Foreign central banks of issue (Part IV) - Foreign tax-exempt organisations (Part V) - Foreign private foundations (Part VI)</p><p><strong>Key fields for §892:</strong></p><ul class='notelist'><li><strong>Line 9 (Part II — Foreign Government):</strong> The entity certifies it is a foreign government or controlled entity of a foreign government under §892.</li><li><strong>Line 14 (Certification of §892 Status for Controlled Entities):</strong> The controlled entity certifies: (a) it is wholly owned by a foreign government; (b) it is not engaged in commercial activity in the US; (c) the government hasn't surrendered its exemption by engaging in commercial activity or receiving non-exempt income.</li></ul><p><strong>Validity period:</strong> W-8EXP is valid for 3 years from the end of the year of signing, same as W-8BEN-E.</p><p><strong>FATCA (Chapter 4):</strong> Foreign governments and their controlled entities are \"exempt beneficial owners\" for FATCA purposes (Treas. Reg. §1.1471-6). They receive a FATCA exemption code on information returns.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Statutory Basis</p><p>§892(a)(1) provides:</p><p>&gt; \"The income of foreign governments received from investments in the United States in stocks, bonds, or other domestic securities, owned by foreign governments, or from interest on deposits in banks in the United States of moneys belonging to such foreign governments, or from any other source within the United States, shall not be included in gross income and shall be exempt from taxation under this subtitle.\"</p><p>§892(a)(2) extends this to international organisations. §892(b) provides that this exemption does not apply to income derived from the conduct of any commercial activity.</p><p>### Three-Part §892 Qualification Test</p><p><strong>Element 1 — Qualifying Entity</strong></p><p>There are two categories: - <strong>Foreign government itself:</strong> A sovereign state acting directly as an investor. Rare in PE context — most sovereigns invest through dedicated vehicles. - <strong>Controlled entity (Treas. Reg. §1.892-5T):</strong> An entity that is wholly owned by a foreign government (directly or indirectly, 100% beneficial interest) and that is organised under the laws of a foreign country. The 100% ownership requirement is strict — a minority ownership position (even 99%) disqualifies the controlled entity.</p><p>Critically, the controlled entity must ALSO meet one of the following: 1. It is organised as a corporation, or 2. Its beneficial interest cannot be sold, transferred, pledged, or otherwise disposed of by the foreign government (i.e., it is not a publicly traded entity), or 3. It is an integral part of the foreign government.</p><p>Most SWF LP vehicles are purpose-built, 100% government-owned, and non-traded — they typically meet the controlled entity definition.</p><p><strong>Element 2 — Qualifying Income Character</strong></p><p>Even for a qualifying entity, only certain income is exempt: - Interest on US obligations (government bonds, corporate bonds) - Dividends from US corporations - Capital gains from the sale of US stocks and bonds (including LP interests in PE funds) - Income from banking and financing activities that are incidental to governmental functions</p><p>The exempt income does NOT include: - Income from commercial activity (the main exclusion) - Income from banking/financing activities that are NOT incidental to governmental functions</p><p><strong>Element 3 — Not Engaged in Commercial Activity</strong></p><p>The critical limitation. Under Treas. Reg. §1.892-4T, a controlled entity is considered to be \"engaged in commercial activity\" if it: 1. Conducts any commercial activity, whether or not related to its governmental functions 2. Receives income from commercial activity of any kind</p><p>The practical question for PE fund LPs: does passive LP investment in a PE fund constitute \"commercial activity\"?</p><p>IRS position and market practice: <strong>Passive LP investment in a PE fund is generally NOT commercial activity</strong>, even though the underlying portfolio companies conduct commercial activity. The SWF is a passive investor; it does not control or operate the portfolio companies. The income it receives (capital gain allocations, dividend allocations) flows through from the PE fund's activities, but the SWF's own activity is passive investment — not the conduct of a business.</p><p>The risk area: if the SWF takes on an operational role (e.g., joining the LPAC with active decision-making authority over specific portfolio company operations, or co-investing directly with operational involvement), the commercial activity line may be crossed. In practice, Gulf SWFs structure their PE LP positions carefully to remain passive to preserve §892 status.</p><p>### The FIRPTA Problem</p><p>§892 does NOT automatically override FIRPTA. §897 treats gains from USRPIs as effectively connected income, and Treas. Reg. §1.897-9T confirms that foreign governments are \"foreign persons\" for FIRPTA purposes.</p><p><strong>What this means in practice:</strong></p><p>If a PE fund holds US real estate (directly or through a REIT structure) and sells it, the foreign government LP's allocable share of the gain is subject to FIRPTA — even if §892 would otherwise exempt the income.</p><p><strong>Available relief:</strong></p><ol><li><strong>Domestically Controlled REIT Exception:</strong> If the PE fund holds US real estate through a REIT that is more than 50% owned by US persons, non-US shareholders may be exempt from FIRPTA on sale of REIT shares. This is a common PE real estate fund structuring tool.</li></ol><ol><li><strong>§897(l) Qualified Foreign Pension Fund (QFPF) Exemption (PATH Act 2015):</strong> A separate FIRPTA exemption for entities that: (a) have no single individual with &gt;5% interest; (b) are established to provide retirement or pension benefits; (c) are subject to government regulation in the home country. Norway's GPFG arguably qualifies; traditional SWFs like ADIA and PIF may not (they are general sovereign wealth funds, not specifically pension funds). The QFPF analysis is separate from §892.</li></ol><ol><li><strong>Fund-level FIRPTA Certificate:</strong> If the PE fund can certify that it is \"domestically controlled\" (&gt;50% US ownership), foreign LP gains from fund-level dispositions may be exempt. Difficult to achieve when Gulf SWFs are large LPs.</li></ol><p><strong>The practical result for most Gulf SWF LPs:</strong> §892 exempts their PE fund K-1 allocations of interest, dividends, and capital gains from stocks/bonds. But K-1 Box 10 (§1231 gains from real property) and real estate-related gains require separate FIRPTA analysis.</p><p>### W-8EXP Certification Procedure</p><p>Form W-8EXP is the withholding certificate for: - Foreign governments (Part II — Line 9) - International organisations (Part III) - Foreign central banks of issue (Part IV) - Foreign tax-exempt organisations (Part V) - Foreign private foundations (Part VI)</p><p><strong>Key fields for §892:</strong></p><ul class='notelist'><li><strong>Line 9 (Part II — Foreign Government):</strong> The entity certifies it is a foreign government or controlled entity of a foreign government under §892.</li><li><strong>Line 14 (Certification of §892 Status for Controlled Entities):</strong> The controlled entity certifies: (a) it is wholly owned by a foreign government; (b) it is not engaged in commercial activity in the US; (c) the government hasn't surrendered its exemption by engaging in commercial activity or receiving non-exempt income.</li></ul><p><strong>Validity period:</strong> W-8EXP is valid for 3 years from the end of the year of signing, same as W-8BEN-E.</p><p><strong>FATCA (Chapter 4):</strong> Foreign governments and their controlled entities are \"exempt beneficial owners\" for FATCA purposes (Treas. Reg. §1.1471-6). They receive a FATCA exemption code on information returns.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### Statutory Basis</p><p>§892(a)(1) provides:</p><p>&gt; \"The income of foreign governments received from investments in the United States in stocks, bonds, or other domestic securities, owned by foreign governments, or from interest on deposits in banks in the United States of moneys belonging to such foreign governments, or from any other source within the United States, shall not be included in gross income and shall be exempt from taxation under this subtitle.\"</p><p>§892(a)(2) extends this to international organisations. §892(b) provides that this exemption does not apply to income derived from the conduct of any commercial activity.</p><p>### Three-Part §892 Qualification Test</p><p><strong>Element 1 — Qualifying Entity</strong></p><p>There are two categories: - <strong>Foreign government itself:</strong> A sovereign state acting directly as an investor. Rare in PE context — most sovereigns invest through dedicated vehicles. - <strong>Controlled entity (Treas. Reg. §1.892-5T):</strong> An entity that is wholly owned by a foreign government (directly or indirectly, 100% beneficial interest) and that is organised under the laws of a foreign country. The 100% ownership requirement is strict — a minority ownership position (even 99%) disqualifies the controlled entity.</p><p>Critically, the controlled entity must ALSO meet one of the following: 1. It is organised as a corporation, or 2. Its beneficial interest cannot be sold, transferred, pledged, or otherwise disposed of by the foreign government (i.e., it is not a publicly traded entity), or 3. It is an integral part of the foreign government.</p><p>Most SWF LP vehicles are purpose-built, 100% government-owned, and non-traded — they typically meet the controlled entity definition.</p><p><strong>Element 2 — Qualifying Income Character</strong></p><p>Even for a qualifying entity, only certain income is exempt: - Interest on US obligations (government bonds, corporate bonds) - Dividends from US corporations - Capital gains from the sale of US stocks and bonds (including LP interests in PE funds) - Income from banking and financing activities that are incidental to governmental functions</p><p>The exempt income does NOT include: - Income from commercial activity (the main exclusion) - Income from banking/financing activities that are NOT incidental to governmental functions</p><p><strong>Element 3 — Not Engaged in Commercial Activity</strong></p><p>The critical limitation. Under Treas. Reg. §1.892-4T, a controlled entity is considered to be \"engaged in commercial activity\" if it: 1. Conducts any commercial activity, whether or not related to its governmental functions 2. Receives income from commercial activity of any kind</p><p>The practical question for PE fund LPs: does passive LP investment in a PE fund constitute \"commercial activity\"?</p><p>IRS position and market practice: <strong>Passive LP investment in a PE fund is generally NOT commercial activity</strong>, even though the underlying portfolio companies conduct commercial activity. The SWF is a passive investor; it does not control or operate the portfolio companies. The income it receives (capital gain allocations, dividend allocations) flows through from the PE fund's activities, but the SWF's own activity is passive investment — not the conduct of a business.</p><p>The risk area: if the SWF takes on an operational role (e.g., joining the LPAC with active decision-making authority over specific portfolio company operations, or co-investing directly with operational involvement), the commercial activity line may be crossed. In practice, Gulf SWFs structure their PE LP positions carefully to remain passive to preserve §892 status.</p><p>### The FIRPTA Problem</p><p>§892 does NOT automatically override FIRPTA. §897 treats gains from USRPIs as effectively connected income, and Treas. Reg. §1.897-9T confirms that foreign governments are \"foreign persons\" for FIRPTA purposes.</p><p><strong>What this means in practice:</strong></p><p>If a PE fund holds US real estate (directly or through a REIT structure) and sells it, the foreign government LP's allocable share of the gain is subject to FIRPTA — even if §892 would otherwise exempt the income.</p><p><strong>Available relief:</strong></p><ol><li><strong>Domestically Controlled REIT Exception:</strong> If the PE fund holds US real estate through a REIT that is more than 50% owned by US persons, non-US shareholders may be exempt from FIRPTA on sale of REIT shares. This is a common PE real estate fund structuring tool.</li></ol><ol><li><strong>§897(l) Qualified Foreign Pension Fund (QFPF) Exemption (PATH Act 2015):</strong> A separate FIRPTA exemption for entities that: (a) have no single individual with &gt;5% interest; (b) are established to provide retirement or pension benefits; (c) are subject to government regulation in the home country. Norway's GPFG arguably qualifies; traditional SWFs like ADIA and PIF may not (they are general sovereign wealth funds, not specifically pension funds). The QFPF analysis is separate from §892.</li></ol><ol><li><strong>Fund-level FIRPTA Certificate:</strong> If the PE fund can certify that it is \"domestically controlled\" (&gt;50% US ownership), foreign LP gains from fund-level dispositions may be exempt. Difficult to achieve when Gulf SWFs are large LPs.</li></ol><p><strong>The practical result for most Gulf SWF LPs:</strong> §892 exempts their PE fund K-1 allocations of interest, dividends, and capital gains from stocks/bonds. But K-1 Box 10 (§1231 gains from real property) and real estate-related gains require separate FIRPTA analysis.</p><p>### W-8EXP Certification Procedure</p><p>Form W-8EXP is the withholding certificate for: - Foreign governments (Part II — Line 9) - International organisations (Part III) - Foreign central banks of issue (Part IV) - Foreign tax-exempt organisations (Part V) - Foreign private foundations (Part VI)</p><p><strong>Key fields for §892:</strong></p><ul class='notelist'><li><strong>Line 9 (Part II — Foreign Government):</strong> The entity certifies it is a foreign government or controlled entity of a foreign government under §892.</li><li><strong>Line 14 (Certification of §892 Status for Controlled Entities):</strong> The controlled entity certifies: (a) it is wholly owned by a foreign government; (b) it is not engaged in commercial activity in the US; (c) the government hasn't surrendered its exemption by engaging in commercial activity or receiving non-exempt income.</li></ul><p><strong>Validity period:</strong> W-8EXP is valid for 3 years from the end of the year of signing, same as W-8BEN-E.</p><p><strong>FATCA (Chapter 4):</strong> Foreign governments and their controlled entities are \"exempt beneficial owners\" for FATCA purposes (Treas. Reg. §1.1471-6). They receive a FATCA exemption code on information returns.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>\"§892 covers all US income for sovereign wealth funds.\"</strong> False — it covers passive investment income from stocks, bonds, and deposits. Commercial activity income is explicitly excluded. Real property gain (FIRPTA) requires separate analysis.</p><p><strong>\"Gulf SWFs don't need any US tax analysis because §892 exempts everything.\"</strong> False — FIRPTA gains on US real property are not automatically exempt under §892. Box 10 §1231 gains from real estate holdings require a separate FIRPTA analysis.</p><p><strong>\"GPFG and Gulf SWFs get the same tax treatment.\"</strong> Not exactly — GPFG may qualify under §897(l) QFPF exemption for FIRPTA specifically (because it's a pension fund), which Gulf SWFs generally do not. Both may use §892 for ordinary income exemption.</p><p><strong>\"A 99%-owned entity qualifies as a controlled entity under §892.\"</strong> False — the 100% ownership requirement under Treas. Reg. §1.892-5T is strict. Any minority interest disqualifies the entity from controlled entity status. Some SWFs address this by using multiple ownership layers, all 100%-owned.</p><p><strong>\"§892 LPs don't get K-1s or 1042-S forms.\"</strong> False — they still receive K-1 allocations (which flow through in the normal way) and should receive 1042-S forms for US-source income, even if the income is coded as exempt from US tax. The reporting obligation exists even when the tax liability does not.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>§892 provides foreign governments and their wholly-owned controlled entities with an exemption from US federal income tax on passive investment income — interest, dividends, and capital gains from US stocks and bonds. For Gulf sovereign wealth funds (ADIA, PIF, QIA), which have no income tax treaties with the United States, §892 is the primary structural protection that allows large-scale US PE fund investment without the 21% corporate tax cost of a Cayman blocker structure. The exemption has two critical limitations: the commercial activity exception (which means SWFs must remain passive LP investors and avoid operational involvement in US portfolio companies) and the FIRPTA limitation (§892 alone does not exempt US real property gains — separate analysis under §897(l) QFPF or domestically controlled REIT exemptions is required). From a fund administration perspective, §892 LPs are identified by their Form W-8EXP filing rather than W-8BEN-E, are classified as FATCA exempt beneficial owners, and require separate FIRPTA analysis for any K-1 Box 10 real property gain allocations.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>§892 provides foreign governments and their wholly-owned controlled entities with an exemption from US federal income tax on passive investment income — interest, dividends, and capital gains from US stocks and bonds. For Gulf sovereign wealth funds (ADIA, PIF, QIA), which have no income tax treaties with the United States, §892 is the primary structural protection that allows large-scale US PE fund investment without the 21% corporate tax cost of a Cayman blocker structure. The exemption has two critical limitations: the commercial activity exception (which means SWFs must remain passive LP investors and avoid operational involvement in US portfolio companies) and the FIRPTA limitation (§892 alone does not exempt US real property gains — separate analysis under §897(l) QFPF or domestically controlled REIT exemptions is required). From a fund administration perspective, §892 LPs are identified by their Form W-8EXP filing rather than W-8BEN-E, are classified as FATCA exempt beneficial owners, and require separate FIRPTA analysis for any K-1 Box 10 real property gain allocations.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

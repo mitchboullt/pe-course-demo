@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "management-fees-and-carried-interest", "title": "Management Fees and Carried Interest", "draft_watermark": false, "estimated_runtime_sec": 475, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "How the GP gets paid", "on_screen_bullets": ["Two very different fees", "One is salary, one is bonus", "'2 and 20' hides the detail"], "narration": "If you want to know whether a GP and its investors are truly on the same side, follow the money to the GP. There are two ways it gets paid, and they could not be more different in spirit. One is a steady charge it collects whether or not it ever makes you a penny. The other it earns only after you've done well. Get these two straight and you can calculate what LPs actually keep, you can judge whether the incentives are aligned, and you can see past that famous shorthand — two and twenty — which sounds simple but hides everything a sophisticated investor negotiates hardest on.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Fee vs. carry", "on_screen_bullets": ["Mgmt fee: ~2% of commitments/yr", "Covers the GP's running costs", "Carry: ~20% of profit, after a hurdle"], "narration": "Here are the two, defined. The management fee is a recurring charge — typically around two percent of committed capital every year — that covers the GP's operating costs: salaries, rent, lawyers, the lights. Carried interest, or carry, is the GP's share of investment profit — typically twenty percent — but earned only after the LPs have received their capital back plus a minimum return. One pays the bills. The other is the reward for performance. Keep that distinction sharp, because almost every misconception about PE fees comes from blurring them.", "est_sec": 44}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Salary and bonus", "on_screen_bullets": ["$500m fund × 2% = $10m/yr", "Pays operations, not deals", "The bonus is where wealth is made"], "narration": "Think of hiring a fund manager in two parts. Part one is the salary — the management fee. The firm has to pay its analysts and partners and rent every single year, whether or not a single deal has been done, so the management fee covers that. On a five hundred million dollar fund at two percent, that's ten million dollars a year flowing from LPs to the GP's management company — and note, that money runs the firm; it does not get invested. Part two is the bonus — carried interest. The salary keeps the lights on, but it is not what makes PE professionals wealthy. The real upside is carry: the GP's slice of the profits, and only the profits.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The agent's commission", "on_screen_bullets": ["Small retainer + big commission", "Commission only above a threshold", "Aligns to the sale price"], "narration": "A useful analogy is an estate agent — but one whose pay is tied to your outcome. They charge a small monthly retainer to look after the property and find buyers; that's the management fee. But their real payday is a commission on the sale price, and crucially they only earn the full commission if the price clears a minimum threshold — that's the hurdle rate. Below the threshold, they get nothing beyond the retainer. That structure pushes the agent to maximise the price, not just close fast. That's the alignment logic of carry. Where the analogy strains: in PE the sale takes five to ten years, and the retainer collected along the way can already be substantial — which quietly takes some of the edge off the urgency to deliver.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The fee that steps down", "on_screen_bullets": ["Yrs 1–5: % of committed capital", "Yrs 5–10: steps to invested/NAV", "Committed base = fee on idle cash"], "narration": "Now the mechanics, because the fee changes shape over the fund's life. During the investment period, roughly years one to five, the fee is charged on committed capital — the full amount LPs promised, regardless of how much is actually deployed. That's the highest base. After the investment period, the fee steps down and is charged on invested capital or net asset value instead, reflecting a shrinking portfolio. Here's the subtle part: charging on committed capital means the GP earns its full fee even while money sits undeployed — a modest incentive to take its time. That's exactly why the LP advisory committee keeps an eye on deployment pace. The management fee, remember, is an operating charge — it sits entirely outside the profit split.", "est_sec": 54}, {"n": 6, "beat": "mechanics", "visual": "diagram", "source_section": "Diagram", "on_screen_title": "Carry is the top of the stack", "on_screen_bullets": ["LP capital first", "Then LP preferred return", "Only then GP catch-up + 20%"], "mermaid": "flowchart TD\n  P[\"Exit proceeds\"] --> T1[\"Tier 1: return LP capital\"]\n  T1 --> T2[\"Tier 2: pay LP preferred return (~8%)\"]\n  T2 --> T3[\"Tier 3: GP catch-up<br/>(up to its 20% of profit)\"]\n  T3 --> T4[\"Tier 4: split residual 80% LP / 20% GP\"]", "narration": "This diagram is the single most important thing to internalise about carry. Carry is not twenty percent of everything that comes back — it is twenty percent of what survives after two LP-priority tiers. Watch the order. Exit proceeds arrive. Tier one returns the LPs' capital. Tier two pays the LPs their preferred return, around eight percent. Only then, in tier three, does the GP catch up — taking the next dollars until it holds twenty percent of the profit. And tier four splits everything beyond that eighty to the LPs, twenty to the GP. Notice what's not in this stack at all: the management fee. That's a separate annual charge, drawn regardless of profit. Everything above tiers three and four belongs to the LPs first.", "est_sec": 54}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "A $500m fund, both fees", "on_screen_bullets": ["Fees: ~$64m over 10 yrs", "Returns $800m → $300m profit", "20% carry above an 8% hurdle"], "narration": "Put numbers on a five hundred million dollar buyout fund. During the five-year investment period it charges two percent on the full five hundred million — ten million a year, fifty million total. Then the fee steps to one and a half percent on a shrinking invested base — about five and a quarter million in year six, falling each year after. Add it up and management fees over the ten-year life come to roughly sixty-four million dollars, all of it drawn from LP capital and never returned. Now carry. Say the fund returns eight hundred million to LPs against the five hundred million they put in — three hundred million of profit. Carry isn't twenty percent of the eight hundred; it's twenty percent of the profit that clears the eight percent hurdle. These figures are illustrative, but the shape is the lesson: a predictable fee that runs to tens of millions regardless of outcome, and a profit share that only switches on once investors are made whole and then some.", "est_sec": 62}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["'2 and 20' isn't fixed", "The fee isn't profit-sharing", "Carry ≠ 20% of all proceeds"], "narration": "Three corrections, all common. First, two and twenty is not a law — it's a historical starting point. Large institutional LPs, mega-fund competition, and hard fundraising negotiations have pushed many funds to one and a half percent or lower. Fees are always negotiated. Second, the management fee is not profit-sharing — it's an operating-cost reimbursement, owed whether or not the fund ever makes a profit. Profit-sharing is what carry is for. And third, the big one: carry is not twenty percent of all the money returned to LPs. It's twenty percent of the profit above the hurdle, after capital and preferred return are paid. In a fund that barely clears the hurdle, carry can be a tiny fraction of the headline twenty percent — or nothing at all.", "est_sec": 56}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Two fees, one alignment", "on_screen_bullets": ["Fee: ~2%, operating cost, always owed", "Carry: ~20% of gains above 8%", "Carry is where alignment lives"], "narration": "To recap. GP pay has two parts. The management fee — about two percent of committed capital a year, stepping down later — covers operating costs and is owed regardless of returns. Carried interest — about twenty percent of gains above an eight percent hurdle — is the profit share, and it's where GP wealth is actually created. Two and twenty is handy shorthand but it oversimplifies: rates vary, the fee base steps down, offsets reduce the effective charge, and carry only switches on above the hurdle. The fee is a cost LPs bear no matter what; the carry, and its design — hurdle, catch-up, clawback — is the central lever that aligns the GP with its investors. Next we'll zoom in on that hurdle.", "est_sec": 50}], "end_card": {"quiz_label": "Q2", "question_on_screen": "A fund has $600m in committed capital and charges a 2% annual management fee during the investment period. What is the annual fee?", "narration": "Before moving on, do the arithmetic yourself. A six-hundred-million-dollar fund charges a two percent management fee during the investment period — what's the annual fee, and where does that money go? Work it out, then check the notes below."}, "quiz": [{"label": "Q1. Short answer:", "question": "What is the purpose of the management fee in a PE fund?", "answer": "To cover the GP's operating costs — salaries, rent, legal fees, travel, and other overhead. It is not an investment return mechanism."}, {"label": "Q2. Calculation:", "question": "A fund has $600M in committed capital and charges a 2% annual management fee during the 5-year investment period. How much total management fee do LPs pay during the investment period?", "answer": "2% × $600M = $12M per year × 5 years = $60M total."}, {"label": "Q3. Multiple choice:", "question": "When does the GP start earning carried interest?\n\n- A) From the moment the fund closes\n- B) After every individual deal is exited\n- C) After LPs have received their capital back plus the preferred return (hurdle)\n- D) Equally distributed each year over the fund life", "answer": "C — Carry is earned only after LPs have received their capital back plus the hurdle return, which is typically 8% per annum."}, {"label": "Q4. True or False:", "question": "A management fee of \"2 and 20\" means the GP charges 2% of all profits and 20% of committed capital.", "answer": "False. \"2 and 20\" means approximately 2% of committed capital as a management fee plus 20% of profits as carried interest — the numbers refer to two completely different things."}, {"label": "Q5. Short answer:", "question": "What is a management fee offset and why do LPs care about it?", "answer": "A management fee offset credits fees the GP earns from portfolio companies (transaction fees, monitoring fees) against the management fee owed by LPs. LPs care because, without an offset, they effectively pay twice — once in the management fee and again indirectly through portfolio company fees that reduce company value."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Management Fees and Carried Interest\n\n[hook] How the GP gets paid\nIf you want to know whether a GP and its investors are truly on the same side, follow the money to the GP. There are two ways it gets paid, and they could not be more different in spirit. One is a steady charge it collects whether or not it ever makes you a penny. The other it earns only after you've done well. Get these two straight and you can calculate what LPs actually keep, you can judge whether the incentives are aligned, and you can see past that famous shorthand — two and twenty — which sounds simple but hides everything a sophisticated investor negotiates hardest on.\n\n[definition] Fee vs. carry\nHere are the two, defined. The management fee is a recurring charge — typically around two percent of committed capital every year — that covers the GP's operating costs: salaries, rent, lawyers, the lights. Carried interest, or carry, is the GP's share of investment profit — typically twenty percent — but earned only after the LPs have received their capital back plus a minimum return. One pays the bills. The other is the reward for performance. Keep that distinction sharp, because almost every misconception about PE fees comes from blurring them.\n\n[intuition] Salary and bonus\nThink of hiring a fund manager in two parts. Part one is the salary — the management fee. The firm has to pay its analysts and partners and rent every single year, whether or not a single deal has been done, so the management fee covers that. On a five hundred million dollar fund at two percent, that's ten million dollars a year flowing from LPs to the GP's management company — and note, that money runs the firm; it does not get invested. Part two is the bonus — carried interest. The salary keeps the lights on, but it is not what makes PE professionals wealthy. The real upside is carry: the GP's slice of the profits, and only the profits.\n\n[intuition] The agent's commission\nA useful analogy is an estate agent — but one whose pay is tied to your outcome. They charge a small monthly retainer to look after the property and find buyers; that's the management fee. But their real payday is a commission on the sale price, and crucially they only earn the full commission if the price clears a minimum threshold — that's the hurdle rate. Below the threshold, they get nothing beyond the retainer. That structure pushes the agent to maximise the price, not just close fast. That's the alignment logic of carry. Where the analogy strains: in PE the sale takes five to ten years, and the retainer collected along the way can already be substantial — which quietly takes some of the edge off the urgency to deliver.\n\n[mechanics] The fee that steps down\nNow the mechanics, because the fee changes shape over the fund's life. During the investment period, roughly years one to five, the fee is charged on committed capital — the full amount LPs promised, regardless of how much is actually deployed. That's the highest base. After the investment period, the fee steps down and is charged on invested capital or net asset value instead, reflecting a shrinking portfolio. Here's the subtle part: charging on committed capital means the GP earns its full fee even while money sits undeployed — a modest incentive to take its time. That's exactly why the LP advisory committee keeps an eye on deployment pace. The management fee, remember, is an operating charge — it sits entirely outside the profit split.\n\n[mechanics] Carry is the top of the stack\nThis diagram is the single most important thing to internalise about carry. Carry is not twenty percent of everything that comes back — it is twenty percent of what survives after two LP-priority tiers. Watch the order. Exit proceeds arrive. Tier one returns the LPs' capital. Tier two pays the LPs their preferred return, around eight percent. Only then, in tier three, does the GP catch up — taking the next dollars until it holds twenty percent of the profit. And tier four splits everything beyond that eighty to the LPs, twenty to the GP. Notice what's not in this stack at all: the management fee. That's a separate annual charge, drawn regardless of profit. Everything above tiers three and four belongs to the LPs first.\n\n[worked-example] A $500m fund, both fees\nPut numbers on a five hundred million dollar buyout fund. During the five-year investment period it charges two percent on the full five hundred million — ten million a year, fifty million total. Then the fee steps to one and a half percent on a shrinking invested base — about five and a quarter million in year six, falling each year after. Add it up and management fees over the ten-year life come to roughly sixty-four million dollars, all of it drawn from LP capital and never returned. Now carry. Say the fund returns eight hundred million to LPs against the five hundred million they put in — three hundred million of profit. Carry isn't twenty percent of the eight hundred; it's twenty percent of the profit that clears the eight percent hurdle. These figures are illustrative, but the shape is the lesson: a predictable fee that runs to tens of millions regardless of outcome, and a profit share that only switches on once investors are made whole and then some.\n\n[pitfalls] What people get wrong\nThree corrections, all common. First, two and twenty is not a law — it's a historical starting point. Large institutional LPs, mega-fund competition, and hard fundraising negotiations have pushed many funds to one and a half percent or lower. Fees are always negotiated. Second, the management fee is not profit-sharing — it's an operating-cost reimbursement, owed whether or not the fund ever makes a profit. Profit-sharing is what carry is for. And third, the big one: carry is not twenty percent of all the money returned to LPs. It's twenty percent of the profit above the hurdle, after capital and preferred return are paid. In a fund that barely clears the hurdle, carry can be a tiny fraction of the headline twenty percent — or nothing at all.\n\n[recap] Two fees, one alignment\nTo recap. GP pay has two parts. The management fee — about two percent of committed capital a year, stepping down later — covers operating costs and is owed regardless of returns. Carried interest — about twenty percent of gains above an eight percent hurdle — is the profit share, and it's where GP wealth is actually created. Two and twenty is handy shorthand but it oversimplifies: rates vary, the fee base steps down, offsets reduce the effective charge, and carry only switches on above the hurdle. The fee is a cost LPs bear no matter what; the carry, and its design — hurdle, catch-up, clawback — is the central lever that aligns the GP with its investors. Next we'll zoom in on that hurdle.\n\nQ: What is the purpose of the management fee in a PE fund?\nA: To cover the GP's operating costs — salaries, rent, legal fees, travel, and other overhead. It is not an investment return mechanism.\nQ: A fund has $600M in committed capital and charges a 2% annual management fee during the 5-year investment period. How much total management fee do LPs pay during the investment period?\nA: 2% × $600M = $12M per year × 5 years = $60M total.\nQ: When does the GP start earning carried interest?\n\n- A) From the moment the fund closes\n- B) After every individual deal is exited\n- C) After LPs have received their capital back plus the preferred return (hurdle)\n- D) Equally distributed each year over the fund life\nA: C — Carry is earned only after LPs have received their capital back plus the hurdle return, which is typically 8% per annum.\nQ: A management fee of \"2 and 20\" means the GP charges 2% of all profits and 20% of committed capital.\nA: False. \"2 and 20\" means approximately 2% of committed capital as a management fee plus 20% of profits as carried interest — the numbers refer to two completely different things.\nQ: What is a management fee offset and why do LPs care about it?\nA: A management fee offset credits fees the GP earns from portfolio companies (transaction fees, monitoring fees) against the management fee owed by LPs. LPs care because, without an offset, they effectively pay twice — once in the management fee and again indirectly through portfolio company fees that reduce company value.\nEnd-card question: A fund has $600m in committed capital and charges a 2% annual management fee during the investment period. What is the annual fee?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Fund economics determine whether the incentives between a GP and its LPs are genuinely aligned or subtly misaligned. Understanding these two fee types is essential for three reasons: (1) they directly reduce LP returns, so you must understand them to calculate net returns; (2) carried interest is the primary mechanism designed to align GP and LP interests — understanding how it works (and how it can fail) is critical for governance; and (3) \"2 and 20\" has become a cultural shorthand for the PE industry, but it is a simplification that obscures important nuances that sophisticated investors negotiate hard on.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Management fees and carried interest are the two components of GP compensation: management fees are a recurring charge (typically ~2% of committed capital per year) that cover the GP's operating costs, while carried interest (\"carry\") is the GP's share of investment profits (typically 20%) earned only after LPs have received their capital back plus a minimum return.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of hiring a professional fund manager in two parts:</p><p><strong>Part 1 — The Salary (Management Fee)</strong> The PE firm needs to pay its analysts, partners, rent, legal fees, and operating costs every year — regardless of whether any investments have been made or are profitable. The management fee covers this. It is a predictable, recurring charge taken from LP capital every year the fund is active.</p><p>Typical rate: about 2% of the total fund size per year, during the investment period.</p><p>So if a fund is $500M and the fee is 2%, that is $10M per year flowing from LPs to the GP's management company. This money pays for the firm's operations — it is not invested.</p><p><strong>Part 2 — The Bonus (Carried Interest)</strong> The management fee alone is not what makes PE professionals wealthy. The real upside is carried interest (or \"carry\") — the GP's share of investment profits.</p><p>How it works: after LPs get their money back, plus a minimum return (typically 8% per year, called the hurdle rate), the GP takes 20% of all remaining profits.</p><p>If LPs invested $500M and eventually received back $800M, the $300M profit would be subject to the carry calculation. Of that $300M (above the hurdle), approximately 20% — or $60M — would go to the GP. The remaining $240M goes to LPs.</p><p>This means: the GP only gets rich if the LPs get rich first. That is the alignment mechanism.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Carried interest is like a <strong>real estate agent's commission structure</strong>, but aligned with the seller's outcome.</p><p>Imagine your real estate agent charges you a small monthly retainer (the management fee) to maintain the property and search for buyers. But their real payday is a commission on the sale price — and crucially, they only earn the full commission if the sale price exceeds a minimum threshold (the hurdle rate). If the house sells below the threshold, they get nothing beyond the retainer.</p><p>This structure means the agent is strongly motivated to maximise the sale price, not just close any deal quickly. That is the alignment logic of carried interest.</p><p>The flaw in the analogy: in PE, the \"sale\" takes 5-10 years, and the \"retainer\" (management fee) during that period can already be substantial, partially reducing the urgency of eventual profit.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>Management Fees — Mechanics</strong></p><p>The management fee is calculated as a percentage of a base amount:</p><ul class='notelist'><li><strong>During the investment period (typically years 1-5):</strong> Fee is based on <strong>committed capital</strong> — the total amount LPs promised to invest, regardless of how much has been deployed. This is the highest fee base.</li><li><strong>After the investment period (years 5-10):</strong> Fee steps down and is typically based on <strong>invested capital</strong> (cost basis of remaining portfolio companies) or <strong>net asset value (NAV)</strong>. This is lower than the investment-period fee and reflects the shrinking portfolio.</li></ul><p><strong>Why this matters:</strong> Using committed capital as the base means the GP earns full management fees even when capital sits undeployed. This creates a modest incentive to delay deployment, which is why LPAC oversight of deployment pace matters.</p><p><strong>Typical fee rates:</strong> - Large buyout funds: 1.5-2.0% on committed capital during investment period - Mid-market funds: 1.75-2.0% - Mega-funds (&gt;$10bn): may negotiate down to 1.25-1.5%</p><p><strong>Management Fee Offset</strong></p><p>GPs often earn additional income from portfolio companies in the form of: - Transaction fees (advisory fees for deal execution) - Monitoring fees (annual management consulting fees charged to portfolio companies) - Board fees (director fees at portfolio companies)</p><p>These fees are earned by the GP's management company, not the fund. Many LPAs require a management fee offset: typically 50-100% of these portfolio company fees are credited against the management fee owed by LPs. A 100% offset means all advisory fee income directly reduces what LPs pay in management fees — clearly favourable to LPs.</p><p><strong>Carried Interest — Mechanics</strong></p><p>Carried interest is typically structured as: - <strong>Rate:</strong> 20% of fund profits (the \"20\" in \"2 and 20\") - <strong>Hurdle rate (preferred return):</strong> 8% per annum on invested capital — LPs receive this minimum return before any carry is paid - <strong>GP catch-up provision:</strong> After the hurdle is reached, the GP receives 100% of incremental distributions (or an accelerated percentage) until it has \"caught up\" to its 20% share of total profits - <strong>80/20 final split:</strong> Once the catch-up is complete, remaining profits are split 80% to LPs, 20% to GP</p><p>The exact interplay of hurdle, catch-up, and split is governed by the <strong>distribution waterfall</strong> — see Waterfall Mechanics for the full mechanics.</p><p><strong>Who earns the carry?</strong></p><p>Carried interest is paid to the GP entity, which then distributes it to individual investment professionals according to the firm's internal carry allocation. Senior partners typically receive the largest carry allocations. This internal allocation is a major driver of firm culture, retention, and disputes.</p><p><strong>Tax treatment of carry (US context)</strong></p><p>In the US, carried interest has historically been taxed at long-term capital gains rates (lower than ordinary income), rather than as ordinary compensation. This is controversial from a tax policy perspective, as it means PE professionals pay a lower rate on a large portion of their income than many salaried employees. [needs-verification — tax law subject to change]</p><p>---</p>"}, "5": {"section": "Diagram", "html": "<p>Carry is not 20% of everything returned — it is 20% of what survives <em>after</em> two LP-priority tiers. The order is the whole mechanism.</p><p>The management fee is <em>not</em> in this stack — it is a separate annual operating charge drawn regardless of profit. Only Tiers 3–4 are GP profit; everything above them belongs to LPs first.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>A $500M buyout fund — management fees over the full life:</strong></p><p>| Year | Fee Basis | Fee Rate | Annual Fee | |---|---|---|---| | 1-5 (investment period) | $500M committed | 2.0% | $10M/year = $50M total | | 6 (portfolio winds down) | $350M invested | 1.5% | $5.25M | | 7 | $250M invested | 1.5% | $3.75M | | 8 | $150M invested | 1.5% | $2.25M | | 9-10 | $50M invested | 1.5% | $1.5M/year = $3M |</p><p>Approximate total management fees over 10-year life: ~$64M. This comes out of LP capital — it is not returned. [needs-verification — illustrative example only]</p><p><strong>Carried interest on the same fund:</strong></p><p>Suppose the fund returns $800M total to LPs (gross), meaning $300M in total profit above the $500M invested.</p><p>Simple illustration (ignoring catch-up mechanics and time value): - Hurdle return: 8% × $500M = $40M/year × 5 years ≈ $200M hurdle [needs-verification — simplified, compounding ignored] - Profit above hurdle: $300M - $200M = $100M subject to carry [needs-verification — illustrative] - GP carry (20%): $20M - LP share (80%): $80M</p><p>Note: This is highly simplified. Real waterfall calculations involve compounding, timing of cash flows, and the catch-up provision. See Waterfall Mechanics for the complete mechanics.</p><p><strong>The \"2 and 20\" shorthand — why it misleads:</strong></p><p>\"2 and 20\" has become industry shorthand, but it is imprecise because: 1. The management fee basis changes mid-fund (from committed to invested capital) 2. Many large funds negotiate below 2% (some mega-funds charge 1.25%) 3. Fee offsets mean the net management fee is lower than the headline rate 4. Carry of 20% only applies above the hurdle — so effective carry on total capital returned is much lower</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"'2 and 20' is the standard and all funds charge exactly this.\"</strong> Incorrect. \"2 and 20\" is a historical starting point. Large institutional LPs, mega-fund dynamics, and competitive fundraising pressure have pushed many funds to 1.5% or lower. Fee terms are always negotiated.</p><p><strong>Misconception 2: \"The management fee is a profit-sharing mechanism.\"</strong> Incorrect. The management fee is an operating expense reimbursement — it pays for the GP's costs. Profit sharing is what carried interest is for. The management fee is owed whether or not any profit is ever made.</p><p><strong>Misconception 3: \"Carry is 20% of all money returned to LPs.\"</strong> Incorrect. Carry is 20% of profits above the hurdle rate — after LPs have received their capital back plus the preferred return. In a poor-performing fund that barely clears the hurdle, carry could be tiny.</p><p><strong>Misconception 4: \"GPs always earn their carry.\"</strong> Many PE funds fail to generate sufficient returns to pay any carried interest. A fund that returns 1.0x (just returning invested capital) earns zero carry. [needs-verification — frequency varies by vintage]</p><p><strong>Misconception 5: \"Carry is paid as investments are exited.\"</strong> It depends on the waterfall structure. Under a European (whole-fund) waterfall, no carry is paid until the entire fund has returned all LP capital plus the hurdle. Under an American (deal-by-deal) waterfall, carry can be paid after each deal — but is subject to clawback if later deals underperform.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>GP compensation in PE has two components: management fees (a recurring charge, typically ~2% of committed capital annually, covering operating costs) and carried interest (a profit share, typically 20% of gains above an 8% hurdle rate, which aligns GP incentives with LP outcomes). \"2 and 20\" is widely used shorthand but oversimplifies: fee rates vary, the management fee basis steps down after the investment period, fee offsets reduce the effective charge, and carry is only earned above the hurdle. The management fee is not investment performance — it is an operating cost borne by LPs regardless of returns. Carried interest is where GP wealth creation happens, and its design (hurdle rate, catch-up, clawback) is the central alignment and governance mechanism between GPs and LPs.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

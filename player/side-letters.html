@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "side-letters", "title": "Side Letters", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "One LPA, unequal LPs", "on_screen_bullets": ["LPA governs everyone collectively", "LPs aren't identical", "Accommodate without amending for all"], "narration": "The LPA governs all LPs collectively. But LPs are not identical — a five-hundred-million sovereign wealth fund and a twenty-five-million family office have different compliance requirements, different economic leverage, and different relationship histories with the GP. Side letters are the mechanism through which those differences are accommodated without amending the LPA for everyone. They matter for three reasons: LPs need to know which terms are negotiable, because virtually every meaningful LP modifies something; side letters create a two-tier LP structure that smaller LPs should understand; and GPs must manage the complexity, because a fund with thirty LPs may carry twenty different side letters that must never contradict each other or the LPA. This is how LPs negotiate bilateral terms beyond the partnership agreement.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Bilateral LPA modifications", "on_screen_bullets": ["GP + one specific LP", "Modify or supplement that LP's terms", "Concessions not offered fund-wide"], "narration": "The definition. Side letters are bilateral agreements between a PE GP and a specific LP that modify or supplement that LP's rights and obligations under the main LPA — granting LP-specific concessions on economics, governance, reporting, or liquidity that the GP is not willing, or able, to offer fund-wide. The LPA is the floor of what an LP receives; the side letter is how a large LP builds above it.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The hotel's private rates", "on_screen_bullets": ["Rate card = the LPA", "Big clients get private deals", "Negotiations are confidential"], "narration": "Imagine a hotel with a published rate card — two hundred a night, breakfast extra, three o'clock check-in. But it also negotiates private rates with its largest corporate clients: a big bank gets a hundred-fifty a night, early check-in, and a suite upgrade when available. Those private deals are the hotel's side letters. The rate card — the LPA — applies to everyone in principle, but large, preferred clients get their own deal that modifies the standard terms. PE side letters work exactly that way: the LPA is the rate card, and large, strategic LPs who commit early, have long relationships with the GP, or represent enough capital to matter negotiate private bilateral agreements modifying their specific economics, rights, and obligations. The important asymmetry: these negotiations are confidential. Smaller LPs in the same fund may not know that a larger LP pays a lower fee, gets more co-invest, or sees reports earlier — an information gap partly closed by most-favoured-nation provisions, but only if the LP negotiated one in the first place.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Franchise agreement + MFN", "on_screen_bullets": ["Everyone signs the same franchise deal", "Biggest get private side arrangements", "MFN = 'most-favoured franchise'"], "narration": "The mental model: think of the LPA as a franchise agreement — every franchisee signs the same standard document. But the franchisor, the GP, gives its largest and most strategically important franchisees private side arrangements — better royalty rates, preferred location rights, extra marketing support — that smaller franchisees don't even know about. The most-favoured-nation clause is like a most-favoured-franchise provision: if you're big enough to negotiate it, you're entitled to be told when the franchisor gives better terms to anyone else, and to elect those same terms. Small franchisees without that provision simply don't know what they're missing. That's the whole dynamic of side letters in one image.", "est_sec": 46}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Five categories of provision", "on_screen_bullets": ["Economics, governance, reporting", "Compliance (FOIA, excusal), access", "MFN: scope + tiers + disclosure"], "narration": "Technically, side letters are legally enforceable bilateral contracts, signed alongside the subscription at closing, that reference the LPA and modify it for one LP — and the provisions fall into five categories. Economics: reduced management fees, a flat one-and-a-half percent instead of two, or a rebate that preserves the appearance of consistent terms; and occasionally reduced carry for anchor or seed investors. Governance: a guaranteed LPAC seat; enhanced key-person triggers naming a specific investment partner, not just the firm; and rarely, direct consent rights over big decisions. Reporting: portfolio-company-level financials rather than aggregated fund reporting, earlier delivery, specific data formats, and ESG and operational KPI reporting. Compliance: FOIA protection for US public pensions, obligating the GP to keep documents confidential and notify the LP of any freedom-of-information request; and excusal rights, letting an LP opt out of a specific investment without breaching its commitment — essential for Sharia-compliant investors barred from alcohol or gambling, for politically sensitive sovereign funds, or for ESG-mandated LPs. And access: formalised co-investment allocation, follow-on fund rights reserving capacity in the next fund, and occasionally observer information rights. Tying it together is the most-favoured-nation provision — the key protection for an LP not at the negotiating table — under which the GP must notify the LP of more favourable terms granted to others, and the LP may elect them. But MFN has limits: its scope varies, some cover only fees and carry; it's often tiered, so a fifty-to-a-hundred-million LP gets MFN only against peers in its tier, not against the two-hundred-million-plus anchors; and it's only as good as the disclosure obligation, because a GP who fails to disclose breaks the obligation, but the LP may never know what it missed.", "est_sec": 78}, {"n": 6, "beat": "structure", "visual": "mermaid", "source_section": "Diagram", "on_screen_title": "How MFN closes — or leaks", "on_screen_bullets": ["Anchor triggers a better term", "Election only if disclosed + in scope", "No MFN → stuck on defaults"], "mermaid": "flowchart TD\n  A[\"Anchor LP negotiates<br/>1.5% fee via side letter\"] --> GP[\"GP must disclose<br/>triggering terms\"]\n  GP -->|\"if MFN scope covers it\"| ELECT[\"MFN-holder elects<br/>the same term\"]\n  GP -.->|\"GP fails to disclose\"| LEAK[\"MFN-holder never knows<br/>— right unused\"]\n  ELECT --> EQ[\"Tiers partially equalised\"]\n  SMALL[\"Small LP, no MFN\"] --> NOTHING[\"Stuck on LPA default terms\"]", "narration": "Here's how the MFN mechanism is supposed to close the two-tier gap — and where it leaks. An anchor LP negotiates, say, a one-and-a-half percent fee via its side letter. The GP must then disclose that triggering term, and if it falls within the scope of another LP's MFN clause, that MFN-holder can elect the same term, partially equalising the tiers. But follow the dashed branch: if the GP fails to disclose, the MFN-holder never knows, and the right simply goes unused. And the small LP at the bottom, with no MFN at all, is stuck on the LPA's default terms regardless. So the MFN only actually works when two things hold — the better term falls inside the clause's scope, and the GP genuinely discloses it. Anything else, and the two-tier structure persists.", "est_sec": 42}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "CalPERS and Carlyle", "on_screen_bullets": ["Fee 2% → ~1.5–1.75%, ~$6–10m/yr", "LPAC seat $100m+, FOIA + excusal", "Full MFN benchmarked $150m+"], "narration": "Take CalPERS — around four hundred seventy billion in assets — one of the most active side-letter negotiators in PE. Committing roughly two to four hundred million to a Carlyle buyout fund, CalPERS typically secures, on economics, a fee reduction from two percent to about one-and-a-half to one-and-three-quarters, saving six to ten million a year on a three-hundred-million commitment, plus a full fee offset and zero fees on co-investments. On reporting: quarterly portfolio-company operating KPIs — revenue, EBITDA, headcount, leverage for each company — a forty-five-day rather than sixty-day reporting turnaround, an annual third-party ESG audit, and dual IRR reporting with and without the subscription-line effect, which CalPERS was among the first to require. On compliance: a FOIA protection clause, and an excusal right for any investment in a geopolitically sensitive jurisdiction. On governance: an LPAC seat for any fund where it commits a hundred million or more, plus quick access to conflict disclosures. And a full MFN over all economic terms, benchmarked against LPs committing a hundred-fifty million or more. The payoff was both financial — ten-to-fifteen million in fee savings per fund — and informational: when Carlyle's Asia-focused funds underperformed, CalPERS' quarterly portfolio KPIs gave it an earlier signal than LPs on standard annual reporting, allowing earlier re-evaluation of the relationship. The side letter wasn't just cheaper — it was an early-warning system.", "est_sec": 64}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Same fund ≠ same rights", "MFN ≠ everyone equal", "Side letters aren't only fees"], "narration": "Four corrections. First, being in the same fund does not mean having the same rights — LPs in one fund can carry materially different fees, governance rights, reporting, and compliance provisions, all negotiated privately; the LPA is the floor, not the ceiling. Second, MFN does not mean all LPs get the same terms — it lets MFN-holders elect terms granted to comparable LPs, but only if they know those terms exist, only within their clause's scope, and only if they actively exercise the election; passive holders may never exercise it. Third, negotiating a side letter is not adversarial that GPs resent — for large, strategic relationships it's expected and budgeted-for, and a GP who refuses any modification from a three-hundred-million LP is unlikely to keep it; where GPs draw the line is on provisions creating operational complexity or precedents they can't manage across all LPs. And fourth, side letters are not only about fees — economics are the most financially material, but governance rights like LPAC seats and key-person triggers, compliance provisions like FOIA protection and excusal rights, and reporting enhancements are often more important to a regulated LP's actual operations than the fee saving.", "est_sec": 56}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Build above the floor", "on_screen_bullets": ["Five categories of concession", "MFN closes the gap — imperfectly", "Every LP should negotiate one"], "narration": "To recap. Side letters are bilateral agreements that supplement or modify the LPA for a specific LP, across five categories — economics, governance, reporting, compliance, and access. They exist because the LPA must be consistent for all, but LPs differ in size, regulatory constraints, strategic importance, and history, so large strategic LPs use their capital leverage to negotiate modifications smaller co-investors can't. The MFN provision partly closes the resulting information asymmetry — letting MFN-holders elect terms granted to comparable LPs — but only within scope, only if the GP discloses, and only if the LP exercises it. The practical lesson: every institutional LP should negotiate a side letter, because even at modest size, provisions like FOIA protection, basic co-invest rights, and enhanced reporting cost the GP nothing and provide real value. Next we go deeper on one of those access provisions — the legal framework behind co-investment rights.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name three of the five side-letter categories beyond fees. An LP holds an MFN clause but never receives a better term another LP negotiated — give two reasons the MFN can fail to deliver.", "narration": "Before the next lesson, answer both. Name three of the five categories of side-letter provision beyond simple fee reductions. And if an LP holds an MFN clause but never actually receives a better term that another LP negotiated, give two reasons the MFN could have failed to deliver. Reason it out, then check the notes below."}, "quiz": [{"label": "Q1:", "question": "A £200m sovereign wealth fund is committing to a UK mid-market buyout fund at 2% management fee, 20% carry, European waterfall. List five specific side letter provisions they should request, in order of financial materiality.", "answer": "(1) **Management fee reduction** — 1.75% or 1.5% saves £250k–500k per year on a £200m commitment; most financially material. (2) **100% fee waiver on co-investments** — if the SWF plans active co-investing, eliminating carry on co-invest capital can generate far larger savings than the management fee reduction. (3) **MFN provision (full economic and governance scope)** — ensures SWF receives any better terms granted to other LPs. (4) **LPAC membership** — governance access, conflict visibility, early warning of fund issues. (5) **Excusal right** for politically sensitive jurisdictions (standard for SWFs with government-related LP concerns). Secondary priorities: enhanced quarterly reporting, 45-day delivery, key person enhancements."}, {"label": "Q2:", "question": "An LP has an MFN clause in their side letter covering \"management fee and carried interest.\" During the fundraise, the anchor LP (20% of fund) negotiates: (a) 1.5% management fee, (b) an LPAC seat, (c) portfolio company quarterly financials. Which of these does the MFN-holding LP have a right to elect?", "answer": "Only **(a) the 1.5% management fee** — because the MFN clause covers \"management fee and carried interest\" only. The LPAC seat and portfolio company financials are governance and reporting terms, not economic terms. The LP cannot elect those under their existing MFN. This illustrates why MFN scope matters: \"all material economic and governance terms\" MFN would have covered all three; a narrow \"economic terms only\" MFN misses the governance provisions."}, {"label": "Q3:", "question": "Why would a GP be willing to reduce a large LP's management fee to 1.5% but refuse to extend the same reduction to all LPs via the LPA?", "answer": "Several reasons: (1) **Revenue protection** — extending 1.5% to all LPs on a £500m fund reduces management fee revenue from £10m to £7.5m per year; the GP can tolerate this for one large LP (and receive £200m in capital) while maintaining full fees from smaller LPs; (2) **Precedent avoidance** — once a fee reduction is in the LPA, it applies permanently to that fund and may set expectations for future funds; a side letter is LP-specific and fund-specific; (3) **Negotiating value** — the fee reduction is \"currency\" the GP uses to secure large commitments; if all LPs received it, it no longer functions as a competitive advantage in the fundraise."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Side Letters\n\n[hook] One LPA, unequal LPs\nThe LPA governs all LPs collectively. But LPs are not identical — a five-hundred-million sovereign wealth fund and a twenty-five-million family office have different compliance requirements, different economic leverage, and different relationship histories with the GP. Side letters are the mechanism through which those differences are accommodated without amending the LPA for everyone. They matter for three reasons: LPs need to know which terms are negotiable, because virtually every meaningful LP modifies something; side letters create a two-tier LP structure that smaller LPs should understand; and GPs must manage the complexity, because a fund with thirty LPs may carry twenty different side letters that must never contradict each other or the LPA. This is how LPs negotiate bilateral terms beyond the partnership agreement.\n\n[definition] Bilateral LPA modifications\nThe definition. Side letters are bilateral agreements between a PE GP and a specific LP that modify or supplement that LP's rights and obligations under the main LPA — granting LP-specific concessions on economics, governance, reporting, or liquidity that the GP is not willing, or able, to offer fund-wide. The LPA is the floor of what an LP receives; the side letter is how a large LP builds above it.\n\n[intuition] The hotel's private rates\nImagine a hotel with a published rate card — two hundred a night, breakfast extra, three o'clock check-in. But it also negotiates private rates with its largest corporate clients: a big bank gets a hundred-fifty a night, early check-in, and a suite upgrade when available. Those private deals are the hotel's side letters. The rate card — the LPA — applies to everyone in principle, but large, preferred clients get their own deal that modifies the standard terms. PE side letters work exactly that way: the LPA is the rate card, and large, strategic LPs who commit early, have long relationships with the GP, or represent enough capital to matter negotiate private bilateral agreements modifying their specific economics, rights, and obligations. The important asymmetry: these negotiations are confidential. Smaller LPs in the same fund may not know that a larger LP pays a lower fee, gets more co-invest, or sees reports earlier — an information gap partly closed by most-favoured-nation provisions, but only if the LP negotiated one in the first place.\n\n[intuition] Franchise agreement + MFN\nThe mental model: think of the LPA as a franchise agreement — every franchisee signs the same standard document. But the franchisor, the GP, gives its largest and most strategically important franchisees private side arrangements — better royalty rates, preferred location rights, extra marketing support — that smaller franchisees don't even know about. The most-favoured-nation clause is like a most-favoured-franchise provision: if you're big enough to negotiate it, you're entitled to be told when the franchisor gives better terms to anyone else, and to elect those same terms. Small franchisees without that provision simply don't know what they're missing. That's the whole dynamic of side letters in one image.\n\n[mechanics] Five categories of provision\nTechnically, side letters are legally enforceable bilateral contracts, signed alongside the subscription at closing, that reference the LPA and modify it for one LP — and the provisions fall into five categories. Economics: reduced management fees, a flat one-and-a-half percent instead of two, or a rebate that preserves the appearance of consistent terms; and occasionally reduced carry for anchor or seed investors. Governance: a guaranteed LPAC seat; enhanced key-person triggers naming a specific investment partner, not just the firm; and rarely, direct consent rights over big decisions. Reporting: portfolio-company-level financials rather than aggregated fund reporting, earlier delivery, specific data formats, and ESG and operational KPI reporting. Compliance: FOIA protection for US public pensions, obligating the GP to keep documents confidential and notify the LP of any freedom-of-information request; and excusal rights, letting an LP opt out of a specific investment without breaching its commitment — essential for Sharia-compliant investors barred from alcohol or gambling, for politically sensitive sovereign funds, or for ESG-mandated LPs. And access: formalised co-investment allocation, follow-on fund rights reserving capacity in the next fund, and occasionally observer information rights. Tying it together is the most-favoured-nation provision — the key protection for an LP not at the negotiating table — under which the GP must notify the LP of more favourable terms granted to others, and the LP may elect them. But MFN has limits: its scope varies, some cover only fees and carry; it's often tiered, so a fifty-to-a-hundred-million LP gets MFN only against peers in its tier, not against the two-hundred-million-plus anchors; and it's only as good as the disclosure obligation, because a GP who fails to disclose breaks the obligation, but the LP may never know what it missed.\n\n[structure] How MFN closes — or leaks\nHere's how the MFN mechanism is supposed to close the two-tier gap — and where it leaks. An anchor LP negotiates, say, a one-and-a-half percent fee via its side letter. The GP must then disclose that triggering term, and if it falls within the scope of another LP's MFN clause, that MFN-holder can elect the same term, partially equalising the tiers. But follow the dashed branch: if the GP fails to disclose, the MFN-holder never knows, and the right simply goes unused. And the small LP at the bottom, with no MFN at all, is stuck on the LPA's default terms regardless. So the MFN only actually works when two things hold — the better term falls inside the clause's scope, and the GP genuinely discloses it. Anything else, and the two-tier structure persists.\n\n[worked-example] CalPERS and Carlyle\nTake CalPERS — around four hundred seventy billion in assets — one of the most active side-letter negotiators in PE. Committing roughly two to four hundred million to a Carlyle buyout fund, CalPERS typically secures, on economics, a fee reduction from two percent to about one-and-a-half to one-and-three-quarters, saving six to ten million a year on a three-hundred-million commitment, plus a full fee offset and zero fees on co-investments. On reporting: quarterly portfolio-company operating KPIs — revenue, EBITDA, headcount, leverage for each company — a forty-five-day rather than sixty-day reporting turnaround, an annual third-party ESG audit, and dual IRR reporting with and without the subscription-line effect, which CalPERS was among the first to require. On compliance: a FOIA protection clause, and an excusal right for any investment in a geopolitically sensitive jurisdiction. On governance: an LPAC seat for any fund where it commits a hundred million or more, plus quick access to conflict disclosures. And a full MFN over all economic terms, benchmarked against LPs committing a hundred-fifty million or more. The payoff was both financial — ten-to-fifteen million in fee savings per fund — and informational: when Carlyle's Asia-focused funds underperformed, CalPERS' quarterly portfolio KPIs gave it an earlier signal than LPs on standard annual reporting, allowing earlier re-evaluation of the relationship. The side letter wasn't just cheaper — it was an early-warning system.\n\n[pitfalls] What people get wrong\nFour corrections. First, being in the same fund does not mean having the same rights — LPs in one fund can carry materially different fees, governance rights, reporting, and compliance provisions, all negotiated privately; the LPA is the floor, not the ceiling. Second, MFN does not mean all LPs get the same terms — it lets MFN-holders elect terms granted to comparable LPs, but only if they know those terms exist, only within their clause's scope, and only if they actively exercise the election; passive holders may never exercise it. Third, negotiating a side letter is not adversarial that GPs resent — for large, strategic relationships it's expected and budgeted-for, and a GP who refuses any modification from a three-hundred-million LP is unlikely to keep it; where GPs draw the line is on provisions creating operational complexity or precedents they can't manage across all LPs. And fourth, side letters are not only about fees — economics are the most financially material, but governance rights like LPAC seats and key-person triggers, compliance provisions like FOIA protection and excusal rights, and reporting enhancements are often more important to a regulated LP's actual operations than the fee saving.\n\n[recap] Build above the floor\nTo recap. Side letters are bilateral agreements that supplement or modify the LPA for a specific LP, across five categories — economics, governance, reporting, compliance, and access. They exist because the LPA must be consistent for all, but LPs differ in size, regulatory constraints, strategic importance, and history, so large strategic LPs use their capital leverage to negotiate modifications smaller co-investors can't. The MFN provision partly closes the resulting information asymmetry — letting MFN-holders elect terms granted to comparable LPs — but only within scope, only if the GP discloses, and only if the LP exercises it. The practical lesson: every institutional LP should negotiate a side letter, because even at modest size, provisions like FOIA protection, basic co-invest rights, and enhanced reporting cost the GP nothing and provide real value. Next we go deeper on one of those access provisions — the legal framework behind co-investment rights.\n\nQ: A £200m sovereign wealth fund is committing to a UK mid-market buyout fund at 2% management fee, 20% carry, European waterfall. List five specific side letter provisions they should request, in order of financial materiality.\nA: (1) **Management fee reduction** — 1.75% or 1.5% saves £250k–500k per year on a £200m commitment; most financially material. (2) **100% fee waiver on co-investments** — if the SWF plans active co-investing, eliminating carry on co-invest capital can generate far larger savings than the management fee reduction. (3) **MFN provision (full economic and governance scope)** — ensures SWF receives any better terms granted to other LPs. (4) **LPAC membership** — governance access, conflict visibility, early warning of fund issues. (5) **Excusal right** for politically sensitive jurisdictions (standard for SWFs with government-related LP concerns). Secondary priorities: enhanced quarterly reporting, 45-day delivery, key person enhancements.\nQ: An LP has an MFN clause in their side letter covering \"management fee and carried interest.\" During the fundraise, the anchor LP (20% of fund) negotiates: (a) 1.5% management fee, (b) an LPAC seat, (c) portfolio company quarterly financials. Which of these does the MFN-holding LP have a right to elect?\nA: Only **(a) the 1.5% management fee** — because the MFN clause covers \"management fee and carried interest\" only. The LPAC seat and portfolio company financials are governance and reporting terms, not economic terms. The LP cannot elect those under their existing MFN. This illustrates why MFN scope matters: \"all material economic and governance terms\" MFN would have covered all three; a narrow \"economic terms only\" MFN misses the governance provisions.\nQ: Why would a GP be willing to reduce a large LP's management fee to 1.5% but refuse to extend the same reduction to all LPs via the LPA?\nA: Several reasons: (1) **Revenue protection** — extending 1.5% to all LPs on a £500m fund reduces management fee revenue from £10m to £7.5m per year; the GP can tolerate this for one large LP (and receive £200m in capital) while maintaining full fees from smaller LPs; (2) **Precedent avoidance** — once a fee reduction is in the LPA, it applies permanently to that fund and may set expectations for future funds; a side letter is LP-specific and fund-specific; (3) **Negotiating value** — the fee reduction is \"currency\" the GP uses to secure large commitments; if all LPs received it, it no longer functions as a competitive advantage in the fundraise.\nEnd-card question: Name three of the five side-letter categories beyond fees. An LP holds an MFN clause but never receives a better term another LP negotiated — give two reasons the MFN can fail to deliver.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The LPA governs all LPs collectively. But LPs are not identical — a $500m sovereign wealth fund and a $25m family office have different compliance requirements, different economic leverage, and different relationship histories with the GP. Side letters are the mechanism through which these differences are accommodated without amending the LPA for everyone.</p><p>Understanding side letters matters for three reasons:</p><ol><li><strong>LPs need to know what they can negotiate.</strong> The LPA contains the GP's default terms, but virtually all meaningful LPs negotiate specific modifications. Knowing which terms are negotiable — and which GPs will move on which terms — is an LP due diligence competency.</li></ol><ol><li><strong>Side letters create a two-tier LP structure.</strong> Large LPs negotiate terms that small LPs do not receive. Understanding this creates awareness of what you may be missing as a smaller LP — and how MFN (Most-Favoured Nation) provisions can address the gap.</li></ol><ol><li><strong>GPs need to manage side letter complexity.</strong> A fund with 30 LPs may have 20 different side letters, each containing different reporting timelines, different co-invest rights, different fee structures, and different ESG commitments. Managing this complexity — and ensuring no contradiction with the LPA or between side letters — is a legal and operational risk.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Side letters are bilateral agreements between a PE GP and a specific LP that modify or supplement that LP's rights and obligations under the main LPA — granting LP-specific concessions on economics, governance, reporting, or liquidity that the GP is not willing (or able) to offer fund-wide.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a hotel that publishes a standard rate card: £200 per night, breakfast not included, standard check-in at 3pm. But the hotel also negotiates private rates with its largest corporate clients: Goldman Sachs gets £150 per night, early check-in included, and a suite upgrade when available.</p><p>These private deals are the hotel's \"side letters.\" The rate card (the LPA) applies to everyone in principle — but large, preferred clients get their own deal that modifies the standard terms.</p><p>PE side letters work exactly the same way. The LPA is the rate card. Large, strategic LPs who commit early in the fundraise, who have longstanding relationships with the GP, or who represent enough committed capital to matter, negotiate private bilateral agreements that modify their specific economics, rights, and obligations.</p><p>The important asymmetry: these negotiations are private. Smaller LPs in the same fund may not know that a larger LP is paying a lower management fee, receiving more generous co-invest allocation, or getting early access to quarterly reports. That information asymmetry is partly addressed by MFN provisions — but only if the LP negotiated one in the first place.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of the LPA as a <strong>franchise agreement</strong>: every franchisee (LP) signs the same standard agreement. But the franchisor (GP) gives its largest and most strategically important franchisees private side arrangements — better royalty rates, preferred location rights, additional marketing support — that smaller franchisees don't know about.</p><p>The MFN clause is like a \"most-favoured franchise\" provision: if you're big enough to negotiate it, you're entitled to know when the franchisor gives better terms to anyone else and to elect those same terms. Small franchisees who don't have this provision simply don't know what they're missing.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Why Side Letters Exist</p><p>The LPA must be consistent for all LPs — it cannot say \"LP A pays 1.5% management fees and LP B pays 2%.\" But side letters operate outside the LPA, as bilateral supplements:</p><ul class='notelist'><li>They are legally enforceable bilateral contracts between the GP and the specific LP</li><li>They reference the LPA and modify or supplement specific provisions for that LP</li><li>They are typically signed simultaneously with the LPA subscription at fund closing</li><li>They are not shared with other LPs — except to the extent MFN provisions require disclosure of key terms</li></ul><p>### The Most Common Side Letter Provisions</p><p><strong>Category 1 — Economic Terms</strong></p><p><strong>Reduced Management Fee:</strong> Large LPs (anchor investors, LPs committing 5%+ of the fund) often negotiate management fee discounts. Common structures: - Flat reduction: 1.5% instead of 2% p.a. on committed capital - Step-down: 2% during investment period, 1.25% (rather than standard 1.5%) post-investment period - Rebate: full management fee charged but rebated via a private payment — allows the GP to maintain the appearance of consistent terms to all LPs while providing economic benefit to the specific LP</p><p><strong>Reduced Carried Interest:</strong> Very rare outside of anchor or seed investors. Some large LPs (e.g., sovereign wealth funds) have negotiated 17.5% carry instead of 20%. More commonly, carry is modified through the hurdle rate (e.g., 9% preferred return for a specific LP) rather than the carry percentage itself.</p><p><strong>Fee Waiver for Co-Investments:</strong> Some LPs negotiate a blanket fee waiver (zero management fee, zero carry) for all co-investment opportunities offered by the GP. The standard market practice has shifted toward offering co-investment at zero or reduced fees, but the specific terms (100% waiver vs. 50% waiver) are still side-letter-negotiated.</p><p>---</p><p><strong>Category 2 — Governance Rights</strong></p><p><strong>LPAC Seat:</strong> Certain LPs negotiate a guaranteed seat on the LP Advisory Committee (LPAC). LPAC membership provides access to information, influence over conflict resolution, and early warning of fund management issues. Most GPs limit LPAC to 5–8 LPs; securing a seat via side letter is a significant governance advantage.</p><p><strong>Key Person Provisions — Enhanced:</strong> Some LPs negotiate enhanced key person triggers — for example, naming specific individual GPs (not just the firm) as key persons, such that the departure of a named investment partner (not just the managing partner) triggers the LP's right to suspend capital calls or seek a no-fault divorce. This is particularly relevant for LPs who committed based on the conviction of a specific investment professional.</p><p><strong>Consent Rights:</strong> Large LPs occasionally negotiate direct consent rights over specific types of decisions — for example, any single investment exceeding 20% of the fund requires this LP's prior written consent. These are rare and heavily negotiated, but represent the most direct form of LP governance influence.</p><p>---</p><p><strong>Category 3 — Reporting and Transparency</strong></p><p><strong>Enhanced Reporting:</strong> Large LPs routinely negotiate more detailed or more frequent reporting than the LPA provides to all LPs. Common enhancements: - Portfolio company-level financial statements (not just aggregated fund-level reporting) - Earlier delivery of quarterly reports (e.g., 45 days post-quarter rather than 60) - Specific data formats (ILPA template, XBRL-tagged data for automated processing) - ESG data and carbon footprint reporting for the portfolio - Operational KPI reporting for individual portfolio companies (revenue, EBITDA, headcount) on a quarterly basis</p><p><strong>Audit Access:</strong> Some institutional LPs (particularly US public pension funds) negotiate a right to audit the GP's books and records — including fee calculations, expense allocations, and portfolio company transactions. This is a strong governance right that GPs generally resist for non-anchor LPs.</p><p>---</p><p><strong>Category 4 — Compliance and Regulatory</strong></p><p><strong>FOIA Protection:</strong> US public pension funds (CalPERS, CalSTRS, Teacher Retirement System of Texas) are subject to Freedom of Information Act (FOIA) requests that could require them to disclose fund documents — including the LPA and financial reports. These LPs routinely negotiate side letter provisions committing the GP to: (a) treat the LP's fund documents as confidential; (b) notify the LP if a FOIA request is received for fund documents; (c) cooperate with the LP's efforts to claim confidentiality exemptions. Without these provisions, FOIA exposure could require public disclosure of sensitive investment data.</p><p><strong>Regulatory Excusal Rights:</strong> Certain LPs have legal or regulatory restrictions on specific investments: - <strong>Islamic finance LPs</strong> (Sharia-compliant investors) require excusal from investments in alcohol, gambling, weapons, pork products, or high-interest financial instruments - <strong>Government-related LPs</strong> (sovereign wealth funds with political sensitivities) may require excusal from investments in certain geographies or sectors to avoid reputational or political risk - <strong>ESG-mandated LPs</strong> require excusal from investments that violate their ESG policy (e.g., coal mining, private prisons, tobacco)</p><p>The \"excuse right\" allows the LP to opt out of a specific investment without triggering any default or breach of commitment — they simply miss that investment's allocation.</p><p><strong>Anti-Terrorism / Sanctions Compliance:</strong> LPs in certain jurisdictions require specific representations from the GP regarding sanctions compliance — ensuring the fund will not invest in entities or geographies subject to US OFAC, EU, or UN sanctions.</p><p>---</p><p><strong>Category 5 — Relationship and Access Rights</strong></p><p><strong>Co-Investment Rights:</strong> Side letters formalise co-investment rights beyond what the LPA provides. Common provisions: - Pro-rata allocation: LP receives co-investment opportunities pro-rata to their fund commitment percentage - First right of refusal on specific deal types (e.g., all healthcare investments) - Notice period for co-invest opportunities (e.g., 10 business days rather than 5) - Minimum allocation guarantee per fund lifecycle</p><p><strong>Follow-On Fund Rights:</strong> Some LPs negotiate a right of first offer on the GP's next fund — essentially a reservation on capacity in Fund V before the fundraise formally opens. This is particularly valuable for LPs trying to maintain or grow exposure to a GP whose subsequent fund will be oversubscribed.</p><p><strong>Information Rights:</strong> Senior LP relationships sometimes negotiate ongoing information access that goes beyond quarterly reporting — for example, the right to attend (as observer, not member) investment committee meetings, or the right to review the GP's due diligence materials on prospective investments before the fund commits. This is rare but exists for the most strategic LP relationships.</p><p>---</p><p>### Most-Favoured Nation (MFN) Provisions</p><p>The most important protection for LPs who are NOT at the negotiating table is the MFN clause. An MFN provision in a side letter states:</p><p><strong>\"The GP agrees to notify this LP of any more favourable economic or governance terms granted to other LPs via side letter, and this LP shall have the right to elect any such terms.\"</strong></p><p><strong>How MFN works in practice:</strong> 1. LP A negotiates a 1.5% management fee in their side letter 2. LP B has an MFN provision in their side letter 3. The GP must notify LP B of LP A's 1.5% fee arrangement 4. LP B can elect to receive the same 1.5% fee</p><p><strong>MFN limitations:</strong> - Scope of MFN varies — some cover \"all economic terms,\" others cover only \"management fee and carry\" - Some MFN provisions apply only to terms negotiated with comparable-size LPs (\"no smaller than $50m commitment\") - Some GPs negotiate \"tiered MFN\" — the LP's MFN right only applies to terms granted to LPs in the same commitment tier (£50–100m tier LPs get MFN among themselves, not relative to £200m+ anchor LPs) - MFN is only as good as the disclosure obligation — a GP who fails to disclose a side letter term breaks the MFN obligation but the LP may not know what they're missing</p><p>ILPA recommends that all LPs receive notification of material economic or governance benefits granted via side letter, and that MFN provisions be standard in all LPAs. [needs-verification on current ILPA position on fund-wide MFN vs. side letter MFN]</p><p>---</p>"}, "5": {"section": "Diagram", "html": "<p>How the MFN mechanism is <em>supposed</em> to close the two-tier gap — and where it leaks.</p><p>The MFN only works if (a) the term falls within the clause's scope and (b) the GP actually discloses it. A small LP with no MFN at all simply stays on the LPA default — the persistent two-tier outcome.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p>### CalPERS and Carlyle Group — Side Letter in Practice</p><p>CalPERS (California Public Employees' Retirement System), with approximately $470bn AUM, is one of the most active side letter negotiators in PE. When committing approximately $200–400m to a Carlyle buyout fund, CalPERS typically negotiates:</p><p><strong>Economic terms:</strong> - Management fee reduction from 2% to approximately 1.5–1.75% — saving $6–10m per year on a $300m commitment - 100% management fee offset for any monitoring or transaction fees received from Carlyle portfolio companies in which CalPERS co-invests - No management fee on co-investments (zero management fee, zero carry for direct co-invest capital)</p><p><strong>Reporting terms:</strong> - Quarterly portfolio company operating KPIs — revenue, EBITDA, headcount, leverage ratio for each company in the fund - 45-day (vs. standard 60-day) quarterly reporting turnaround - Annual third-party ESG audit of the portfolio - Dual IRR reporting (with and without subscription credit line effect) — CalPERS was among the first LPs to require this as standard</p><p><strong>Compliance terms:</strong> - FOIA protection clause — obligating Carlyle to notify CalPERS before complying with any FOIA request for fund documents and to cooperate with CalPERS' confidentiality exemption arguments - Excusal right for any investment in a geopolitically sensitive jurisdiction (typically defined as OFAC-sanctioned countries plus a list of specific CalPERS-flagged jurisdictions)</p><p><strong>Governance terms:</strong> - LPAC membership for any fund in which CalPERS commits $100m or more - Right to receive a copy of any conflict-of-interest disclosure made to the LPAC within 5 business days</p><p><strong>MFN:</strong> - Full MFN over all economic terms, benchmarked against LPs committing $150m or more to the same fund</p><p><strong>The outcome:</strong> CalPERS' side letter terms — particularly the reporting enhancements and fee reductions — created both direct financial benefits ($10–15m fee savings per fund) and governance advantages (earlier visibility into portfolio deterioration). When Carlyle's Asia-focused funds underperformed in 2015–2018, CalPERS' quarterly portfolio KPI reporting gave them earlier signal than LPs relying on standard annual reporting — allowing earlier re-evaluation of the GP relationship.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"If I'm in the same fund, I have the same rights as every other LP.\"</strong> False. LPs in the same fund may have materially different economic terms (management fees), governance rights (LPAC seats), reporting rights (portfolio company data), and compliance provisions (excusal rights) — all negotiated in private side letters. The LPA is the floor, not the ceiling, of what a large LP receives.</p><p><strong>Misconception 2: \"MFN means all LPs get the same terms.\"</strong> MFN means LPs with MFN provisions can elect to receive terms granted to comparable LPs — but only if they know those terms exist (requiring GP disclosure), only within the scope of their MFN clause (which may be limited by commitment tier or provision category), and only if they actively exercise the election. Passive MFN holders who don't monitor for triggering events may never exercise their rights.</p><p><strong>Misconception 3: \"Negotiating a side letter is adversarial — GPs hate it.\"</strong> For large, strategic LP relationships, side letter negotiation is expected and accepted by GPs. A GP who refuses any side letter modifications from a $300m LP is unlikely to retain that LP for future funds. GPs budget time and legal cost for side letter negotiation as a standard fundraising activity. Where GPs draw the line is on provisions that create operational complexity, set precedents they can't manage across all LPs, or undermine the GP's operational freedom.</p><p><strong>Misconception 4: \"Side letters are only about fees.\"</strong> Economics are the most financially material provisions, but governance rights (LPAC seats, excusal rights, key person clauses), compliance provisions (FOIA protection), and reporting enhancements are often more important to the specific LP's internal operations than fee savings — particularly for institutional LPs who must manage regulatory and fiduciary obligations.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>Side letters are bilateral agreements between a GP and specific LPs that supplement or modify the main LPA for that LP — granting LP-specific concessions across five categories: economics (reduced fees, carry modifications), governance (LPAC seats, enhanced key person triggers, consent rights), reporting (portfolio company data, earlier delivery, ESG reporting), compliance (FOIA protection, excusal rights, sanctions), and access (co-investment allocation, follow-on fund rights, information rights).</p><p>Side letters exist because the LPA must be consistent for all LPs, but LPs are not identical — they differ in commitment size, regulatory constraints, strategic importance to the GP, and relationship history. Large, strategic LPs use their capital leverage to negotiate modifications unavailable to smaller co-investors. The MFN provision is the mechanism through which information asymmetry is partially addressed: LPs with MFN rights can elect terms granted to comparable LPs — but only within the MFN clause's defined scope, only if the GP discloses triggering terms, and only if the LP actively exercises the election.</p><p>For LPs: every institutional investor should negotiate a side letter — even at modest commitment sizes, provisions like FOIA protection, basic co-investment rights, and enhanced reporting cost the GP nothing and provide meaningful LP value. The most financially material provisions are typically fee reductions and co-investment terms; the most governance-critical are LPAC seats and enhanced key person triggers; the most operationally necessary for regulated LPs are FOIA protection and excusal rights.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

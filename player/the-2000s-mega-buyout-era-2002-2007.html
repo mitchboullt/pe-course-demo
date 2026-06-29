@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "the-2000s-mega-buyout-era-2002-2007", "title": "The 2000s Mega-Buyout Era (2002–2007)", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Scale and fragility together", "on_screen_bullets": ["GFC losses were structural", "The vintage-year effect", "Where GP IPOs began"], "narration": "The 2000s mega-buyout era is the historical period that established modern PE's scale, its structures, and its structural vulnerabilities all at once. Understanding it is the prerequisite for several big ideas. It's why the financial-crisis-era PE losses were structurally inevitable rather than managerial failures — the same enabling conditions that made mega-buyouts possible also made peak-vintage funds fragile. It's why the vintage-year effect exists — the same strategy, the same GP, the same LP, producing opposite outcomes depending on when capital was deployed. It's why financial innovation gets cited as a regulatory-capture mechanism — the CLO ecosystem, covenant-lite structures, and syndicated-loan markets that enabled the era were later cited in Congress as evidence of systemic risk from PE leverage. And it's where GP IPOs began reshaping the industry's incentive architecture. This is the missing decade between the 1990s expansion and the global financial crisis — and the crisis can't be understood without it.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Three peaks align", "on_screen_bullets": ["Low rates + CLO demand + LP glut", "Largest deals ever", "Bimodal vintage returns"], "narration": "The definition. The 2000s mega-buyout era, 2002 to 2007, was a period in which three macro conditions simultaneously peaked — ultra-low post-dot-com interest rates, CLO-ecosystem demand for leveraged loans, and LP capital inflows from endowment-model adoption — enabling PE funds to deploy capital at unprecedented scale and leverage, producing the industry's largest-ever deals and a bimodal vintage return distribution where 2002-to-2005 funds generated excellent returns and 2006-to-2007 funds produced structurally impaired performance that became fully visible only during the global financial crisis.", "est_sec": 40}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Cheap debt meets eager buyers", "on_screen_bullets": ["Fed funds to 1% by 2003", "CLOs hungry for yield", "LPs flooding capital in"], "narration": "In the early 2000s, three things happened at once that made buying enormous companies with borrowed money very easy and very cheap. First, interest rates fell to historic lows — the Fed cut aggressively after the dot-com bust and September eleventh, bringing the funds rate to one percent by 2003, so a deal that needed twelve-percent interest payments in 1999 now needed about five. Second, a new class of buyer for PE's debt appeared: collateralised loan obligations, structured vehicles that pooled leveraged loans and sold tranched claims against them, growing fast because their investors wanted yield that investment-grade bonds no longer provided; PE needed debt to do deals, CLOs needed deals to fill their portfolios, and each needed the other. And third, LPs had more capital than ever, as the endowment model spread and institutions allocated bigger and bigger shares to PE. When all three peaks aligned — cheap debt, CLO demand, LP capital — the industry had both the financing capacity and the LP mandate to attempt deals previously considered impossible, and the era peaked in 2006 and 2007 with nine of the ten largest LBOs in history executed in those two years. It ended not because the deal logic collapsed but because the credit markets that financed it froze in 2007 and 2008 — and the leverage that amplified returns on the way up amplified losses on the way down.", "est_sec": 58}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "A housing boom", "on_screen_bullets": ["Low rates = cheap mortgages", "CLOs = securitisation", "Self-reinforcing, then fragile"], "narration": "The mental model: the mega-buyout era is structurally a housing-market boom. Low interest rates are the cheap mortgages — buyers can afford more house for the same monthly payment. The CLO ecosystem is the mortgage-securitisation market — lenders can originate far more because they immediately sell the loans to investors, removing the balance-sheet constraint. And the LP capital glut is the housing demand from population growth and investment buyers. Like the housing boom, the PE boom was self-reinforcing while conditions held: rising deal activity justified fundraising, larger funds created deployment pressure, and deployment pressure drove more deals. The system only became visibly fragile when the financing conditions that enabled it reversed. And the vintage-year effect is exactly the analogy of buying a house in 2003 versus 2007 — the same house, the same neighbourhood, the same mortgage structure, completely different outcomes depending only on when you bought.", "est_sec": 46}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Conditions, deals, cov-lite", "on_screen_bullets": ["Leverage 4–5x → 6–7x; CLOs 50–60% of loans", "KKR $17.6bn, Blackstone $21.7bn funds", "Cov-lite ~25–30% by 2007"], "narration": "Technically, the three conditions reinforced each other. Low rates: senior leveraged-loan spreads compressed from around three-seventy-five basis points over LIBOR in 2002 to about two-fifty by 2007, all-in debt costs fell from nine-or-ten percent to six-or-seven, and the typical LBO leverage ratio rose from four-or-five times in the late 1990s to six-or-seven times for peak-vintage 2007 deals. CLO demand: by 2007, CLOs were buying an estimated fifty to sixty percent of leveraged-loan issuance, creating structural demand partly insensitive to individual deal quality, because CLOs needed to deploy to earn fees — and under the originate-to-distribute model, banks originated loans and sold them to CLOs rather than holding them, removing the balance-sheet constraint that had previously capped PE leverage. LP glut: the endowment model drove fund sizes up, with KKR raising a seventeen-point-six-billion fund in 2006, then the largest ever, and Blackstone raising twenty-one-point-seven billion in 2007 — and committed capital created deployment pressure, since managers pay management fees on undeployed capital. The mega-deal wave concentrated in a twenty-four-month window: HCA at thirty-three billion in 2006, Equity Office at thirty-nine billion, TXU and Energy Future Holdings at forty-five billion, First Data at twenty-nine, Hilton at twenty-six, and into 2008 Clear Channel at nineteen-and-a-half and Harrah's at thirty billion. The academic finding, from Axelson and colleagues in 2013, is sharp: PE firms tend to borrow more and pay higher prices when credit is cheap — that is, when borrowing is most favourable but buying is least. And covenant-lite emerged in this window — loans stripped of the quarterly maintenance tests that had given lenders early-warning rights, first appearing in 2005 and reaching about twenty-five to thirty percent of originations by 2007, which removed the early-warning mechanism and made later distress more sudden and severe.", "est_sec": 72}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Hilton vs Energy Future Holdings", "on_screen_bullets": ["Both 2007, peak leverage, top sponsors", "Hilton: ~3x via resilience + sale-leaseback", "EFH: commodity thesis collapse → Ch11"], "narration": "The cleanest illustration is two 2007 deals with opposite outcomes — same vintage, same peak-cycle leverage, top-tier sponsors. Hilton: Blackstone bought it at about eleven-and-a-half times EBITDA with roughly six-times leverage, peak metrics. What saved it: travel demand was resilient — revenue fell about twenty percent in 2008 and 2009 but recovered strongly from 2010; Blackstone executed a sale-leaseback of owned hotel properties, converting real estate into cash that cut leverage; it grew Hilton's asset-light franchise business, shifting the cash-flow profile toward capital-light franchise fees; and it held for six years, long enough for the macro to recover. The exit, an IPO in December 2013 at about a twenty-billion equity valuation, realised roughly three times invested capital — one of the most successful mega-buyout outcomes ever, from a deal at maximum risk of distress in 2008. Energy Future Holdings, by contrast: forty-five billion, the largest LBO ever, on a thesis dependent on natural gas prices staying elevated. What destroyed it: the commodity thesis collapsed as shale drove gas down; Texas utility rates were regulated, so there was no operational lever; the debt was so large that even minor deterioration was unserviceable; and refinancing was impossible after 2008. It filed Chapter Eleven in April 2014. The comparative lesson is precise: the failure was not leverage — Hilton was equally leveraged — it was the commodity-thesis dependency. Hilton's cash flows were diversified across geography and customer; Energy Future Holdings' depended entirely on one commodity-price assumption that reversed. The vintage-year effect doesn't mean all 2007 deals failed; it means the vintage's macro fragility meant only deals with structural cash-flow resilience survived.", "est_sec": 70}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not just irrational exuberance", "PE didn't cause the GFC", "Not all 2007 vintage lost"], "narration": "Four corrections. First, the era was not simply irrational exuberance — individual deals were rational given the financing available; a manager who refused to borrow at six-times in 2006 because it felt risky was declining to participate in the market, so the irrationality was systemic, the aggregate leverage created fragility, not deal-by-deal. Second, PE did not cause the global financial crisis — it was one user of the leveraged-credit system, not its architect; the CLO market, mortgage-backed securities, and bank balance-sheet leverage were the primary mechanisms, and PE mega-buyouts added to systemic leverage but didn't trigger it, though they amplified the crisis's impact on specific portfolio companies. Third, not all 2006-to-2007 vintage funds lost money — the vintage produced highly variable outcomes, and managers who chose recession-resilient or diversified cash flows, like Hilton, performed adequately even from peak entry prices; the vintage is characterised by high dispersion rather than uniform loss. And fourth, covenant-lite loans were not designed to be predatory — they emerged from competitive dynamics between CLO demand and borrower negotiating power; borrowers preferred the flexibility, CLO managers accepted them under competitive pressure, and the systemic risk was nobody's design intent.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Scale, fragility, GP IPOs", "on_screen_bullets": ["Three peaks → biggest deals ever", "Bimodal vintage; cov-lite amplified distress", "Blackstone IPO closed the era"], "narration": "To recap. The 2000s mega-buyout era was produced by three macro conditions peaking at once: ultra-low rates enabled cheap debt; the CLO ecosystem created structural demand for leveraged loans beyond bank balance-sheet capacity; and LP inflows from the endowment model created deployment pressure inside funds. Together they let the nine largest LBOs in history happen in a twenty-four-month window. The structural consequence was a bimodal vintage distribution — 2002-to-2005 funds deployed into recovering markets at moderate valuations and did excellently, while 2006-to-2007 funds deployed at maximum leverage and peak valuations into an economy that deteriorated immediately, producing the first large-scale mega-buyout distress cycle. Hilton versus Energy Future Holdings shows the within-vintage nuance: leverage alone didn't decide outcomes, cash-flow resilience did. Covenant-lite, standard by 2007, amplified distress by removing early warnings. And the era closed with the Blackstone IPO in June 2007, introducing a novel conflict between public shareholders and LP investors that had never existed under private management companies. That IPO is important enough to get its own lesson — which is exactly where we go next.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name the three conditions that peaked together to enable the mega-buyout era. Hilton and EFH were both 2007 deals at peak leverage — why did one return ~3x and the other go bankrupt? What does that reveal about the vintage-year effect?", "narration": "Before the next lesson, answer all three. Name the three macro conditions that peaked together to enable the 2000s mega-buyout era. Hilton and Energy Future Holdings were both 2007 deals at peak-cycle leverage — why did one return roughly three times and the other go bankrupt? And what does that contrast reveal about the vintage-year effect? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The 2000s Mega-Buyout Era (2002–2007)\n\n[hook] Scale and fragility together\nThe 2000s mega-buyout era is the historical period that established modern PE's scale, its structures, and its structural vulnerabilities all at once. Understanding it is the prerequisite for several big ideas. It's why the financial-crisis-era PE losses were structurally inevitable rather than managerial failures — the same enabling conditions that made mega-buyouts possible also made peak-vintage funds fragile. It's why the vintage-year effect exists — the same strategy, the same GP, the same LP, producing opposite outcomes depending on when capital was deployed. It's why financial innovation gets cited as a regulatory-capture mechanism — the CLO ecosystem, covenant-lite structures, and syndicated-loan markets that enabled the era were later cited in Congress as evidence of systemic risk from PE leverage. And it's where GP IPOs began reshaping the industry's incentive architecture. This is the missing decade between the 1990s expansion and the global financial crisis — and the crisis can't be understood without it.\n\n[definition] Three peaks align\nThe definition. The 2000s mega-buyout era, 2002 to 2007, was a period in which three macro conditions simultaneously peaked — ultra-low post-dot-com interest rates, CLO-ecosystem demand for leveraged loans, and LP capital inflows from endowment-model adoption — enabling PE funds to deploy capital at unprecedented scale and leverage, producing the industry's largest-ever deals and a bimodal vintage return distribution where 2002-to-2005 funds generated excellent returns and 2006-to-2007 funds produced structurally impaired performance that became fully visible only during the global financial crisis.\n\n[intuition] Cheap debt meets eager buyers\nIn the early 2000s, three things happened at once that made buying enormous companies with borrowed money very easy and very cheap. First, interest rates fell to historic lows — the Fed cut aggressively after the dot-com bust and September eleventh, bringing the funds rate to one percent by 2003, so a deal that needed twelve-percent interest payments in 1999 now needed about five. Second, a new class of buyer for PE's debt appeared: collateralised loan obligations, structured vehicles that pooled leveraged loans and sold tranched claims against them, growing fast because their investors wanted yield that investment-grade bonds no longer provided; PE needed debt to do deals, CLOs needed deals to fill their portfolios, and each needed the other. And third, LPs had more capital than ever, as the endowment model spread and institutions allocated bigger and bigger shares to PE. When all three peaks aligned — cheap debt, CLO demand, LP capital — the industry had both the financing capacity and the LP mandate to attempt deals previously considered impossible, and the era peaked in 2006 and 2007 with nine of the ten largest LBOs in history executed in those two years. It ended not because the deal logic collapsed but because the credit markets that financed it froze in 2007 and 2008 — and the leverage that amplified returns on the way up amplified losses on the way down.\n\n[intuition] A housing boom\nThe mental model: the mega-buyout era is structurally a housing-market boom. Low interest rates are the cheap mortgages — buyers can afford more house for the same monthly payment. The CLO ecosystem is the mortgage-securitisation market — lenders can originate far more because they immediately sell the loans to investors, removing the balance-sheet constraint. And the LP capital glut is the housing demand from population growth and investment buyers. Like the housing boom, the PE boom was self-reinforcing while conditions held: rising deal activity justified fundraising, larger funds created deployment pressure, and deployment pressure drove more deals. The system only became visibly fragile when the financing conditions that enabled it reversed. And the vintage-year effect is exactly the analogy of buying a house in 2003 versus 2007 — the same house, the same neighbourhood, the same mortgage structure, completely different outcomes depending only on when you bought.\n\n[mechanics] Conditions, deals, cov-lite\nTechnically, the three conditions reinforced each other. Low rates: senior leveraged-loan spreads compressed from around three-seventy-five basis points over LIBOR in 2002 to about two-fifty by 2007, all-in debt costs fell from nine-or-ten percent to six-or-seven, and the typical LBO leverage ratio rose from four-or-five times in the late 1990s to six-or-seven times for peak-vintage 2007 deals. CLO demand: by 2007, CLOs were buying an estimated fifty to sixty percent of leveraged-loan issuance, creating structural demand partly insensitive to individual deal quality, because CLOs needed to deploy to earn fees — and under the originate-to-distribute model, banks originated loans and sold them to CLOs rather than holding them, removing the balance-sheet constraint that had previously capped PE leverage. LP glut: the endowment model drove fund sizes up, with KKR raising a seventeen-point-six-billion fund in 2006, then the largest ever, and Blackstone raising twenty-one-point-seven billion in 2007 — and committed capital created deployment pressure, since managers pay management fees on undeployed capital. The mega-deal wave concentrated in a twenty-four-month window: HCA at thirty-three billion in 2006, Equity Office at thirty-nine billion, TXU and Energy Future Holdings at forty-five billion, First Data at twenty-nine, Hilton at twenty-six, and into 2008 Clear Channel at nineteen-and-a-half and Harrah's at thirty billion. The academic finding, from Axelson and colleagues in 2013, is sharp: PE firms tend to borrow more and pay higher prices when credit is cheap — that is, when borrowing is most favourable but buying is least. And covenant-lite emerged in this window — loans stripped of the quarterly maintenance tests that had given lenders early-warning rights, first appearing in 2005 and reaching about twenty-five to thirty percent of originations by 2007, which removed the early-warning mechanism and made later distress more sudden and severe.\n\n[worked-example] Hilton vs Energy Future Holdings\nThe cleanest illustration is two 2007 deals with opposite outcomes — same vintage, same peak-cycle leverage, top-tier sponsors. Hilton: Blackstone bought it at about eleven-and-a-half times EBITDA with roughly six-times leverage, peak metrics. What saved it: travel demand was resilient — revenue fell about twenty percent in 2008 and 2009 but recovered strongly from 2010; Blackstone executed a sale-leaseback of owned hotel properties, converting real estate into cash that cut leverage; it grew Hilton's asset-light franchise business, shifting the cash-flow profile toward capital-light franchise fees; and it held for six years, long enough for the macro to recover. The exit, an IPO in December 2013 at about a twenty-billion equity valuation, realised roughly three times invested capital — one of the most successful mega-buyout outcomes ever, from a deal at maximum risk of distress in 2008. Energy Future Holdings, by contrast: forty-five billion, the largest LBO ever, on a thesis dependent on natural gas prices staying elevated. What destroyed it: the commodity thesis collapsed as shale drove gas down; Texas utility rates were regulated, so there was no operational lever; the debt was so large that even minor deterioration was unserviceable; and refinancing was impossible after 2008. It filed Chapter Eleven in April 2014. The comparative lesson is precise: the failure was not leverage — Hilton was equally leveraged — it was the commodity-thesis dependency. Hilton's cash flows were diversified across geography and customer; Energy Future Holdings' depended entirely on one commodity-price assumption that reversed. The vintage-year effect doesn't mean all 2007 deals failed; it means the vintage's macro fragility meant only deals with structural cash-flow resilience survived.\n\n[pitfalls] What people get wrong\nFour corrections. First, the era was not simply irrational exuberance — individual deals were rational given the financing available; a manager who refused to borrow at six-times in 2006 because it felt risky was declining to participate in the market, so the irrationality was systemic, the aggregate leverage created fragility, not deal-by-deal. Second, PE did not cause the global financial crisis — it was one user of the leveraged-credit system, not its architect; the CLO market, mortgage-backed securities, and bank balance-sheet leverage were the primary mechanisms, and PE mega-buyouts added to systemic leverage but didn't trigger it, though they amplified the crisis's impact on specific portfolio companies. Third, not all 2006-to-2007 vintage funds lost money — the vintage produced highly variable outcomes, and managers who chose recession-resilient or diversified cash flows, like Hilton, performed adequately even from peak entry prices; the vintage is characterised by high dispersion rather than uniform loss. And fourth, covenant-lite loans were not designed to be predatory — they emerged from competitive dynamics between CLO demand and borrower negotiating power; borrowers preferred the flexibility, CLO managers accepted them under competitive pressure, and the systemic risk was nobody's design intent.\n\n[recap] Scale, fragility, GP IPOs\nTo recap. The 2000s mega-buyout era was produced by three macro conditions peaking at once: ultra-low rates enabled cheap debt; the CLO ecosystem created structural demand for leveraged loans beyond bank balance-sheet capacity; and LP inflows from the endowment model created deployment pressure inside funds. Together they let the nine largest LBOs in history happen in a twenty-four-month window. The structural consequence was a bimodal vintage distribution — 2002-to-2005 funds deployed into recovering markets at moderate valuations and did excellently, while 2006-to-2007 funds deployed at maximum leverage and peak valuations into an economy that deteriorated immediately, producing the first large-scale mega-buyout distress cycle. Hilton versus Energy Future Holdings shows the within-vintage nuance: leverage alone didn't decide outcomes, cash-flow resilience did. Covenant-lite, standard by 2007, amplified distress by removing early warnings. And the era closed with the Blackstone IPO in June 2007, introducing a novel conflict between public shareholders and LP investors that had never existed under private management companies. That IPO is important enough to get its own lesson — which is exactly where we go next.\n\nEnd-card question: Name the three conditions that peaked together to enable the mega-buyout era. Hilton and EFH were both 2007 deals at peak leverage — why did one return ~3x and the other go bankrupt? What does that reveal about the vintage-year effect?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The 2000s mega-buyout era is the historical period that established modern PE's scale, structures, and structural vulnerabilities simultaneously. Understanding it is prerequisite to understanding:</p><ol><li><strong>Why GFC-era PE losses were structurally inevitable, not managerial failures</strong> — the enabling conditions that made mega-buyouts possible also made peak-vintage funds fragile</li><li><strong>Why the vintage year effect exists</strong> — the same strategy, the same GP, the same LP, producing opposite outcomes depending on when capital was deployed</li><li><strong>Why regulatory capture discussions reference \"financial innovation\" as a capture mechanism</strong> — the CLO ecosystem, covenant-lite structures, and syndicated loan markets that enabled the era were later cited in Congressional debates as evidence of systemic risk from PE leverage</li><li><strong>Why GP IPOs changed the PE industry's incentive architecture</strong> — Blackstone's 2007 IPO created a public shareholder/LP fiduciary conflict that had not existed when PE was entirely privately held</li><li><strong>The historical arc</strong> — this era is the missing decade between The 1990s PE Expansion and Rise of Mega-Funds and PE Through the Global Financial Crisis; the GFC cannot be understood without it</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The 2000s mega-buyout era (2002–2007) was a period in which three macro conditions simultaneously peaked — ultra-low post-dot-com interest rates, CLO ecosystem demand for leveraged loans, and LP capital inflows from endowment model adoption — enabling PE funds to deploy capital at unprecedented scale and leverage, producing the industry's largest-ever deals and a bimodal vintage return distribution where 2002–2005 funds generated excellent returns and 2006–2007 funds produced structurally impaired performance that became fully visible only during the Global Financial Crisis.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>In the early 2000s, three things happened simultaneously that made buying enormous companies with borrowed money very easy and very cheap:</p><p><strong>First, interest rates fell to historic lows.</strong> The Federal Reserve cut rates aggressively after the dot-com bust (2001) and 9/11, bringing the federal funds rate to 1% by 2003 — the lowest in decades. Cheap borrowed money made LBOs dramatically more affordable; a deal that required 12% interest payments in 1999 now required 5%.</p><p><strong>Second, a new class of buyer for PE's debt appeared.</strong> Collateralised Loan Obligations (CLOs) — structured vehicles that pooled leveraged loans and sold tranched claims against them — were growing fast. CLOs could absorb enormous volumes of leveraged loans because their investors (pension funds, insurance companies, sovereign wealth funds) wanted the yield that investment-grade bonds no longer provided in a low-rate environment. PE needed debt to do deals; CLOs needed deals to fill their portfolios. Each needed the other.</p><p><strong>Third, LPs had more capital to deploy than ever.</strong> The \"endowment model\" — pioneered by David Swensen at Yale — demonstrated that illiquid alternatives including PE could generate superior risk-adjusted returns. Institutional investors (pension funds, endowments, sovereign wealth funds) were allocating larger percentages of their portfolios to PE every year. Funds raised in 2003–2006 were larger than anything that had come before.</p><p>When all three peaks aligned — cheap debt, CLO demand, and LP capital — the result was a PE industry with both the financing capacity and the LP mandate to attempt deals previously considered impossible. The era peaked in 2006–2007 with nine of the ten largest LBOs in history executed in those two years.</p><p>The era ended not because deal logic collapsed but because the credit markets that had financed it froze in 2007–2008. Deals signed at 2006–2007 valuations with 2006–2007 leverage ratios suddenly faced a world in which the CLO market was closed, rates were rising, and portfolio company revenues were falling. The leverage that had amplified returns on the way up amplified losses on the way down.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The 2000s mega-buyout era is structurally analogous to a housing market boom:</p><ul class='notelist'><li><strong>Low interest rates</strong> = cheap mortgages; buyers can afford more house for the same monthly payment</li><li><strong>CLO ecosystem</strong> = mortgage securitisation market; lenders can originate more mortgages because they immediately sell them to investors, removing the balance sheet constraint</li><li><strong>LP capital glut</strong> = housing demand from population growth and investment property buyers</li></ul><p>Like the housing boom, the PE boom was self-reinforcing while conditions persisted. Rising deal activity justified fund raising; larger funds created deployment pressure; deployment pressure drove deal activity. The system only became visibly fragile when the financing conditions that enabled it reversed.</p><p>The vintage year effect is the analogy to buying a house in 2003 vs. 2007: the same house, the same neighbourhood, the same mortgage structure, completely different outcomes depending on when you bought.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Three Enabling Conditions</p><p><strong>Condition 1 — Post-Dot-Com Low Interest Rate Environment</strong></p><p>The Federal Reserve's accommodative monetary policy (2001–2004) drove the effective federal funds rate to 1.0% by June 2003. This had two direct effects on LBO economics:</p><ul class='notelist'><li><strong>Cost of debt fell dramatically.</strong> Senior leveraged loan spreads compressed from ~375bps over LIBOR in 2002 to ~250bps by 2007. All-in debt costs fell from ~9-10% to ~6-7% for senior tranches on investment-grade quality buyouts.</li><li><strong>Acquisition multiples expanded.</strong> Lower discount rates increased public equity valuations, raising the entry prices PE funds had to pay. The same EV/EBITDA multiple represented a fundamentally different return profile at 6% debt costs vs. 10%.</li></ul><p>The net effect: PE could service more debt per dollar of EBITDA at lower rates, enabling higher leverage ratios. The typical LBO debt/EBITDA ratio rose from ~4-5x in the late 1990s to 6-7x for peak-vintage 2007 deals.</p><p><strong>Condition 2 — CLO Ecosystem Demand for Leveraged Loans</strong></p><p>The CLO market's growth transformed the demand side of the leveraged loan market. CLOs are vehicles that: 1. Purchase pools of leveraged loans (syndicated corporate debt, typically sub-investment-grade) 2. Issue tranched securities against that pool (AAA through equity) 3. Pass the loan interest income to tranche holders, with the equity tranche absorbing first losses</p><p>By 2007, CLOs were purchasing an estimated 50–60% of leveraged loan issuance. This created a structural demand for leveraged loans that was partially insensitive to individual deal quality — CLOs needed to deploy capital to generate fees, which created pressure to fill deal pipelines regardless of valuation.</p><p>The critical implication for PE: the leveraged loan market's capacity had become structurally disconnected from the traditional bank balance sheet constraint. Banks originated and distributed loans to CLOs (the \"originate to distribute\" model) rather than holding them, removing the lending constraint that had previously capped PE leverage. Deal sizes that would have been impossible for bank balance sheets to absorb were feasible in the CLO-enabled market.</p><p><strong>Condition 3 — LP Capital Glut from Endowment Model Adoption</strong></p><p>The institutional adoption of the \"endowment model\" created structural LP demand for PE allocations:</p><ul class='notelist'><li><strong>Yale Endowment</strong> allocated 15–20% to PE/venture and reported 25-year annualised returns of ~13%; peer institutions scrambled to replicate</li><li><strong>Pension fund regulatory tailwind:</strong> ERISA's shift from defined benefit to defined contribution plans created large pools of capital seeking growth assets; PE's historical return premium made it an obvious allocation</li><li><strong>Sovereign wealth fund expansion:</strong> Abu Dhabi, Singapore, and Norway sovereign funds were scaling allocations to PE as part of diversification mandates</li></ul><p>PE fund sizes grew accordingly. KKR raised a $17.6bn fund in 2006 — then the largest ever raised. Blackstone raised $21.7bn in 2007. Capital commitments created deployment pressure: managers face the J-curve costs of management fees on committed but undeployed capital, creating incentives to deploy regardless of market conditions.</p><p>### The Mega-Deal Wave (2005–2007)</p><p>The largest LBOs in history concentrated in this 24-month window:</p><p>| Deal | Year | Size | Lead Sponsors | Outcome | |------|------|------|---------------|---------| | HCA Healthcare | 2006 | $33bn | KKR, Bain, Merrill Lynch PE | Successful exit; HCA IPO 2011 | | Equity Office Properties | 2007 | $39bn | Blackstone | Sold assets; distress avoided through rapid asset sales | | TXU Energy (Energy Future Holdings) | 2007 | $45bn | KKR, TPG, Goldman Sachs | Bankruptcy 2014; ~$30bn equity loss | | Alliance Boots | 2007 | £11bn | KKR | Merged with Walgreens; reasonable outcome | | First Data | 2007 | $29bn | KKR | Distressed; IPO 2015 at discount | | Hilton Hotels | 2007 | $26bn | Blackstone | Outstanding exit; ~3x return | | Clear Channel Communications | 2008 | $19.5bn | Bain, Thomas H. Lee | Distressed; Chapter 11 2023 | | Harrah's Entertainment | 2008 | $30bn | Apollo, TPG | Distressed; Chapter 11 2009 |</p><p><em>Note: All figures approximate; \"outcome\" reflects eventual resolution, not near-term performance</em></p><p>### The Bimodal Vintage Return Distribution</p><p>The era produced a systematic bifurcation in returns by deployment year:</p><p><strong>2002–2005 Vintage Funds — Structural Tailwinds:</strong> - Low entry multiples (public markets were depressed post-dot-com) - Improving credit conditions during hold period (rates stable, then rising but manageable) - Portfolio companies benefited from macro recovery - Exits occurred into 2006–2008 bull market at elevated multiples - Median net IRR approximately 15-20% for top-quartile vintage</p><p><strong>2006–2007 Vintage Funds — Structural Headwinds:</strong> - High entry multiples (EV/EBITDA ratios of 9-12x vs. 6-8x for early-decade deals) - Maximum leverage ratios at entry (6-7x debt/EBITDA) - Macro deterioration immediately following deployment - Portfolio company revenues fell into 2008-2009 recession while debt service obligations were fixed - CLO market closure removed refinancing options - Median net IRR for bottom-quartile 2007 vintage: negative</p><p>The key insight from academic analysis (Axelson et al., 2013): PE firms tend to borrow more and pay higher prices when credit is cheap — i.e., when macro conditions are most favourable for borrowing but least favourable for buying. The leverage and price peaks in 2006–2007 were not irrational given the credit environment; they were rational responses to available financing that happened to coincide with peak cycle valuations.</p><p>### Covenant-Lite Emergence</p><p>Prior to 2005, leveraged loans included maintenance covenants — quarterly financial tests that required borrowers to maintain leverage ratios, interest coverage, and other metrics. Violation of a maintenance covenant triggered renegotiation or acceleration rights for lenders.</p><p>Covenant-lite loans eliminated maintenance covenants, replacing them with incurrence covenants (triggered only if the borrower attempts a specific action, not by passive deterioration). First appearing in 2005, covenant-lite comprised approximately 25–30% of leveraged loan originations by 2007.</p><p><strong>The PE relevance:</strong> Covenant-lite eliminated the early-warning mechanism that had historically forced distressed portfolio companies to renegotiate capital structures before crisis. For 2006–2007 vintage deals: - Companies could deteriorate significantly before triggering technical default - When distress became visible, it was more acute and less renegotiable - Lenders had fewer restructuring levers because they had fewer contractual rights - This made peak-vintage portfolio company distress episodes more sudden and severe than prior cycles</p><p>### The GP IPO Transformation</p><p>Blackstone Group's IPO in June 2007 raised $4.1bn at a $33bn valuation — the first major US PE firm to go public. KKR, Apollo, and Carlyle followed in subsequent years.</p><p>The GP IPO changed PE's incentive architecture in a structural way:</p><p><strong>Before GP IPO:</strong> Partners owned the management company; carried interest and management fees accrued to a relatively small group of principals whose wealth was entirely tied to fund performance. AUM growth was constrained by the LP's willingness to commit capital at the fund's historical return.</p><p><strong>After GP IPO:</strong> Public shareholders held a claim on the GP's fee income — management fees, carried interest, and transaction fees. Public market valuation rewarded AUM growth directly (more AUM → more management fee revenue → higher market cap). This created a new incentive: grow AUM to sustain public market valuation, even if doing so requires deploying capital into deteriorating market conditions.</p><p>This is not a claim of bad faith — GP principals still held substantial direct interests. But the incentive gradient shifted: AUM growth became partially decoupled from return optimisation for the first time. The structural consequence became visible in the 2007–2008 period, when PE firms continued raising and deploying capital into deteriorating conditions partly because their public market valuations depended on continued AUM growth signals.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Hilton Hotels vs. Energy Future Holdings — The Same Vintage, Opposite Outcomes</strong></p><p>Both deals closed in 2007, both at peak-cycle valuations and leverage, both by top-tier PE sponsors. They produced opposite outcomes. Understanding why illuminates the vintage year effect's nuance.</p><p><strong>Hilton Hotels — Blackstone, $26bn, 2007</strong></p><p>Entry: Blackstone acquired Hilton at approximately 11.5x EV/EBITDA with ~6x debt/EBITDA — peak-cycle metrics.</p><p>What saved it: - <strong>Travel demand resilience:</strong> While Hilton revenue declined ~20% in 2008–2009, it recovered strongly from 2010; hotel demand tracked GDP recovery - <strong>Asset monetisation:</strong> Blackstone executed a sale-leaseback of owned hotel properties, converting hotel real estate into cash that reduced leverage - <strong>Franchise model expansion:</strong> Blackstone invested in growing Hilton's asset-light franchise business, transforming the cash flow profile from capital-intensive owned hotels to capital-light franchise fees - <strong>Duration:</strong> Blackstone held Hilton for six years, long enough for the macro environment to recover</p><p>Exit: Hilton IPO in December 2013 at a ~$20bn equity valuation; Blackstone realised approximately 3x invested capital. One of the most successful mega-buyout outcomes in PE history — from a deal that was at maximum risk of distress in 2008–2009.</p><p><strong>Energy Future Holdings (TXU Energy) — KKR, TPG, Goldman Sachs PE, $45bn, 2007</strong></p><p>Entry: $45bn, the largest LBO in history; acquired Texas utility at peak-cycle leverage with a thesis dependent on natural gas prices remaining elevated.</p><p>What destroyed it: - <strong>Commodity thesis collapse:</strong> The deal thesis assumed natural gas prices would remain at or near $8–12/mcf; the shale revolution caused natural gas prices to fall to $2–4/mcf within three years of acquisition - <strong>No operational lever:</strong> Texas utility rates were regulated; KKR/TPG could not raise prices to offset falling generation margins - <strong>Leverage magnitude:</strong> $43bn in debt; even minor revenue deterioration was unserviceable at that leverage level - <strong>No duration option:</strong> With debt/EBITDA deteriorating, lenders were unwilling to extend; refinancing was impossible in post-2008 credit markets</p><p>Outcome: Energy Future Holdings filed for Chapter 11 in April 2014 — then the largest leveraged buyout ever to go bankrupt, and one of the largest US bankruptcies on record. Equity sponsors lost essentially all of their approximately $8bn equity investment.</p><p><strong>The Comparative Lesson:</strong> The failure was not leverage — Hilton was equally leveraged. The failure was the commodity thesis dependency: Hilton's cash flows were diversified across geography and customer type; EFH's were entirely dependent on one commodity price assumption that reversed. The vintage year effect does not mean all 2007 vintage deals failed — it means the macro fragility of the vintage meant only deals with structural cash flow resilience survived.</p><p><strong>The K-1 Lens:</strong></p><p>From the learner's position at CVC Secondary Partners, both deals are visible in the data. CVC processes K-1s from: - KKR funds that held EFH equity — these K-1s show increasingly distressed passive loss and then §1231 loss recognition as the bankruptcy resolved - Blackstone funds that held Hilton — these K-1s show the characteristic LP income pattern of a successful hold: early negative returns from management fee drag, then capital gain recognition at the 2013 IPO and subsequent secondary sales</p><p>The K-1 data encodes the macro story: the same vintage, the same leverage structure, producing opposite tax outcomes — which in a secondary fund context means the CVC fund acquired Hilton K-1s at a different NAV discount than EFH K-1s, and the realised cash flows proved the pricing right.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>\"The mega-buyout era was irrational exuberance.\"</strong> Partially false — individual deals were rational given the financing conditions available. A PE manager who chose not to borrow at 6x debt/EBITDA in 2006 because it seemed risky was declining to participate in the market. The irrationality was systemic (the aggregate leverage level created fragility) not individual (each deal's financing was defensible given available terms).</p><p><strong>\"PE caused the GFC.\"</strong> Overstatement — PE was one user of the leveraged credit system, not its architect. The CLO market, mortgage-backed securities, and bank balance sheet leverage were the primary GFC mechanisms. PE mega-buyouts added to systemic leverage but were not the trigger. The more accurate claim: PE amplified the GFC's impact on specific portfolio companies through the leverage it had accumulated.</p><p><strong>\"All 2006–2007 vintage funds lost money.\"</strong> False — the vintage produced highly variable outcomes within the distribution. Managers who selected deals with recession-resilient cash flows (Hilton) or diversified revenue streams performed adequately even from peak-cycle entry prices. The 2006–2007 vintage is characterised by high dispersion (wide spread between top and bottom quartile) rather than uniform loss.</p><p><strong>\"Covenant-lite loans were designed to be predatory.\"</strong> False — covenant-lite emerged from competitive dynamics between CLO demand and borrower negotiating power. Borrowers preferred them (more flexibility); CLO managers accepted them (competitive pressure for deal flow). The systemic risk they created was not the design intent of any individual participant.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The 2000s mega-buyout era (2002–2007) was produced by three macro conditions simultaneously peaking: ultra-low post-dot-com interest rates enabled cheap debt; the CLO ecosystem created structural demand for leveraged loans beyond bank balance sheet capacity; and LP capital inflows from endowment model adoption created deployment pressure inside PE funds. These three conditions enabled the nine largest LBOs in history to be executed in a 24-month window (2006–2007). The structural consequence was a bimodal vintage return distribution: 2002–2005 funds deployed into recovering markets at moderate valuations and generated excellent returns; 2006–2007 funds deployed at maximum leverage and peak valuations into an economy that deteriorated immediately afterward, producing the first large-scale mega-buyout distress cycle. The Hilton vs. Energy Future Holdings comparison shows the within-vintage nuance: peak-cycle leverage alone did not determine outcomes — the cash flow resilience of the specific deal thesis determined survival. Covenant-lite structures, emerging as a market standard by 2005–2007, amplified distress severity by removing early-warning mechanisms. The era closed with the Blackstone IPO in June 2007, which introduced a novel incentive conflict between public shareholders and LP investors that had not existed in the industry's prior private management company model. The era created the structural conditions — leverage volumes, LP over-allocation, fund distress — that produced the secondary market growth CVC Secondary Partners operates within.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

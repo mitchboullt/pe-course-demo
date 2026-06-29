@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "intercreditor-agreement-in-lbos", "title": "Intercreditor Agreement in LBOs", "draft_watermark": false, "estimated_runtime_sec": 340, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "When creditors collide", "on_screen_bullets": ["Multiple debt layers, conflicting interests", "Senior wants to act fast", "Junior wants protection"], "narration": "In any leveraged buyout with several layers of debt — a senior secured loan, a second lien, mezzanine, payment-in-kind notes — the creditors do not want the same things. Senior creditors want maximum power to enforce and recover quickly. Junior creditors want protection against being wiped out before they can even respond. Left unmanaged, those conflicting interests would turn every distressed situation into a chaotic scramble. The intercreditor agreement is the document that resolves those conflicts in advance, before anyone is in trouble. And when a deal does enter distress — as many have in the higher-rate environment — this agreement becomes the central document governing who can do what, and when. It is also why distressed buyout investments so often produce binary outcomes for junior creditors: full recovery, or complete wipe-out, with little in between.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The rulebook for creditors", "on_screen_bullets": ["Priority, enforcement, payment rights", "Who is paid when", "Who can act in distress"], "narration": "Here is the definition. An intercreditor agreement is the contract governing the priority, the enforcement rights, and the payment rights of the different creditor classes in a buyout's capital structure. In plain terms, it answers three questions: who gets paid in what order, who is allowed to act when the company is in trouble, and who gets wiped out. Everyone signs it before the deal closes, while relations are friendly and nobody is yet fighting over scraps. That timing is the whole point — the rules of the road are agreed in calm conditions, so that when distress hits and incentives turn adversarial, the framework is already fixed and cannot be renegotiated by whoever is most desperate.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Three creditors, one question", "on_screen_bullets": ["Senior, mezzanine, junior notes", "Who gets paid, who can act", "The agreement decides upfront"], "narration": "Picture three creditors in a deal: a senior lender who put in the bulk of the money, a mezzanine fund with a smaller slice, and a payment-in-kind noteholder at the bottom. If the company runs into trouble, who gets paid first? Who is allowed to demand repayment? Can the mezzanine fund seize and sell the company's assets to recover its money? The intercreditor agreement is the contract they all signed at the start that answers every one of those questions. It sets the rules of behaviour for the creditors — and when things go wrong, those rules determine who walks away with money and who walks away with nothing. For a deal trading well below par, this agreement is what decides whether the junior layers recover anything at all.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Lanes of authority", "on_screen_bullets": ["Each creditor has a lane", "Act out of lane, hand it over", "Strict order of who acts"], "narration": "A useful mental model is a strict hierarchy of who is allowed to act. The senior creditors are the authority that can move immediately. The mezzanine creditors can take limited steps but must wait for the seniors to act first before they escalate. The junior noteholders can only act once everyone above them has gone, and only within narrow limits. The agreement specifies exactly who has the right to act, when, and what they are permitted to do. And here is the crucial enforcement mechanism: if anyone acts out of their lane — if a junior creditor grabs proceeds they were not entitled to — they must hand those proceeds over to whoever ranked ahead of them. You cannot jump the queue and keep the winnings. That single principle is what makes the whole priority structure hold together under pressure.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The core machinery", "on_screen_bullets": ["Payment and lien subordination", "Standstill freezes the juniors", "Turnover claws back queue-jumps"], "narration": "Mechanically, the agreement rests on a few load-bearing provisions. First, two kinds of subordination: payment subordination, meaning junior creditors cannot receive interest or principal while the company is in default to the seniors; and lien subordination, meaning the juniors' security ranks below the seniors' in the recovery waterfall. Both are needed for full subordination. Second, the enforcement standstill: after a senior default, junior creditors are barred from taking action — demanding repayment, appointing receivers, selling assets — for a defined period, commonly around three months, sometimes longer in Europe. During that window, the seniors control the entire process. Third, the turnover provision: if a junior creditor somehow receives a payment that violates the waterfall, they hold it on trust and must turn it over to the seniors, which blocks them from using litigation to jump the queue. Those three — subordination, standstill, turnover — are the working core.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Release on enforcement", "on_screen_bullets": ["Seniors sell free and clear", "Junior liens released too", "Most contentious provision"], "narration": "One more provision deserves special attention because it is the most contentious of all: release on enforcement. When senior creditors enforce and sell the company's assets, the agreement gives them the right to release all the security interests — including the junior creditors' liens — so the buyer takes the assets free and clear, even if the junior creditors receive no proceeds whatsoever. This is what enables a clean sale of a distressed business, but it is also what allows the seniors to extinguish the juniors entirely. It has generated significant litigation, and courts have at times scrutinised aggressive release provisions, occasionally refusing to enforce them where junior creditors received nothing of value. There is also a detail worth flagging: interest-rate hedge counterparties are typically given senior-ranking status, so their exposure sits high in the waterfall — which matters a great deal when rate moves make those hedge breakage costs large.", "est_sec": 54}, {"n": 7, "beat": "mechanics", "visual": "mermaid", "source_section": "Diagram", "on_screen_title": "The recovery waterfall", "on_screen_bullets": ["Proceeds cascade top to bottom", "Each tier paid before the next", "Equity usually gets nothing"], "narration": "Picture the waterfall the agreement creates. When assets are sold in enforcement, the proceeds cascade from the top down, and each tier is paid only once the tier above it is made whole. At the very top sits any super-senior revolving facility, common in European deals. Below that, the senior secured term loan, alongside the hedge counterparties who were given senior standing. Then the second lien. Then mezzanine. Then the payment-in-kind notes. And at the bottom, equity, which in a genuine distress almost always receives nothing. Layered on top of this picture are the two mechanics we have discussed: the standstill, which freezes the junior tiers while the seniors run the process, and release on enforcement, which lets the seniors sell free of the junior liens even when those juniors recover zero. And note who is not on this diagram at all: workers, suppliers, and communities are not parties to the agreement and sit entirely outside the waterfall.", "mermaid": "flowchart TD\n  EV[Enforcement sale proceeds] --> SS[Super-senior revolving facility]\n  SS --> SEN[Senior secured term loan + hedge counterparties]\n  SEN --> SL[Second lien]\n  SL --> MZ[Mezzanine]\n  MZ --> PIK[Payment-in-kind notes]\n  PIK --> EQ[Equity — usually zero in distress]", "est_sec": 54}, {"n": 8, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "The waterfall at the extreme", "on_screen_bullets": ["Big media buyout, deep distress", "Agreement set who enforced", "Lowest tier recovered nothing"], "narration": "Consider a representative case: a very large media company taken private in a giant buyout, carrying a complex capital structure with several creditor classes. Years later it fell into deep distress, and the intercreditor agreement governed everything — which creditor class could enforce, in what sequence, and against which assets. The restructuring plan that emerged delivered zero recovery to the lowest-ranking creditor class. That is not a failure of the agreement; it is precisely how the waterfall is designed to operate at the extreme. The juniors took the deal knowing they sat at the bottom, and when the value did not stretch far enough, the structure they had signed up to allocated them nothing. It is the clearest possible illustration of why junior positions in distressed buyouts are so binary: the agreement they signed years earlier dictates, almost mechanically, whether they recover in full or not at all.", "est_sec": 52}, {"n": 9, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["It governs far more than payment order", "Juniors aren't helpless", "Unitranche has its own version"], "narration": "Four misconceptions to correct. First, that the agreement just confirms who gets paid first — it does far more: enforcement rights, voting, new-money priority, amendment rights, and insolvency mechanics; the payment waterfall is one clause among many. Second, that junior creditors are helpless once they sign — not so; they often retain consent rights over amendments, the right to bid for the company using their debt, a right of first offer to buy out the senior debt, and the ability to propose their own reorganisation plan in a formal restructuring. Third, that release on enforcement is absolute — courts have scrutinised it, and some aggressive releases have been struck down where juniors got nothing of value. And fourth, that a unitranche has no intercreditor arrangement — it does; the internal agreement among its lenders is a two-party version that runs on exactly the same legal principles of standstill and waterfall.", "est_sec": 54}, {"n": 10, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The decisive document in distress", "on_screen_bullets": ["Subordination, standstill, turnover, release", "Decides recovery or wipe-out", "Drafting has tightened post-disputes"], "narration": "So to summarise: an intercreditor agreement governs the rights of every creditor class in a buyout — who is paid in what order, who can enforce and when, and what happens to junior claims when the seniors sell assets. Its core provisions are payment and lien subordination, the enforcement standstill, the turnover trust, release on enforcement, and senior status for hedge counterparties. Unitranche structures use a two-party version of the same thing. The agreement becomes the decisive document in distress, determining whether junior creditors recover meaningfully or are wiped out in a senior-controlled sale. And drafting has tightened considerably in response to a wave of litigation over aggressive priority and priming transactions. The throughline: the rules written in calm at the start are the rules that allocate the losses in the storm.", "est_sec": 50}, {"n": 11, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What is an enforcement standstill?", "What does turnover prevent?", "What is release on enforcement?"], "narration": "Before you finish, answer these from memory. What is an enforcement standstill, and who does it freeze while who stays in control? What does the turnover provision prevent a junior creditor from doing? And what is release on enforcement, and why is it the agreement's most contentious provision? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": [{"label": "Q1.", "question": "What is the typical US enforcement standstill period under an intercreditor agreement?", "answer": "90 days."}, {"label": "Q2.", "question": "What is a \"turnover provision\" in an ICA?", "answer": "A clause requiring junior creditors who receive out-of-turn payments to hold them on constructive trust and turn them over to senior creditors immediately."}, {"label": "Q3.", "question": "What is the Agreement Among Lenders (AAL) in a unitranche structure?", "answer": "The functional equivalent of an intercreditor agreement between the first-out (senior) and last-out (junior) portions of a unitranche loan, governing payment priority and enforcement rights between the two tranches."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Intercreditor Agreement in LBOs\n\n[hook] When creditors collide\nIn any leveraged buyout with several layers of debt — a senior secured loan, a second lien, mezzanine, payment-in-kind notes — the creditors do not want the same things. Senior creditors want maximum power to enforce and recover quickly. Junior creditors want protection against being wiped out before they can even respond. Left unmanaged, those conflicting interests would turn every distressed situation into a chaotic scramble. The intercreditor agreement is the document that resolves those conflicts in advance, before anyone is in trouble. And when a deal does enter distress — as many have in the higher-rate environment — this agreement becomes the central document governing who can do what, and when. It is also why distressed buyout investments so often produce binary outcomes for junior creditors: full recovery, or complete wipe-out, with little in between.\n\n[definition] The rulebook for creditors\nHere is the definition. An intercreditor agreement is the contract governing the priority, the enforcement rights, and the payment rights of the different creditor classes in a buyout's capital structure. In plain terms, it answers three questions: who gets paid in what order, who is allowed to act when the company is in trouble, and who gets wiped out. Everyone signs it before the deal closes, while relations are friendly and nobody is yet fighting over scraps. That timing is the whole point — the rules of the road are agreed in calm conditions, so that when distress hits and incentives turn adversarial, the framework is already fixed and cannot be renegotiated by whoever is most desperate.\n\n[intuition] Three creditors, one question\nPicture three creditors in a deal: a senior lender who put in the bulk of the money, a mezzanine fund with a smaller slice, and a payment-in-kind noteholder at the bottom. If the company runs into trouble, who gets paid first? Who is allowed to demand repayment? Can the mezzanine fund seize and sell the company's assets to recover its money? The intercreditor agreement is the contract they all signed at the start that answers every one of those questions. It sets the rules of behaviour for the creditors — and when things go wrong, those rules determine who walks away with money and who walks away with nothing. For a deal trading well below par, this agreement is what decides whether the junior layers recover anything at all.\n\n[intuition] Lanes of authority\nA useful mental model is a strict hierarchy of who is allowed to act. The senior creditors are the authority that can move immediately. The mezzanine creditors can take limited steps but must wait for the seniors to act first before they escalate. The junior noteholders can only act once everyone above them has gone, and only within narrow limits. The agreement specifies exactly who has the right to act, when, and what they are permitted to do. And here is the crucial enforcement mechanism: if anyone acts out of their lane — if a junior creditor grabs proceeds they were not entitled to — they must hand those proceeds over to whoever ranked ahead of them. You cannot jump the queue and keep the winnings. That single principle is what makes the whole priority structure hold together under pressure.\n\n[mechanics] The core machinery\nMechanically, the agreement rests on a few load-bearing provisions. First, two kinds of subordination: payment subordination, meaning junior creditors cannot receive interest or principal while the company is in default to the seniors; and lien subordination, meaning the juniors' security ranks below the seniors' in the recovery waterfall. Both are needed for full subordination. Second, the enforcement standstill: after a senior default, junior creditors are barred from taking action — demanding repayment, appointing receivers, selling assets — for a defined period, commonly around three months, sometimes longer in Europe. During that window, the seniors control the entire process. Third, the turnover provision: if a junior creditor somehow receives a payment that violates the waterfall, they hold it on trust and must turn it over to the seniors, which blocks them from using litigation to jump the queue. Those three — subordination, standstill, turnover — are the working core.\n\n[mechanics] Release on enforcement\nOne more provision deserves special attention because it is the most contentious of all: release on enforcement. When senior creditors enforce and sell the company's assets, the agreement gives them the right to release all the security interests — including the junior creditors' liens — so the buyer takes the assets free and clear, even if the junior creditors receive no proceeds whatsoever. This is what enables a clean sale of a distressed business, but it is also what allows the seniors to extinguish the juniors entirely. It has generated significant litigation, and courts have at times scrutinised aggressive release provisions, occasionally refusing to enforce them where junior creditors received nothing of value. There is also a detail worth flagging: interest-rate hedge counterparties are typically given senior-ranking status, so their exposure sits high in the waterfall — which matters a great deal when rate moves make those hedge breakage costs large.\n\n[mechanics] The recovery waterfall\nPicture the waterfall the agreement creates. When assets are sold in enforcement, the proceeds cascade from the top down, and each tier is paid only once the tier above it is made whole. At the very top sits any super-senior revolving facility, common in European deals. Below that, the senior secured term loan, alongside the hedge counterparties who were given senior standing. Then the second lien. Then mezzanine. Then the payment-in-kind notes. And at the bottom, equity, which in a genuine distress almost always receives nothing. Layered on top of this picture are the two mechanics we have discussed: the standstill, which freezes the junior tiers while the seniors run the process, and release on enforcement, which lets the seniors sell free of the junior liens even when those juniors recover zero. And note who is not on this diagram at all: workers, suppliers, and communities are not parties to the agreement and sit entirely outside the waterfall.\n\n[example] The waterfall at the extreme\nConsider a representative case: a very large media company taken private in a giant buyout, carrying a complex capital structure with several creditor classes. Years later it fell into deep distress, and the intercreditor agreement governed everything — which creditor class could enforce, in what sequence, and against which assets. The restructuring plan that emerged delivered zero recovery to the lowest-ranking creditor class. That is not a failure of the agreement; it is precisely how the waterfall is designed to operate at the extreme. The juniors took the deal knowing they sat at the bottom, and when the value did not stretch far enough, the structure they had signed up to allocated them nothing. It is the clearest possible illustration of why junior positions in distressed buyouts are so binary: the agreement they signed years earlier dictates, almost mechanically, whether they recover in full or not at all.\n\n[application] Four myths\nFour misconceptions to correct. First, that the agreement just confirms who gets paid first — it does far more: enforcement rights, voting, new-money priority, amendment rights, and insolvency mechanics; the payment waterfall is one clause among many. Second, that junior creditors are helpless once they sign — not so; they often retain consent rights over amendments, the right to bid for the company using their debt, a right of first offer to buy out the senior debt, and the ability to propose their own reorganisation plan in a formal restructuring. Third, that release on enforcement is absolute — courts have scrutinised it, and some aggressive releases have been struck down where juniors got nothing of value. And fourth, that a unitranche has no intercreditor arrangement — it does; the internal agreement among its lenders is a two-party version that runs on exactly the same legal principles of standstill and waterfall.\n\n[recap] The decisive document in distress\nSo to summarise: an intercreditor agreement governs the rights of every creditor class in a buyout — who is paid in what order, who can enforce and when, and what happens to junior claims when the seniors sell assets. Its core provisions are payment and lien subordination, the enforcement standstill, the turnover trust, release on enforcement, and senior status for hedge counterparties. Unitranche structures use a two-party version of the same thing. The agreement becomes the decisive document in distress, determining whether junior creditors recover meaningfully or are wiped out in a senior-controlled sale. And drafting has tightened considerably in response to a wave of litigation over aggressive priority and priming transactions. The throughline: the rules written in calm at the start are the rules that allocate the losses in the storm.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What is an enforcement standstill, and who does it freeze while who stays in control? What does the turnover provision prevent a junior creditor from doing? And what is release on enforcement, and why is it the agreement's most contentious provision? Work through your own answers first, then check the flashcards.\n\nQ: What is the typical US enforcement standstill period under an intercreditor agreement?\nA: 90 days.\nQ: What is a \"turnover provision\" in an ICA?\nA: A clause requiring junior creditors who receive out-of-turn payments to hold them on constructive trust and turn them over to senior creditors immediately.\nQ: What is the Agreement Among Lenders (AAL) in a unitranche structure?\nA: The functional equivalent of an intercreditor agreement between the first-out (senior) and last-out (junior) portions of a unitranche loan, governing payment priority and enforcement rights between the two tranches.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>In any leveraged buyout with multiple debt tranches — senior secured, second lien, mezzanine, PIK notes — creditors have conflicting interests: senior creditors want maximum enforcement rights to recover quickly; junior creditors want protection against being wiped out before they can respond. The ICA resolves these conflicts before they arise. When deals enter distress (as many post-2022 portfolio companies have), the ICA becomes the central document governing who can do what, when. For CVC Secondary Partners, the LP positions in Apollo, KKR, and Blackstone hold portfolio companies operating under complex ICAs — understanding ICA mechanics explains why distressed PE investments often produce binary outcomes (full recovery vs. complete wipe-out) for junior creditors.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>An intercreditor agreement (ICA) is the contractual document governing the priority, enforcement rights, and payment rights of different creditor classes in an LBO capital structure — determining who gets paid when, who can act in distress, and who gets wiped out.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine three creditors in a PE deal: a senior bank (lent £600m), a mezzanine fund (lent £100m), and a PIK note holder (lent £50m). If the company runs into trouble, who gets paid first? Who can demand repayment? Can the mezzanine fund sell the company's assets to recover their money?</p><p>The ICA is the contract they all signed before the deal closed that answers all these questions. It sets up the rules of the road for creditor behaviour — and when things go wrong, those rules determine who walks away with money and who gets wiped out. In a 2022-vintage LBO trading at 60 cents on the dollar, the ICA determines whether the second lien gets anything at all.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The ICA is like the rules of a parking enforcement hierarchy. Senior creditors are the council (can tow your car immediately). Mezzanine creditors are the parking attendants (can issue a ticket but must wait for the council to act before they can escalate). PIK note holders are a clamping contractor (can only act if everyone else has gone first, and only in the designated spaces). The ICA specifies exactly who has the right to act, when, and what they can do — and if they act outside their lane, they must give the proceeds to whoever was ahead of them.</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>Core Architecture:</strong> The ICA establishes two types of subordination:</p><ol><li><strong>Payment subordination</strong>: Junior creditors cannot receive principal or interest payments if the company is in default to senior creditors</li><li><strong>Lien subordination</strong>: Junior creditors' security interest ranks below senior creditors' in the enforcement waterfall</li></ol><p><strong>Key Provisions:</strong></p><p><strong>Enforcement Standstill:</strong> Junior creditors are prohibited from taking enforcement action (demanding repayment, appointing receivers, selling assets) for a defined standstill period after a senior event of default: - US: 90-day standstill is standard under typical intercreditor terms - Europe: 90-180 days (varies by deal and jurisdiction) During the standstill, senior creditors control the restructuring process entirely.</p><p><strong>Turnover / Trust Provisions:</strong> If junior creditors receive payments that violate the waterfall (e.g., a court award that bypasses the ICA), they hold those payments on trust for senior creditors and must turn them over immediately. This prevents junior creditors from \"jumping the queue\" via litigation.</p><p><strong>Release on Enforcement:</strong> When senior creditors enforce and sell assets, the ICA grants them the right to release all security interests — including junior creditors' liens — even if junior creditors receive no proceeds. This \"free and clear\" sale right is the most contentious ICA provision and has generated significant US litigation (Momentive Performance Materials, iHeartMedia).</p><p><strong>PIK Toggle Provisions:</strong> Where notes have PIK toggle (interest paid in kind rather than cash), the ICA typically specifies: (1) when toggle can be exercised; (2) whether PIK payments count as \"payments\" subject to subordination; (3) how PIK accretion affects the waterfall over time.</p><p><strong>Permitted Payments:</strong> The ICA defines when junior creditors CAN receive payments — typically: (1) scheduled interest if no ongoing senior default; (2) principal at scheduled maturity if all senior debt is fully repaid. Outside permitted payments, all cash sweeps to senior.</p><p><strong>Hedging Creditor Status:</strong> Interest rate swap counterparties (typically banks) are usually given senior-ranking creditor status in the ICA — their mark-to-market exposure is treated as senior debt for waterfall purposes. This matters because hedge breakage costs can be material in rate-shock environments (as demonstrated in 2022-23; see Interest Rate Hedging in PE).</p><p><strong>Insolvency Provisions:</strong> ICA governs creditor rights in formal insolvency: voting rights on restructuring proposals, junior creditor consent rights on new money priority, and mezzanine creditor rights to purchase senior debt at par (right of first offer).</p>"}, "5": {"section": "Technical Explanation", "html": "<p><strong>Core Architecture:</strong> The ICA establishes two types of subordination:</p><ol><li><strong>Payment subordination</strong>: Junior creditors cannot receive principal or interest payments if the company is in default to senior creditors</li><li><strong>Lien subordination</strong>: Junior creditors' security interest ranks below senior creditors' in the enforcement waterfall</li></ol><p><strong>Key Provisions:</strong></p><p><strong>Enforcement Standstill:</strong> Junior creditors are prohibited from taking enforcement action (demanding repayment, appointing receivers, selling assets) for a defined standstill period after a senior event of default: - US: 90-day standstill is standard under typical intercreditor terms - Europe: 90-180 days (varies by deal and jurisdiction) During the standstill, senior creditors control the restructuring process entirely.</p><p><strong>Turnover / Trust Provisions:</strong> If junior creditors receive payments that violate the waterfall (e.g., a court award that bypasses the ICA), they hold those payments on trust for senior creditors and must turn them over immediately. This prevents junior creditors from \"jumping the queue\" via litigation.</p><p><strong>Release on Enforcement:</strong> When senior creditors enforce and sell assets, the ICA grants them the right to release all security interests — including junior creditors' liens — even if junior creditors receive no proceeds. This \"free and clear\" sale right is the most contentious ICA provision and has generated significant US litigation (Momentive Performance Materials, iHeartMedia).</p><p><strong>PIK Toggle Provisions:</strong> Where notes have PIK toggle (interest paid in kind rather than cash), the ICA typically specifies: (1) when toggle can be exercised; (2) whether PIK payments count as \"payments\" subject to subordination; (3) how PIK accretion affects the waterfall over time.</p><p><strong>Permitted Payments:</strong> The ICA defines when junior creditors CAN receive payments — typically: (1) scheduled interest if no ongoing senior default; (2) principal at scheduled maturity if all senior debt is fully repaid. Outside permitted payments, all cash sweeps to senior.</p><p><strong>Hedging Creditor Status:</strong> Interest rate swap counterparties (typically banks) are usually given senior-ranking creditor status in the ICA — their mark-to-market exposure is treated as senior debt for waterfall purposes. This matters because hedge breakage costs can be material in rate-shock environments (as demonstrated in 2022-23; see Interest Rate Hedging in PE).</p><p><strong>Insolvency Provisions:</strong> ICA governs creditor rights in formal insolvency: voting rights on restructuring proposals, junior creditor consent rights on new money priority, and mezzanine creditor rights to purchase senior debt at par (right of first offer).</p>"}, "6": {"section": "Diagram", "html": "<p>The ICA waterfall: enforcement proceeds cascade top to bottom, and each tier is paid only once the one above is whole.</p><p>Two ICA mechanics sit on top of this picture: a <strong>90–180 day enforcement standstill</strong> freezes junior creditors while seniors run the process, and <strong>release on enforcement</strong> lets seniors sell free and clear of junior liens even if juniors recover nothing. Workers, suppliers, and communities are not parties to the ICA and sit outside the waterfall entirely.</p>"}, "7": {"section": "Real-World Example", "html": "<p><strong>iHeartMedia (2019):</strong> Clear Channel (later iHeartMedia) was taken private by Bain Capital and Thomas H. Lee Partners in a $19.5bn LBO in 2008. The company carried a complex capital structure with multiple creditor classes and an intercreditor agreement governing their respective rights. In the 2018-2019 distress, the ICA governed which creditor class could enforce, in what sequence, and on what assets. The US Bankruptcy Court confirmed a plan delivering zero recovery to the lowest-ranking creditor class — precisely how the ICA-defined waterfall operates at the extreme.</p><p><strong>Unitranche / Agreement Among Lenders (AAL):</strong> When Direct Lending funds create FOLO/AAL structures (see Direct Lending and Unitranche Debt), the Agreement Among Lenders functions as a bilateral ICA between the first-out (senior) and last-out (junior) portions of the same loan. Ares, Apollo Credit, and HPS — whose credit portfolios sit behind CVC's LP positions — regularly use AAL mechanics. The AAL applies identical standstill and waterfall logic in a two-party form.</p>"}, "8": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"The ICA just confirms who gets paid first\"</strong> — It does far more: enforcement rights, voting, new money priority, amendments, and insolvency mechanics. The payment waterfall is one clause among many.</li><li><strong>\"Junior creditors are helpless once they sign\"</strong> — Not so. Junior creditors often retain: consent rights on ICA amendments, credit bid rights, right-of-first-offer on senior debt, and the ability to propose a reorganisation plan in Chapter 11.</li><li><strong>\"Release on enforcement is absolute\"</strong> — US courts have scrutinised aggressive release provisions; some have been found unenforceable where junior creditors received no meaningful consideration.</li><li><strong>\"Unitranche has no intercreditor\"</strong> — Unitranche has an Agreement Among Lenders (AAL) — a bilateral ICA between first-out and last-out portions — which operates on the same legal principles.</li></ol>"}, "9": {"section": "Summary", "html": "<p>An intercreditor agreement governs the rights of all creditor classes in an LBO capital structure: who gets paid in what order, who can enforce and when, and what happens to junior claims when senior creditors sell assets. Core provisions: payment subordination, lien subordination, enforcement standstill (90-180 days), turnover trust, release on enforcement, and hedging creditor status. Unitranche structures use an Agreement Among Lenders (AAL) as a bilateral ICA. The ICA becomes the decisive document in distress — determining whether junior creditors receive meaningful recovery or are wiped out in a senior-controlled §363 sale. Post-2022 ICA drafting has tightened significantly in response to priming transaction litigation.</p>"}, "10": {"section": "Summary", "html": "<p>An intercreditor agreement governs the rights of all creditor classes in an LBO capital structure: who gets paid in what order, who can enforce and when, and what happens to junior claims when senior creditors sell assets. Core provisions: payment subordination, lien subordination, enforcement standstill (90-180 days), turnover trust, release on enforcement, and hedging creditor status. Unitranche structures use an Agreement Among Lenders (AAL) as a bilateral ICA. The ICA becomes the decisive document in distress — determining whether junior creditors receive meaningful recovery or are wiped out in a senior-controlled §363 sale. Post-2022 ICA drafting has tightened significantly in response to priming transaction litigation.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

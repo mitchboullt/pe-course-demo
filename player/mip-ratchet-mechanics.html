@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "mip-ratchet-mechanics", "title": "MIP Ratchet Mechanics", "draft_watermark": false, "estimated_runtime_sec": 312, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Aligning the management team", "on_screen_bullets": ["Share upside when it wins", "Nothing extra when it lags", "Shapes operational decisions"], "narration": "The management incentive ratchet is the primary tool a sponsor uses to align a portfolio company's management team with the fund's return targets. A well-built ratchet means management shares the upside generously when the deal performs, and receives nothing above their entry price when it underperforms. That single structure shapes an enormous amount of real behaviour inside a company: how management thinks about exit timing, how they manage earnings as an exit approaches, and how likely they are to stay. So understanding the ratchet is understanding a key value driver in any buyout-backed business — the operational decisions a management team makes are very often downstream of how their own incentive is designed. This lesson is about that design and the behaviour it produces.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Equity that grows with returns", "on_screen_bullets": ["Performance-linked stake", "Increases past return hurdles", "Rewards outperformance"], "narration": "Here is the definition. A management incentive ratchet is a performance-linked mechanism that increases management's share of the equity in a buyout-backed company as the exit returns exceed pre-set return hurdles — measured by the money multiple, the rate of return, or both. The key word is increases. This is not a fixed slice of the equity; it is a slice that grows as performance crosses thresholds. So management is not just rewarded for the deal doing well; they are rewarded disproportionately for it doing exceptionally well. That escalating quality — more share at higher performance — is what the word ratchet captures, and it is the whole point of the structure.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Cheap shares, rising slice", "on_screen_bullets": ["Management buys cheap shares", "Bigger slice at higher returns", "Underperform: just money back"], "narration": "Make it concrete. A sponsor buys a company, and management co-invests by buying a small number of cheap shares for a token amount. Then look at what happens at exit depending on performance. If the deal merely doubles, management gets a modest slice of the upside. If it triples, they get a substantially larger slice — not just more money, a larger percentage. And if the deal only limps to a small gain below the first hurdle, management gets their token investment back and essentially nothing more. The ratchet is that step-up mechanism: management's percentage rises as the performance thresholds are crossed. So it is deliberately designed to reward outperformance rather than mere competence — clearing a low bar earns little, while genuinely excellent results earn a disproportionate share. The cheapness of the entry shares is what makes the upside meaningful; the ratchet is what makes it escalate.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "A bonus that escalates", "on_screen_bullets": ["Not a flat percentage", "Rate rises with performance", "Convex by design"], "narration": "The mental model is a bonus scheme where the bonus percentage itself climbs as performance improves, rather than just the dollar amount. A normal bonus might be a flat ten percent of salary regardless of how the year went. The ratchet is different: it might be ten percent of the equity at a doubling, fifteen percent at two-and-a-half times, twenty percent at a tripling. The percentage steps up at each level. That escalation creates what is called convexity — extraordinary performance is rewarded disproportionately, far more than linearly. The reason sponsors build it this way is precisely to push management toward the home run rather than the safe, mediocre outcome. A flat share would make management indifferent between a good result and a great one; the ratchet makes them care intensely about the difference.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The tiered waterfall", "on_screen_bullets": ["Sweet equity at nominal value", "Floor, mid, top tiers", "Each hurdle converts a tranche"], "narration": "Mechanically, the ratchet operates through the equity waterfall at exit. In the common European approach, management is issued so-called sweet equity — a class of shares acquired at nominal value, representing a fixed percentage of the fully-diluted capital. At exit, the proceeds cascade through the share classes, and the ratchet determines how much of management's equity actually participates. A typical structure has three tiers: a floor, a middle, and a top. Below the floor hurdle, management receives only their entry price back. Once the floor is cleared, a tranche of their shares converts and shares in the proceeds. Clear the middle hurdle, and another tranche converts; clear the top, another still. So the percentage management ultimately receives depends on which hurdles the deal cleared — each threshold unlocks an additional layer of participation. The number of converting shares, not a renegotiated percentage, is the lever that delivers the escalating share.", "est_sec": 54}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The tax structuring", "on_screen_bullets": ["Acquire at market value", "Election locks capital-gains treatment", "Genuine risk required"], "narration": "There is a crucial tax dimension, because how management acquires the shares determines how the gain is taxed. The danger is that shares received cheaply by an employee get treated as employment income, taxed at high ordinary rates rather than the lower capital-gains rates. To preserve capital-gains treatment, management teams typically do three things. They acquire the shares at their genuine market value, as set by an independent valuation, rather than truly for free. They make a formal tax election at the point of acquisition that locks in capital-gains treatment on all future appreciation rather than facing income tax later at exit. And they ensure the shares carry real commercial risk — no guaranteed minimum return — so the arrangement looks like a genuine investment rather than disguised pay. Get this structuring wrong and the tax authority can recharacterise the whole gain as employment income, which dramatically reduces what management keeps. The structuring is not a formality; it is the difference between the lower rate and the higher one on a potentially enormous gain.", "est_sec": 54}, {"n": 7, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "The convex payoff", "on_screen_bullets": ["Founder-CEO co-invested heavily", "Deal returned about three times", "Ratchet vastly outpaced flat stake"], "narration": "Consider a representative case from a very large retail buyout. The founder-chief-executive co-invested a substantial personal sum alongside the sponsor, and the deal included a performance ratchet tied to money-multiple hurdles. When the sponsor exited, the deal had returned roughly three times the capital — comfortably into the upper tiers of the ratchet. The result was that the executive's ratcheted equity stake was worth far more than a simple pro-rata return on a flat co-investment would have produced; the convex structure paid out disproportionately precisely because the deal cleared the high hurdles. That is the ratchet working exactly as intended: a strong outcome translated into an outsized personal reward, which had given the executive every incentive over the hold period to push for the home run rather than settle for an ordinary exit. The lesson generalises — the bigger the outperformance, the more the ratchet amplifies the management payoff.", "est_sec": 52}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Not a fixed percentage", "Sweet equity isn't tax-free", "Higher multiple isn't always more"], "narration": "Four misconceptions to correct. First, that management gets a fixed percentage of the equity — wrong; the percentage is variable by design, and that variability is the entire point of a ratchet. Second, that sweet equity is tax-free — no; the tax authority can treat shares acquired cheaply by employees as employment income, and capital-gains treatment requires careful structuring and the right election. Third, that a higher multiple always means a higher management return — not necessarily; if the top hurdle is set very high, a strong-but-not-spectacular deal may return management less in percentage terms than a lower-hurdle structure would at the same multiple, because the upper tranche never converts. And fourth, that the management pool is always a set ten or fifteen percent — the market range is wider, roughly five to twenty percent depending on deal size, sector, and how much the business depends on its managers, with founder-run and management-heavy companies commanding the higher end.", "est_sec": 52}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Alignment with sharp edges", "on_screen_bullets": ["Cheap entry, escalating share", "Structuring preserves the rate", "Watch for threshold gaming"], "narration": "So to summarise: the management ratchet is the core alignment mechanism in a buyout. Management acquires equity at low cost — sweet equity at nominal value, or options at a strike price — that participates in exit proceeds at an increasing percentage as money-multiple or return hurdles are cleared. A typical three-tier structure, floor, mid, and top, makes the payoff convex, rewarding outperformance disproportionately. Careful tax structuring — acquiring at market value, making the right election at acquisition, and ensuring genuine commercial risk — is what preserves the favourable capital-gains treatment, and good-leaver and bad-leaver provisions govern what happens when someone exits early. The ratchet creates powerful alignment, but it has sharp edges worth remembering: it can tempt management to game earnings near a threshold, it can spark disputes, and it can fail entirely if the structuring is defective. Powerful, but only when designed and policed well.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What makes the payoff convex?", "How is capital-gains treatment preserved?", "What is sweet equity?"], "narration": "Before you finish, answer these from memory. What makes a ratchet's payoff convex rather than linear, and why do sponsors want that? What three things must a management team do to preserve capital-gains treatment on their shares? And what is sweet equity, and how does it differ from acquiring shares at full market value? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: MIP Ratchet Mechanics\n\n[hook] Aligning the management team\nThe management incentive ratchet is the primary tool a sponsor uses to align a portfolio company's management team with the fund's return targets. A well-built ratchet means management shares the upside generously when the deal performs, and receives nothing above their entry price when it underperforms. That single structure shapes an enormous amount of real behaviour inside a company: how management thinks about exit timing, how they manage earnings as an exit approaches, and how likely they are to stay. So understanding the ratchet is understanding a key value driver in any buyout-backed business — the operational decisions a management team makes are very often downstream of how their own incentive is designed. This lesson is about that design and the behaviour it produces.\n\n[definition] Equity that grows with returns\nHere is the definition. A management incentive ratchet is a performance-linked mechanism that increases management's share of the equity in a buyout-backed company as the exit returns exceed pre-set return hurdles — measured by the money multiple, the rate of return, or both. The key word is increases. This is not a fixed slice of the equity; it is a slice that grows as performance crosses thresholds. So management is not just rewarded for the deal doing well; they are rewarded disproportionately for it doing exceptionally well. That escalating quality — more share at higher performance — is what the word ratchet captures, and it is the whole point of the structure.\n\n[intuition] Cheap shares, rising slice\nMake it concrete. A sponsor buys a company, and management co-invests by buying a small number of cheap shares for a token amount. Then look at what happens at exit depending on performance. If the deal merely doubles, management gets a modest slice of the upside. If it triples, they get a substantially larger slice — not just more money, a larger percentage. And if the deal only limps to a small gain below the first hurdle, management gets their token investment back and essentially nothing more. The ratchet is that step-up mechanism: management's percentage rises as the performance thresholds are crossed. So it is deliberately designed to reward outperformance rather than mere competence — clearing a low bar earns little, while genuinely excellent results earn a disproportionate share. The cheapness of the entry shares is what makes the upside meaningful; the ratchet is what makes it escalate.\n\n[intuition] A bonus that escalates\nThe mental model is a bonus scheme where the bonus percentage itself climbs as performance improves, rather than just the dollar amount. A normal bonus might be a flat ten percent of salary regardless of how the year went. The ratchet is different: it might be ten percent of the equity at a doubling, fifteen percent at two-and-a-half times, twenty percent at a tripling. The percentage steps up at each level. That escalation creates what is called convexity — extraordinary performance is rewarded disproportionately, far more than linearly. The reason sponsors build it this way is precisely to push management toward the home run rather than the safe, mediocre outcome. A flat share would make management indifferent between a good result and a great one; the ratchet makes them care intensely about the difference.\n\n[mechanics] The tiered waterfall\nMechanically, the ratchet operates through the equity waterfall at exit. In the common European approach, management is issued so-called sweet equity — a class of shares acquired at nominal value, representing a fixed percentage of the fully-diluted capital. At exit, the proceeds cascade through the share classes, and the ratchet determines how much of management's equity actually participates. A typical structure has three tiers: a floor, a middle, and a top. Below the floor hurdle, management receives only their entry price back. Once the floor is cleared, a tranche of their shares converts and shares in the proceeds. Clear the middle hurdle, and another tranche converts; clear the top, another still. So the percentage management ultimately receives depends on which hurdles the deal cleared — each threshold unlocks an additional layer of participation. The number of converting shares, not a renegotiated percentage, is the lever that delivers the escalating share.\n\n[mechanics] The tax structuring\nThere is a crucial tax dimension, because how management acquires the shares determines how the gain is taxed. The danger is that shares received cheaply by an employee get treated as employment income, taxed at high ordinary rates rather than the lower capital-gains rates. To preserve capital-gains treatment, management teams typically do three things. They acquire the shares at their genuine market value, as set by an independent valuation, rather than truly for free. They make a formal tax election at the point of acquisition that locks in capital-gains treatment on all future appreciation rather than facing income tax later at exit. And they ensure the shares carry real commercial risk — no guaranteed minimum return — so the arrangement looks like a genuine investment rather than disguised pay. Get this structuring wrong and the tax authority can recharacterise the whole gain as employment income, which dramatically reduces what management keeps. The structuring is not a formality; it is the difference between the lower rate and the higher one on a potentially enormous gain.\n\n[example] The convex payoff\nConsider a representative case from a very large retail buyout. The founder-chief-executive co-invested a substantial personal sum alongside the sponsor, and the deal included a performance ratchet tied to money-multiple hurdles. When the sponsor exited, the deal had returned roughly three times the capital — comfortably into the upper tiers of the ratchet. The result was that the executive's ratcheted equity stake was worth far more than a simple pro-rata return on a flat co-investment would have produced; the convex structure paid out disproportionately precisely because the deal cleared the high hurdles. That is the ratchet working exactly as intended: a strong outcome translated into an outsized personal reward, which had given the executive every incentive over the hold period to push for the home run rather than settle for an ordinary exit. The lesson generalises — the bigger the outperformance, the more the ratchet amplifies the management payoff.\n\n[application] Four myths\nFour misconceptions to correct. First, that management gets a fixed percentage of the equity — wrong; the percentage is variable by design, and that variability is the entire point of a ratchet. Second, that sweet equity is tax-free — no; the tax authority can treat shares acquired cheaply by employees as employment income, and capital-gains treatment requires careful structuring and the right election. Third, that a higher multiple always means a higher management return — not necessarily; if the top hurdle is set very high, a strong-but-not-spectacular deal may return management less in percentage terms than a lower-hurdle structure would at the same multiple, because the upper tranche never converts. And fourth, that the management pool is always a set ten or fifteen percent — the market range is wider, roughly five to twenty percent depending on deal size, sector, and how much the business depends on its managers, with founder-run and management-heavy companies commanding the higher end.\n\n[recap] Alignment with sharp edges\nSo to summarise: the management ratchet is the core alignment mechanism in a buyout. Management acquires equity at low cost — sweet equity at nominal value, or options at a strike price — that participates in exit proceeds at an increasing percentage as money-multiple or return hurdles are cleared. A typical three-tier structure, floor, mid, and top, makes the payoff convex, rewarding outperformance disproportionately. Careful tax structuring — acquiring at market value, making the right election at acquisition, and ensuring genuine commercial risk — is what preserves the favourable capital-gains treatment, and good-leaver and bad-leaver provisions govern what happens when someone exits early. The ratchet creates powerful alignment, but it has sharp edges worth remembering: it can tempt management to game earnings near a threshold, it can spark disputes, and it can fail entirely if the structuring is defective. Powerful, but only when designed and policed well.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What makes a ratchet's payoff convex rather than linear, and why do sponsors want that? What three things must a management team do to preserve capital-gains treatment on their shares? And what is sweet equity, and how does it differ from acquiring shares at full market value? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>MIP ratchets are the primary tool by which PE sponsors align management incentives with fund return targets. A well-structured ratchet means management shares the upside when the deal performs and receives nothing above their entry price when it underperforms. For CVC Secondary Partners' portfolio, understanding MIP ratchets explains a key value driver in the underlying portfolio companies of its LP positions: management teams across Apollo, KKR, and Blackstone portfolio companies operate under ratchet mechanics that directly shape their operational decisions. Exit timing, EBITDA management near exit, and management retention risk are all downstream of ratchet design.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A MIP ratchet is a performance-linked mechanism in a management incentive plan that increases management's equity stake in a PE-backed company as exit returns exceed pre-set MOIC or IRR hurdles.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a PE firm buys a company for £100m. Management co-invests by buying a small number of cheap \"sweet\" shares for £100 total. At exit: - If the deal returns 2x (£200m): management gets 10% of the upside = £10m - If the deal returns 3x (£300m): management gets 20% of the upside = £40m - If the deal returns 1.5x (£150m): management gets their £100 back and nothing more</p><p>The \"ratchet\" is the step-up mechanism — management's percentage increases as performance thresholds are crossed. It rewards outperformance, not just competence.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>A MIP ratchet is like a bonus scheme where the bonus percentage itself increases as performance improves, not just the dollar amount. Normal bonus: 10% of salary regardless of performance. MIP ratchet: 10% of equity at 2x → 15% at 2.5x → 20% at 3x. The convexity rewards extraordinary performance disproportionately.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>A MIP ratchet operates through the equity waterfall at exit. The key structural variables are:</p><p><strong>Share Structure (UK/European approach — sweet equity):</strong> Management is issued A ordinary shares (or preference shares + A ordinary) at nominal value (e.g., £0.01 per share), representing a fixed percentage of fully-diluted share capital. At exit, the proceeds waterfall determines what each share class receives.</p><p><strong>Ratchet Thresholds:</strong> Defined by MOIC and/or IRR hurdles. Typical three-tier structure: - Floor (2.0x MOIC / 15% IRR): management receives 10% of equity proceeds - Mid (2.5x MOIC / 20% IRR): management receives 15% - Top (3.0x MOIC / 25% IRR): management receives 20%</p><p><strong>Mechanics:</strong> The number of management shares that convert at exit varies by tier. Below floor: management receives only their entry price. Above each hurdle: an additional tranche of shares converts and participates in proceeds pro-rata.</p><p><strong>US Approach:</strong> Stock options more common than sweet equity. Incentive Stock Options (ISOs) receive capital gains treatment if held &gt;2 years from grant / 1 year from exercise. Non-Qualified Stock Options (NQSOs) trigger ordinary income at exercise. A §83(b) election allows holders of restricted stock to pay tax at grant value (low) rather than vesting value (higher).</p><p><strong>UK Tax Treatment:</strong> HMRC classifies management shares received at undervalue as employment income under Employment Related Securities (ERS) rules (Part 7 ITEPA 2003). To preserve capital gains treatment, management teams typically: 1. Acquire shares at market value (as determined by independent valuation) 2. Make a Section 431 election (waiving restricted securities rules) 3. Structure shares with genuine commercial risk (not a guaranteed minimum return)</p>"}, "5": {"section": "Technical Explanation", "html": "<p>A MIP ratchet operates through the equity waterfall at exit. The key structural variables are:</p><p><strong>Share Structure (UK/European approach — sweet equity):</strong> Management is issued A ordinary shares (or preference shares + A ordinary) at nominal value (e.g., £0.01 per share), representing a fixed percentage of fully-diluted share capital. At exit, the proceeds waterfall determines what each share class receives.</p><p><strong>Ratchet Thresholds:</strong> Defined by MOIC and/or IRR hurdles. Typical three-tier structure: - Floor (2.0x MOIC / 15% IRR): management receives 10% of equity proceeds - Mid (2.5x MOIC / 20% IRR): management receives 15% - Top (3.0x MOIC / 25% IRR): management receives 20%</p><p><strong>Mechanics:</strong> The number of management shares that convert at exit varies by tier. Below floor: management receives only their entry price. Above each hurdle: an additional tranche of shares converts and participates in proceeds pro-rata.</p><p><strong>US Approach:</strong> Stock options more common than sweet equity. Incentive Stock Options (ISOs) receive capital gains treatment if held &gt;2 years from grant / 1 year from exercise. Non-Qualified Stock Options (NQSOs) trigger ordinary income at exercise. A §83(b) election allows holders of restricted stock to pay tax at grant value (low) rather than vesting value (higher).</p><p><strong>UK Tax Treatment:</strong> HMRC classifies management shares received at undervalue as employment income under Employment Related Securities (ERS) rules (Part 7 ITEPA 2003). To preserve capital gains treatment, management teams typically: 1. Acquire shares at market value (as determined by independent valuation) 2. Make a Section 431 election (waiving restricted securities rules) 3. Structure shares with genuine commercial risk (not a guaranteed minimum return)</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>KKR / Alliance Boots (2007):</strong> Stefano Pessina (management CEO) co-invested €280m alongside KKR in the £11.1bn leveraged buyout of Alliance Boots. The deal included a performance ratchet tied to MOIC hurdles. When KKR partially exited via sale to Walgreens (2012-2014), the deal generated approximately 3x MOIC. Pessina's ratcheted equity stake was reportedly worth ~€2.5bn — far exceeding the pro-rata return on a flat co-investment stake — demonstrating the convex payoff structure of a high-performing ratchet.</p><p><strong>CVC Secondary Partners context:</strong> The underlying portfolio companies of CVC's LP positions in KKR, Apollo, and Blackstone all operate MIP structures. As K-1 allocations are processed, management co-investment equity (especially in US funds via LLC/LP structures) creates partnership income that flows through the K-1 alongside LP ordinary income. Understanding the waterfall mechanics explains why management equity distributions are a distinct line item from LP return-of-capital and gain allocations.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Management gets a fixed percentage of equity\"</strong> — Wrong. The percentage is variable by design; that is the whole point of the ratchet.</li><li><strong>\"Sweet equity is tax-free in the UK\"</strong> — Wrong. HMRC applies Employment Related Securities rules; capital gains treatment requires careful structuring and Section 431 elections.</li><li><strong>\"Higher MOIC always means higher management return\"</strong> — Not necessarily. If hurdles are set very high (e.g., top tier triggers only at 4x), a 3.5x deal may return management less in percentage terms than a lower-hurdle ratchet at the same MOIC.</li><li><strong>\"The MIP pool is always 10-15%\"</strong> — Market norm is 5-20% depending on deal size, industry, and management leverage. Founder-run businesses and management-heavy sectors often command 15-20%.</li></ol>"}, "8": {"section": "Summary", "html": "<p>A MIP ratchet is the core management alignment mechanism in PE buyouts. Management receives equity at low cost (sweet equity at nominal value in UK; options at strike in US) that participates in exit proceeds at an increasing percentage as MOIC/IRR hurdles are cleared. Three-tier structures (floor, mid, top) are typical, with 10-20% of equity available across tiers. UK structuring requires Section 431 elections and careful valuation to preserve capital gains treatment. Good leaver/bad leaver provisions govern forfeitures. Ratchets create powerful alignment but also risks: EBITDA gaming near exit thresholds, leakage disputes, and HMRC challenge if structuring is defective.</p>"}, "9": {"section": "Summary", "html": "<p>A MIP ratchet is the core management alignment mechanism in PE buyouts. Management receives equity at low cost (sweet equity at nominal value in UK; options at strike in US) that participates in exit proceeds at an increasing percentage as MOIC/IRR hurdles are cleared. Three-tier structures (floor, mid, top) are typical, with 10-20% of equity available across tiers. UK structuring requires Section 431 elections and careful valuation to preserve capital gains treatment. Good leaver/bad leaver provisions govern forfeitures. Ratchets create powerful alignment but also risks: EBITDA gaming near exit thresholds, leakage disputes, and HMRC challenge if structuring is defective.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

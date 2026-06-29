@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "emerging-manager-programmes-in-pe", "title": "Emerging Manager Programmes in PE", "draft_watermark": false, "estimated_runtime_sec": 420, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Solving the access problem", "on_screen_bullets": ["Best GPs are oversubscribed", "Commit early, gain priority", "Where the industry renews itself"], "narration": "The access problem in PE — that the best GPs are oversubscribed and unavailable to new LPs — creates a systematic barrier to entry for institutions building PE programmes. Emerging manager programmes are the mechanism LPs use to solve it: by investing early with managers not yet established, an LP gains relationship priority and preferential economics before the manager reaches institutional scale. It matters for two audiences — LPs building programmes who want above-average returns and access to future top-tier managers, and aspiring PE professionals, because the spin-out pathway is how the industry renews itself. This closes Phase 12 — the specialist topics that distinguish sophisticated practitioners.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Backing the next generation early", "on_screen_bullets": ["Newer, smaller, diverse-owned GPs", "Access future top performers cheaply", "Plus diversity + governance mandates"], "narration": "The definition. Emerging manager programmes are dedicated LP initiatives that commit capital to newer, smaller, or minority-owned private equity fund managers — motivated by the potential to access the next generation of top performers before they become expensive and oversubscribed, to increase diversity in the GP ecosystem, and to meet regulatory or governance mandates. It's venture-style talent-spotting, applied to fund managers themselves.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The music scout", "on_screen_bullets": ["Sign the talent before the big deal", "£25m of a £200m debut vs 0.07% of a giant", "More risk, but a founding relationship"], "narration": "Imagine you're a music-industry scout. The best-established artists are expensive to sign — they have leverage and their managers negotiate hard. But if you identify a talented singer-songwriter playing small venues before they get a major deal, you can build a relationship, offer support, and eventually sign them on favourable terms, because you believed in them before anyone else did. Emerging manager programmes are the LP equivalent. Instead of competing with every other large pension for allocation in a top-decile Blackstone or KKR fund — where you might get a ten-million slice of a fifteen-billion fund, a seventh of a percent — an LP with an emerging manager programme might commit twenty-five million to a two-hundred-million debut fund from a team that just spun out of a larger PE firm. The risk: less track record, thinner resources, higher execution risk. The reward: if they become the next successful mid-market brand, you have a founding LP relationship — proportionally larger allocations, better economics, and priority access in every future fund.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Series A for fund managers", "on_screen_bullets": ["Investing in the team, not the portfolio", "'Can they build something institutional?'", "Shorter feedback loop than VC"], "narration": "The mental model: emerging manager programmes are like early-stage venture capital applied to fund managers themselves. The LP isn't investing in the fund's portfolio companies — it's investing in the team's ability to build a fund-management business. Like a Series A investor assessing a startup, the LP is asking: does this team have what it takes to build something institutional-grade? The key difference from VC is the feedback loop. A startup might take ten years to know if it worked, but an emerging manager's first fund has five-year interim data — enough to assess whether they can identify, acquire, manage, and exit businesses successfully. That shorter loop is what makes the bet tractable.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Adapted 4 Ps + programme design", "on_screen_bullets": ["People weighted most; verify deal attribution", "Right-sized fund, 2–5% GP commit, LP-friendly", "5–15% sub-allocation, deeper monitoring"], "narration": "Technically, three rationales drive these programmes. The access argument: if return persistence is real, especially at the top decile, identifying future top managers early creates a compounding advantage no new LP can buy later. The return argument: the evidence on first-time funds is genuinely mixed — some research finds they outperform, lean and hungry with small fund sizes that support higher-return deals; other research finds they underperform, with weak infrastructure and a team learning on the job; what's consistent is that the variance is much wider, more exceptional outcomes at both ends. And the diversity argument: many public pensions have mandates to allocate to women-, minority-, or veteran-owned managers, supported by evidence that diverse teams reduce groupthink. The diligence applies the standard four Ps but reweighted, because the usual evidence doesn't exist. People is most critical — with no fund track record, the team's background is the primary proxy, so LPs demand verifiable prior deals, clear attribution of who specifically sourced and managed each one, an amicable spin-out ideally endorsed by the prior firm, and a complete set of competencies with no obvious gaps. Performance relies on individual deal records at prior firms, verified with the former employer. Process needs a genuinely differentiated thesis and a replicable, non-rolodex-dependent sourcing model. And Portfolio means the vehicle itself — a fund sized to the team's execution capacity, a two-to-five percent GP commitment, LP-friendly economics like a European waterfall and lower carry, and strong LPAC governance and key-person provisions, because the LP is taking more manager risk. Programmatically, LPs ringfence a dedicated sub-allocation, typically five to fifteen percent of the PE budget, write smaller commitments of five-to-thirty million that still buy a meaningful three-to-fifteen-percent stake, and monitor more intensively — quarterly calls with the founders rather than just an annual meeting.", "est_sec": 78}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "CalPERS + a spin-out", "on_screen_bullets": ["CalPERS ~$470bn, AB 2833 mandate", "Pipeline → today's core managers", "Spin-out: £20m at first close, 8% of fund"], "narration": "Two illustrations. First, CalPERS — around four hundred seventy billion in assets — runs one of the most prominent US institutional emerging manager programmes, dedicating a specific allocation to managers raising their first, second, or third institutional fund, usually below a billion in size, often with a diversity mandate. It does so for three reasons: a California legal mandate, Assembly Bill 2833, requiring it to actively seek emerging and diverse managers and report on the activity; access optionality, identifying the next generation before they're oversubscribed; and competitive returns, with the emerging-manager portfolio in some periods matching or exceeding the established-manager portfolio. The payoff is a pipeline — several of CalPERS' current core managers began as first-time funds in that programme. Second, the spin-out dynamic, illustratively: three partners leave a top-quartile European mid-market firm where they co-led twelve deals at an average two-point-eight-times MOIC, and raise an independent two-hundred-fifty-million fund. The LP can't see a track record for the new firm, only individual deal attribution at the prior firm — which it verifies with the former employer, who confirms they were the lead deal partners and didn't compete during the wind-down. The vehicle is well-structured: a three-year investment period, European waterfall, five percent GP commit, an LPAC with supermajority consent, and a size appropriate to a five-person team. An anchor endowment commits fifty million, and the LP's emerging manager programme commits twenty million at first close — eight percent of the fund — negotiating an LPAC seat, pro-rata co-investment rights, full access to prior deal documentation, and three-year most-favoured-nation protection. That is the programme turning manager risk into a founding relationship.", "est_sec": 72}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Hunger ≠ experience", "Not charity — real returns", "Prior-firm record isn't fully transferable"], "narration": "Three corrections. First, emerging managers don't always outperform because they're hungrier — hunger is not a substitute for experience, and a first-time team lacking operational infrastructure, no CFO, no fund administrator, no legal team, makes costly errors; the strongest emerging managers bring genuine technical excellence from prior roles, not just drive. Second, emerging manager programmes are not charity where LPs accept lower returns to support diversity or access — when well-managed, emerging managers with the right background generate returns competitive with established managers while offering LP-friendly economics; the charity framing misunderstands the financial case. And third, the track record at the prior firm is not the same as the emerging manager's own — prior-firm attribution is important but imperfect, because the team benefited from that firm's brand, deal flow, infrastructure, and LP relationships, all of which they must now rebuild from scratch; whether they can replicate prior success depends on whether those enabling conditions are replicated, which is a genuine uncertainty.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Tomorrow's core relationships", "on_screen_bullets": ["Access, returns, diversity mandates", "Adapted 4 Ps; People weighted most", "Dedicated sub-allocation + pipeline"], "narration": "To recap. Emerging manager programmes commit capital to newer, smaller, or diverse-owned PE managers — motivated by the access problem, by the return potential of well-selected first-time funds from experienced teams, and by diversity mandates. The diligence applies the four Ps with significantly adapted methodology: individual deal attribution at prior firms substitutes for fund-level track records, reference depth is higher, and team completeness and fund-structure quality carry more weight. The strongest emerging managers have demonstrable prior deal records, appropriate fund size, LP-friendly economics, and strong governance. CalPERS shows the institutional model — a dedicated sub-allocation, adapted diligence, and a pipeline where today's emerging managers become tomorrow's core relationships. That completes Phase 12. Next we enter the core synthesis phase, beginning with how the whole LBO capital stack fits together as one system.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "When evaluating a first-time fund manager with no fund-level track record, which of the 4 Ps carries the most weight, and what evidence substitutes for the missing returns? Why isn't prior-firm attribution fully transferable?", "narration": "Before the next lesson, answer all three. When evaluating a first-time fund manager with no fund-level track record, which of the four Ps carries the most weight, and what evidence substitutes for the missing fund returns? And why is a team's track record at their prior firm not fully transferable to their new firm? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Emerging Manager Programmes in PE\n\n[hook] Solving the access problem\nThe access problem in PE — that the best GPs are oversubscribed and unavailable to new LPs — creates a systematic barrier to entry for institutions building PE programmes. Emerging manager programmes are the mechanism LPs use to solve it: by investing early with managers not yet established, an LP gains relationship priority and preferential economics before the manager reaches institutional scale. It matters for two audiences — LPs building programmes who want above-average returns and access to future top-tier managers, and aspiring PE professionals, because the spin-out pathway is how the industry renews itself. This closes Phase 12 — the specialist topics that distinguish sophisticated practitioners.\n\n[definition] Backing the next generation early\nThe definition. Emerging manager programmes are dedicated LP initiatives that commit capital to newer, smaller, or minority-owned private equity fund managers — motivated by the potential to access the next generation of top performers before they become expensive and oversubscribed, to increase diversity in the GP ecosystem, and to meet regulatory or governance mandates. It's venture-style talent-spotting, applied to fund managers themselves.\n\n[intuition] The music scout\nImagine you're a music-industry scout. The best-established artists are expensive to sign — they have leverage and their managers negotiate hard. But if you identify a talented singer-songwriter playing small venues before they get a major deal, you can build a relationship, offer support, and eventually sign them on favourable terms, because you believed in them before anyone else did. Emerging manager programmes are the LP equivalent. Instead of competing with every other large pension for allocation in a top-decile Blackstone or KKR fund — where you might get a ten-million slice of a fifteen-billion fund, a seventh of a percent — an LP with an emerging manager programme might commit twenty-five million to a two-hundred-million debut fund from a team that just spun out of a larger PE firm. The risk: less track record, thinner resources, higher execution risk. The reward: if they become the next successful mid-market brand, you have a founding LP relationship — proportionally larger allocations, better economics, and priority access in every future fund.\n\n[intuition] Series A for fund managers\nThe mental model: emerging manager programmes are like early-stage venture capital applied to fund managers themselves. The LP isn't investing in the fund's portfolio companies — it's investing in the team's ability to build a fund-management business. Like a Series A investor assessing a startup, the LP is asking: does this team have what it takes to build something institutional-grade? The key difference from VC is the feedback loop. A startup might take ten years to know if it worked, but an emerging manager's first fund has five-year interim data — enough to assess whether they can identify, acquire, manage, and exit businesses successfully. That shorter loop is what makes the bet tractable.\n\n[mechanics] Adapted 4 Ps + programme design\nTechnically, three rationales drive these programmes. The access argument: if return persistence is real, especially at the top decile, identifying future top managers early creates a compounding advantage no new LP can buy later. The return argument: the evidence on first-time funds is genuinely mixed — some research finds they outperform, lean and hungry with small fund sizes that support higher-return deals; other research finds they underperform, with weak infrastructure and a team learning on the job; what's consistent is that the variance is much wider, more exceptional outcomes at both ends. And the diversity argument: many public pensions have mandates to allocate to women-, minority-, or veteran-owned managers, supported by evidence that diverse teams reduce groupthink. The diligence applies the standard four Ps but reweighted, because the usual evidence doesn't exist. People is most critical — with no fund track record, the team's background is the primary proxy, so LPs demand verifiable prior deals, clear attribution of who specifically sourced and managed each one, an amicable spin-out ideally endorsed by the prior firm, and a complete set of competencies with no obvious gaps. Performance relies on individual deal records at prior firms, verified with the former employer. Process needs a genuinely differentiated thesis and a replicable, non-rolodex-dependent sourcing model. And Portfolio means the vehicle itself — a fund sized to the team's execution capacity, a two-to-five percent GP commitment, LP-friendly economics like a European waterfall and lower carry, and strong LPAC governance and key-person provisions, because the LP is taking more manager risk. Programmatically, LPs ringfence a dedicated sub-allocation, typically five to fifteen percent of the PE budget, write smaller commitments of five-to-thirty million that still buy a meaningful three-to-fifteen-percent stake, and monitor more intensively — quarterly calls with the founders rather than just an annual meeting.\n\n[worked-example] CalPERS + a spin-out\nTwo illustrations. First, CalPERS — around four hundred seventy billion in assets — runs one of the most prominent US institutional emerging manager programmes, dedicating a specific allocation to managers raising their first, second, or third institutional fund, usually below a billion in size, often with a diversity mandate. It does so for three reasons: a California legal mandate, Assembly Bill 2833, requiring it to actively seek emerging and diverse managers and report on the activity; access optionality, identifying the next generation before they're oversubscribed; and competitive returns, with the emerging-manager portfolio in some periods matching or exceeding the established-manager portfolio. The payoff is a pipeline — several of CalPERS' current core managers began as first-time funds in that programme. Second, the spin-out dynamic, illustratively: three partners leave a top-quartile European mid-market firm where they co-led twelve deals at an average two-point-eight-times MOIC, and raise an independent two-hundred-fifty-million fund. The LP can't see a track record for the new firm, only individual deal attribution at the prior firm — which it verifies with the former employer, who confirms they were the lead deal partners and didn't compete during the wind-down. The vehicle is well-structured: a three-year investment period, European waterfall, five percent GP commit, an LPAC with supermajority consent, and a size appropriate to a five-person team. An anchor endowment commits fifty million, and the LP's emerging manager programme commits twenty million at first close — eight percent of the fund — negotiating an LPAC seat, pro-rata co-investment rights, full access to prior deal documentation, and three-year most-favoured-nation protection. That is the programme turning manager risk into a founding relationship.\n\n[pitfalls] What people get wrong\nThree corrections. First, emerging managers don't always outperform because they're hungrier — hunger is not a substitute for experience, and a first-time team lacking operational infrastructure, no CFO, no fund administrator, no legal team, makes costly errors; the strongest emerging managers bring genuine technical excellence from prior roles, not just drive. Second, emerging manager programmes are not charity where LPs accept lower returns to support diversity or access — when well-managed, emerging managers with the right background generate returns competitive with established managers while offering LP-friendly economics; the charity framing misunderstands the financial case. And third, the track record at the prior firm is not the same as the emerging manager's own — prior-firm attribution is important but imperfect, because the team benefited from that firm's brand, deal flow, infrastructure, and LP relationships, all of which they must now rebuild from scratch; whether they can replicate prior success depends on whether those enabling conditions are replicated, which is a genuine uncertainty.\n\n[recap] Tomorrow's core relationships\nTo recap. Emerging manager programmes commit capital to newer, smaller, or diverse-owned PE managers — motivated by the access problem, by the return potential of well-selected first-time funds from experienced teams, and by diversity mandates. The diligence applies the four Ps with significantly adapted methodology: individual deal attribution at prior firms substitutes for fund-level track records, reference depth is higher, and team completeness and fund-structure quality carry more weight. The strongest emerging managers have demonstrable prior deal records, appropriate fund size, LP-friendly economics, and strong governance. CalPERS shows the institutional model — a dedicated sub-allocation, adapted diligence, and a pipeline where today's emerging managers become tomorrow's core relationships. That completes Phase 12. Next we enter the core synthesis phase, beginning with how the whole LBO capital stack fits together as one system.\n\nEnd-card question: When evaluating a first-time fund manager with no fund-level track record, which of the 4 Ps carries the most weight, and what evidence substitutes for the missing returns? Why isn't prior-firm attribution fully transferable?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The access problem in PE — that the best GPs are oversubscribed and unavailable to new LPs — creates a systematic barrier to entry for institutional investors building PE programmes. Emerging manager programmes are the mechanism LPs use to solve this problem: by investing early with managers who are not yet established, LPs gain relationship priority and preferential economics before the manager reaches institutional scale.</p><p>Understanding emerging manager programmes matters for two audiences:</p><ol><li><strong>LPs building PE programmes:</strong> Emerging managers offer potential for above-average returns (academic evidence is mixed but some research suggests first-time funds can outperform larger successors when talent is genuinely differentiated), access to future top-tier managers at attractive terms, and diversification beyond the crowded established manager market.</li></ol><ol><li><strong>Aspiring PE professionals and entrepreneurs:</strong> The PE firm formation pathway — from carrying the bag at a large fund to spinning out a new fund — is the route by which the PE industry renews itself. Understanding how LPs evaluate and support emerging managers is directly relevant to anyone considering this path.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Emerging manager programmes are dedicated LP initiatives that commit capital to newer, smaller, or minority-owned private equity fund managers — motivated by the potential to access the next generation of top performers before they become expensive and oversubscribed, to increase diversity in the GP ecosystem, and to meet regulatory or governance mandates.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you are a music industry scout. The best-established artists are expensive to sign (they have leverage; their management team negotiates hard). But if you identify a talented singer-songwriter playing small venues before they get a major deal, you can build a relationship, offer support, and eventually sign them on favourable terms — because you believed in them before anyone else did.</p><p>Emerging manager programmes are the LP equivalent. Instead of competing with every other large pension fund for allocation in a top-decile Blackstone or KKR fund (where you might receive a £10m allocation in a £15bn fund — a 0.07% stake), an LP with an emerging manager programme might commit £25m to a £200m debut fund from a team that has just spun out of a larger PE firm.</p><p>The risk: the emerging manager has less track record, thinner resources, and higher execution risk than an established firm. The reward: if they become the next successful mid-market PE brand, you have a founding LP relationship — proportionally larger allocations, better economics, and priority access in all future funds.</p><p><strong>Who counts as an \"emerging manager\"?</strong> - <strong>First-time fund managers:</strong> Partners spinning out from established PE firms with no independent track record - <strong>First or second institutional fund:</strong> A team that may have done deal-by-deal investments or run a small first fund (&lt; $150m) and is now seeking institutional LP commitments - <strong>Small/niche funds:</strong> Established managers with a specific specialisation (e.g., African healthcare PE, climate tech PE) that operates outside the mainstream LP universe - <strong>Diverse-owned funds:</strong> Funds owned by underrepresented groups (women, minorities, veterans) — many LP programmes specifically target diversity-owned managers</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Emerging manager programmes are like early-stage venture capital applied to fund managers themselves. The LP is not investing in the fund's portfolio companies — they are investing in the team's ability to build a fund management business. Like a Series A investor assessing a startup, the LP is asking: \"Does this team have what it takes to build something institutional-grade?\"</p><p>The key difference from VC: the assets they are building (a PE fund) have a shorter feedback loop. A VC startup might take 10 years to know if it worked. An emerging manager's first fund has 5-year interim data — enough to assess whether they can identify, acquire, manage, and exit businesses successfully.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Rationale — Why Emerging Managers?</p><p><strong>The access argument:</strong> If Return Persistence in PE is real (as the evidence suggests, particularly at top-decile level), then early identification of future top managers creates a compounding advantage. An LP who committed to KKR Fund II in 1980 or Sequoia in 1979 has a relationship that no new LP can access at any price. Emerging manager programmes replicate this dynamic: identify the next generation of top managers before they become expensive and exclusive.</p><p><strong>The return argument:</strong> Academic evidence on first-time fund performance is genuinely mixed: - Some research suggests first-time funds outperform (manager selection is highest conviction; lean team structure keeps costs low; smaller fund size supports higher-return deals) - Other research finds first-time funds underperform (no track record means less rigorous target selection; operational infrastructure is weak; team is learning on the job) - Cambridge Associates and others report that the variance in first-time fund returns is significantly higher than for established managers — the distribution is wider, with more exceptional outcomes at both ends</p><p>The working view: talented, well-resourced emerging managers from strong PE backgrounds can generate excellent returns. Undercapitalised, inexperienced, or poorly-structured first-time managers generate poor returns. LP diligence on emerging managers must focus intensely on the team's background and the structural quality of the vehicle — not just the strategy.</p><p><strong>The diversity argument:</strong> Many large public pension funds in the US and UK have regulatory or governance mandates to invest with diverse-owned managers. CalPERS, CalSTRS, and several state pension funds have explicit policies to allocate a percentage of new commitments to women-owned, minority-owned, or veteran-owned fund managers. This is driven by: - Evidence that diverse teams make better investment decisions (reduced groupthink) - Regulatory and political accountability of public funds - The pipeline effect: supporting diverse managers today creates future top-tier managers from underrepresented backgrounds</p><p>---</p><p>### What Makes a Strong Emerging Manager?</p><p>LP diligence on emerging managers applies the standard 4 Ps framework (LP Due Diligence on GPs) but with different weighting and different evidence sources — because many of the standard metrics (audited track record across multiple funds, large team with succession depth) don't exist for emerging managers.</p><p><strong>People (most critical for emerging managers):</strong></p><p>The team's background is the primary proxy for expected performance when no fund-level track record exists. Strong signals: - Demonstrable prior deals: team members have led transactions at prior firms that can be independently verified — specific companies acquired, operational improvement achieved, exits completed - Attribution clarity: the team can clearly explain their personal role in prior successes (not \"we all contributed\" — who specifically sourced, diligenced, managed, and exited each deal) - Spin-out with endorsement: the prior employer GP endorsed the spin-out (not acrimonious departure); ideally, the prior firm has co-invested alongside the new fund's first deals - Completeness: the team has the full range of required competencies (deal origination, investment execution, portfolio management, operational improvement, exit execution) — no obvious gaps requiring expensive senior hires</p><p><strong>Weak signals in emerging managers:</strong> - \"Relationships\" without deal proof — a team that claims proprietary deal flow based on sector relationships but cannot point to prior deals they actually executed - Spin-out after a dispute with the prior firm — may indicate cultural fit problems that will recur - All seniors from one prior firm — groupthink risk; missing the diversity of approach that cross-firm teams bring</p><p><strong>Performance (track record analysis with limited data):</strong></p><p>For a first-time fund manager, the only available track record is: - Individual deal records at prior firms (may be partially disclosed; requires verification with prior firm) - Prior fund-of-fund or angel investing experience - Deal-by-deal vehicle performance (if they ran one before raising an institutional fund)</p><p>LP diligence must: (1) obtain prior employer verification of specific deal attribution; (2) verify claimed returns against independently reported data; (3) assess the market conditions under which returns were generated (were they excellent allocators, or did they benefit from a rising market?).</p><p><strong>Process:</strong></p><p>Emerging managers with strong processes have: - A documented investment thesis that is genuinely differentiated (not \"we will buy good businesses and improve them\") - A specific market position — a sector, geography, or deal type where the team has genuine sourcing advantage - A replicable sourcing model — not dependent on one person's rolodex - A defined operational improvement playbook — specific levers, specific capabilities</p><p><strong>Portfolio (fund structure and economics):</strong></p><p>The vehicle itself matters for emerging manager investments: - <strong>Fund size:</strong> First-time funds should be sized appropriately to the team's execution capacity — a 3-person team managing a $500m fund is stretched; a 6-person team with $300m is appropriate - <strong>GP commit:</strong> Emerging manager GPs should commit 2–5% of fund capital — demonstrating conviction and accepting personal financial exposure - <strong>LP-friendly economics:</strong> First-time managers often accept better economics (lower carry, European waterfall, higher management fee offset) to attract anchor LPs; this is appropriate given the higher LP risk - <strong>LPAC governance:</strong> Emerging manager fund LPAs should include strong LPAC governance, key person provisions, and no-fault divorce rights — because the LP is taking more manager risk and needs governance protection</p><p>---</p><p>### Programme Structure — How LPs Run Emerging Manager Allocations</p><p><strong>Dedicated sub-allocation:</strong> Most sophisticated LP emerging manager programmes operate as a separate allocation within the PE budget — typically 5–15% of the PE allocation. This ringfences capital specifically for emerging managers rather than competing with established managers for the same commitment budget.</p><p><strong>Smaller commitment sizes:</strong> Emerging manager fund sizes are typically $100–500m. LP commitments of $5–30m represent meaningful stakes (3–15% of the fund) — giving the LP a proportionally significant position and LP-friendly governance influence.</p><p><strong>Enhanced due diligence with adapted framework:</strong> Standard LP DD assumes 2–3 prior fund returns to analyse. Emerging manager DD substitutes: - Individual deal attribution and verification (prior deal records) - Reference checking with more depth (prior firm partners, co-investors, sellers) - Structural and governance assessment (vehicle quality, economics, key person provisions) - Assessment of the spin-out \"story\" (why they left; how it was received)</p><p><strong>Programme monitoring:</strong> Because emerging managers have less institutional infrastructure, LP programme managers engage more intensively: - Quarterly calls with the founding partners (not just annual LP meetings) - More detailed operational monitoring - Active mentoring on operational infrastructure (some LPs provide guidance on legal, compliance, fund administration)</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### CalPERS Emerging Manager Programme</p><p>California Public Employees' Retirement System (CalPERS), with approximately $470bn in AUM, runs one of the most prominent US institutional emerging manager programmes in PE.</p><p><strong>Programme structure:</strong> CalPERS dedicates a specific allocation within their PE programme to emerging managers, defined as: - Managers raising their first, second, or third institutional fund - Fund size typically below $1bn - Many include a diversity mandate (women-owned, minority-owned, or veteran-owned firms)</p><p><strong>Why CalPERS runs this programme:</strong> 1. <strong>California legal mandate:</strong> California state legislation (AB 2833) requires CalPERS to actively seek emerging and diverse managers and report on their emerging manager activity 2. <strong>Access optionality:</strong> CalPERS uses the programme to identify the next generation of managers before they become oversubscribed 3. <strong>Competitive returns:</strong> CalPERS has reported that its emerging manager portfolio has, in certain periods, generated returns comparable to or exceeding its established manager PE portfolio [needs-verification on specific performance data]</p><p><strong>Programme outputs:</strong> Some of CalPERS' current core PE managers were originally identified through their emerging manager programme — including several mid-market PE firms that began as first-time funds and now manage multiple funds above $1bn. The emerging manager programme is the access mechanism that creates the next generation of CalPERS' established manager relationships.</p><p>---</p><p>### The Spin-Out Dynamic — Warwick Capital (Illustrative)</p><p>[Illustrative example of a common PE spin-out pattern]</p><p>Warwick Capital Partners is a fictional but realistic example of an emerging PE manager spin-out. Three partners from a top-quartile European mid-market PE firm (where they co-led 12 investments with an average 2.8× MOIC) decide to spin out and raise an independent fund.</p><p><strong>LP assessment challenges:</strong> - No track record as \"Warwick Capital\" — only individual deal attribution at the prior firm - The prior firm's full track record belongs to the prior firm — cannot be presented as Warwick's own - The three partners claim attribution for 12 deals — verified with prior employer, who confirms they were lead deal partners - Two senior analysts join from the prior firm; all three partners' non-competes expire in 6 months</p><p><strong>LP decision factors:</strong> - Strong individual deal records at the prior firm → proxy for team capability - Prior employer endorsement (they did not compete for clients during wind-down) → cultural signal - Well-structured fund vehicle (3-year investment period, EU waterfall, 5% GP commit, 2% management fee reducing post-investment period, LPAC with supermajority consent rights) → LP-friendly - Target fund size: £250m — appropriate for 5-person team; not over-ambitious - Anchor LP committed (a large endowment, £50m) — reduces first-close risk</p><p>An institutional LP's emerging manager programme commits £20m at first close (8% of fund), negotiating: LPAC seat, co-investment pro-rata rights, ability to receive all prior deal attribution documentation, and 3-year most-favoured-nation protection on economics.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Emerging managers always outperform because they are hungrier.\"</strong> Hunger is not a substitute for experience. First-time fund managers who lack operational infrastructure (no CFO, no fund administrator, no legal team) make costly errors. \"Hunger\" in deal execution means nothing if the team doesn't know how to structure an acquisition agreement or manage a portfolio company through a restructuring. The strongest emerging managers are those who bring genuine technical excellence from prior roles, not just entrepreneurial drive.</p><p><strong>Misconception 2: \"Emerging manager programmes are charity — LPs accept lower returns to support diversity or access objectives.\"</strong> Evidence suggests this is false when programmes are well-managed. Emerging managers with the right background can generate returns competitive with established managers, while offering LP-friendly economics (lower fees, higher GP commit, better governance). The \"charity\" framing misunderstands the financial case for emerging manager investing.</p><p><strong>Misconception 3: \"The track record at the prior firm is the same as the emerging manager's track record.\"</strong> Prior firm attribution is important but imperfect evidence. The team led specific deals — but they benefited from the prior firm's brand, deal flow network, legal infrastructure, and LP relationships. As an independent firm, they must rebuild all of this from scratch. An emerging manager's ability to replicate their prior success depends partly on whether those enabling conditions are replicated, which is a genuine uncertainty.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Emerging manager programmes are LP initiatives that commit capital to newer, smaller, or diverse-owned PE fund managers — motivated by the access problem (top GPs are oversubscribed and unavailable to new LPs), the return potential (well-selected first-time funds from experienced teams can generate top-quartile returns), and regulatory or governance diversity mandates. LP diligence on emerging managers applies the 4 Ps framework with significantly adapted methodology: individual deal attribution at prior firms substitutes for fund-level track records; reference depth is higher; team completeness and fund structure quality are weighted more heavily. The strongest emerging managers are those with demonstrable prior deal records (not just strategy), appropriate fund size, LP-friendly economics, and strong governance provisions. CalPERS illustrates the institutional approach: a dedicated sub-allocation, adapted diligence, and a pipeline model where today's emerging managers become tomorrow's core relationships.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

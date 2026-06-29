@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "management-incentive-plans", "title": "Management Incentive Plans", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The GP isn't running it", "on_screen_bullets": ["Management executes the plan", "Salary paid either way", "Principal-agent problem"], "narration": "Private equity's entire value-creation model rests on one thing: the management team executing the plan. The GP isn't running the business day to day — the management team is. And if management's financial interests aren't tightly aligned with the GP's, and ultimately the LPs', you have a principal-agent problem: managers may protect their jobs, build empires, or chase short-term comfort instead of maximising the exit value. The Management Incentive Plan is the fix — it makes management significant beneficiaries of the exact outcome the GP is targeting. Generate a three-times return, and management shares in it; underperform, and management's equity is worth little. Aligned interests, by design.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Equity that aligns", "on_screen_bullets": ["Equity-based comp for management", "Cheap access to a stake", "Valuable only on strong returns"], "narration": "The definition. A Management Incentive Plan — an MIP — is the equity-based compensation structure in a PE-backed company that aligns management's financial interests with the sponsor's, typically by giving management access to equity at a discounted price that becomes highly valuable only if the investment generates strong returns. The principle is simple: let management own a slice, cheaply, that pays off big only if everyone wins.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Why would management care?", "on_screen_bullets": ["£100m bought → make it £300m", "Salary is paid regardless", "Give them ~10% for almost nothing"], "narration": "Here's the alignment problem in plain terms. You're a PE firm; you've just bought a company for a hundred million; and you need the CEO, CFO, and their team to work flat out for five years to make it worth three hundred million. If they do, you make a fortune. But why would they care? They earn their salary whether the company doubles, triples, or stagnates — if it does brilliantly, you get rich, not them. That's the gap the MIP closes. You say to management: we'll let you buy a small stake — say ten percent of the equity — for almost nothing. In exchange, that stake becomes genuinely valuable only if we sell the company for a great price. Suddenly their financial outcome and yours point in exactly the same direction.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Captain's share of the boat", "on_screen_bullets": ["Shipping co = equity, bank = 60%", "Captain: right to 10% of the sale", "Paid only after bank + sponsor return"], "narration": "Think of it as a profit-share for the captain and crew of a fishing boat that's part-financed by a bank loan and part-owned by a shipping company. The shipping company put up the equity; the bank lent sixty percent of the cost; the captain and crew are hired to fish. The MIP says to the captain: we'll give you the right to own ten percent of whatever the boat is worth when we sell it, and you can buy that stake today for almost nothing — but here's the order. When we sell, the bank gets repaid first, out of the sale price. Then we, the sponsor, get our investment back. Then we get an agreed return on top of that. Only after all of that do you and we share the remaining value — and above a certain level, your slice steps up. The captain only gets rich if the voyage is a real success, which is precisely the point.", "est_sec": 56}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Sweet equity and the ratchet", "on_screen_bullets": ["Separate equity class in HoldCo", "Disproportionate share above a hurdle", "Ratchet steps up with performance"], "narration": "Mechanically, the MIP is a separate class of equity in the HoldCo through which the fund owns the company, and management invests in that holding company alongside the fund. The defining feature is that management's shares participate disproportionately in returns above a threshold — the sweet equity and ratchet mechanism. With sweet equity, management's shares rank equally with the fund's above a hurdle level, but below the hurdle the fund takes all or most of the proceeds — so management only shares in the upside once the fund's minimum return is cleared. And a ratchet goes further: management's percentage of the equity steps up as performance crosses higher return thresholds, so the better the outcome, the larger management's slice becomes. The whole structure is leverage on leverage — a thin, cheap stake that does nothing in a mediocre deal and pays enormously in a great one.", "est_sec": 58}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "A £200m deal MIP", "on_screen_bullets": ["£100m debt + £100m equity", "10% for £100k; shares above 1.5x MOIC", "Steps to 13% above 2.5x; £600m exit"], "narration": "Put numbers on a two-hundred-million enterprise-value deal. The structure is a hundred million of debt — fifty percent leverage — and a hundred million of equity from the fund. At close, the MIP gives management the right to buy ten percent of the equity for a nominal hundred thousand pounds — roughly a tenth of one percent of the equity value, essentially free. Management's equity participates fully in returns above a one-and-a-half-times MOIC hurdle on the fund's invested equity, and above two-and-a-half times, the ratchet steps management's participation up to thirteen percent. Good-leaver and bad-leaver provisions apply to all of it — leave on bad terms and you can forfeit your shares. Now a strong exit at six hundred million: the debt is repaid, the fund recovers and multiplies its equity well past the hurdles, and management's ten-to-thirteen percent of the equity above those hurdles turns that hundred-thousand-pound outlay into a life-changing sum. That asymmetry — trivial cost in, enormous payoff only on a great result — is the engine of alignment.", "est_sec": 64}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Management doesn't always get rich", "It's a leveraged option", "Leaver terms matter enormously"], "narration": "Two corrections. First, management does not always get rich in PE-backed companies. Management equity is essentially a leveraged option on the exit value: if the business merely performs in line with its debt service, or underperforms, that equity can be worth very little despite years of intense effort and real personal risk. The economics are genuinely binary — that's the deal, and it's what gives the incentive its bite. And second, the leaver provisions are not boilerplate — good-leaver and bad-leaver terms determine whether a departing executive keeps, sells, or forfeits their stake, and at what price. They're heavily negotiated, because they decide what happens to a manager's most valuable asset if they leave before exit — and they're a powerful retention tool precisely because of it.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Skin in the game", "on_screen_bullets": ["Cheap equity, big upside on success", "Sweet equity + ratchet above hurdles", "Aligns management with the GP and LPs"], "narration": "To recap. The Management Incentive Plan aligns the people who actually run the business with the fund and its LPs, by giving management cheap access to a separate class of equity that becomes highly valuable only if the deal delivers strong returns. The sweet-equity-and-ratchet structure means management shares disproportionately above defined return hurdles — nothing much below them, an outsized slice above — and good-leaver and bad-leaver terms govern what happens if they go. It's a leveraged option: trivial cost, binary payoff, perfectly aligned with the GP's own incentive. That completes value creation — the levers and the people who pull them. Next we go deep on the financial engine underneath it all, starting with the leverage ratio in LBOs.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "How does a 'sweet equity / ratchet' MIP align management with the GP — and why is management's equity described as a 'leveraged option'?", "narration": "Before the next lesson, answer both parts. How does the sweet-equity-and-ratchet structure tie management's payoff to the GP's outcome — and why is management's stake best understood as a leveraged option on the exit? Reason it through, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Management Incentive Plans\n\n[hook] The GP isn't running it\nPrivate equity's entire value-creation model rests on one thing: the management team executing the plan. The GP isn't running the business day to day — the management team is. And if management's financial interests aren't tightly aligned with the GP's, and ultimately the LPs', you have a principal-agent problem: managers may protect their jobs, build empires, or chase short-term comfort instead of maximising the exit value. The Management Incentive Plan is the fix — it makes management significant beneficiaries of the exact outcome the GP is targeting. Generate a three-times return, and management shares in it; underperform, and management's equity is worth little. Aligned interests, by design.\n\n[definition] Equity that aligns\nThe definition. A Management Incentive Plan — an MIP — is the equity-based compensation structure in a PE-backed company that aligns management's financial interests with the sponsor's, typically by giving management access to equity at a discounted price that becomes highly valuable only if the investment generates strong returns. The principle is simple: let management own a slice, cheaply, that pays off big only if everyone wins.\n\n[intuition] Why would management care?\nHere's the alignment problem in plain terms. You're a PE firm; you've just bought a company for a hundred million; and you need the CEO, CFO, and their team to work flat out for five years to make it worth three hundred million. If they do, you make a fortune. But why would they care? They earn their salary whether the company doubles, triples, or stagnates — if it does brilliantly, you get rich, not them. That's the gap the MIP closes. You say to management: we'll let you buy a small stake — say ten percent of the equity — for almost nothing. In exchange, that stake becomes genuinely valuable only if we sell the company for a great price. Suddenly their financial outcome and yours point in exactly the same direction.\n\n[intuition] Captain's share of the boat\nThink of it as a profit-share for the captain and crew of a fishing boat that's part-financed by a bank loan and part-owned by a shipping company. The shipping company put up the equity; the bank lent sixty percent of the cost; the captain and crew are hired to fish. The MIP says to the captain: we'll give you the right to own ten percent of whatever the boat is worth when we sell it, and you can buy that stake today for almost nothing — but here's the order. When we sell, the bank gets repaid first, out of the sale price. Then we, the sponsor, get our investment back. Then we get an agreed return on top of that. Only after all of that do you and we share the remaining value — and above a certain level, your slice steps up. The captain only gets rich if the voyage is a real success, which is precisely the point.\n\n[mechanics] Sweet equity and the ratchet\nMechanically, the MIP is a separate class of equity in the HoldCo through which the fund owns the company, and management invests in that holding company alongside the fund. The defining feature is that management's shares participate disproportionately in returns above a threshold — the sweet equity and ratchet mechanism. With sweet equity, management's shares rank equally with the fund's above a hurdle level, but below the hurdle the fund takes all or most of the proceeds — so management only shares in the upside once the fund's minimum return is cleared. And a ratchet goes further: management's percentage of the equity steps up as performance crosses higher return thresholds, so the better the outcome, the larger management's slice becomes. The whole structure is leverage on leverage — a thin, cheap stake that does nothing in a mediocre deal and pays enormously in a great one.\n\n[worked-example] A £200m deal MIP\nPut numbers on a two-hundred-million enterprise-value deal. The structure is a hundred million of debt — fifty percent leverage — and a hundred million of equity from the fund. At close, the MIP gives management the right to buy ten percent of the equity for a nominal hundred thousand pounds — roughly a tenth of one percent of the equity value, essentially free. Management's equity participates fully in returns above a one-and-a-half-times MOIC hurdle on the fund's invested equity, and above two-and-a-half times, the ratchet steps management's participation up to thirteen percent. Good-leaver and bad-leaver provisions apply to all of it — leave on bad terms and you can forfeit your shares. Now a strong exit at six hundred million: the debt is repaid, the fund recovers and multiplies its equity well past the hurdles, and management's ten-to-thirteen percent of the equity above those hurdles turns that hundred-thousand-pound outlay into a life-changing sum. That asymmetry — trivial cost in, enormous payoff only on a great result — is the engine of alignment.\n\n[pitfalls] What people get wrong\nTwo corrections. First, management does not always get rich in PE-backed companies. Management equity is essentially a leveraged option on the exit value: if the business merely performs in line with its debt service, or underperforms, that equity can be worth very little despite years of intense effort and real personal risk. The economics are genuinely binary — that's the deal, and it's what gives the incentive its bite. And second, the leaver provisions are not boilerplate — good-leaver and bad-leaver terms determine whether a departing executive keeps, sells, or forfeits their stake, and at what price. They're heavily negotiated, because they decide what happens to a manager's most valuable asset if they leave before exit — and they're a powerful retention tool precisely because of it.\n\n[recap] Skin in the game\nTo recap. The Management Incentive Plan aligns the people who actually run the business with the fund and its LPs, by giving management cheap access to a separate class of equity that becomes highly valuable only if the deal delivers strong returns. The sweet-equity-and-ratchet structure means management shares disproportionately above defined return hurdles — nothing much below them, an outsized slice above — and good-leaver and bad-leaver terms govern what happens if they go. It's a leveraged option: trivial cost, binary payoff, perfectly aligned with the GP's own incentive. That completes value creation — the levers and the people who pull them. Next we go deep on the financial engine underneath it all, starting with the leverage ratio in LBOs.\n\nEnd-card question: How does a 'sweet equity / ratchet' MIP align management with the GP — and why is management's equity described as a 'leveraged option'?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Private equity's entire value creation model depends on management teams executing the plan. The GP is not running the business day-to-day — the management team is. If management's financial interests are not tightly aligned with the GP's (and ultimately the LPs'), there is a principal-agent problem: management might make decisions that protect their jobs, build empires, or generate short-term comfort rather than maximising the exit value of the business.</p><p>The MIP solves this by making management significant financial beneficiaries of the same outcome the GP is targeting. If the GP generates a 3x return, management shares in it. If the investment underperforms, management's equity is worth little or nothing. This alignment is not incidental — it is structural to how PE creates value.</p><p>Understanding MIPs is also important because they are a source of significant complexity in deal structures, exit negotiations, and management team dynamics. Getting the MIP right is often the difference between a cohesive, motivated management team and a dysfunctional, resentful one.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A Management Incentive Plan (MIP) is the equity-based compensation structure used in PE-backed companies to align the financial interests of the management team with those of the PE sponsor, typically by giving management access to equity at a discounted price that becomes highly valuable if the investment generates strong returns.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you are a PE firm and you have just bought a company for £100M. You need the management team — the CEO, CFO, and their colleagues — to work incredibly hard over the next 5 years to make the company worth £300M. If they do that, you make a lot of money.</p><p>But why would the management team care? They earn their salary regardless. If the company does well, you get rich. If it does badly, they still get paid.</p><p>This is the alignment problem. The MIP is the solution.</p><p>You say to management: \"Here's what we'll do. We'll let you buy a small stake in the company — say 10% of the equity — for almost nothing. In exchange, here's the deal: if the company performs well and is sold for a great price, your 10% stake could be worth £10M, £20M, or more. But if the company doesn't perform, your equity is worth very little.\"</p><p>Now management has skin in the game. The CEO who used to be indifferent about cutting a bloated overhead is now personally motivated — every pound saved is a pound that eventually comes back to them multiplied. The CFO who used to give away discounts to customers is now thinking about pricing discipline. Alignment has been created.</p><p>The clever part of the MIP is that management's stake is \"leveraged\" — they get a disproportionately large share of the upside above a certain return threshold, while the PE fund and its investors get their capital and a target return first. This is what is called \"sweet equity.\"</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of the MIP like a profit-share arrangement for the captain and crew of a fishing boat that is partly financed by a bank loan and partly owned by a shipping company.</p><p>The shipping company put up the equity to buy the boat. The bank lent 60% of the cost. The captain and crew are hired to fish.</p><p>The MIP says: \"Captain — we'll give you the right to own 10% of whatever the boat is worth when we sell it. You can buy that stake today for almost nothing. But here's the deal: the bank gets repaid first (from the sale price). Then we get our investment back. Then we get an agreed return on top of that. Only after all of that do you and we share the remaining value — and above a certain level, you get a bigger slice than your 10% stake would normally suggest.\"</p><p>If the fishing is great and the boat triples in value, the captain's 10% stake — bought for almost nothing — might be worth far more than 10% of the original price. That's sweet equity. The better the outcome, the more leverage in the captain's return.</p><p>If the fishing is poor and the boat barely covers its loans and equity investment, the captain walks away with nothing except their salary.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>Structure of a Typical MIP:</strong></p><p>The MIP is typically structured as a separate class of equity in the holding company (HoldCo) through which the PE fund owns the portfolio company. Management invests in this holding company alongside the PE fund.</p><p><strong>The key structural elements:</strong></p><p><strong>1. Sweet Equity / Ratchet Mechanism</strong></p><p>Management's shares are typically structured so they participate disproportionately in returns above a threshold. Two common structures:</p><ul class='notelist'><li><strong>Sweet equity:</strong> Management's shares rank pari passu (equally) with the PE fund's shares above a \"hurdle\" level. Below the hurdle, the PE fund receives all or most of the proceeds. Above the hurdle, management participates in a pre-agreed ratio that is more favourable than their proportionate ownership.</li><li><strong>Ratchet:</strong> Management's equity percentage increases as a function of the return generated. For example: if the fund achieves a 2x MOIC, management gets 10% of equity; if 2.5x, management gets 12.5%; if 3x+, management gets 15%. The ratchet creates exponential upside for management as returns improve.</li></ul><p><strong>2. Nominal / Discounted Investment Price</strong></p><p>Management typically buys their equity at a nominal price (e.g. 1p per share, far below the implied per-share value of the business). This is intentional — it allows management to acquire meaningful equity without requiring large personal capital outlay. In the UK, HMRC has specific rules governing the valuation of management equity for tax purposes (the Employment Related Securities (ERS) legislation), and the structure must be designed carefully to avoid creating unwanted income tax charges. [needs-verification: specific HMRC rules]</p><p><strong>3. Vesting</strong></p><p>Management equity typically vests over time or on exit. Common structures: - <strong>Time-based vesting:</strong> A portion vests annually over 3–5 years, ensuring management remains with the business - <strong>Performance-based vesting:</strong> Equity vests if financial targets (e.g. EBITDA milestones) are achieved - <strong>Exit-only vesting:</strong> All equity crystallises only on an exit event (sale, IPO) — this is common in PE because it focuses management entirely on the exit outcome</p><p><strong>4. Good Leaver / Bad Leaver Provisions</strong></p><p>What happens to management equity if an executive leaves during the hold period?</p><ul class='notelist'><li><strong>Good leaver</strong> (e.g. redundancy, death, disability, retirement): typically entitled to receive fair market value for their vested equity at time of departure</li><li><strong>Bad leaver</strong> (e.g. resignation, dismissal for cause): typically forfeits unvested equity and may receive only the nominal acquisition cost (i.e. virtually nothing) for vested equity</li></ul><p>The distinction between good and bad leaver is one of the most negotiated provisions in PE deals. Definitions vary significantly across deals, and management lawyers push hard for narrow \"bad leaver\" definitions.</p><p><strong>5. Dilution Provisions</strong></p><p>If the company makes bolt-on acquisitions funded partly by new equity, management's percentage stake will be diluted. The MIP should specify: whether management has anti-dilution protection, whether they have the right to invest alongside future equity rounds (pre-emption), and how future management hires will be accommodated (typically through a \"management option pool\").</p><p><strong>The Waterfall Interaction:</strong></p><p>The MIP interacts directly with the Waterfall Mechanics of the fund's returns. The typical priority of proceeds at exit:</p><ol><li><strong>Debt repayment:</strong> Senior and junior debt facilities are repaid first from exit proceeds</li><li><strong>Return of invested capital (PE fund + management):</strong> All equity investors receive back their initial investment</li><li><strong>Preferred return / hurdle:</strong> The PE fund receives a preferred return (e.g. 8% p.a. IRR) before management equity participates</li><li><strong>Carried interest and MIP sharing:</strong> Above the hurdle, proceeds are split between the PE fund's carry (typically 20%) and, within the equity pool, between the PE fund and management according to the agreed ratchet or sweet equity structure</li></ol><p>This waterfall means that management's upside is highly leveraged — if the exit returns are good, management gets significantly more per share than the blended average equity return. If returns are below hurdle, management may get very little despite years of hard work.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Illustrative Example: PE Acquisition of a £200M Enterprise</strong></p><p>A PE fund acquires a company for £200M enterprise value. The capital structure is:</p><ul class='notelist'><li>£100M debt (50% leverage)</li><li>£100M equity invested by the PE fund</li></ul><p>At close, the MIP is structured as follows: - Management is given the right to buy 10% of the equity for a nominal price of £100,000 (approximately 0.1% of the equity value — essentially for free) - Management's equity participates fully in returns above a 1.5x MOIC hurdle on the PE fund's invested equity - Above 2.5x MOIC, management's participation steps up to 13% - Good/bad leaver provisions apply to all management equity</p><p><strong>Scenario A: Strong exit (£600M)</strong></p><p>Exit proceeds: £600M Less: debt repayment: £60M (assume debt paid down from £100M to £60M during hold) Net proceeds to equity: £540M</p><p>PE fund equity return: £540M total equity pool Management's 10% participation: £54M (below the enhanced ratchet threshold) But wait — apply the waterfall: PE fund must first receive 1.5x MOIC = 1.5 × £100M = £150M before management participates beyond capital return.</p><p>Simplified illustration: - First £150M of equity proceeds → PE fund (return of capital + hurdle) - Remaining £390M: 90% PE fund (£351M), 10% management (£39M) - Management total: £100,000 nominal investment → receipt of approximately £39M+</p><p><strong>Management return: roughly 390x their nominal investment. This is why it is called \"sweet equity.\"</strong></p><p>The PE fund received: £150M + £351M = £501M on £100M invested → approximately 5x MOIC before carry. [needs-verification: this is a simplified illustration; real waterfalls are more complex]</p><p><strong>Scenario B: Mediocre exit (£220M)</strong></p><p>Exit proceeds: £220M Less: debt repayment: £90M (less was paid down due to weaker cash generation) Net proceeds to equity: £130M</p><p>PE fund receives £100M (return of capital) + a small return on the remaining £30M Management only participates above 1.5x MOIC = £150M of equity proceeds — which was not reached. <strong>Management equity worth: close to zero (just the nominal amount back).</strong></p><p>This illustrates the binary nature of management equity: it is extremely valuable when returns are strong, and essentially worthless when they are not. This is exactly the intended incentive.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Management always gets rich in PE-backed companies\"</strong> Reality: Management equity is essentially a leveraged option on exit value. If the business underperforms (or performs only in line with the debt service requirements), management may receive very little despite significant personal effort and risk. The binary nature of MIP economics is real.</p><p><strong>Misconception 2: \"The MIP is a cost to the PE fund\"</strong> Reality: The MIP is funded from within the equity pool — it is not additional cash paid by the GP. It reduces the GP's percentage of exit proceeds, but the GP's view is that the management team's incentivisation generates more total value, making the fund better off even after sharing proceeds with management.</p><p><strong>Misconception 3: \"10% equity means management receives 10% of exit proceeds\"</strong> Reality: The waterfall significantly affects management's actual receipt. Management participates only above the hurdle, so in average or below-average exits they receive far less than 10%. In very strong exits, the ratchet may actually give management more than 10%.</p><p><strong>Misconception 4: \"Sweet equity is a gift\"</strong> Reality: Management typically pays for their equity (albeit at nominal prices) and takes genuine financial and career risk by joining a PE-backed company. They also typically receive lower base salaries than equivalent roles in public companies — the MIP is partial compensation for this.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Management Incentive Plans (MIPs) solve the alignment problem in PE by giving management a leveraged equity stake in the portfolio company that becomes highly valuable if returns are strong and essentially worthless if they are not. The key mechanism is \"sweet equity\" — management buys equity at nominal prices and participates disproportionately in returns above a hurdle threshold. The MIP interacts with the exit waterfall: debt is repaid first, the PE fund receives its capital and hurdle return, and only above that do management and the PE fund share remaining proceeds. Critical design elements include: pool size, participant list, hurdle rate, ratchet schedule, vesting structure, and good/bad leaver provisions. Getting the MIP right — sized to motivate, structured to survive leaver events and acquisitions, and tax-efficiently structured — is one of the most important governance decisions a GP makes at the point of acquisition.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

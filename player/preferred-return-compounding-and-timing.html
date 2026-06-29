@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "preferred-return-compounding-and-timing", "title": "Preferred Return Compounding and Timing", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "'8%' hides millions", "on_screen_bullets": ["How it compounds", "When the clock starts", "Subscription-line distortion"], "narration": "The preferred return is not simply eight percent per year. The precise economic outcome depends on three things: how that eight percent compounds — annually or daily; when the clock starts — the date capital is called or the date it's actually deployed; and whether subscription credit lines have delayed when the hurdle even begins to accrue. At fund scale, these mechanics can shift tens of millions of dollars in carry between the GP and the LPs. This is the expert layer behind the basic hurdle-rate concept — the details where the real money moves.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Convention plus timing", "on_screen_bullets": ["Sets the true hurdle", "Convention + credit-line usage", "Millions shift GP↔LP"], "narration": "The definition. The compounding convention and timing rules for the preferred return determine exactly how much a GP must return to LPs before earning any carry — and small differences in convention, or in subscription-line usage, can shift millions of dollars between the GP and the LP. The headline rate is the same eight percent; the convention and the timing are where the economics are decided.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "What '8% a year' really means", "on_screen_bullets": ["Annual compound = standard", "Daily compound = LP-friendly", "Simple = GP-friendly, rare"], "narration": "Eight percent a year sounds simple, but it can mean very different things. Annual compounding — the most common — adds eight percent to the outstanding total at the end of each year: a hundred becomes a hundred-and-eight, then a hundred-sixteen-sixty-four, and so on. Daily compounding, which is LP-friendly, adds a three-hundred-sixty-fifth of eight percent every single day, so the annual equivalent is slightly above eight percent and LPs receive a bit more before the GP earns carry. And simple, non-compounding preferred return is just eight percent times years times capital — a hundred million over five years is forty million, flat; that's GP-friendly and increasingly rare. But the timing question is even more impactful: when does the eight-percent clock actually start? The standard answer is when LP capital is called. So if the GP borrows on a subscription credit line to fund a deal and only calls LP capital months later, the clock starts later — LPs accrue less preferred return, and the GP clears the hurdle more easily.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Starting the stopwatch late", "on_screen_bullets": ["Race timed from the 10m mark", "Runner looks faster than they are", "IRR measured from a head start"], "narration": "Here's the mental model for the subscription-line timing effect. It's like starting a hundred-metre race but not pressing the stopwatch until the runner has already covered the first ten metres. The runner looks faster than they really are, because you only measured the last ninety. LPs who look at reported IRR without asking when the clock started are timing from the ten-metre mark. And the compounding-convention difference is simpler — it's the same gap as simple versus compound interest on a savings account, except that over ten years on five hundred million dollars, the difference between annual and daily compounding accumulates into a genuinely meaningful sum.", "est_sec": 44}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The numbers that diverge", "on_screen_bullets": ["$100m/8%/5yr: $140m vs $149.2m", "Per-tranche accrual from call date", "Sub-line: ~$7m less hurdle per $100m"], "narration": "Let's make it concrete. On a hundred million at eight percent for five years, with all capital called on day one: simple gives a hundred and forty million; annual compound, a hundred and forty-six-point-nine; quarterly, a hundred and forty-eight-point-five; daily, a hundred and forty-nine-point-two. At fund level, on five hundred million affected over ten years, the annual-versus-daily gap is about eleven million more hurdle the LPs must clear before the GP earns a cent. Next, per-tranche accrual: funds don't call all capital at once, so the preferred return accrues separately for each tranche from its own call date. On a three-hundred-million fund — a hundred million called in year one accruing nine years to a hundred-ninety-nine-point-nine, another in year three for seven years to a hundred-seventy-one-point-four, another in year five for five years to a hundred-forty-six-point-nine — the total hurdle is five-hundred-eighteen million, well above just applying eight percent to three hundred for ten years. Then the big one: subscription credit lines. A deal done in month six, funded by the line, with capital called in month twelve — six months late. Accrue eight years either way: no line gives a hundred-eighty-five-point-one million, the six-month delay only a hundred-seventy-seven-point-nine — the LP earns seven-point-two million less hurdle per hundred million, and the GP's reported IRR can be inflated by two to four hundred basis points because capital was called later. ILPA's guidance recommends GPs disclose subscription-line use and report IRR both with and without the line, and many LPs now cap the line at a hundred-eighty days outstanding.", "est_sec": 72}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Fund Alpha, $400m", "on_screen_bullets": ["Four tranches, total hurdle $703.7m", "Yr-1 tranche delayed 0.5yr by sub-line", "LP loses ~$6.1m of hurdle"], "narration": "Take an illustrative four-hundred-million buyout fund — Fund Alpha — European waterfall, eight percent annual compound. Capital comes in tranches: a hundred million in year one, but actually called in year one-and-a-half via the subscription line; a hundred-fifty million in year two; a hundred million in year four; fifty million in year five. At a year-ten exit, accruing each tranche from its effective start: the year-one tranche grows over eight-and-a-half years to a hundred-ninety-three-point-eight million; the year-two tranche over eight years to two-hundred-seventy-seven-point-seven; the year-four over six years to a hundred-fifty-eight-point-seven; the year-five over five years to seventy-three-point-five — a total preferred return of seven-hundred-three-point-seven million. Now, had the line not been used and the year-one capital been called immediately, that first tranche would accrue a full nine years to a hundred-ninety-nine-point-nine million instead of a hundred-ninety-three-point-eight. That half-year delay alone costs the LPs about six-point-one million in hurdle — carry that flows to the GP rather than accruing as protection for the LPs. Small convention, real money.", "est_sec": 60}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Convention isn't trivial at scale", "Sub-lines aren't LP-neutral", "Clock starts at call, not close"], "narration": "Four corrections. First, the compounding convention is not a minor technical detail at scale — on five hundred million of carried capital, annual versus daily compounding is about eleven million of LP returns over ten years. Second, subscription lines are not neutral to LP economics — they reduce effective hurdle accrual and inflate IRR, both advantages to the GP at the LP's expense. Third, not all funds disclose subscription-line effects on IRR — ILPA recommends it, but it's not universally mandated, so LPs must specifically request dual, with-and-without, IRR reporting. And fourth, the hurdle clock does not start when the deal closes — in standard LPAs it starts when LP capital is called, which may be weeks or months after close if a credit line was used.", "est_sec": 50}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Where the carry is decided", "on_screen_bullets": ["Annual standard, daily LP-friendly", "Tranche-by-tranche from call date", "Sub-lines compress hurdle, inflate IRR"], "narration": "To recap. Preferred-return compounding and timing are expert-level mechanics that decide precisely how much LPs must receive before GPs earn carry. Annual compounding is market standard; daily compounding, ILPA-favoured, produces a higher effective hurdle. Each capital-call tranche accrues separately from its own call date, so multi-tranche funds need tranche-by-tranche calculation. And subscription credit lines are the most significant timing issue: by delaying capital calls, GPs compress the hurdle-accrual period and inflate reported IRR, quietly reducing LP protection — which is why ILPA recommends dual IRR reporting and capped line durations. Next we look at the mechanism that corrects the GP when carry gets overpaid — clawback provisions.", "est_sec": 48}], "end_card": {"quiz_label": "Q1", "question_on_screen": "$200m is called for 7 years at 8% annual compound. What total must LPs receive before the GP earns carry? And why does using a subscription credit line both lower the LP's hurdle and inflate the GP's IRR?", "narration": "Before the next lesson, answer both. Two hundred million called for seven years at eight percent annual compound — what total must the LPs receive before the GP earns a penny of carry? And why does drawing on a subscription credit line both reduce the LP's effective hurdle and inflate the GP's reported IRR? Work it out, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "$200M called for 7 years at 8% annual compound — what is the preferred return threshold?", "answer": "$200M × 1.08^7 = **$342.8M** total LP return required before carry."}, {"label": "Q2.", "question": "Why does daily compounding produce a higher hurdle than annual compounding over the same period?", "answer": "Interest is added 365 times per year and each day's interest itself earns interest — a slightly higher effective annual rate than the nominal 8%."}, {"label": "Q3.", "question": "A GP uses a subscription credit line for 6 months before calling LP capital. How does this affect the LP's preferred return?", "answer": "The hurdle clock starts 6 months later — LPs accrue 6 fewer months of preferred return on that tranche, so the hurdle is *lower* and the GP clears it more easily. Reported IRR is also inflated (smaller capital × time denominator early on)."}, {"label": "Q4.", "question": "What does ILPA recommend GPs do when they use subscription credit lines?", "answer": "Disclose the usage and report both \"with credit line\" and \"without credit line\" IRR figures so LPs can assess true performance."}, {"label": "Q5.", "question": "Why does per-tranche accrual matter for preferred return modelling?", "answer": "Capital called in Year 1 accrues for the full fund life; later tranches accrue for fewer years. You must track each tranche's call date — applying one rate to total capital ignores the timing difference."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Preferred Return Compounding and Timing\n\n[hook] '8%' hides millions\nThe preferred return is not simply eight percent per year. The precise economic outcome depends on three things: how that eight percent compounds — annually or daily; when the clock starts — the date capital is called or the date it's actually deployed; and whether subscription credit lines have delayed when the hurdle even begins to accrue. At fund scale, these mechanics can shift tens of millions of dollars in carry between the GP and the LPs. This is the expert layer behind the basic hurdle-rate concept — the details where the real money moves.\n\n[definition] Convention plus timing\nThe definition. The compounding convention and timing rules for the preferred return determine exactly how much a GP must return to LPs before earning any carry — and small differences in convention, or in subscription-line usage, can shift millions of dollars between the GP and the LP. The headline rate is the same eight percent; the convention and the timing are where the economics are decided.\n\n[intuition] What '8% a year' really means\nEight percent a year sounds simple, but it can mean very different things. Annual compounding — the most common — adds eight percent to the outstanding total at the end of each year: a hundred becomes a hundred-and-eight, then a hundred-sixteen-sixty-four, and so on. Daily compounding, which is LP-friendly, adds a three-hundred-sixty-fifth of eight percent every single day, so the annual equivalent is slightly above eight percent and LPs receive a bit more before the GP earns carry. And simple, non-compounding preferred return is just eight percent times years times capital — a hundred million over five years is forty million, flat; that's GP-friendly and increasingly rare. But the timing question is even more impactful: when does the eight-percent clock actually start? The standard answer is when LP capital is called. So if the GP borrows on a subscription credit line to fund a deal and only calls LP capital months later, the clock starts later — LPs accrue less preferred return, and the GP clears the hurdle more easily.\n\n[intuition] Starting the stopwatch late\nHere's the mental model for the subscription-line timing effect. It's like starting a hundred-metre race but not pressing the stopwatch until the runner has already covered the first ten metres. The runner looks faster than they really are, because you only measured the last ninety. LPs who look at reported IRR without asking when the clock started are timing from the ten-metre mark. And the compounding-convention difference is simpler — it's the same gap as simple versus compound interest on a savings account, except that over ten years on five hundred million dollars, the difference between annual and daily compounding accumulates into a genuinely meaningful sum.\n\n[mechanics] The numbers that diverge\nLet's make it concrete. On a hundred million at eight percent for five years, with all capital called on day one: simple gives a hundred and forty million; annual compound, a hundred and forty-six-point-nine; quarterly, a hundred and forty-eight-point-five; daily, a hundred and forty-nine-point-two. At fund level, on five hundred million affected over ten years, the annual-versus-daily gap is about eleven million more hurdle the LPs must clear before the GP earns a cent. Next, per-tranche accrual: funds don't call all capital at once, so the preferred return accrues separately for each tranche from its own call date. On a three-hundred-million fund — a hundred million called in year one accruing nine years to a hundred-ninety-nine-point-nine, another in year three for seven years to a hundred-seventy-one-point-four, another in year five for five years to a hundred-forty-six-point-nine — the total hurdle is five-hundred-eighteen million, well above just applying eight percent to three hundred for ten years. Then the big one: subscription credit lines. A deal done in month six, funded by the line, with capital called in month twelve — six months late. Accrue eight years either way: no line gives a hundred-eighty-five-point-one million, the six-month delay only a hundred-seventy-seven-point-nine — the LP earns seven-point-two million less hurdle per hundred million, and the GP's reported IRR can be inflated by two to four hundred basis points because capital was called later. ILPA's guidance recommends GPs disclose subscription-line use and report IRR both with and without the line, and many LPs now cap the line at a hundred-eighty days outstanding.\n\n[worked-example] Fund Alpha, $400m\nTake an illustrative four-hundred-million buyout fund — Fund Alpha — European waterfall, eight percent annual compound. Capital comes in tranches: a hundred million in year one, but actually called in year one-and-a-half via the subscription line; a hundred-fifty million in year two; a hundred million in year four; fifty million in year five. At a year-ten exit, accruing each tranche from its effective start: the year-one tranche grows over eight-and-a-half years to a hundred-ninety-three-point-eight million; the year-two tranche over eight years to two-hundred-seventy-seven-point-seven; the year-four over six years to a hundred-fifty-eight-point-seven; the year-five over five years to seventy-three-point-five — a total preferred return of seven-hundred-three-point-seven million. Now, had the line not been used and the year-one capital been called immediately, that first tranche would accrue a full nine years to a hundred-ninety-nine-point-nine million instead of a hundred-ninety-three-point-eight. That half-year delay alone costs the LPs about six-point-one million in hurdle — carry that flows to the GP rather than accruing as protection for the LPs. Small convention, real money.\n\n[pitfalls] What people get wrong\nFour corrections. First, the compounding convention is not a minor technical detail at scale — on five hundred million of carried capital, annual versus daily compounding is about eleven million of LP returns over ten years. Second, subscription lines are not neutral to LP economics — they reduce effective hurdle accrual and inflate IRR, both advantages to the GP at the LP's expense. Third, not all funds disclose subscription-line effects on IRR — ILPA recommends it, but it's not universally mandated, so LPs must specifically request dual, with-and-without, IRR reporting. And fourth, the hurdle clock does not start when the deal closes — in standard LPAs it starts when LP capital is called, which may be weeks or months after close if a credit line was used.\n\n[recap] Where the carry is decided\nTo recap. Preferred-return compounding and timing are expert-level mechanics that decide precisely how much LPs must receive before GPs earn carry. Annual compounding is market standard; daily compounding, ILPA-favoured, produces a higher effective hurdle. Each capital-call tranche accrues separately from its own call date, so multi-tranche funds need tranche-by-tranche calculation. And subscription credit lines are the most significant timing issue: by delaying capital calls, GPs compress the hurdle-accrual period and inflate reported IRR, quietly reducing LP protection — which is why ILPA recommends dual IRR reporting and capped line durations. Next we look at the mechanism that corrects the GP when carry gets overpaid — clawback provisions.\n\nQ: $200M called for 7 years at 8% annual compound — what is the preferred return threshold?\nA: $200M × 1.08^7 = **$342.8M** total LP return required before carry.\nQ: Why does daily compounding produce a higher hurdle than annual compounding over the same period?\nA: Interest is added 365 times per year and each day's interest itself earns interest — a slightly higher effective annual rate than the nominal 8%.\nQ: A GP uses a subscription credit line for 6 months before calling LP capital. How does this affect the LP's preferred return?\nA: The hurdle clock starts 6 months later — LPs accrue 6 fewer months of preferred return on that tranche, so the hurdle is *lower* and the GP clears it more easily. Reported IRR is also inflated (smaller capital × time denominator early on).\nQ: What does ILPA recommend GPs do when they use subscription credit lines?\nA: Disclose the usage and report both \"with credit line\" and \"without credit line\" IRR figures so LPs can assess true performance.\nQ: Why does per-tranche accrual matter for preferred return modelling?\nA: Capital called in Year 1 accrues for the full fund life; later tranches accrue for fewer years. You must track each tranche's call date — applying one rate to total capital ignores the timing difference.\nEnd-card question: $200m is called for 7 years at 8% annual compound. What total must LPs receive before the GP earns carry? And why does using a subscription credit line both lower the LP's hurdle and inflate the GP's IRR?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The preferred return is not simply \"8% per year.\" The precise economic outcome depends on: how that 8% compounds (annually vs. daily), when the clock starts (the date capital is called vs. the date it is deployed), and whether subscription credit lines have delayed the start of the hurdle accrual. At fund scale, these mechanics can shift tens of millions of dollars in carry. This note is the expert layer behind Preferred Return and Hurdle Rate — for practitioners, lawyers, and sophisticated LP analysts.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The compounding convention and timing rules for the preferred return determine exactly how much a GP must return to LPs before earning any carry — and small differences in convention or subscription line usage can shift millions of dollars between GP and LP.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>The 8% hurdle sounds straightforward: \"LPs get 8% per year before the GP earns any carry.\" But \"8% per year\" can mean very different things:</p><p><strong>Annual compounding (most common):</strong> At the end of each year, 8% is added to the total outstanding amount. $100 becomes $108 after year 1, then $116.64 after year 2, etc. This is what most people mean by \"8% compound.\"</p><p><strong>Daily compounding (LP-friendly):</strong> 8% ÷ 365 is added every single day. The annual equivalent is slightly higher than 8% because of more frequent compounding. Over 5 years, $100M at daily compound is slightly more than at annual compound — meaning LPs receive more before GP earns carry.</p><p><strong>Simple (non-compound) preferred return:</strong> 8% × years × capital. $100M over 5 years = $40M in simple preferred return. This is GP-friendly and increasingly rare.</p><p>The timing question is more impactful: when does the 8% clock start? The standard answer is: when LP capital is called (drawn). But if the GP borrows money via a subscription credit line to fund deals and only calls LP capital later, the clock starts later — meaning LPs accrue less preferred return, and the GP clears the hurdle more easily.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The subscription credit line timing effect is like starting a 100-metre race but not pressing the stopwatch button until the runner has already covered 10 metres. The runner looks faster than they are because you measured only the last 90 metres. LPs who only look at reported IRR (without asking when the clock started) are timing from the 10-metre mark.</p><p>The compounding convention difference is like the difference between simple and compound interest on a savings account — over 10 years at scale, the difference between annual and daily compounding on $500M accumulates to a meaningful sum.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Compounding Conventions Compared</p><p>For $100M committed capital, 8% hurdle, 5-year hold (entire capital called on Day 1):</p><p>| Convention | Formula | Result after 5 years | Difference from Annual | |---|---|---|---| | Simple | $100M × (1 + 0.08 × 5) | $140,000,000 | −$6.9M (GP-friendly) | | Annual compound | $100M × 1.08^5 | $146,933,000 | Baseline | | Quarterly compound | $100M × (1 + 0.08/4)^20 | $148,451,000 | +$1.5M (LP-friendly) | | Daily compound | $100M × (1 + 0.08/365)^1825 | $149,178,000 | +$2.2M (LP-friendly) |</p><p>At the fund level, if $500M of total capital is affected, the difference between annual and daily compounding = ~$11M in additional hurdle LPs must clear before GP earns carry. On $500M of profits above hurdle, that's not immaterial.</p><p><strong>Market standard</strong> is annual compounding in most buyout LPAs. LP-friendly LPAs (ILPA-recommended) use daily compounding.</p><p>### Per-Tranche Accrual</p><p>PE funds do not call all capital at once. Capital is called in tranches as deals are made — Year 1, Year 2, Year 3, etc. The preferred return accrues separately for each tranche from its call date:</p><p><strong>Example: $300M fund, 8% annual hurdle, capital called in tranches</strong></p><p>| Tranche | Amount Called | Year Called | Years to Fund End (Year 10) | Preferred Return | |---|---|---|---|---| | Tranche 1 | $100M | Year 1 | 9 years | $100M × 1.08^9 = $199.9M | | Tranche 2 | $100M | Year 3 | 7 years | $100M × 1.08^7 = $171.4M | | Tranche 3 | $100M | Year 5 | 5 years | $100M × 1.08^5 = $146.9M | | <strong>Total</strong> | <strong>$300M</strong> | | | <strong>$518.2M total preferred return</strong> |</p><p>The effective \"weighted average\" hurdle is higher than simply applying 8% to $300M for 10 years. The LP has earned preferred return on earlier tranches for longer periods. Understanding this is critical for waterfall modelling.</p><p>### Subscription Credit Lines and Hurdle Timing</p><p>This is the most significant and most contested aspect of preferred return timing.</p><p><strong>Mechanism:</strong> 1. GP negotiates a subscription credit facility — a bank loan secured against LP commitments (the bank can call LP commitments if GP defaults) 2. GP uses the credit line to fund deals — no capital call issued to LPs 3. Capital is called weeks or months later as a batch, partly to repay the credit line 4. Result: LP capital is \"at risk\" from the deal date, but the <strong>preferred return clock starts from the capital call date, not the deal date</strong></p><p><strong>Economic impact:</strong></p><p>Deal done in Month 6. GP uses credit line. Capital called in Month 12 (6-month delay).</p><p>| Scenario | Preferred return accrual starts | 8-year accrual on $100M | |---|---|---| | No credit line (normal) | Month 6 | $100M × 1.08^8 = $185.1M | | 6-month credit line delay | Month 12 | $100M × 1.08^7.5 = $177.9M | | <strong>LP earns less hurdle</strong> | | <strong>−$7.2M per $100M</strong> |</p><p>The GP's IRR also looks better because capital is called later — IRR denominator (LP invested capital × time) is smaller for the early months. IRR can be inflated by <strong>200-400bps</strong> through subscription line use.</p><p><strong>The controversy:</strong> - GPs argue credit lines improve fund operations and portfolio company funding certainty — they are legitimate tools - LPs argue credit lines: (a) reduce the effective hurdle, (b) inflate reported IRR, (c) change the comparison basis when evaluating GP performance against benchmarks - ILPA issued guidance in 2017 recommending GPs disclose subscription line use and report both \"with credit line\" and \"without credit line\" IRRs - Many LPs now specifically negotiate in LPAs to limit subscription line duration (e.g., max 180 days outstanding before capital must be called) and require parallel IRR reporting</p><p>### Simple vs. Compound Preferred Return: LPA Language</p><p>The LPA will specify preferred return in one of these ways:</p><p><strong>Annual compound (standard):</strong> &gt; \"The Preferred Return shall accrue at a rate of 8% per annum, compounded annually, on the aggregate Contributed Capital from the date of contribution.\"</p><p><strong>Daily compound (LP-friendly):</strong> &gt; \"The Preferred Return shall accrue at a rate of 8% per annum, calculated and compounded daily, on the aggregate Contributed Capital from the date of contribution.\"</p><p><strong>Simple (GP-friendly, rare):</strong> &gt; \"The Preferred Return shall accrue at a rate of 8% per annum on a non-compounding basis on the aggregate Contributed Capital.\"</p><p>The difference in words is minor. The difference in economics at scale is substantial. This is why LP counsel reviews this language carefully.</p><p>### GP-Friendly vs. LP-Friendly Comparison</p><p>| Feature | GP-Friendly | Market Standard | LP-Friendly (ILPA) | |---|---|---|---| | Compounding | Simple or annual | Annual compound | Daily compound | | Hurdle rate | 6% or 7% | 8% | 8% or higher | | Timing start | Capital call date | Capital call date | Deal date (excl. credit line) | | Credit line limit | No restriction | 180-day guidance | 90 days with IRR disclosure | | Catch-up | 100% to GP | 100% to GP | 50/50 catch-up or phased |</p><p>### Interaction with Waterfall Type</p><p>In a <strong>European waterfall</strong> (whole-fund basis), the preferred return is calculated on all capital contributed across all deals, and carry is only paid once the whole portfolio has returned capital plus hurdle. Subscription line effects on per-deal timing are smoothed across the fund — less distortion.</p><p>In an <strong>American waterfall</strong> (deal-by-deal), preferred return is calculated per deal. Subscription line timing effects are maximised because each deal's hurdle period is compressed independently.</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Illustrative \"Fund Alpha\" — $400M buyout fund, European waterfall, 8% annual compound hurdle</strong></p><p>| Year | Capital Called | Notes | |---|---|---| | Year 1 | $100M | Via subscription line; actually called in Year 1.5 | | Year 2 | $150M | Normal capital call | | Year 4 | $100M | Normal capital call | | Year 5 | $50M | Normal capital call |</p><p>At Year 10 exit, preferred return calculation:</p><p>| Tranche | Called | Effective Start | Years Accruing | Preferred Return | |---|---|---|---|---| | Year 1 (delayed) | $100M | Year 1.5 | 8.5 years | $100M × 1.08^8.5 = $193.8M | | Year 2 | $150M | Year 2 | 8 years | $150M × 1.08^8 = $277.7M | | Year 4 | $100M | Year 4 | 6 years | $100M × 1.08^6 = $158.7M | | Year 5 | $50M | Year 5 | 5 years | $50M × 1.08^5 = $73.5M | | <strong>Total</strong> | <strong>$400M</strong> | | | <strong>$703.7M total preferred return</strong> |</p><p>If the credit line had not been used and Year 1 capital was called immediately: - Year 1 tranche: $100M × 1.08^9 = $199.9M (vs. $193.8M) - <strong>LP loses ~$6.1M in hurdle</strong> due to the 0.5-year delay</p><p>Over the whole $400M fund, this is not immaterial. It represents carry that flows to the GP rather than accruing as hurdle for LPs.</p>"}, "6": {"section": "Common Misconceptions", "html": "<ul class='notelist'><li><strong>\"Compounding convention is a minor technical detail.\"</strong> False at scale. On $500M of carried capital, the difference between annual and daily compounding is ~$11M of LP returns over 10 years.</li><li><strong>\"Subscription lines are neutral to LP economics.\"</strong> False. They reduce effective hurdle accrual and inflate IRR — both advantages to the GP at LP expense.</li><li><strong>\"All funds disclose subscription line effects on IRR.\"</strong> False — ILPA recommends disclosure but it is not universally mandated. LPs must specifically request dual IRR reporting.</li><li><strong>\"The hurdle clock starts when the deal closes.\"</strong> Not always — in standard LPAs, it starts when LP capital is called, which may be weeks after deal close if a credit line was used.</li></ul>"}, "7": {"section": "Summary", "html": "<p>Preferred return compounding and timing are expert-level fund mechanics that determine precisely how much LPs must receive before GPs earn carry. Annual compounding is market standard; daily compounding (ILPA-favoured) produces a higher effective hurdle. Each capital call tranche accrues separately from its call date — funds with multiple tranches require tranche-by-tranche calculation. Subscription credit lines are the most significant timing issue: by delaying capital calls, GPs compress the hurdle accrual period and inflate reported IRR, effectively reducing LP economic protection. ILPA recommends dual IRR reporting and limited credit line durations as mitigation.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

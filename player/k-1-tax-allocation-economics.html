@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "k-1-tax-allocation-economics", "title": "K-1 Tax Allocation Economics", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "What's in the pipe", "on_screen_bullets": ["The form behind every PE return", "Each box has a tax character", "Character drives rate and rules"], "narration": "The carried-interest lesson mentioned where carry sits in the tax records; this lesson opens up that document — the K-1 — because it's the form through which every dollar of PE return actually reaches an investor. The key idea is that a K-1 is not a single number; it's a character-sorted statement, and each box on it represents a specific kind of fund activity with a specific tax character. A figure in the long-term-capital-gain box represents a realised gain from selling a company after several years; a figure in the ordinary-income box represents operating income. These are not interchangeable — they trigger different tax rates, different allocation rules, and different disclosure requirements. Handling PE returns without understanding this is like moving data through a pipeline without knowing what fluid is in the pipe. This lesson connects each box number to the fund mechanics that produced it.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The allocation mechanism", "on_screen_bullets": ["Form 1065 Schedule K-1", "Allocates each partner's share by type", "Character set by substantial economic effect"], "narration": "The definition. A Schedule K-1 is the mechanism through which a partnership allocates each partner's share of the partnership's income, gain, loss, deduction, and credit. In private equity, each K-1 box number represents a specific type of fund activity — portfolio-company exits, operational income, interest, asset sales — each carrying a specific tax character, ordinary or capital, governed by the partnership tax rule known as the substantial-economic-effect standard. In short, it's how a pass-through fund tells each investor not just how much they earned, but what kind of income it is.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Why sort by type", "on_screen_bullets": ["Partnership pays no entity tax", "Different income types, different rates", "Character is preserved through chains"], "narration": "Plain English. A partnership doesn't pay corporate income tax; instead it passes each type of income and deduction through to its partners in proportion to their interests, and each partner pays tax on their share. The K-1 is the delivery mechanism — the form that says, here is your share of our gains, losses, income, and deductions, sorted by tax category. Why sort by category? Because different types of income are taxed at different rates: ordinary income, like business income, at up to thirty-seven percent federal; long-term capital gains, on assets held over a year, at twenty percent for high earners plus the surcharge; gains from selling business property treated as long-term if net positive; and tax-exempt income at zero. So if a fund earned a hundred million from a portfolio exit, a couple of million in interest on its cash, and some dividend income, the K-1 separates these into their respective boxes, and each partner gets their proportionate slice of each type. And here's the single most important property, which the whole lesson turns on: character is preserved through partnership chains. A long-term capital gain at the portfolio level stays a long-term capital gain all the way through to the final investor's K-1. That preservation is the fundamental tax reason PE funds are structured as partnerships rather than corporations.", "est_sec": 54}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "The K-1 Box-by-Box Guide for PE Funds", "on_screen_title": "The boxes that matter", "on_screen_bullets": ["Box 1 ordinary, Box 5 interest", "Box 9a long-term gain — the main event", "Box 10 §1231, Box 11 GILTI"], "narration": "Technically, a handful of boxes carry almost all the action for a buyout fund. Box one, ordinary business income, taxed at ordinary rates — relatively rare in large-cap PE, since portfolio companies are usually corporations, but it shows up from pass-through portfolio companies, interest on loans to portfolio companies, and depreciation recapture. Box five, net interest income, ordinary income on the fund's cash and any notes it holds. Box nine-a, net long-term capital gain — and this is the main event for a buyout fund, the gains from selling companies held over a year, which is the primary return driver and where the fund's whole tax life centers; when you see a large positive number here, it means one or more portfolio companies were sold at a gain that year. Box ten, section twelve-thirty-one gain, from selling business property like real estate or equipment — bifurcated, so net gains are treated as long-term capital gain while net losses get the more favourable ordinary-loss treatment, and this is exactly where a portfolio-company sale-leaseback shows up. Box eleven, other income, which importantly includes the international items, the controlled-foreign-corporation and global-intangible inclusions that arise when a PE-owned foreign subsidiary earns passive income. And box thirteen, other deductions, including the excess business interest under the thirty-percent interest-limitation rule, highly relevant for heavily leveraged portfolio companies whose interest expense exceeds the cap. Crucially, the carried interest is allocated in box nine-a, as long-term capital gain — not as wages or ordinary income, which is the technical heart of the carry controversy we just covered.", "est_sec": 64}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "The §704(b) \"Substantial Economic Effect\" Standard", "on_screen_title": "Substantial economic effect", "on_screen_bullets": ["Allocations must match economics", "Capital accounts track each partner", "Tax-only allocations get recharacterised"], "narration": "Underneath every K-1 allocation sits one legal standard — substantial economic effect — and it's what keeps the allocations honest. The partnership agreement determines allocations, but the tax rules then qualify that: an allocation must have substantial economic effect or otherwise match the partners' real interests in the partnership. Substantial economic effect requires three things. Capital accounts must be maintained, reflecting every partner's contributions, allocated income, allocated losses, and distributions, so each partner's true economic position is tracked. On liquidation, partners must receive distributions according to their positive capital-account balances, not some other order. And there must be a deficit-restoration obligation, or an equivalent income-offset mechanism, so a partner whose account goes negative makes it good. Why this matters for PE: the waterfall — preferred return, then catch-up, then the eighty-twenty split — has to be consistent with capital-account maintenance, and the clawback provision is essentially this rule in reverse, the GP restoring excess carry it shouldn't have kept. And the substantial part has teeth: an allocation only qualifies if there's a real possibility it affects the dollars partners actually receive, so a fund that allocated all the gains to the GP and all the losses to investors purely for a tax benefit, with no economic reality, would simply be recharacterised. The standard ties the legal allocation to the genuine economic structure — you can't paper a tax result the economics don't support.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "mermaid", "source_section": "The Two-Level K-1 Chain at CVC Secondary Partners", "on_screen_title": "Character preserved up the chain", "on_screen_bullets": ["Company → fund → fund-of-funds → LP", "Box 9a stays Box 9a throughout", "No re-characterisation by layering"], "mermaid": "graph TD\n    PC[\"Portfolio company<br/>(operating income, gains)\"] --> F1[\"Primary fund<br/>K-1: Box 9a LT gain, Box 10 §1231\"]\n    F1 --> F2[\"Fund-of-funds / secondary<br/>aggregates many K-1s\"]\n    F2 --> LP[\"End investor<br/>(pension, endowment, SWF)\"]\n    F1 -.->|character preserved| F2\n    F2 -.->|character preserved| LP", "narration": "Here's the property that matters most for anyone handling these documents, shown as a chain on screen — character preservation through multiple partnership tiers. Follow the arrows. At the bottom, a portfolio company generates operating income and, on sale, gains. Those flow up to the primary fund, which issues a K-1 showing long-term capital gain in box nine-a and any business-property gain in box ten. If an investor in that fund is itself a fund — a fund-of-funds or a secondary fund — it receives that K-1, aggregates it with many others, and issues its own K-1 to its end investors, the pensions, endowments, and sovereign funds. And the dotted lines are the whole point: the character is preserved at every tier. A long-term capital gain in box nine-a on the primary fund's K-1 arrives as box nine-a on the next level's K-1, and as box nine-a again on the final investor's K-1 — it does not become ordinary income simply because it passed through an extra partnership layer. Why does this matter so much in practice? Because tax-exempt investors like pensions and endowments care intensely about character for the unrelated-business-income-tax analysis: capital gains in box nine-a are exempt from that tax, while ordinary business income, especially debt-financed income, can trigger it. And non-US investors care about the real-property rules, where business-property gains from US real estate can be taxable while ordinary company-sale gains typically aren't. Misclassify a box nine-a item as box one somewhere in the chain, and you can hand a tax-exempt investor a phantom tax problem on income that was actually exempt. Getting the character right at each tier is the technical core of the work.", "est_sec": 64}, {"n": 7, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "A worked K-1 year", "on_screen_bullets": ["$800m exit → Box 9a", "Equipment sale → Box 10", "Foreign passive income → Box 11"], "narration": "Make it concrete with a worked example. Suppose a primary fund has the following year: it sells a portfolio company held five years for an eight-hundred-million-dollar gain; it receives twenty million in ordinary dividends from another company; a third company sells manufacturing equipment for a thirty-million business-property gain; the fund nets a small interest expense on its credit line; and a foreign subsidiary earns passive income triggering a global-intangible inclusion of about sixteen million. Now look at how that sorts onto the K-1 of an investor holding, say, five percent of the fund. The eight-hundred-million exit gain becomes forty million in box nine-a, long-term capital gain — the dominant item. The dividends become a million in box one, ordinary income. The equipment sale becomes one-and-a-half million in box ten, business-property gain. The net interest expense is a small negative in box five. And the foreign inclusion is eight-hundred-thousand in the box-eleven international code. If that five-percent investor is itself a fund, it then aggregates this K-1 with similar ones from other primary funds and issues its own K-1s to its end investors, preserving each character all the way through. So a single line item an end investor sees in their long-term-capital-gain box may be the summed product of company exits across a dozen different primary funds — every one of which had to keep its character intact up the chain. The worked example shows the abstract rule, character preservation, doing concrete work on real numbers.", "est_sec": 58}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["K-1 income isn't all one type", "Fund's hold period, not investor's", "Layering doesn't re-characterise"], "narration": "Four corrections to close. First, the belief that K-1 income is all the same, just your share of profits — false; it's explicitly categorised by type because each type carries a different rate, different deductibility, and different implications for tax-exempt and non-US investors, so a long-term-gain dollar and an ordinary-income dollar are economically equal but tax-legally very different. Second, the belief that long-term capital gain on the K-1 means the asset was held a year by the investor — for PE fund K-1s the relevant holding period is the fund's holding period in the portfolio company, not the investor's holding period in the fund, so a secondary investor who joined in year three can still receive long-term gain if the fund has held the company long enough. Third, the belief that GP carry appears as compensation income on the fund K-1 — it's allocated as box nine-a capital gain to the GP's carry vehicle, which is precisely the core of the carry tax debate, that it's reported as capital gain rather than wages. And fourth, the belief that passing through an extra partnership layer re-characterises the income — character preservation means a box nine-a gain stays box nine-a at every tier, with no re-characterisation from layering alone. To recap: a PE K-1 is a character-sorted allocation, box nine-a long-term gain is the buyout fund's main event, the substantial-economic-effect standard ties allocations to real economics, and character is preserved through every partnership tier — which is exactly why getting it right matters for tax-exempt and non-US investors. Next we examine a tax strategy that tries to push even the management fee into that favourable capital-gain box — the fee waiver.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Explain 'character preservation' through a multi-tier partnership chain, and why a tax-exempt pension fund cares whether income arrives in Box 9a vs Box 1. Then: for a PE fund K-1, whose holding period determines long-term vs short-term — the fund's or the investor's?", "narration": "Before the next lesson, reason it through. Explain character preservation through a multi-tier partnership chain — what stays the same at each level — and why a tax-exempt pension fund cares intensely whether income arrives as long-term capital gain or as ordinary business income. And for a PE fund K-1, whose holding period determines whether a gain is long-term or short-term: the fund's holding in the company, or the investor's holding in the fund? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: K-1 Tax Allocation Economics\n\n[hook] What's in the pipe\nThe carried-interest lesson mentioned where carry sits in the tax records; this lesson opens up that document — the K-1 — because it's the form through which every dollar of PE return actually reaches an investor. The key idea is that a K-1 is not a single number; it's a character-sorted statement, and each box on it represents a specific kind of fund activity with a specific tax character. A figure in the long-term-capital-gain box represents a realised gain from selling a company after several years; a figure in the ordinary-income box represents operating income. These are not interchangeable — they trigger different tax rates, different allocation rules, and different disclosure requirements. Handling PE returns without understanding this is like moving data through a pipeline without knowing what fluid is in the pipe. This lesson connects each box number to the fund mechanics that produced it.\n\n[definition] The allocation mechanism\nThe definition. A Schedule K-1 is the mechanism through which a partnership allocates each partner's share of the partnership's income, gain, loss, deduction, and credit. In private equity, each K-1 box number represents a specific type of fund activity — portfolio-company exits, operational income, interest, asset sales — each carrying a specific tax character, ordinary or capital, governed by the partnership tax rule known as the substantial-economic-effect standard. In short, it's how a pass-through fund tells each investor not just how much they earned, but what kind of income it is.\n\n[intuition] Why sort by type\nPlain English. A partnership doesn't pay corporate income tax; instead it passes each type of income and deduction through to its partners in proportion to their interests, and each partner pays tax on their share. The K-1 is the delivery mechanism — the form that says, here is your share of our gains, losses, income, and deductions, sorted by tax category. Why sort by category? Because different types of income are taxed at different rates: ordinary income, like business income, at up to thirty-seven percent federal; long-term capital gains, on assets held over a year, at twenty percent for high earners plus the surcharge; gains from selling business property treated as long-term if net positive; and tax-exempt income at zero. So if a fund earned a hundred million from a portfolio exit, a couple of million in interest on its cash, and some dividend income, the K-1 separates these into their respective boxes, and each partner gets their proportionate slice of each type. And here's the single most important property, which the whole lesson turns on: character is preserved through partnership chains. A long-term capital gain at the portfolio level stays a long-term capital gain all the way through to the final investor's K-1. That preservation is the fundamental tax reason PE funds are structured as partnerships rather than corporations.\n\n[mechanics] The boxes that matter\nTechnically, a handful of boxes carry almost all the action for a buyout fund. Box one, ordinary business income, taxed at ordinary rates — relatively rare in large-cap PE, since portfolio companies are usually corporations, but it shows up from pass-through portfolio companies, interest on loans to portfolio companies, and depreciation recapture. Box five, net interest income, ordinary income on the fund's cash and any notes it holds. Box nine-a, net long-term capital gain — and this is the main event for a buyout fund, the gains from selling companies held over a year, which is the primary return driver and where the fund's whole tax life centers; when you see a large positive number here, it means one or more portfolio companies were sold at a gain that year. Box ten, section twelve-thirty-one gain, from selling business property like real estate or equipment — bifurcated, so net gains are treated as long-term capital gain while net losses get the more favourable ordinary-loss treatment, and this is exactly where a portfolio-company sale-leaseback shows up. Box eleven, other income, which importantly includes the international items, the controlled-foreign-corporation and global-intangible inclusions that arise when a PE-owned foreign subsidiary earns passive income. And box thirteen, other deductions, including the excess business interest under the thirty-percent interest-limitation rule, highly relevant for heavily leveraged portfolio companies whose interest expense exceeds the cap. Crucially, the carried interest is allocated in box nine-a, as long-term capital gain — not as wages or ordinary income, which is the technical heart of the carry controversy we just covered.\n\n[mechanics] Substantial economic effect\nUnderneath every K-1 allocation sits one legal standard — substantial economic effect — and it's what keeps the allocations honest. The partnership agreement determines allocations, but the tax rules then qualify that: an allocation must have substantial economic effect or otherwise match the partners' real interests in the partnership. Substantial economic effect requires three things. Capital accounts must be maintained, reflecting every partner's contributions, allocated income, allocated losses, and distributions, so each partner's true economic position is tracked. On liquidation, partners must receive distributions according to their positive capital-account balances, not some other order. And there must be a deficit-restoration obligation, or an equivalent income-offset mechanism, so a partner whose account goes negative makes it good. Why this matters for PE: the waterfall — preferred return, then catch-up, then the eighty-twenty split — has to be consistent with capital-account maintenance, and the clawback provision is essentially this rule in reverse, the GP restoring excess carry it shouldn't have kept. And the substantial part has teeth: an allocation only qualifies if there's a real possibility it affects the dollars partners actually receive, so a fund that allocated all the gains to the GP and all the losses to investors purely for a tax benefit, with no economic reality, would simply be recharacterised. The standard ties the legal allocation to the genuine economic structure — you can't paper a tax result the economics don't support.\n\n[mechanics] Character preserved up the chain\nHere's the property that matters most for anyone handling these documents, shown as a chain on screen — character preservation through multiple partnership tiers. Follow the arrows. At the bottom, a portfolio company generates operating income and, on sale, gains. Those flow up to the primary fund, which issues a K-1 showing long-term capital gain in box nine-a and any business-property gain in box ten. If an investor in that fund is itself a fund — a fund-of-funds or a secondary fund — it receives that K-1, aggregates it with many others, and issues its own K-1 to its end investors, the pensions, endowments, and sovereign funds. And the dotted lines are the whole point: the character is preserved at every tier. A long-term capital gain in box nine-a on the primary fund's K-1 arrives as box nine-a on the next level's K-1, and as box nine-a again on the final investor's K-1 — it does not become ordinary income simply because it passed through an extra partnership layer. Why does this matter so much in practice? Because tax-exempt investors like pensions and endowments care intensely about character for the unrelated-business-income-tax analysis: capital gains in box nine-a are exempt from that tax, while ordinary business income, especially debt-financed income, can trigger it. And non-US investors care about the real-property rules, where business-property gains from US real estate can be taxable while ordinary company-sale gains typically aren't. Misclassify a box nine-a item as box one somewhere in the chain, and you can hand a tax-exempt investor a phantom tax problem on income that was actually exempt. Getting the character right at each tier is the technical core of the work.\n\n[example] A worked K-1 year\nMake it concrete with a worked example. Suppose a primary fund has the following year: it sells a portfolio company held five years for an eight-hundred-million-dollar gain; it receives twenty million in ordinary dividends from another company; a third company sells manufacturing equipment for a thirty-million business-property gain; the fund nets a small interest expense on its credit line; and a foreign subsidiary earns passive income triggering a global-intangible inclusion of about sixteen million. Now look at how that sorts onto the K-1 of an investor holding, say, five percent of the fund. The eight-hundred-million exit gain becomes forty million in box nine-a, long-term capital gain — the dominant item. The dividends become a million in box one, ordinary income. The equipment sale becomes one-and-a-half million in box ten, business-property gain. The net interest expense is a small negative in box five. And the foreign inclusion is eight-hundred-thousand in the box-eleven international code. If that five-percent investor is itself a fund, it then aggregates this K-1 with similar ones from other primary funds and issues its own K-1s to its end investors, preserving each character all the way through. So a single line item an end investor sees in their long-term-capital-gain box may be the summed product of company exits across a dozen different primary funds — every one of which had to keep its character intact up the chain. The worked example shows the abstract rule, character preservation, doing concrete work on real numbers.\n\n[pitfalls] What people get wrong\nFour corrections to close. First, the belief that K-1 income is all the same, just your share of profits — false; it's explicitly categorised by type because each type carries a different rate, different deductibility, and different implications for tax-exempt and non-US investors, so a long-term-gain dollar and an ordinary-income dollar are economically equal but tax-legally very different. Second, the belief that long-term capital gain on the K-1 means the asset was held a year by the investor — for PE fund K-1s the relevant holding period is the fund's holding period in the portfolio company, not the investor's holding period in the fund, so a secondary investor who joined in year three can still receive long-term gain if the fund has held the company long enough. Third, the belief that GP carry appears as compensation income on the fund K-1 — it's allocated as box nine-a capital gain to the GP's carry vehicle, which is precisely the core of the carry tax debate, that it's reported as capital gain rather than wages. And fourth, the belief that passing through an extra partnership layer re-characterises the income — character preservation means a box nine-a gain stays box nine-a at every tier, with no re-characterisation from layering alone. To recap: a PE K-1 is a character-sorted allocation, box nine-a long-term gain is the buyout fund's main event, the substantial-economic-effect standard ties allocations to real economics, and character is preserved through every partnership tier — which is exactly why getting it right matters for tax-exempt and non-US investors. Next we examine a tax strategy that tries to push even the management fee into that favourable capital-gain box — the fee waiver.\n\nEnd-card question: Explain 'character preservation' through a multi-tier partnership chain, and why a tax-exempt pension fund cares whether income arrives in Box 9a vs Box 1. Then: for a PE fund K-1, whose holding period determines long-term vs short-term — the fund's or the investor's?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>This is Blind Spot #2 from the Learner Context: the learner processes K-1s daily but the economic reality behind each box number has not yet been connected to the fund mechanics that produce it.</p><p>The gap is significant. When a number appears in Box 9a on a K-1 from KKR Fund XIII, it represents KKR's realized gain from selling a portfolio company after 5+ years. When a number appears in Box 1, it represents ordinary operating income. These are not interchangeable — they trigger different tax rates, different allocation rules, and different disclosure requirements. Processing K-1s without understanding this is like moving pipeline data without knowing what fluid is in the pipe.</p><p>For CVC Secondary Partners specifically: CVC sits at the midpoint of a two-level K-1 chain. Understanding what flows into CVC from primary fund K-1s (Level 1) and what flows out to CVC's LPs (Level 2) — and why the character of each item is preserved through both levels — is the technical foundation of the learner's job.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A Schedule K-1 (Form 1065) is the mechanism through which a partnership allocates each partner's share of the partnership's income, gain, loss, deduction, and credit — and in private equity, each K-1 box number represents a specific type of fund activity (portfolio company exits, operational income, interest, asset sales) with a specific tax character (ordinary vs. capital) governed by §704(b)'s \"substantial economic effect\" standard.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>A partnership doesn't pay corporate income tax. Instead, it passes each type of income and deduction through to the partners in proportion to their interests, and each partner pays tax on their allocated share.</p><p>The K-1 is the delivery mechanism: it is the form the partnership sends each partner that says \"here is your share of our gains, losses, income, and deductions — here is how much of each type you got, sorted by tax category.\"</p><p>Why sort by category? Because different types of income are taxed at different rates: - <strong>Ordinary income</strong> (wages, business income): up to 37% federal rate - <strong>Long-term capital gains</strong> (assets held 12+ months): 20% for high earners (plus 3.8% NIIT) - <strong>§1231 gains</strong> (gains from selling business property): treated as long-term capital gains if net positive - <strong>Tax-exempt income</strong>: 0% federal tax</p><p>If a PE fund earned £100m from a portfolio company exit (long-term capital gain), £5m in management fees (ordinary income to the management company — not on the K-1), and £2m in interest income from its cash holdings, the K-1 separates these into their respective boxes. Each partner receives their proportionate share of each type.</p><p>The critical insight: <strong>character is preserved through partnership chains.</strong> Long-term capital gain at the portfolio company level stays long-term capital gain all the way through to the final LP's K-1. This is the fundamental tax reason PE funds are structured as partnerships, not corporations.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>CVC Secondary Partners receives K-1s from KKR Fund XIII for tax year 2024:</strong></p><p>Assume KKR Fund XIII had the following activities: - Sold portfolio company A (5-year hold): $800m gain - Received ordinary dividend from portfolio company B: $20m - Portfolio company C sold manufacturing equipment: $30m §1231 gain - Fund earned interest on subscription line (net of interest paid): -$5m (net expense) - Portfolio company D (German subsidiary) earned passive income triggering §951A GILTI: €15m / ~$16m</p><p>CVC's K-1 from KKR Fund XIII (assume CVC holds 5% of the fund = $10bn × 5% = $500m) shows:</p><p>| Box | Amount (CVC's 5% share) | Source | |---|---|---| | Box 1 | $1.0m | CVC's 5% of ordinary dividends | | Box 5 | -$0.25m | CVC's 5% of net interest expense | | Box 9a | $40.0m | CVC's 5% of portfolio company A exit gain | | Box 10 | $1.5m | CVC's 5% of §1231 gain on equipment sale | | Box 11G | $0.8m | CVC's 5% of GILTI inclusion |</p><p>CVC then files its own Form 1065 aggregating this K-1 with similar K-1s from Apollo, Blackstone, Carlyle, TPG, and Bain Capital. CVC allocates the aggregated items to its own LPs (pension funds, SWFs, endowments) in their respective K-1s — preserving character throughout.</p><p>CalPERS (assume 10% LP in CVC, $X commitment) receives from CVC: - Box 9a: Its share of the $40m KKR long-term capital gain (plus all other long-term capital gains from CVC's portfolio) → CalPERS is tax-exempt, so no US income tax — but CalPERS still tracks this for UBIT analysis and LP reporting purposes - Box 11G: Its share of the GILTI → CalPERS's tax team analyzes whether this creates UBIT exposure</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"K-1 income is all the same — it's just my share of the fund's profits.\"</strong> Correction: K-1 income is explicitly categorised by type because each type has a different tax rate, different deductibility treatment, and different implications for tax-exempt and non-US LPs. A Box 9a dollar and a Box 1 dollar are economically equivalent but tax-legally very different.</p><p><strong>Misconception 2: \"Long-term capital gain on the K-1 means the asset was held for one year.\"</strong> Correction: For PE fund K-1s, the relevant holding period is the fund's holding period in the portfolio company, not the LP's holding period in the fund. An LP who joined the fund as a secondary investor in year 3 can still receive Box 9a long-term capital gain if the fund has held the portfolio company for 12+ months (for LP interests) or 36+ months (for GP carried interest under §1061).</p><p><strong>Misconception 3: \"GP carry appears on the fund K-1 as compensation income.\"</strong> Correction: GP carry is allocated on the fund K-1 (to the GP's carry vehicle) as capital gain — specifically, Box 9a long-term capital gain. This is the core of the carried interest tax debate: it is not reported as W-2 wages or Box 1 ordinary income but as Box 9a capital gain, which faces a lower tax rate.</p><p><strong>Misconception 4: \"The two-level K-1 chain (primary fund → CVC → CVC's LPs) re-characterises the income.\"</strong> Correction: Character preservation means the income type is preserved through every partnership tier. Box 9a capital gain from KKR flows to CVC's K-1 as Box 9a capital gain, and then flows to CVC's LP K-1s as Box 9a capital gain. There is no re-characterisation simply from passing through an additional partnership layer.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

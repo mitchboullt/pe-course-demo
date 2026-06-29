@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "infrastructure-private-equity", "title": "Infrastructure Private Equity", "draft_watermark": false, "estimated_runtime_sec": 330, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "A different animal", "on_screen_bullets": ["Physically real assets", "Contractual cash flows", "Lower but bond-like returns"], "narration": "Infrastructure private equity is one of the fastest-growing alternative asset classes by investor capital — and it is categorically different from buyout private equity. The assets are physically real: you can stand in the airport. The cash flows are contractually protected, by a government concession or a regulated price framework. The hold periods are much longer, often fifteen to twenty years. And the return targets are lower but far more bond-like in character. So this is not just buyout with bigger machines; it is a fundamentally different risk-and-return proposition, with a different investor base and even different tax exposures. This lesson lays out what makes an asset infrastructure, how the returns are actually generated, and why it sits at the heart of the debate over private ownership of essential public services.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Long-duration, protected returns", "on_screen_bullets": ["Physical, essential assets", "Monopoly or regulated pricing", "Lower, predictable returns"], "narration": "Here is the definition. Infrastructure private equity acquires long-duration physical assets — airports, utilities, toll roads, ports, pipelines, renewable energy — that earn stable, inflation-linked returns through monopoly positions, regulated pricing frameworks, or long-term contracts, generating lower but far more predictable returns than buyout private equity. The two ideas to hold are protection and predictability. The cash flows are protected — by a monopoly, a regulator, or a contract — and as a result they are predictable, which is precisely why the return is lower. You are not being paid for operational risk and transformation; you are being paid a steady yield on a protected, essential asset. That trade — give up the upside, gain the certainty — defines the whole asset class.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The toll road", "on_screen_bullets": ["Every car pays a toll", "Inflation-linked, monopoly corridor", "Mechanical, predictable cash"], "narration": "Contrast two funds. A buyout fund buys a manufacturer, cuts costs, grows revenue, and sells it in a few years — the return depends entirely on operational execution. An infrastructure fund buys a toll-road concession. Every car that drives the road pays a toll, the toll rises with inflation each year by contract, the concession runs for decades, and no competitor can build another road on the same corridor — a geographic monopoly. Nobody has to improve the road's operations; the cash flows are essentially mechanical and predictable. So the infrastructure fund earns something like low-double-digit returns rather than the twenty-plus a buyout targets — but the variability is extremely low. If the economy contracts, traffic dips slightly, but the road's essential nature means it recovers fast. That is a fundamentally different risk-return profile: lower risk, lower return, very long duration, and high certainty. You are buying a stream of protected cash, not a turnaround.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The vending machine", "on_screen_bullets": ["Fixed, captive, inflation-linked", "Near-zero execution risk", "Risk is demand or rules"], "narration": "A sharper model: think of infrastructure private equity as owning a well-placed vending machine on a busy railway platform. Buyout is like buying a struggling restaurant — you must fix the menu, train the staff, cut waste, and create something people want; high execution risk, high reward, high failure rate. The vending machine is the opposite. It is fixed in place, everyone on the platform needs it, the prices reset with inflation each year, and you barely maintain it. You earn a reliable return for twenty years. The execution risk is almost zero. So where does the real risk live? Not in operations, but in two places: the train station closing — a structural collapse in demand — or the government changing the rules, which is regulatory and political risk. That reframing is important, because it tells you exactly where to look for trouble in an infrastructure deal: at the demand and the rules, not at the operating team.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The regulated asset base", "on_screen_bullets": ["Regulator sets the asset value", "Allowed return times cost of capital", "Predictable, reset periodically"], "narration": "For regulated infrastructure like gas and electricity networks and water utilities, the core return engine is the regulated asset base. The idea is simple: the regulator establishes the value of the asset on which the company is allowed to earn a return, then sets an allowed cost of capital, and the company's permitted annual return is essentially that asset value multiplied by that allowed rate, plus depreciation and operating costs, with prices set to recover it. So a network with a large regulated asset base and a modest allowed real return earns a known, sizeable annual return — and if it manages its costs below the regulator's allowance, it keeps the difference as a premium. What an infrastructure fund does with such an asset is buy it, run it efficiently to earn that premium, invest in upgrades that grow the asset base, and hold it for a decade or two collecting the regulated return before selling on. The cash flow is highly predictable, because the asset base is a known quantity and the allowed return is reset only periodically. The two real risks are a regulator cutting the allowed return at the next reset, and outright political risk like nationalisation.", "est_sec": 58}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why pensions love it", "on_screen_bullets": ["Long-dated, inflation-linked income", "Matches pension liabilities", "Recession-resilient demand"], "narration": "It is worth understanding why a particular investor base is so drawn to this asset class. Pension funds and sovereign wealth funds strongly favour infrastructure, and the reason is liability matching. A pension fund owes long-dated, inflation-linked payments stretching out for decades, and infrastructure produces exactly that shape of cash flow: a long hold period, regular income distributions throughout, and revenues that escalate with inflation through regulated frameworks or toll escalators. Buyout, by contrast, is back-loaded — little or nothing for years, then a lump at exit — and it runs on a much shorter clock, which simply does not match a pension's obligations. Add the recession resilience that comes from essential, inelastic demand — people still need water and electricity in a downturn — and infrastructure offers exactly the low risk of capital loss that pension funds are obliged to prioritise. So the asset class is not just lower-return; it is structurally the right shape for the institutions that dominate its investor base.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Categories and the energy transition", "on_screen_bullets": ["Utilities, transport, energy, digital, social", "Transition is the biggest new category", "It also strands fossil assets"], "narration": "Infrastructure spans several categories, each with its own cash-flow type and key risk: regulated utilities, where the risk is the regulatory reset; transport concessions like roads and airports, where the risk is traffic volume; energy infrastructure like pipelines, where the risk is the energy transition; social infrastructure like hospitals and schools under long government contracts; and increasingly digital infrastructure — data centres, fibre, and towers — under long leases to technology companies. And the energy transition is now creating the single largest infrastructure investment category in history: solar and wind, battery storage, charging networks, grid expansion. Their returns come from long-term power-purchase contracts, some merchant exposure to spot electricity prices, and, for earlier projects, government subsidies whose phase-out is a real risk. But the transition cuts both ways: even as it creates this vast new opportunity, it threatens fossil-fuel infrastructure with stranding, as a gas network can be left obsolete if heating electrifies faster than expected. So the same force is both the biggest tailwind and a serious tail risk, depending on which asset you hold.", "est_sec": 56}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Not the same as real estate", "Not risk-free", "Lower target by design"], "narration": "Four misconceptions to correct. First, that infrastructure and real estate private equity are the same — they are not; infrastructure provides a service under a concession or regulation with a monopoly position, while real estate provides space under market rents that compete with other properties, giving them different return models and hold periods. Second, that infrastructure is risk-free because the service is essential — the service may be essential, but the investment carries regulatory-reset risk, refinancing risk on long-duration assets, political risk including nationalisation, and energy-transition stranding risk. Third, that it targets the same twenty-plus returns as buyout — core infrastructure deliberately targets lower returns, because the risk is lower, and investors accept that trade for predictable income; only value-add infrastructure reaches higher, by taking on more operational risk. And fourth, that infrastructure is always publicly owned before a fund buys it — many assets are already privately held, so funds buy from other private owners as well as from governments, which means the privatisation critique applies to government sales but not to every transaction.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Yield, duration, and a tension", "on_screen_bullets": ["Protected cash, not transformation", "Matches pension liabilities", "Monopoly-rent ethics live"], "narration": "So to summarise: infrastructure private equity acquires long-duration physical assets — regulated utilities, transport concessions, energy infrastructure, digital networks — earning stable, inflation-linked returns through monopoly positions, regulatory frameworks, or long-term contracts. The return model is fundamentally different from buyout: lower target returns with much lower variability, generated by the asset's built-in cash-flow mechanics rather than by operational transformation, over hold periods of a decade or two. The investor base is dominated by pension funds and sovereign funds seeking inflation-linked, long-duration income that matches their liabilities. The energy transition is creating the largest new category in history while threatening fossil-fuel assets with stranding. And there is a genuine ethical tension running underneath it all — private ownership of monopoly essential services charging monopoly prices — which is one of the live disputes the asset class forces you to engage with directly. The throughline: you are buying protected yield and duration, and inheriting that tension with it.", "est_sec": 54}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["How does it differ from buyout?", "What is the regulated asset base?", "Why do pensions prefer it?"], "narration": "Before you finish, answer these from memory. How does infrastructure private equity differ from buyout in its return model and hold period? What is the regulated asset base, and how does it determine the return on a regulated utility? And why do pension funds prefer infrastructure over buyout, given their own liabilities? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Infrastructure Private Equity\n\n[hook] A different animal\nInfrastructure private equity is one of the fastest-growing alternative asset classes by investor capital — and it is categorically different from buyout private equity. The assets are physically real: you can stand in the airport. The cash flows are contractually protected, by a government concession or a regulated price framework. The hold periods are much longer, often fifteen to twenty years. And the return targets are lower but far more bond-like in character. So this is not just buyout with bigger machines; it is a fundamentally different risk-and-return proposition, with a different investor base and even different tax exposures. This lesson lays out what makes an asset infrastructure, how the returns are actually generated, and why it sits at the heart of the debate over private ownership of essential public services.\n\n[definition] Long-duration, protected returns\nHere is the definition. Infrastructure private equity acquires long-duration physical assets — airports, utilities, toll roads, ports, pipelines, renewable energy — that earn stable, inflation-linked returns through monopoly positions, regulated pricing frameworks, or long-term contracts, generating lower but far more predictable returns than buyout private equity. The two ideas to hold are protection and predictability. The cash flows are protected — by a monopoly, a regulator, or a contract — and as a result they are predictable, which is precisely why the return is lower. You are not being paid for operational risk and transformation; you are being paid a steady yield on a protected, essential asset. That trade — give up the upside, gain the certainty — defines the whole asset class.\n\n[intuition] The toll road\nContrast two funds. A buyout fund buys a manufacturer, cuts costs, grows revenue, and sells it in a few years — the return depends entirely on operational execution. An infrastructure fund buys a toll-road concession. Every car that drives the road pays a toll, the toll rises with inflation each year by contract, the concession runs for decades, and no competitor can build another road on the same corridor — a geographic monopoly. Nobody has to improve the road's operations; the cash flows are essentially mechanical and predictable. So the infrastructure fund earns something like low-double-digit returns rather than the twenty-plus a buyout targets — but the variability is extremely low. If the economy contracts, traffic dips slightly, but the road's essential nature means it recovers fast. That is a fundamentally different risk-return profile: lower risk, lower return, very long duration, and high certainty. You are buying a stream of protected cash, not a turnaround.\n\n[intuition] The vending machine\nA sharper model: think of infrastructure private equity as owning a well-placed vending machine on a busy railway platform. Buyout is like buying a struggling restaurant — you must fix the menu, train the staff, cut waste, and create something people want; high execution risk, high reward, high failure rate. The vending machine is the opposite. It is fixed in place, everyone on the platform needs it, the prices reset with inflation each year, and you barely maintain it. You earn a reliable return for twenty years. The execution risk is almost zero. So where does the real risk live? Not in operations, but in two places: the train station closing — a structural collapse in demand — or the government changing the rules, which is regulatory and political risk. That reframing is important, because it tells you exactly where to look for trouble in an infrastructure deal: at the demand and the rules, not at the operating team.\n\n[mechanics] The regulated asset base\nFor regulated infrastructure like gas and electricity networks and water utilities, the core return engine is the regulated asset base. The idea is simple: the regulator establishes the value of the asset on which the company is allowed to earn a return, then sets an allowed cost of capital, and the company's permitted annual return is essentially that asset value multiplied by that allowed rate, plus depreciation and operating costs, with prices set to recover it. So a network with a large regulated asset base and a modest allowed real return earns a known, sizeable annual return — and if it manages its costs below the regulator's allowance, it keeps the difference as a premium. What an infrastructure fund does with such an asset is buy it, run it efficiently to earn that premium, invest in upgrades that grow the asset base, and hold it for a decade or two collecting the regulated return before selling on. The cash flow is highly predictable, because the asset base is a known quantity and the allowed return is reset only periodically. The two real risks are a regulator cutting the allowed return at the next reset, and outright political risk like nationalisation.\n\n[mechanics] Why pensions love it\nIt is worth understanding why a particular investor base is so drawn to this asset class. Pension funds and sovereign wealth funds strongly favour infrastructure, and the reason is liability matching. A pension fund owes long-dated, inflation-linked payments stretching out for decades, and infrastructure produces exactly that shape of cash flow: a long hold period, regular income distributions throughout, and revenues that escalate with inflation through regulated frameworks or toll escalators. Buyout, by contrast, is back-loaded — little or nothing for years, then a lump at exit — and it runs on a much shorter clock, which simply does not match a pension's obligations. Add the recession resilience that comes from essential, inelastic demand — people still need water and electricity in a downturn — and infrastructure offers exactly the low risk of capital loss that pension funds are obliged to prioritise. So the asset class is not just lower-return; it is structurally the right shape for the institutions that dominate its investor base.\n\n[application] Categories and the energy transition\nInfrastructure spans several categories, each with its own cash-flow type and key risk: regulated utilities, where the risk is the regulatory reset; transport concessions like roads and airports, where the risk is traffic volume; energy infrastructure like pipelines, where the risk is the energy transition; social infrastructure like hospitals and schools under long government contracts; and increasingly digital infrastructure — data centres, fibre, and towers — under long leases to technology companies. And the energy transition is now creating the single largest infrastructure investment category in history: solar and wind, battery storage, charging networks, grid expansion. Their returns come from long-term power-purchase contracts, some merchant exposure to spot electricity prices, and, for earlier projects, government subsidies whose phase-out is a real risk. But the transition cuts both ways: even as it creates this vast new opportunity, it threatens fossil-fuel infrastructure with stranding, as a gas network can be left obsolete if heating electrifies faster than expected. So the same force is both the biggest tailwind and a serious tail risk, depending on which asset you hold.\n\n[application] Four myths\nFour misconceptions to correct. First, that infrastructure and real estate private equity are the same — they are not; infrastructure provides a service under a concession or regulation with a monopoly position, while real estate provides space under market rents that compete with other properties, giving them different return models and hold periods. Second, that infrastructure is risk-free because the service is essential — the service may be essential, but the investment carries regulatory-reset risk, refinancing risk on long-duration assets, political risk including nationalisation, and energy-transition stranding risk. Third, that it targets the same twenty-plus returns as buyout — core infrastructure deliberately targets lower returns, because the risk is lower, and investors accept that trade for predictable income; only value-add infrastructure reaches higher, by taking on more operational risk. And fourth, that infrastructure is always publicly owned before a fund buys it — many assets are already privately held, so funds buy from other private owners as well as from governments, which means the privatisation critique applies to government sales but not to every transaction.\n\n[recap] Yield, duration, and a tension\nSo to summarise: infrastructure private equity acquires long-duration physical assets — regulated utilities, transport concessions, energy infrastructure, digital networks — earning stable, inflation-linked returns through monopoly positions, regulatory frameworks, or long-term contracts. The return model is fundamentally different from buyout: lower target returns with much lower variability, generated by the asset's built-in cash-flow mechanics rather than by operational transformation, over hold periods of a decade or two. The investor base is dominated by pension funds and sovereign funds seeking inflation-linked, long-duration income that matches their liabilities. The energy transition is creating the largest new category in history while threatening fossil-fuel assets with stranding. And there is a genuine ethical tension running underneath it all — private ownership of monopoly essential services charging monopoly prices — which is one of the live disputes the asset class forces you to engage with directly. The throughline: you are buying protected yield and duration, and inheriting that tension with it.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. How does infrastructure private equity differ from buyout in its return model and hold period? What is the regulated asset base, and how does it determine the return on a regulated utility? And why do pension funds prefer infrastructure over buyout, given their own liabilities? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Infrastructure PE is the fastest-growing alternative asset sub-class by LP capital commitment — and it is categorically different from buyout PE. The assets are physically real (you can see the airport). The cash flows are contractually protected (government concession, regulatory price reset). The hold periods are longer (15-20 years). The return targets are lower but more bond-like in character.</p><p>Understanding infrastructure PE matters because: 1. Blackstone, Brookfield, KKR, and Macquarie all run major infrastructure platforms that show up in LP K-1s — including potentially in CVC's portfolio 2. The FIRPTA and ECI analysis differs for infrastructure (physical assets in the US may be USRPIs; operating infrastructure may generate ECI) 3. Infrastructure is the clearest example of the course's tension between \"PE as beneficial capital allocator\" (funding essential infrastructure) and \"PE as privatisation of public goods\" (charging tolls on public roads, owning water utilities)</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Infrastructure private equity acquires long-duration physical assets — airports, utilities, toll roads, ports, pipelines, renewable energy — that earn stable, inflation-linked returns through monopoly positions, regulated pricing frameworks, or long-term contracts, generating lower but more predictable IRRs than buyout PE.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>A buyout fund buys a manufacturer for $1bn, cuts costs, grows revenue, and sells it in 5 years for $1.5bn. The return depends on operational execution.</p><p>An infrastructure fund buys a toll road concession for $2bn. Every car that drives the road pays a toll. The toll increases by inflation every year (contractually). The concession runs 30 years. No competitors can build another road on the same corridor (geographic monopoly). No one has to improve the road's operations — the cash flows are mechanical and predictable.</p><p>The infrastructure fund earns 10-12% per year, not 20-25%. But the variability is extremely low: if the economy contracts, car traffic falls slightly, but the essential nature of the road means it recovers quickly. This is a fundamentally different risk-return profile from buyout PE — lower risk, lower return, but extremely long duration and high certainty.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of infrastructure PE as owning a well-designed vending machine on a busy railway platform.</p><p><strong>Buyout PE</strong> is like buying a struggling restaurant: you need to improve the menu, train the staff, cut waste, and create something people want to eat. High execution risk. High reward if it works. High failure rate.</p><p><strong>Infrastructure PE</strong> is the vending machine: it's fixed in place (can't move it), everyone who uses the platform needs it (captive customer base), the prices reset with inflation each year, and you barely need to maintain it. You earn 10% per year reliably for 20 years. The return is lower but the execution risk is almost zero. The real risk is: the train station closes (structural demand collapse) or the government changes the rules (regulatory/political risk).</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Infrastructure PE Characteristics</p><p><strong>What makes an asset \"infrastructure\":</strong></p><ol><li><strong>Essential nature:</strong> The asset provides a service that users cannot easily substitute — electricity, clean water, transportation, communications</li><li><strong>Monopoly or near-monopoly position:</strong> Geographic constraint (one port serves a region), regulatory exclusivity (one utility franchise), or natural monopoly economics (duplicating the network is uneconomical)</li><li><strong>Long concession or regulatory life:</strong> 20-99 year concessions or indefinite regulated licenses</li><li><strong>Contractual or regulatory cash flows:</strong> Revenue is protected by concession agreements, regulatory price frameworks, or long-term offtake contracts</li><li><strong>Inflation linkage:</strong> Most infrastructure assets have explicit or implicit inflation-linkage (CPI-linked tolls, regulated asset base returns linked to inflation indices)</li></ol><p><strong>What is NOT infrastructure (despite sometimes being marketed as such):</strong> - Operating businesses with physical assets but no monopoly position or regulatory protection - Short-term contracted assets where contracts aren't renewed at similar rates - Assets that compete with readily available substitutes</p><p>---</p><p>### Return Model — Regulated Asset Base (RAB)</p><p>The regulated asset base methodology is the framework used by utility regulators to set allowed returns for regulated infrastructure (gas networks, electricity transmission, water utilities).</p><p><strong>RAB mechanics:</strong></p><p><strong>Example:</strong> A gas distribution network has a RAB of £10bn. The regulator sets an allowed WACC of 5% real. The company is allowed to earn £500m/year pre-tax return on the RAB. If the company manages costs below the regulatory allowance, it earns a premium.</p><p><strong>What infrastructure PE does with RAB assets:</strong> - Buy the asset (acquire RAB) - Manage it efficiently (earn premium over cost allowance) - Invest in network upgrades (add to RAB) - Hold for 10-20 years collecting regulated returns - Sell to another infrastructure investor or float</p><p>The RAB is a known quantity. The regulatory allowed return is known (reset every 5 years typically). The cash flow is highly predictable. The risks are: regulatory risk (regulator reduces allowed WACC at next reset) and political risk (nationalisation).</p><p>---</p><p>### Infrastructure Categories and Sub-Strategies</p><p>| Category | Examples | Cash Flow Type | Key Risk | |---|---|---|---| | <strong>Regulated utilities</strong> | Gas/electricity networks, water utilities | Regulated RAB return | Regulatory reset risk | | <strong>Transportation concessions</strong> | Toll roads, airports, ports, bridges | User volumes × tolls/fees; often CPI-linked | Traffic volume risk, concession renewal | | <strong>Energy infrastructure</strong> | Oil/gas pipelines, LNG terminals, gas storage | Throughput fees or capacity contracts | Energy transition risk, contract renewal | | <strong>Renewable energy</strong> | Solar farms, wind farms, battery storage | Offtake contracts (PPAs); merchant electricity price | Technology, merchant power price | | <strong>Social infrastructure</strong> | Hospitals, schools, prisons (PFI/PPP) | Government payments under long-term contracts | Government contract management | | <strong>Digital infrastructure</strong> | Data centres, fibre networks, towers | Long-term lease agreements with tech companies | Technology obsolescence risk |</p><p>---</p><p>### Return Profile Comparison</p><p>| Feature | Buyout PE | Infrastructure PE | |---|---|---| | <strong>Target gross IRR</strong> | 18-25% | 8-12% (core) to 12-18% (value-add) | | <strong>Target net IRR</strong> | 15-22% | 6-10% (core) to 10-15% (value-add) | | <strong>Return driver</strong> | EBITDA growth + multiple expansion + leverage paydown | Yield on capital + inflation uplift ± operational efficiency | | <strong>Leverage</strong> | 50-65% of enterprise value | 50-70% of RAB/enterprise value (lower absolute risk due to stable cash flows) | | <strong>Hold period</strong> | 4-7 years | 10-20+ years | | <strong>Cash yield to LPs</strong> | Low (most returns at exit) | High (regular income distributions) | | <strong>IRR variability</strong> | High (±10-15% range) | Low (±3-5% range for core) | | <strong>Inflation sensitivity</strong> | Moderate positive | Strong positive (RAB / toll escalation) | | <strong>Recession resilience</strong> | Moderate (EBITDA can fall) | High (essential service demand is inelastic) |</p><p><strong>LP preference:</strong> Pension funds and sovereign wealth funds strongly favour infrastructure because the long duration, income yield, and inflation linkage match their liability profiles (pension payments are long-dated, inflation-linked obligations).</p><p>---</p><p>### Major Infrastructure PE Managers</p><p><strong>Macquarie Infrastructure and Real Assets (MIRA):</strong> - Pioneer of infrastructure PE; created the \"Macquarie model\" of leveraged infrastructure acquisition - AUM: ~$220bn in infrastructure/real assets globally - Known for aggressive leveraging of airport and toll road concessions in the 2000s; some investments (UK and Australian airports) became controversial when leverage proved too high - The \"Macquarie model\" controversy: aggressive RAB leverage maximises IRR but shifts refinancing risk to users and governments when assets struggle</p><p><strong>Brookfield Infrastructure Partners (Brookfield Asset Management):</strong> - Diversified global infrastructure: utilities, transportation, midstream energy, data - Listed infrastructure fund (listed on NYSE/TSX) alongside PE funds — unusual hybrid structure - Focus on \"operationally critical infrastructure\" with inflation-linked contracted or regulated returns - AUM: ~$100bn+ in infrastructure</p><p><strong>Global Infrastructure Partners (GIP, now part of BlackRock):</strong> - Acquired by BlackRock in 2024 for $12.5bn — signals infrastructure's integration into mainstream asset management - Known for airports (Gatwick, Edinburgh), ports, and energy infrastructure - GIP's integration into BlackRock creates the world's largest alternative asset manager</p><p><strong>KKR Infrastructure:</strong> - Relative newcomer to infrastructure (2008+) but rapidly scaled - Focus on value-add infrastructure (assets needing operational improvement) with higher return targets than core infrastructure</p><p><strong>Blackstone Infrastructure:</strong> - Launched Blackstone Infrastructure Partners in 2019; growing platform - Focus on \"critical infrastructure\" including data centres and digital assets</p><p>---</p><p>### Infrastructure vs. Real Estate PE — Key Distinction</p><p>Infrastructure and real estate are both \"real asset\" PE strategies, but they differ: - <strong>Infrastructure:</strong> Asset provides a service under a concession/regulatory framework; revenue comes from fees, tolls, or regulated tariffs; monopoly position limits competition - <strong>Real estate PE:</strong> Asset provides space to users (tenants); revenue from rents; subject to market competition from other properties; FIRPTA exposure from USRPI classification</p><p>For the ECI/FIRPTA note: infrastructure physical assets in the US (pipelines, utilities) may be US real property — creating FIRPTA exposure for non-US LP investors. This is more relevant to infrastructure PE than buyout PE.</p><p>---</p><p>### Green/Energy Transition Infrastructure — Fastest-Growing Category</p><p>The energy transition has created the largest infrastructure investment opportunity in history: - Solar PV and wind farm construction and ownership - Battery energy storage systems (BESS) - Electric vehicle charging networks - Hydrogen infrastructure (electrolysers, storage, transport) - Grid modernisation and transmission expansion</p><p><strong>Return model for renewable infrastructure:</strong> - Power Purchase Agreements (PPAs): long-term contracts with utilities or corporate buyers to purchase electricity at fixed price - Merchant exposure: some projects sell electricity at spot market prices - Subsidy dependency: many early-stage projects depended on government subsidies (UK Contracts for Difference, US ITC/PTC); subsidy phase-out is a key risk</p><p><strong>Investors in renewable infrastructure:</strong> BlackRock Infrastructure, Brookfield Renewable, Copenhagen Infrastructure Partners, Macquarie Green Investment Group</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### Infrastructure PE Characteristics</p><p><strong>What makes an asset \"infrastructure\":</strong></p><ol><li><strong>Essential nature:</strong> The asset provides a service that users cannot easily substitute — electricity, clean water, transportation, communications</li><li><strong>Monopoly or near-monopoly position:</strong> Geographic constraint (one port serves a region), regulatory exclusivity (one utility franchise), or natural monopoly economics (duplicating the network is uneconomical)</li><li><strong>Long concession or regulatory life:</strong> 20-99 year concessions or indefinite regulated licenses</li><li><strong>Contractual or regulatory cash flows:</strong> Revenue is protected by concession agreements, regulatory price frameworks, or long-term offtake contracts</li><li><strong>Inflation linkage:</strong> Most infrastructure assets have explicit or implicit inflation-linkage (CPI-linked tolls, regulated asset base returns linked to inflation indices)</li></ol><p><strong>What is NOT infrastructure (despite sometimes being marketed as such):</strong> - Operating businesses with physical assets but no monopoly position or regulatory protection - Short-term contracted assets where contracts aren't renewed at similar rates - Assets that compete with readily available substitutes</p><p>---</p><p>### Return Model — Regulated Asset Base (RAB)</p><p>The regulated asset base methodology is the framework used by utility regulators to set allowed returns for regulated infrastructure (gas networks, electricity transmission, water utilities).</p><p><strong>RAB mechanics:</strong></p><p><strong>Example:</strong> A gas distribution network has a RAB of £10bn. The regulator sets an allowed WACC of 5% real. The company is allowed to earn £500m/year pre-tax return on the RAB. If the company manages costs below the regulatory allowance, it earns a premium.</p><p><strong>What infrastructure PE does with RAB assets:</strong> - Buy the asset (acquire RAB) - Manage it efficiently (earn premium over cost allowance) - Invest in network upgrades (add to RAB) - Hold for 10-20 years collecting regulated returns - Sell to another infrastructure investor or float</p><p>The RAB is a known quantity. The regulatory allowed return is known (reset every 5 years typically). The cash flow is highly predictable. The risks are: regulatory risk (regulator reduces allowed WACC at next reset) and political risk (nationalisation).</p><p>---</p><p>### Infrastructure Categories and Sub-Strategies</p><p>| Category | Examples | Cash Flow Type | Key Risk | |---|---|---|---| | <strong>Regulated utilities</strong> | Gas/electricity networks, water utilities | Regulated RAB return | Regulatory reset risk | | <strong>Transportation concessions</strong> | Toll roads, airports, ports, bridges | User volumes × tolls/fees; often CPI-linked | Traffic volume risk, concession renewal | | <strong>Energy infrastructure</strong> | Oil/gas pipelines, LNG terminals, gas storage | Throughput fees or capacity contracts | Energy transition risk, contract renewal | | <strong>Renewable energy</strong> | Solar farms, wind farms, battery storage | Offtake contracts (PPAs); merchant electricity price | Technology, merchant power price | | <strong>Social infrastructure</strong> | Hospitals, schools, prisons (PFI/PPP) | Government payments under long-term contracts | Government contract management | | <strong>Digital infrastructure</strong> | Data centres, fibre networks, towers | Long-term lease agreements with tech companies | Technology obsolescence risk |</p><p>---</p><p>### Return Profile Comparison</p><p>| Feature | Buyout PE | Infrastructure PE | |---|---|---| | <strong>Target gross IRR</strong> | 18-25% | 8-12% (core) to 12-18% (value-add) | | <strong>Target net IRR</strong> | 15-22% | 6-10% (core) to 10-15% (value-add) | | <strong>Return driver</strong> | EBITDA growth + multiple expansion + leverage paydown | Yield on capital + inflation uplift ± operational efficiency | | <strong>Leverage</strong> | 50-65% of enterprise value | 50-70% of RAB/enterprise value (lower absolute risk due to stable cash flows) | | <strong>Hold period</strong> | 4-7 years | 10-20+ years | | <strong>Cash yield to LPs</strong> | Low (most returns at exit) | High (regular income distributions) | | <strong>IRR variability</strong> | High (±10-15% range) | Low (±3-5% range for core) | | <strong>Inflation sensitivity</strong> | Moderate positive | Strong positive (RAB / toll escalation) | | <strong>Recession resilience</strong> | Moderate (EBITDA can fall) | High (essential service demand is inelastic) |</p><p><strong>LP preference:</strong> Pension funds and sovereign wealth funds strongly favour infrastructure because the long duration, income yield, and inflation linkage match their liability profiles (pension payments are long-dated, inflation-linked obligations).</p><p>---</p><p>### Major Infrastructure PE Managers</p><p><strong>Macquarie Infrastructure and Real Assets (MIRA):</strong> - Pioneer of infrastructure PE; created the \"Macquarie model\" of leveraged infrastructure acquisition - AUM: ~$220bn in infrastructure/real assets globally - Known for aggressive leveraging of airport and toll road concessions in the 2000s; some investments (UK and Australian airports) became controversial when leverage proved too high - The \"Macquarie model\" controversy: aggressive RAB leverage maximises IRR but shifts refinancing risk to users and governments when assets struggle</p><p><strong>Brookfield Infrastructure Partners (Brookfield Asset Management):</strong> - Diversified global infrastructure: utilities, transportation, midstream energy, data - Listed infrastructure fund (listed on NYSE/TSX) alongside PE funds — unusual hybrid structure - Focus on \"operationally critical infrastructure\" with inflation-linked contracted or regulated returns - AUM: ~$100bn+ in infrastructure</p><p><strong>Global Infrastructure Partners (GIP, now part of BlackRock):</strong> - Acquired by BlackRock in 2024 for $12.5bn — signals infrastructure's integration into mainstream asset management - Known for airports (Gatwick, Edinburgh), ports, and energy infrastructure - GIP's integration into BlackRock creates the world's largest alternative asset manager</p><p><strong>KKR Infrastructure:</strong> - Relative newcomer to infrastructure (2008+) but rapidly scaled - Focus on value-add infrastructure (assets needing operational improvement) with higher return targets than core infrastructure</p><p><strong>Blackstone Infrastructure:</strong> - Launched Blackstone Infrastructure Partners in 2019; growing platform - Focus on \"critical infrastructure\" including data centres and digital assets</p><p>---</p><p>### Infrastructure vs. Real Estate PE — Key Distinction</p><p>Infrastructure and real estate are both \"real asset\" PE strategies, but they differ: - <strong>Infrastructure:</strong> Asset provides a service under a concession/regulatory framework; revenue comes from fees, tolls, or regulated tariffs; monopoly position limits competition - <strong>Real estate PE:</strong> Asset provides space to users (tenants); revenue from rents; subject to market competition from other properties; FIRPTA exposure from USRPI classification</p><p>For the ECI/FIRPTA note: infrastructure physical assets in the US (pipelines, utilities) may be US real property — creating FIRPTA exposure for non-US LP investors. This is more relevant to infrastructure PE than buyout PE.</p><p>---</p><p>### Green/Energy Transition Infrastructure — Fastest-Growing Category</p><p>The energy transition has created the largest infrastructure investment opportunity in history: - Solar PV and wind farm construction and ownership - Battery energy storage systems (BESS) - Electric vehicle charging networks - Hydrogen infrastructure (electrolysers, storage, transport) - Grid modernisation and transmission expansion</p><p><strong>Return model for renewable infrastructure:</strong> - Power Purchase Agreements (PPAs): long-term contracts with utilities or corporate buyers to purchase electricity at fixed price - Merchant exposure: some projects sell electricity at spot market prices - Subsidy dependency: many early-stage projects depended on government subsidies (UK Contracts for Difference, US ITC/PTC); subsidy phase-out is a key risk</p><p><strong>Investors in renewable infrastructure:</strong> BlackRock Infrastructure, Brookfield Renewable, Copenhagen Infrastructure Partners, Macquarie Green Investment Group</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### Infrastructure PE Characteristics</p><p><strong>What makes an asset \"infrastructure\":</strong></p><ol><li><strong>Essential nature:</strong> The asset provides a service that users cannot easily substitute — electricity, clean water, transportation, communications</li><li><strong>Monopoly or near-monopoly position:</strong> Geographic constraint (one port serves a region), regulatory exclusivity (one utility franchise), or natural monopoly economics (duplicating the network is uneconomical)</li><li><strong>Long concession or regulatory life:</strong> 20-99 year concessions or indefinite regulated licenses</li><li><strong>Contractual or regulatory cash flows:</strong> Revenue is protected by concession agreements, regulatory price frameworks, or long-term offtake contracts</li><li><strong>Inflation linkage:</strong> Most infrastructure assets have explicit or implicit inflation-linkage (CPI-linked tolls, regulated asset base returns linked to inflation indices)</li></ol><p><strong>What is NOT infrastructure (despite sometimes being marketed as such):</strong> - Operating businesses with physical assets but no monopoly position or regulatory protection - Short-term contracted assets where contracts aren't renewed at similar rates - Assets that compete with readily available substitutes</p><p>---</p><p>### Return Model — Regulated Asset Base (RAB)</p><p>The regulated asset base methodology is the framework used by utility regulators to set allowed returns for regulated infrastructure (gas networks, electricity transmission, water utilities).</p><p><strong>RAB mechanics:</strong></p><p><strong>Example:</strong> A gas distribution network has a RAB of £10bn. The regulator sets an allowed WACC of 5% real. The company is allowed to earn £500m/year pre-tax return on the RAB. If the company manages costs below the regulatory allowance, it earns a premium.</p><p><strong>What infrastructure PE does with RAB assets:</strong> - Buy the asset (acquire RAB) - Manage it efficiently (earn premium over cost allowance) - Invest in network upgrades (add to RAB) - Hold for 10-20 years collecting regulated returns - Sell to another infrastructure investor or float</p><p>The RAB is a known quantity. The regulatory allowed return is known (reset every 5 years typically). The cash flow is highly predictable. The risks are: regulatory risk (regulator reduces allowed WACC at next reset) and political risk (nationalisation).</p><p>---</p><p>### Infrastructure Categories and Sub-Strategies</p><p>| Category | Examples | Cash Flow Type | Key Risk | |---|---|---|---| | <strong>Regulated utilities</strong> | Gas/electricity networks, water utilities | Regulated RAB return | Regulatory reset risk | | <strong>Transportation concessions</strong> | Toll roads, airports, ports, bridges | User volumes × tolls/fees; often CPI-linked | Traffic volume risk, concession renewal | | <strong>Energy infrastructure</strong> | Oil/gas pipelines, LNG terminals, gas storage | Throughput fees or capacity contracts | Energy transition risk, contract renewal | | <strong>Renewable energy</strong> | Solar farms, wind farms, battery storage | Offtake contracts (PPAs); merchant electricity price | Technology, merchant power price | | <strong>Social infrastructure</strong> | Hospitals, schools, prisons (PFI/PPP) | Government payments under long-term contracts | Government contract management | | <strong>Digital infrastructure</strong> | Data centres, fibre networks, towers | Long-term lease agreements with tech companies | Technology obsolescence risk |</p><p>---</p><p>### Return Profile Comparison</p><p>| Feature | Buyout PE | Infrastructure PE | |---|---|---| | <strong>Target gross IRR</strong> | 18-25% | 8-12% (core) to 12-18% (value-add) | | <strong>Target net IRR</strong> | 15-22% | 6-10% (core) to 10-15% (value-add) | | <strong>Return driver</strong> | EBITDA growth + multiple expansion + leverage paydown | Yield on capital + inflation uplift ± operational efficiency | | <strong>Leverage</strong> | 50-65% of enterprise value | 50-70% of RAB/enterprise value (lower absolute risk due to stable cash flows) | | <strong>Hold period</strong> | 4-7 years | 10-20+ years | | <strong>Cash yield to LPs</strong> | Low (most returns at exit) | High (regular income distributions) | | <strong>IRR variability</strong> | High (±10-15% range) | Low (±3-5% range for core) | | <strong>Inflation sensitivity</strong> | Moderate positive | Strong positive (RAB / toll escalation) | | <strong>Recession resilience</strong> | Moderate (EBITDA can fall) | High (essential service demand is inelastic) |</p><p><strong>LP preference:</strong> Pension funds and sovereign wealth funds strongly favour infrastructure because the long duration, income yield, and inflation linkage match their liability profiles (pension payments are long-dated, inflation-linked obligations).</p><p>---</p><p>### Major Infrastructure PE Managers</p><p><strong>Macquarie Infrastructure and Real Assets (MIRA):</strong> - Pioneer of infrastructure PE; created the \"Macquarie model\" of leveraged infrastructure acquisition - AUM: ~$220bn in infrastructure/real assets globally - Known for aggressive leveraging of airport and toll road concessions in the 2000s; some investments (UK and Australian airports) became controversial when leverage proved too high - The \"Macquarie model\" controversy: aggressive RAB leverage maximises IRR but shifts refinancing risk to users and governments when assets struggle</p><p><strong>Brookfield Infrastructure Partners (Brookfield Asset Management):</strong> - Diversified global infrastructure: utilities, transportation, midstream energy, data - Listed infrastructure fund (listed on NYSE/TSX) alongside PE funds — unusual hybrid structure - Focus on \"operationally critical infrastructure\" with inflation-linked contracted or regulated returns - AUM: ~$100bn+ in infrastructure</p><p><strong>Global Infrastructure Partners (GIP, now part of BlackRock):</strong> - Acquired by BlackRock in 2024 for $12.5bn — signals infrastructure's integration into mainstream asset management - Known for airports (Gatwick, Edinburgh), ports, and energy infrastructure - GIP's integration into BlackRock creates the world's largest alternative asset manager</p><p><strong>KKR Infrastructure:</strong> - Relative newcomer to infrastructure (2008+) but rapidly scaled - Focus on value-add infrastructure (assets needing operational improvement) with higher return targets than core infrastructure</p><p><strong>Blackstone Infrastructure:</strong> - Launched Blackstone Infrastructure Partners in 2019; growing platform - Focus on \"critical infrastructure\" including data centres and digital assets</p><p>---</p><p>### Infrastructure vs. Real Estate PE — Key Distinction</p><p>Infrastructure and real estate are both \"real asset\" PE strategies, but they differ: - <strong>Infrastructure:</strong> Asset provides a service under a concession/regulatory framework; revenue comes from fees, tolls, or regulated tariffs; monopoly position limits competition - <strong>Real estate PE:</strong> Asset provides space to users (tenants); revenue from rents; subject to market competition from other properties; FIRPTA exposure from USRPI classification</p><p>For the ECI/FIRPTA note: infrastructure physical assets in the US (pipelines, utilities) may be US real property — creating FIRPTA exposure for non-US LP investors. This is more relevant to infrastructure PE than buyout PE.</p><p>---</p><p>### Green/Energy Transition Infrastructure — Fastest-Growing Category</p><p>The energy transition has created the largest infrastructure investment opportunity in history: - Solar PV and wind farm construction and ownership - Battery energy storage systems (BESS) - Electric vehicle charging networks - Hydrogen infrastructure (electrolysers, storage, transport) - Grid modernisation and transmission expansion</p><p><strong>Return model for renewable infrastructure:</strong> - Power Purchase Agreements (PPAs): long-term contracts with utilities or corporate buyers to purchase electricity at fixed price - Merchant exposure: some projects sell electricity at spot market prices - Subsidy dependency: many early-stage projects depended on government subsidies (UK Contracts for Difference, US ITC/PTC); subsidy phase-out is a key risk</p><p><strong>Investors in renewable infrastructure:</strong> BlackRock Infrastructure, Brookfield Renewable, Copenhagen Infrastructure Partners, Macquarie Green Investment Group</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Infrastructure PE and real estate PE are the same thing.\"</strong> Different asset types, different return models, different regulatory frameworks. Infrastructure provides services under concessions/regulation; real estate provides space under market rental agreements. Return profiles, hold periods, and LP suitability differ substantially.</p><p><strong>Misconception 2: \"Infrastructure is risk-free because it's essential.\"</strong> The service may be essential, but the investment carries real risks: regulatory reset risk (allowed WACC reduction), refinancing risk (long-duration assets need periodic refinancing), political risk (nationalisation, especially in emerging markets), and energy transition risk (gas infrastructure stranded by electrification).</p><p><strong>Misconception 3: \"Infrastructure PE targets 20%+ IRR like buyout PE.\"</strong> Core infrastructure targets 8-12% net IRR. This is lower by design — the risk profile is lower. LPs in infrastructure PE accept lower returns in exchange for more predictable, income-generating cash flows. Value-add infrastructure targets 12-18% but involves more operational risk.</p><p><strong>Misconception 4: \"Infrastructure is always publicly owned before PE acquisition.\"</strong> Many infrastructure assets are already privately owned (US toll roads, European airports). Infrastructure PE acquires from existing private owners, from governments via privatisation, or through new development. The \"privatisation\" narrative applies to government sale transactions but not to secondary acquisitions between private investors.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>Infrastructure PE acquires long-duration physical assets — regulated utilities, transport concessions, energy infrastructure, digital networks — earning stable, inflation-linked returns through monopoly positions, regulatory frameworks, or long-term contracts. The return model is fundamentally different from buyout PE: 8-12% net IRR (core) vs. 15-22% for buyout, with much lower variability. Returns come from the asset's built-in cash flow mechanics (RAB-based regulated returns, CPI-linked tolls, PPA-contracted energy revenue), not from operational transformation. Hold periods are 10-20+ years. The LP base is primarily pension funds and sovereign wealth funds seeking inflation-linked, long-duration income yield to match their liability profiles. Major managers include Macquarie (the pioneer), Brookfield (global diversification), GIP/BlackRock (airport and energy focus), and KKR (including digital infrastructure). The energy transition is creating the largest new infrastructure investment category in history, while simultaneously threatening gas and fossil fuel infrastructure with stranding risk. The ethical tension — private ownership of monopoly essential services charging monopoly rents — is one of the live disputes the course thesis requires direct engagement with.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>Infrastructure PE acquires long-duration physical assets — regulated utilities, transport concessions, energy infrastructure, digital networks — earning stable, inflation-linked returns through monopoly positions, regulatory frameworks, or long-term contracts. The return model is fundamentally different from buyout PE: 8-12% net IRR (core) vs. 15-22% for buyout, with much lower variability. Returns come from the asset's built-in cash flow mechanics (RAB-based regulated returns, CPI-linked tolls, PPA-contracted energy revenue), not from operational transformation. Hold periods are 10-20+ years. The LP base is primarily pension funds and sovereign wealth funds seeking inflation-linked, long-duration income yield to match their liability profiles. Major managers include Macquarie (the pioneer), Brookfield (global diversification), GIP/BlackRock (airport and energy focus), and KKR (including digital infrastructure). The energy transition is creating the largest new infrastructure investment category in history, while simultaneously threatening gas and fossil fuel infrastructure with stranding risk. The ethical tension — private ownership of monopoly essential services charging monopoly rents — is one of the live disputes the course thesis requires direct engagement with.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

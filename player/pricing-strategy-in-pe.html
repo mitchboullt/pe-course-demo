@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pricing-strategy-in-pe", "title": "Pricing Strategy in PE", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The most underrated lever", "on_screen_bullets": ["Faster than revenue growth", "No added cost", "1% price ≈ 8–11% EBITDA"], "narration": "Pricing is the most misunderstood lever in value creation. Most improvement programmes fixate on cost reduction, because it's easy to model, or on revenue growth, because it's exciting — but pricing sits between them: faster to implement than a growth programme, and it drops straight to EBITDA with no additional cost at all. And the leverage is extraordinary. In a typical business, a one percent improvement in price produces roughly an eight to eleven percent improvement in EBITDA. Compare that to a one percent rise in volume — about three to four percent — or a one percent cut in variable costs — about six to seven percent. Price is the highest-leverage number on the income statement, and it's the one founders touch least.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Charge what they'd pay", "on_screen_bullets": ["Close the price gap", "Highest leverage, fastest payback", "What customers would actually pay"], "narration": "The definition. Pricing strategy in PE is the structured programme through which a portfolio company identifies and closes the gap between what it currently charges and what customers would actually pay — making it the highest-leverage, fastest-payback EBITDA improvement lever in the whole toolkit. The work is finding the gap, then closing it deliberately.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The car wash", "on_screen_bullets": ["£8 unchanged for 4 years", "Raise to £10: volume −2%", "Revenue +23%, margin jumps"], "narration": "Picture a car wash that charges eight pounds for a basic wash, and has for four years. Costs — water, chemicals, labour — have crept up, but the owner has never raised prices, nervous about losing customers. The PE investor says: let's look at this properly — what actually happens if we go to ten pounds? You test it. Customers barely notice; volume drops two percent, but revenue rises twenty-three percent, and because the extra price is almost pure profit, margins expand dramatically. That's a pricing exercise, and it's running in PE portfolio companies across dozens of sectors right now. And the reason private companies are so often underpriced isn't stupidity — it's the psychology of the founder-manager, who has spent years calibrating instincts around avoiding complaints rather than maximising margin.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Brightness set to 40%", "on_screen_bullets": ["Screen always could go brighter", "Owner never turned the dial", "PE turns it to 70%"], "narration": "The mental model: pricing in PE is like turning up the brightness on a television that's always been set to forty percent without the owner noticing. The picture was always capable of being brighter — nothing new has been added, no components installed — but no one ever deliberately turned the dial. A founder who's been pricing the business for fifteen years has calibrated to avoid customer complaints, not to maximise margin; they've effectively set the brightness to forty percent and convinced themselves that's all the screen can do. The PE firm turns it to seventy. Some customers squint briefly; most barely notice. And the picture is dramatically better — without any new cost. That gap between the dial's current setting and its real capability is pure, fast EBITDA.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The price waterfall", "on_screen_bullets": ["List → invoice discounts → invoice price", "− off-invoice deductions = net price", "− cost to serve = pocket price"], "narration": "The standard tool is the price waterfall — and it reveals how much pricing leaks before any cash reaches the company. Start at the top with the list price, the published or quoted number. Subtract the invoice discounts negotiated at the point of sale, and you get the invoice price. Subtract the off-invoice deductions — rebates and allowances paid after the invoice — and you get the net price. Then subtract the cost to serve — delivery, returns processing, special services — and what's finally left is the pocket price: what the company actually keeps per unit. Plot every transaction by its pocket price and you see the full distribution — a company that thinks it prices at a hundred pounds a unit might discover its real pocket prices are scattered far below, with the worst customers barely profitable. Tightening that waterfall — cutting unjustified discounts, fixing the leakage — is often where the fastest pricing gains hide, before you raise a single list price.", "est_sec": 60}, {"n": 6, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Thoma Bravo and Solera", "on_screen_bullets": ["~$6.5bn acquisition (2016)", "Software embedded in workflows", "High switching costs → pricing power"], "narration": "A real example: Thoma Bravo, a software-focused buyout firm, acquired Solera Holdings — a global provider of data and software for the insurance, automotive, and property industries — for approximately six-and-a-half billion dollars in twenty sixteen. Why was pricing the primary value lever here? Because Solera's products are deeply embedded in the automotive claims ecosystem: insurers, auto body shops, and dealers all rely on its software to manage claims, parts pricing, and workflow. When software is woven that tightly into a customer's daily operations, switching costs are enormous — and that's exactly the condition under which careful, systematic price increases stick, because the cost of leaving dwarfs the cost of paying a little more. Thoma Bravo's repeatable playbook leans hard on this: buy mission-critical software with high switching costs, then close the gap between what it charges and the real value it delivers.", "est_sec": 56}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not blanket price hikes", "Watch elasticity + churn", "Leakage first, list price second"], "narration": "Three corrections. First, pricing strategy is not a blunt across-the-board price hike — it's surgical: segment customers, raise where value and switching costs support it, hold or cut where demand is fragile, and fix the leakage in the waterfall before touching headline prices. Second, you must respect elasticity and churn — the car-wash story works because two percent volume loss was swamped by the price gain, but in a price-sensitive, low-switching-cost business a clumsy increase can drive customers away and destroy value, so you test and measure rather than assume. And third, the biggest early wins are often in the waterfall, not the list price — disciplining discounts and rebates recovers margin from customers who barely notice, which is faster and lower-risk than a visible price rise.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Highest leverage, fastest payback", "on_screen_bullets": ["1% price ≈ 8–11% EBITDA", "Fix the waterfall + reprice by segment", "Switching costs make it stick"], "narration": "To recap. Pricing is the highest-leverage, fastest-payback EBITDA lever — a one percent price improvement worth roughly eight to eleven percent of EBITDA, at no added cost — and private companies are chronically underpriced because founders price to avoid complaints, not to maximise margin. The work is surgical: use the price waterfall to find and stop the leakage from list price down to pocket price, then reprice by segment where value and switching costs support it, testing for elasticity as you go. And it sticks best where switching costs are high, as Thoma Bravo's software playbook shows. Next we move from the income statement to the balance sheet, and the cash trapped inside it: working capital optimisation.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why does a 1% price increase improve EBITDA far more than a 1% volume increase — and what is the 'price waterfall'?", "narration": "Before the next lesson, answer both parts. Why does a one percent price rise do so much more for EBITDA than a one percent rise in volume — and what does the price waterfall show you? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Pricing Strategy in PE\n\n[hook] The most underrated lever\nPricing is the most misunderstood lever in value creation. Most improvement programmes fixate on cost reduction, because it's easy to model, or on revenue growth, because it's exciting — but pricing sits between them: faster to implement than a growth programme, and it drops straight to EBITDA with no additional cost at all. And the leverage is extraordinary. In a typical business, a one percent improvement in price produces roughly an eight to eleven percent improvement in EBITDA. Compare that to a one percent rise in volume — about three to four percent — or a one percent cut in variable costs — about six to seven percent. Price is the highest-leverage number on the income statement, and it's the one founders touch least.\n\n[definition] Charge what they'd pay\nThe definition. Pricing strategy in PE is the structured programme through which a portfolio company identifies and closes the gap between what it currently charges and what customers would actually pay — making it the highest-leverage, fastest-payback EBITDA improvement lever in the whole toolkit. The work is finding the gap, then closing it deliberately.\n\n[intuition] The car wash\nPicture a car wash that charges eight pounds for a basic wash, and has for four years. Costs — water, chemicals, labour — have crept up, but the owner has never raised prices, nervous about losing customers. The PE investor says: let's look at this properly — what actually happens if we go to ten pounds? You test it. Customers barely notice; volume drops two percent, but revenue rises twenty-three percent, and because the extra price is almost pure profit, margins expand dramatically. That's a pricing exercise, and it's running in PE portfolio companies across dozens of sectors right now. And the reason private companies are so often underpriced isn't stupidity — it's the psychology of the founder-manager, who has spent years calibrating instincts around avoiding complaints rather than maximising margin.\n\n[intuition] Brightness set to 40%\nThe mental model: pricing in PE is like turning up the brightness on a television that's always been set to forty percent without the owner noticing. The picture was always capable of being brighter — nothing new has been added, no components installed — but no one ever deliberately turned the dial. A founder who's been pricing the business for fifteen years has calibrated to avoid customer complaints, not to maximise margin; they've effectively set the brightness to forty percent and convinced themselves that's all the screen can do. The PE firm turns it to seventy. Some customers squint briefly; most barely notice. And the picture is dramatically better — without any new cost. That gap between the dial's current setting and its real capability is pure, fast EBITDA.\n\n[mechanics] The price waterfall\nThe standard tool is the price waterfall — and it reveals how much pricing leaks before any cash reaches the company. Start at the top with the list price, the published or quoted number. Subtract the invoice discounts negotiated at the point of sale, and you get the invoice price. Subtract the off-invoice deductions — rebates and allowances paid after the invoice — and you get the net price. Then subtract the cost to serve — delivery, returns processing, special services — and what's finally left is the pocket price: what the company actually keeps per unit. Plot every transaction by its pocket price and you see the full distribution — a company that thinks it prices at a hundred pounds a unit might discover its real pocket prices are scattered far below, with the worst customers barely profitable. Tightening that waterfall — cutting unjustified discounts, fixing the leakage — is often where the fastest pricing gains hide, before you raise a single list price.\n\n[worked-example] Thoma Bravo and Solera\nA real example: Thoma Bravo, a software-focused buyout firm, acquired Solera Holdings — a global provider of data and software for the insurance, automotive, and property industries — for approximately six-and-a-half billion dollars in twenty sixteen. Why was pricing the primary value lever here? Because Solera's products are deeply embedded in the automotive claims ecosystem: insurers, auto body shops, and dealers all rely on its software to manage claims, parts pricing, and workflow. When software is woven that tightly into a customer's daily operations, switching costs are enormous — and that's exactly the condition under which careful, systematic price increases stick, because the cost of leaving dwarfs the cost of paying a little more. Thoma Bravo's repeatable playbook leans hard on this: buy mission-critical software with high switching costs, then close the gap between what it charges and the real value it delivers.\n\n[pitfalls] What people get wrong\nThree corrections. First, pricing strategy is not a blunt across-the-board price hike — it's surgical: segment customers, raise where value and switching costs support it, hold or cut where demand is fragile, and fix the leakage in the waterfall before touching headline prices. Second, you must respect elasticity and churn — the car-wash story works because two percent volume loss was swamped by the price gain, but in a price-sensitive, low-switching-cost business a clumsy increase can drive customers away and destroy value, so you test and measure rather than assume. And third, the biggest early wins are often in the waterfall, not the list price — disciplining discounts and rebates recovers margin from customers who barely notice, which is faster and lower-risk than a visible price rise.\n\n[recap] Highest leverage, fastest payback\nTo recap. Pricing is the highest-leverage, fastest-payback EBITDA lever — a one percent price improvement worth roughly eight to eleven percent of EBITDA, at no added cost — and private companies are chronically underpriced because founders price to avoid complaints, not to maximise margin. The work is surgical: use the price waterfall to find and stop the leakage from list price down to pocket price, then reprice by segment where value and switching costs support it, testing for elasticity as you go. And it sticks best where switching costs are high, as Thoma Bravo's software playbook shows. Next we move from the income statement to the balance sheet, and the cash trapped inside it: working capital optimisation.\n\nEnd-card question: Why does a 1% price increase improve EBITDA far more than a 1% volume increase — and what is the 'price waterfall'?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Pricing is the most misunderstood value creation lever in PE. Most operational improvement programmes focus on cost reduction (easier to model, easier to explain) and revenue growth (exciting, but slow). Pricing sits between the two — it is faster to implement than revenue growth programmes and generates EBITDA improvement with no additional cost.</p><p><strong>The leverage mathematics:</strong> In a typical manufacturing or services business: - A 1% improvement in price → approximately 8–11% improvement in EBITDA - A 1% improvement in volume → approximately 3–4% improvement in EBITDA - A 1% reduction in variable costs → approximately 6–7% improvement in EBITDA</p><p>[needs-verification on exact multipliers — these are commonly cited but company-specific]</p><p>This means pricing is 2–3× more powerful per percentage point of change than volume or cost. Yet most portfolio companies entering PE ownership have never had a structured pricing function. The PE firm's role is to implement one.</p><p>For learners building an understanding of PE value creation, pricing is the lever that most consistently surprises non-practitioners — it is both high impact and chronically under-managed in private companies. A PE firm that can systematically extract 2–3% additional price realisation from a portfolio company generating £50m EBITDA adds £4–6m per year in EBITDA — which at an 8× exit multiple represents £32–48m in incremental equity value. This is a material return driver that requires no new customers, no new products, and no headcount.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Pricing strategy in private equity is the structured programme through which a PE-backed portfolio company identifies and closes the gap between what it currently charges and what customers would actually pay — making it the highest-leverage, fastest-payback EBITDA improvement lever available in the value creation toolkit.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you own a car wash. You charge £8 for a basic wash. You've charged £8 for four years. Your cost of water, chemicals, and labour has increased — but you've never raised prices because you're nervous about losing customers.</p><p>Your PE investor says: \"Let's look at this properly. What would actually happen if you raised to £10?\"</p><p>You test it. Customers barely notice. Volume drops 2% but revenue increases 23%. Profit margins expand dramatically.</p><p>That's a pricing strategy exercise. And it is happening in PE portfolio companies across dozens of sectors at any given time.</p><p>The reason private companies are often underpriced is not stupidity — it is the psychology of founder-management. Founders close every sale personally. They know every customer. They are terrified of losing the customer in front of them and don't model the aggregate benefit of 3% higher price across the whole customer base. PE firms bring an external, data-driven perspective that overrides this psychological bias.</p><p><strong>Five common situations PE firms encounter:</strong> 1. <strong>Prices not raised in 3+ years</strong> despite cost inflation — classic \"fear of customer loss\" 2. <strong>No price differentiation across customer segments</strong> — charging a large enterprise the same as a small SME for the same product 3. <strong>Excessive discounting</strong> — salespeople are incentivised on volume, not margin; they give discounts freely to close deals 4. <strong>No escalation clauses in contracts</strong> — long-term contracts with no annual price increase mechanism are locked at day-one prices 5. <strong>Cost-plus pricing</strong> — the company prices based on cost × mark-up, ignoring what the market would actually pay for the value delivered</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Pricing strategy in PE is like turning up the brightness on a television that has always been set to 40% without the owner noticing. The picture was always capable of being brighter — nothing new has been added, no new components installed — but no one ever deliberately turned the dial.</p><p>The founder-manager who has been pricing their business for 15 years has calibrated their instincts around avoiding customer complaints, not around maximising margin. They have effectively set the brightness to 40% and convinced themselves that's what the screen is capable of. The PE firm turns it to 70%. Some customers squint briefly; most barely notice. The picture is dramatically better.</p><p>The key insight is that pricing power in most businesses is significantly higher than the operator believes — because the reference point for most private company pricing is \"what I charged last year plus a little more,\" not \"what would this customer actually pay?\"</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Price Waterfall</p><p>The \"price waterfall\" is the standard framework for understanding the gap between a company's headline pricing and what it actually collects. Most businesses have more pricing leakage than they realise.</p><p><strong>The pocket price band:</strong> Plotting all transactions by pocket price reveals the full distribution — a company might think it prices at £100/unit, but in reality the pocket price ranges from £68 to £117 depending on which customer bought, how they negotiated, what discounts were applied, and what rebates were paid. The goal of pricing strategy is to: 1. Understand the full distribution (identify who is buying at the bottom) 2. Understand why (is it justified by volume, cost-to-serve, or pure negotiating outcome?) 3. Move the distribution rightward (capture more of the available price)</p><p>### Five Pricing Improvement Levers</p><p><strong>Lever 1 — Price Level Increase (List Price)</strong></p><p>The most straightforward lever: raising the headline price. In practice: - Requires understanding price elasticity — how much volume loss occurs per unit of price increase - In most B2B software and specialty services, elasticity is low (customers can't easily switch) — the price increase produces almost pure margin gain - In commodity businesses, elasticity is high — price increases above market rates lose volume immediately - Successful PE-backed price increases are almost always in businesses with low price elasticity: mission-critical software, specialty components with high switching costs, regulated services</p><p><strong>Implementation:</strong> Price increase communication must be framed around value, not cost. \"Our costs have risen 12%, so we're raising prices 4%\" is weaker than \"Our product now delivers X additional capability, and our pricing reflects the value we create for you.\" The framing changes the customer's reference point.</p><p><strong>Lever 2 — Price Realisation (Discount Management)</strong></p><p>Even with correct list prices, companies lose margin through uncontrolled discounting. Typical PE finding: the sales team is authorised to discount up to 15% on their own authority. In practice, 60% of all discounts are given at the maximum authorised level without any customer pushback — salespeople anchor at maximum discount because they are incentivised on closed deals, not margins.</p><p><strong>The fix:</strong> - Implement discount approval workflows above certain thresholds - Shift sales incentive structure: include pocket price or margin as a component of the commission calculation - Provide sales teams with \"give-to-get\" training — offering non-price concessions (payment terms, delivery priority, support hours) instead of price reduction - Remove maximum authorised discounts where possible; replace with structured deal desk approvals</p><p><strong>Lever 3 — Price Segmentation</strong></p><p>Charging different prices to different customer segments based on their willingness to pay or the value they receive. The same product can justifiably command different prices from: - Enterprise customers (higher value delivered, lower cost to serve, strategic relationship → higher price) - SME customers (lower absolute value but often higher relative value to their business → different tier) - Geographies (local market pricing norms, competitive intensity → regional variation) - Use case (same software used for compliance = high value = higher price; used for analytics = lower willingness to pay → lower tier)</p><p><strong>Implementation:</strong> Build explicit pricing tiers or segment-specific pricing models. Move away from single list price toward a pricing architecture that captures more of the value from segments with higher willingness to pay.</p><p><strong>Lever 4 — Escalation Clauses in Long-Term Contracts</strong></p><p>Many private companies sign multi-year contracts (2–5 years) without price escalation clauses — they lock in year-one prices for the full duration. During the holding period, input cost inflation erodes margins on these contracts.</p><p><strong>The fix:</strong> For all new contracts, embed CPI (Consumer Price Index) or PPI (Producer Price Index) linked escalation clauses that automatically increase prices annually. For existing contracts, negotiate additions at renewal points.</p><p><strong>Value:</strong> A 5-year contract with annual CPI escalation of 3% generates a price at year 5 that is 16% above year-one price. The same contract without escalation still charges year-one prices — the difference compounds directly to EBITDA.</p><p><strong>Lever 5 — Product/Service Line Rationalisation and Repricing</strong></p><p>Many portfolio companies have accumulated product and service lines over years without systematic margin analysis. Common findings: - Some product lines are priced below cost and have been cross-subsidised by higher-margin lines without awareness - Premium or high-complexity variants are not priced at a premium — the same mark-up is applied regardless of configuration complexity - \"Free\" services (installation, training, ongoing support) have high cost but are bundled into base price rather than priced separately (then reduced when customers don't need them)</p><p><strong>Implementation:</strong> Conduct a full product-line profitability analysis. Price specialised configurations at appropriate premiums. Unbundle \"free\" services and price them explicitly — customers who value them will pay; customers who don't needed them will benefit from a lower base price.</p><p>---</p><p>### The Pricing Value Creation Programme — Typical Structure</p><p><strong>Phase 1 — Diagnostic (Month 1–2 of 100-Day Plan)</strong> - Extract transaction-level data: every invoice at pocket price level - Build the price waterfall for the top 20 product/service lines - Identify the pocket price band distribution - Benchmark prices against comparable competitors where data is available (industry surveys, customer research, public price lists) - Map customer segments by size, sector, and geography; estimate willingness to pay per segment - Identify the three highest-opportunity pricing levers for this business</p><p><strong>Phase 2 — Quick Wins (Month 2–4)</strong> - Implement discount management controls and approval workflows - Identify the 20% of customers whose pocket prices are most anomalously low and negotiate corrections at next renewal - Communicate a modest across-the-board price increase (2–4%) with 60-day notice, framed as value-based - Add escalation clauses to all new contracts going forward</p><p><strong>Phase 3 — Structural Repricing (Month 4–12)</strong> - Build pricing tiers and segment-specific pricing models - Retrain sales teams on value-selling and give-to-get negotiation - Update incentive structures to include margin components - Renegotiate existing contracts at renewal to reflect new pricing architecture</p><p><strong>Phase 4 — Institutionalise Pricing Capability (Month 12+)</strong> - Hire or develop a dedicated pricing function (often a pricing manager or VP of Pricing in larger businesses) - Build pricing analytics dashboard: win/loss rates by price point, pocket price distribution trend, discount approval rate and outcome tracking - Annual pricing review as a structured board-level agenda item</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### Thoma Bravo and Solera Holdings (2016, $6.5bn acquisition)</p><p>Thoma Bravo, a software-focused buyout firm, acquired Solera Holdings — a global provider of data and software solutions for the insurance, automotive, and property industries — for approximately $6.5bn in 2016. Solera's products are deeply embedded in the automotive claims management ecosystem: insurers, auto body repair shops, and vehicle dealers all use Solera's software to manage insurance claims, parts pricing, and workflow.</p><p><strong>Why pricing was the primary value creation lever:</strong></p><p>Solera's software is mission-critical and deeply integrated. An auto insurance company using Solera's claims management system for 10 years has its entire workflow, its historical data, and its customer communication systems built around Solera's platform. Switching costs are extremely high — potentially 12–18 months of disruption and data migration at significant cost.</p><p>This is the definition of low price elasticity: Solera could raise prices without losing customers because the cost of switching was so much higher than the price increase.</p><p><strong>What Thoma Bravo did:</strong></p><p>Thoma Bravo implemented systematic annual price escalations across Solera's product lines. Reported increases ranged from approximately 3–8% per year depending on product line and contract terms. [needs-verification on specific figures] Because Solera's customer contracts were largely multi-year agreements, escalation clauses were built into renewals.</p><p><strong>The EBITDA impact:</strong></p><p>Solera's EBITDA margins expanded materially during the holding period. [needs-verification on specific margin figures] At an exit multiple of approximately 12–14× EBITDA on a meaningfully higher EBITDA base, the pricing-driven margin expansion contributed directly to strong equity returns.</p><p><strong>What this illustrates:</strong> - Mission-critical software with high switching costs = low price elasticity = primary pricing opportunity - The pricing increase required no new product development, no new customers, no new sales team - Thoma Bravo's sector expertise (they had seen this pattern in multiple software acquisitions) gave them confidence to execute the price increase programme that the founder-management had been reluctant to pursue - The annual escalation clause model compounds over a 5-year hold: 5% annual increases compound to a 28% cumulative price increase by exit</p><p>---</p><p>### A Contrast — Industrial Distribution</p><p>Compare Solera to an industrial distributor selling commodity components (bearings, fasteners, seals). The distributor also has poor pricing discipline — discounts are freely given, price increases are rare.</p><p>But the outcome of a pricing programme is different: commodity components are easily sourced elsewhere (multiple competing distributors carry the same SKUs). Price elasticity is high. A 5% price increase loses 15–20% of volume to competitors who haven't raised prices. The pricing programme must focus on <strong>value-add service repricing</strong> (express delivery, technical support, kitting services) rather than headline price — because only the differentiated elements (where the distributor has defensible advantage) can carry a price premium.</p><p><strong>The lesson:</strong> Pricing strategy in PE is not \"raise all prices by X%.\" It requires understanding where the company's competitive advantage actually is, and pricing specifically those elements where customers have no easy alternative.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Raising prices will lose us customers.\"</strong> This is the most common founder-management objection and is usually wrong — or at least overstated. Academic and practitioner research consistently shows that price sensitivity in most B2B markets is lower than managers estimate. The fear of customer loss is driven by salespeople (who are compensated on closed deals, not margin) and by the memory of specific price-sensitive customers who pushed back loudly. The silent majority — customers who value the product and would pay more — do not show up in the founder's feedback loop.</p><p><strong>Misconception 2: \"Pricing strategy is about raising prices.\"</strong> Pricing strategy is about charging the right price — which may mean raising some prices, lowering others (to compete for high-volume accounts that are currently over-priced out), and differentiating prices across segments. A PE pricing programme might simultaneously increase prices for enterprise customers, hold prices for SME customers, and reduce prices for a specific low-margin product line that is losing to competition. The goal is optimal pocket price across the whole portfolio, not uniform price elevation.</p><p><strong>Misconception 3: \"Pricing is a marketing decision, not a PE value creation lever.\"</strong> In most PE-backed portfolio companies below £500m revenue, there is no dedicated pricing function. Pricing is made ad hoc by salespeople, or set by a legacy cost-plus formula, or carried over from year to year with CPI adjustments. PE firms bring a systematic approach that is genuinely new to these businesses — it is operational improvement, not a change in brand strategy.</p><p><strong>Misconception 4: \"The pricing improvement is one-time — it can't be used twice.\"</strong> Once pricing capability is institutionalised (pricing function hired, analytics built, escalation clauses in place), the improvement is recurring. Each year the pricing team conducts a review and captures the next increment of available pricing opportunity. A business that enters PE ownership with no pricing function and exits with a mature one has permanently improved its EBITDA conversion — the next owner benefits from the ongoing capability.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Pricing strategy in PE is the programme through which a portfolio company identifies and closes the gap between what it charges and what customers would pay — making it the highest-leverage EBITDA improvement lever because a 1% price increase generates approximately 6–10× the EBITDA impact of a 1% volume improvement (company-specific, depending on margin structure). Private companies entering PE ownership are almost universally underpriced: founders have anchored on prices set years ago, sales teams discount freely on volume-based incentives, and no systematic pricing function exists.</p><p>The five primary levers are: list price increases (where price elasticity is low), discount management (eliminating unearned discounts through approval workflows and incentive restructuring), price segmentation (charging premium customers premium prices), escalation clauses (protecting future margins in long-term contracts), and product repricing (eliminating cross-subsidised margin-negative lines). The optimal approach depends entirely on price elasticity — mission-critical software (Solera Holdings under Thoma Bravo) can support sustained 3–8% annual increases; commodity distribution cannot. Successful implementation requires institutionalising pricing capability (dedicated function, analytics, annual review process) rather than delivering a one-time improvement that reverts when the PE firm exits.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

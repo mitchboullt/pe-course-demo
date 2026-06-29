@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "cppib-and-australiansuper-lp-governance-model", "title": "Large Direct-Investing Pension Funds — LP Governance", "draft_watermark": false, "estimated_runtime_sec": 318, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The model investors", "on_screen_bullets": ["Cited as proof governance works", "But they are extraordinary", "Does the model transfer?"], "narration": "When people argue that strong investor governance produces better outcomes, they often point to a handful of giant, sophisticated pension funds as proof. These institutions have advanced governance practices and strong returns, and they are held up as evidence that well-governed manager relationships are achievable. But there is a catch worth taking seriously. These are extraordinary institutions — each with hundreds of internal investment professionals, large direct-investment programmes that invest alongside or instead of fund positions, and the negotiating leverage that comes from being a multi-billion-dollar anchor. So the real question, and the one this lesson tackles, is whether their governance model actually transfers to a typical pension fund — or whether it is mostly a function of exceptional scale and design that most investors simply cannot replicate.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Governance from capacity", "on_screen_bullets": ["Direct investing plus active oversight", "Premium driven by capacity", "Evidence doesn't fully transfer"], "narration": "Here is the definition. The largest direct-investing pension funds demonstrate the most advanced form of investor governance — characterised by direct-investment capability, large co-investment programmes, and active oversight of managers — but their governance premium is substantially a function of their exceptional institutional capacity, which means the evidence they provide does not transfer directly to a typical pension fund. The phrase to hold is institutional capacity. Their governance works not mainly because they have discovered a clever technique, but because they have the scale, the staff, and the independence to exercise leverage that ordinary investors do not have. So their success is real, but it is evidence for what is possible at extreme capacity, not evidence that the same approach works for everyone.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Not passive cheque-writers", "on_screen_bullets": ["Invest directly alongside managers", "Can credibly go it alone", "That threat is the leverage"], "narration": "Most investors in funds are passive: they write a cheque, receive their statements, sit on a committee with limited real power, and wait for distributions. The manager manages; the investor provides capital. These giant funds represent a fundamentally different model. They have enough internal expertise, and enough capital to be anchors, that managers actively compete for their money and accept governance conditions others cannot negotiate. Such a fund does not just invest in a manager's fund; it also invests directly alongside that manager in specific deals, sits at the table as a co-investor, and has the staff to evaluate each transaction independently. That changes the power dynamic entirely. Because the fund can credibly threaten to bypass the fund structure and go direct, it gains genuine leverage over disclosure, reporting, and governance standards. The threat of self-reliance is what converts capital into influence — and that threat is exactly what an ordinary investor cannot make.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Landlord versus tenant", "on_screen_bullets": ["Giant fund: negotiates custom lease", "Typical fund: signs standard lease", "Advice useful only with leverage"], "narration": "A simple analogy captures the transferability problem. A giant pension fund is like a large commercial landlord negotiating a custom lease with a major developer — it has the scale and the alternatives to dictate terms. A typical pension fund is more like an individual tenant signing a standard lease: it takes or leaves the standard terms because it lacks negotiating leverage. So governance reform modelled on the giant fund is like telling everyone to negotiate a custom lease. That is useful advice for institutions with the leverage to do it, and largely irrelevant for those without it. The lesson is not that the giant fund's governance is wrong or unachievable — it plainly works. The lesson is that the precondition for it, the leverage, is exactly what distinguishes the model investors from everyone the advice is supposedly aimed at.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Direct versus fund split", "on_screen_bullets": ["Roughly half is direct", "Direct governance is different", "Don't conflate the two"], "narration": "Look at the architecture, because it complicates the evidence. These funds have shifted heavily toward direct private-equity investing — roughly half their exposure now comes through direct investments and co-investments rather than passive fund positions, a deliberate strategy to cut fee drag and increase control. That matters when interpreting their success. The governance tools they apply to direct investments — board seats, information rights, operational oversight — are qualitatively different from anything they can enforce as a mere fund investor. So when their strong performance is cited as proof that fund-investor governance works, a large part of it actually reflects the direct-investment model, which is a different thing. As fund investors specifically, they do use real tools: negotiating meaningful co-investment access, participating actively on governing committees to push for better reporting and conflict policies, and securing individualised side letters as anchor investors. But disentangling how much of the premium comes from fund-investor governance versus direct ownership is genuinely hard, because the returns are reported in aggregate, not split out.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Four transfer barriers", "on_screen_bullets": ["Staff, scale, independence, fees", "Each rooted in capacity", "None easily replicated"], "narration": "Four concrete barriers block the model from transferring to a typical pension fund. First, staff and internal capacity: these funds employ hundreds of investment professionals, which a typical public fund cannot match under public-sector pay constraints, and the governance leverage that flows from internal expertise simply is not replicable without that expertise. Second, scale and anchor leverage: managers compete for their capital, giving them negotiating power over terms that a smaller fund, receiving standard terms, never has. Third, legal and political independence: their governance frameworks grant their investment boards far more operational independence than most public pension funds, which operate under restrictive state-law mandates and board-composition rules. And fourth, fee structure: their scale and direct-investment capability let them negotiate fees well below standard terms, but that fee advantage reflects size leverage, not governance technique. Notice the common root across all four — capacity. Each barrier is a manifestation of scale and institutional design, which is exactly why the model does not simply copy across.", "est_sec": 56}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "What the evidence shows", "on_screen_bullets": ["Supports: governance works at scale", "Doesn't support: it transfers down", "Two policy directions"], "narration": "So be precise about what this evidence actually supports. It does support several claims: that governance practices like committee participation, co-investment rights, and side letters are implementable and compatible with strong returns at sufficient scale; that managers will accept enhanced governance conditions from large anchors without walking away; and that internal investment capacity enables a credible direct-investment alternative that changes the negotiating dynamic. But it does not support the claims people most want to make from it: that these benefits transfer to smaller institutions without similar capacity, that the fund-investor-specific returns show a measurable governance premium distinct from direct investing, or that mandating this level of governance universally would produce the same outcomes for typical investors. Two policy directions follow. The realistic one: give large public funds more operational independence and pay flexibility so they can build comparable internal capacity. The aspirational one: form governance consortia, where smaller funds jointly negotiate as a combined anchor to partially replicate the scale leverage these giants wield individually.", "est_sec": 56}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Three myths", "on_screen_bullets": ["Proof for them, not for all", "Mostly direct, not fund-investor", "Different legal frameworks abroad"], "narration": "Three misconceptions to correct. First, that these funds prove investor governance works — they prove it works for institutions of their scale and capacity; whether it works for a typical public pension fund is a separate question their evidence does not directly answer. Second, that they are primarily fund investors — they have shifted heavily toward direct investing, so a large part of their governance model is a direct-owner model, not an enhanced fund-investor model. And third, that the most progressive overseas funds are interchangeable with typical domestic pension funds — they often operate under different legal frameworks, different member-benefit governance structures, and different scale dynamics driven by mandatory contribution systems, which makes a direct comparison misleading. Each myth makes the same error: generalising from extraordinary institutions to ordinary ones without accounting for the capacity gap.", "est_sec": 52}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Possible, not universal", "on_screen_bullets": ["Governance works at extreme scale", "Capacity is the precondition", "Reform needs structural change"], "narration": "So to summarise: the largest direct-investing pension funds demonstrate the most sophisticated investor governance models anywhere — but their effectiveness is substantially a function of exceptional scale, internal capacity, and institutional independence that a typical pension fund cannot replicate without structural reform. They use co-investment rights, committee participation, side letters, and anchor leverage to enforce standards smaller investors cannot negotiate, and the most ambitious among them have moved toward direct investing as the endpoint of governance evolution — replacing the fund relationship with direct ownership entirely. The honest reading of the evidence is two-sided: it shows that strong governance is possible and compatible with strong returns at sufficient scale, but it does not show that the model transfers downward to median-sized investors. Achieving that would require giving ordinary funds the capacity and independence these giants already possess — which is a structural reform, not a technique to copy.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What gives them their leverage?", "Why split direct from fund?", "Name two transfer barriers"], "narration": "Before you finish, answer these from memory. What is the source of these giant funds' governance leverage over managers? Why does it matter that roughly half their exposure is direct rather than through funds when interpreting their governance evidence? And name two of the four barriers that prevent the model from transferring to a typical pension fund. Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Large Direct-Investing Pension Funds — LP Governance\n\n[hook] The model investors\nWhen people argue that strong investor governance produces better outcomes, they often point to a handful of giant, sophisticated pension funds as proof. These institutions have advanced governance practices and strong returns, and they are held up as evidence that well-governed manager relationships are achievable. But there is a catch worth taking seriously. These are extraordinary institutions — each with hundreds of internal investment professionals, large direct-investment programmes that invest alongside or instead of fund positions, and the negotiating leverage that comes from being a multi-billion-dollar anchor. So the real question, and the one this lesson tackles, is whether their governance model actually transfers to a typical pension fund — or whether it is mostly a function of exceptional scale and design that most investors simply cannot replicate.\n\n[definition] Governance from capacity\nHere is the definition. The largest direct-investing pension funds demonstrate the most advanced form of investor governance — characterised by direct-investment capability, large co-investment programmes, and active oversight of managers — but their governance premium is substantially a function of their exceptional institutional capacity, which means the evidence they provide does not transfer directly to a typical pension fund. The phrase to hold is institutional capacity. Their governance works not mainly because they have discovered a clever technique, but because they have the scale, the staff, and the independence to exercise leverage that ordinary investors do not have. So their success is real, but it is evidence for what is possible at extreme capacity, not evidence that the same approach works for everyone.\n\n[intuition] Not passive cheque-writers\nMost investors in funds are passive: they write a cheque, receive their statements, sit on a committee with limited real power, and wait for distributions. The manager manages; the investor provides capital. These giant funds represent a fundamentally different model. They have enough internal expertise, and enough capital to be anchors, that managers actively compete for their money and accept governance conditions others cannot negotiate. Such a fund does not just invest in a manager's fund; it also invests directly alongside that manager in specific deals, sits at the table as a co-investor, and has the staff to evaluate each transaction independently. That changes the power dynamic entirely. Because the fund can credibly threaten to bypass the fund structure and go direct, it gains genuine leverage over disclosure, reporting, and governance standards. The threat of self-reliance is what converts capital into influence — and that threat is exactly what an ordinary investor cannot make.\n\n[intuition] Landlord versus tenant\nA simple analogy captures the transferability problem. A giant pension fund is like a large commercial landlord negotiating a custom lease with a major developer — it has the scale and the alternatives to dictate terms. A typical pension fund is more like an individual tenant signing a standard lease: it takes or leaves the standard terms because it lacks negotiating leverage. So governance reform modelled on the giant fund is like telling everyone to negotiate a custom lease. That is useful advice for institutions with the leverage to do it, and largely irrelevant for those without it. The lesson is not that the giant fund's governance is wrong or unachievable — it plainly works. The lesson is that the precondition for it, the leverage, is exactly what distinguishes the model investors from everyone the advice is supposedly aimed at.\n\n[mechanics] Direct versus fund split\nLook at the architecture, because it complicates the evidence. These funds have shifted heavily toward direct private-equity investing — roughly half their exposure now comes through direct investments and co-investments rather than passive fund positions, a deliberate strategy to cut fee drag and increase control. That matters when interpreting their success. The governance tools they apply to direct investments — board seats, information rights, operational oversight — are qualitatively different from anything they can enforce as a mere fund investor. So when their strong performance is cited as proof that fund-investor governance works, a large part of it actually reflects the direct-investment model, which is a different thing. As fund investors specifically, they do use real tools: negotiating meaningful co-investment access, participating actively on governing committees to push for better reporting and conflict policies, and securing individualised side letters as anchor investors. But disentangling how much of the premium comes from fund-investor governance versus direct ownership is genuinely hard, because the returns are reported in aggregate, not split out.\n\n[mechanics] Four transfer barriers\nFour concrete barriers block the model from transferring to a typical pension fund. First, staff and internal capacity: these funds employ hundreds of investment professionals, which a typical public fund cannot match under public-sector pay constraints, and the governance leverage that flows from internal expertise simply is not replicable without that expertise. Second, scale and anchor leverage: managers compete for their capital, giving them negotiating power over terms that a smaller fund, receiving standard terms, never has. Third, legal and political independence: their governance frameworks grant their investment boards far more operational independence than most public pension funds, which operate under restrictive state-law mandates and board-composition rules. And fourth, fee structure: their scale and direct-investment capability let them negotiate fees well below standard terms, but that fee advantage reflects size leverage, not governance technique. Notice the common root across all four — capacity. Each barrier is a manifestation of scale and institutional design, which is exactly why the model does not simply copy across.\n\n[application] What the evidence shows\nSo be precise about what this evidence actually supports. It does support several claims: that governance practices like committee participation, co-investment rights, and side letters are implementable and compatible with strong returns at sufficient scale; that managers will accept enhanced governance conditions from large anchors without walking away; and that internal investment capacity enables a credible direct-investment alternative that changes the negotiating dynamic. But it does not support the claims people most want to make from it: that these benefits transfer to smaller institutions without similar capacity, that the fund-investor-specific returns show a measurable governance premium distinct from direct investing, or that mandating this level of governance universally would produce the same outcomes for typical investors. Two policy directions follow. The realistic one: give large public funds more operational independence and pay flexibility so they can build comparable internal capacity. The aspirational one: form governance consortia, where smaller funds jointly negotiate as a combined anchor to partially replicate the scale leverage these giants wield individually.\n\n[application] Three myths\nThree misconceptions to correct. First, that these funds prove investor governance works — they prove it works for institutions of their scale and capacity; whether it works for a typical public pension fund is a separate question their evidence does not directly answer. Second, that they are primarily fund investors — they have shifted heavily toward direct investing, so a large part of their governance model is a direct-owner model, not an enhanced fund-investor model. And third, that the most progressive overseas funds are interchangeable with typical domestic pension funds — they often operate under different legal frameworks, different member-benefit governance structures, and different scale dynamics driven by mandatory contribution systems, which makes a direct comparison misleading. Each myth makes the same error: generalising from extraordinary institutions to ordinary ones without accounting for the capacity gap.\n\n[recap] Possible, not universal\nSo to summarise: the largest direct-investing pension funds demonstrate the most sophisticated investor governance models anywhere — but their effectiveness is substantially a function of exceptional scale, internal capacity, and institutional independence that a typical pension fund cannot replicate without structural reform. They use co-investment rights, committee participation, side letters, and anchor leverage to enforce standards smaller investors cannot negotiate, and the most ambitious among them have moved toward direct investing as the endpoint of governance evolution — replacing the fund relationship with direct ownership entirely. The honest reading of the evidence is two-sided: it shows that strong governance is possible and compatible with strong returns at sufficient scale, but it does not show that the model transfers downward to median-sized investors. Achieving that would require giving ordinary funds the capacity and independence these giants already possess — which is a structural reform, not a technique to copy.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What is the source of these giant funds' governance leverage over managers? Why does it matter that roughly half their exposure is direct rather than through funds when interpreting their governance evidence? And name two of the four barriers that prevent the model from transferring to a typical pension fund. Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The International Comparison as Governance Evidence note cites CPPIB as evidence that enhanced LP governance produces better outcomes — CPPIB's PE programme returns and governance practices are used to demonstrate that well-governed LP relationships are achievable and compatible with strong financial performance.</p><p>But CPPIB and AustralianSuper are extraordinary institutions: each has hundreds of internal investment professionals, direct PE investment programs that invest alongside or instead of fund LP positions, and the LP relationship leverage that comes from being a multi-billion commitment anchor investor. Understanding the limits of CPPIB as a governance model is critical for assessing whether LP governance reforms (like ILPA Principles compliance requirements or LP co-determination rights) can realistically be adopted by the typical US pension fund LP.</p><p>This note clarifies what CPPIB's governance model actually is, how much of it applies to fund LP relationships specifically, and what the transferability limits are.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>CPPIB (Canada Pension Plan Investment Board) and AustralianSuper demonstrate the most advanced form of LP governance in PE — characterised by direct investment capability, large co-investment programs, and active LP oversight — but their governance premium is substantially a function of their exceptional institutional capacity, meaning the evidence they provide for LP governance effectiveness does not transfer directly to typical US pension fund LPs.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Most LP investors in PE funds are passive: they write a cheque, receive K-1s, sit on LP Advisory Committees with limited real power, and wait for distributions. The GP manages; the LP provides capital.</p><p>CPPIB and AustralianSuper represent a fundamentally different model. They have enough internal PE investment expertise — and enough capital to be anchor investors — that GPs compete for their capital and accept governance conditions that other LPs cannot negotiate. CPPIB doesn't just invest in KKR Fund XIII; it also directly invests alongside KKR in specific deals, sits at the table as a co-investor, and has the staff to evaluate each transaction independently.</p><p>This changes the power dynamic. CPPIB is not a passive capital provider — it is a sophisticated institutional investor that can credibly threaten to bypass fund investment and go direct, which gives it negotiating leverage over GP disclosure, reporting, and governance standards.</p><p>The question for PE reform is whether this model scales: can the average US public pension fund (CalPERS, CalSTRS, PSERS) develop comparable LP governance capability, or is the CPPIB model a function of scale and institutional design that isn't replicable for most LP institutions?</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>CPPIB is like a large commercial landlord negotiating a custom lease with a major developer — they have the scale and alternatives to negotiate terms. Most US pension LPs are like individual apartment tenants signing a standard lease: they take or leave the standard terms because they lack negotiating leverage. LP governance reform that works for CPPIB-scale institutions is like saying \"negotiate a custom lease\" — useful advice for institutions with the leverage to do it, but irrelevant for those without it.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### CPPIB's PE Investment Architecture</p><p><strong>Scale:</strong> CPPIB manages approximately C$570bn+ in assets, with private equity representing approximately 30-35% of the portfolio — roughly C$170-200bn in PE exposure.</p><p><strong>Direct investment vs. fund LP split:</strong> CPPIB has increasingly shifted toward direct PE investing — investing directly in companies alongside PE managers (co-investments) or through wholly-owned platforms — rather than purely passive fund LP investing. Estimated split (as of 2024): approximately 50-60% of PE exposure through fund LP positions; 40-50% through direct investments and co-investments. The shift toward direct is part of CPPIB's stated strategy to reduce fee drag and increase governance control.</p><p><strong>Implications for governance evidence:</strong> - CPPIB's overall PE performance and governance practices partially reflect the direct investment model, not just fund LP governance - The governance tools CPPIB applies to direct investments (board seats, information rights, operational oversight) are qualitatively different from what it can enforce as a fund LP - When using CPPIB as evidence for \"LP governance works,\" it's important to distinguish CPPIB's direct investment governance evidence from its fund LP governance evidence</p><p><strong>Fund LP governance tools that CPPIB actually uses:</strong> - Co-investment rights: CPPIB negotiates for meaningful co-investment access alongside fund investments — giving it direct deal-level visibility and reducing effective fee burden - LPAC participation: CPPIB participates in LP Advisory Committees and uses this to push for enhanced reporting standards, conflict-of-interest policies, and fairness opinions - Side letter rights: CPPIB negotiates individualized side letters covering enhanced disclosure, preferential co-investment access, and key-man provisions - Anchor investor leverage: As a multi-hundred-million anchor LP, CPPIB can condition commitment on GP governance commitments that smaller LPs cannot negotiate</p><p><strong>The crucial question:</strong> Do these fund LP governance tools produce measurable differences in outcomes (better returns, fewer conflicts, higher quality disclosure) for CPPIB's fund LP investments specifically — as distinct from the direct investment component?</p><p>This question is difficult to answer from public data because CPPIB's returns are reported in aggregate; the fund LP component is not separately reported with performance attribution.</p><p>### AustralianSuper's PE Model</p><p><strong>Scale:</strong> AustralianSuper manages approximately A$300bn+, with significant PE exposure across fund LP, co-investment, and direct strategies.</p><p><strong>Industry superfund structure:</strong> AustralianSuper is an \"industry fund\" — a member-owned Australian superannuation fund that runs for the benefit of members rather than shareholders. This structure removes the profit motive that conflicts retail asset managers' interests with beneficiary interests, and also creates a governance alignment that enables more active LP oversight.</p><p><strong>Internalization strategy:</strong> AustralianSuper has been internalizing investment management — building internal investment teams for asset classes where it was previously entirely dependent on external managers. For PE, this means building direct investment capability rather than relying solely on fund LP structures.</p><p><strong>Australian LP market context:</strong> Australia's superannuation system creates large, mandatory pension contributions (currently 11.5% of wages) that produce large institutional LP pools. Australian industry funds have been the most progressive LP institutions globally on governance requirements, partly because of their member-benefit orientation and partly because of scale.</p><p>### Transferability Limitations to US LP Context</p><p><strong>Limitation 1: Staff and internal capacity</strong> CPPIB has approximately 2,000 total employees, with hundreds dedicated to PE investing. A comparably sized US public pension fund — CalPERS (~$500bn AUM) — has substantially fewer investment staff relative to assets, and is subject to public employee compensation constraints that make it difficult to attract the caliber of PE professionals that CPPIB employs. The governance leverage that comes from internal expertise is not replicable without internal investment capacity.</p><p><strong>Limitation 2: Scale and anchor investor leverage</strong> CPPIB and AustralianSuper are large enough that GP fundraising teams actively compete for their capital. This gives them negotiating leverage over side letter terms, co-investment access, and governance conditions. Smaller US pension funds (PSERS, KPERS) are not anchor LPs — they receive standard fund terms without negotiating leverage. LP governance reform that works for CPPIB-scale institutions does not automatically work for typical LP institutions.</p><p><strong>Limitation 3: Legal and political constraints</strong> Canadian and Australian pension governance frameworks give investment boards more operational independence from political interference than most US public pension funds. US public pension funds operate under state law and are often subject to board composition requirements, investment mandate restrictions, and public contracting rules that constrain their ability to negotiate aggressive LP governance terms.</p><p><strong>Limitation 4: Fee structure</strong> CPPIB's scale and direct investment capability allow it to negotiate fee structures substantially below standard 2/20. A $300m CPPIB commitment to a fund might carry 1.5/15 terms vs. 2/20 for smaller LPs. This fee advantage is part of the \"governance premium\" — but it reflects size negotiating leverage, not governance sophistication per se.</p><p>### The LP Governance Evidence Quality Assessment</p><p>What CPPIB evidence supports: - LP governance practices (LPAC participation, co-investment rights, side letters) are implementable and compatible with strong returns at sufficient scale - GPs will accept enhanced governance conditions from large anchor LPs without walking away - Internal PE investment capacity enables credible direct investment as an alternative to fund LP investing, changing negotiating dynamics</p><p>What CPPIB evidence does not support: - That governance benefits transfer to smaller LP institutions without similar capacity - That the fund LP-specific returns (distinct from direct investment returns) show a measurable governance premium - That ILPA Principles-level governance demands, if universally required by legislation, would produce CPPIB-level outcomes for typical LPs</p><p>### Policy Implications</p><p>The CPPIB/AustralianSuper model suggests two policy directions — one realistic and one aspirational:</p><p><strong>Realistic (market-led LP governance development):</strong> Large US pension funds (CalPERS, CalSTRS, TIAA-CREF) could develop more CPPIB-like internal capacity if given sufficient operational independence and compensation flexibility. Congressional or state legislation giving pension funds more investment governance independence (analogous to Canada's CPPIB Act, which created CPPIB as a commercially independent entity) could enable this.</p><p><strong>Aspirational (LP governance through scale aggregation):</strong> Creating LP governance consortia — groups of smaller pension funds that jointly negotiate governance terms as a combined anchor LP — could partially replicate the scale leverage that CPPIB exercises individually. This approach (similar to the Dutch PGGM/APG cooperative model) has been proposed but not implemented at scale in the US.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### CPPIB's PE Investment Architecture</p><p><strong>Scale:</strong> CPPIB manages approximately C$570bn+ in assets, with private equity representing approximately 30-35% of the portfolio — roughly C$170-200bn in PE exposure.</p><p><strong>Direct investment vs. fund LP split:</strong> CPPIB has increasingly shifted toward direct PE investing — investing directly in companies alongside PE managers (co-investments) or through wholly-owned platforms — rather than purely passive fund LP investing. Estimated split (as of 2024): approximately 50-60% of PE exposure through fund LP positions; 40-50% through direct investments and co-investments. The shift toward direct is part of CPPIB's stated strategy to reduce fee drag and increase governance control.</p><p><strong>Implications for governance evidence:</strong> - CPPIB's overall PE performance and governance practices partially reflect the direct investment model, not just fund LP governance - The governance tools CPPIB applies to direct investments (board seats, information rights, operational oversight) are qualitatively different from what it can enforce as a fund LP - When using CPPIB as evidence for \"LP governance works,\" it's important to distinguish CPPIB's direct investment governance evidence from its fund LP governance evidence</p><p><strong>Fund LP governance tools that CPPIB actually uses:</strong> - Co-investment rights: CPPIB negotiates for meaningful co-investment access alongside fund investments — giving it direct deal-level visibility and reducing effective fee burden - LPAC participation: CPPIB participates in LP Advisory Committees and uses this to push for enhanced reporting standards, conflict-of-interest policies, and fairness opinions - Side letter rights: CPPIB negotiates individualized side letters covering enhanced disclosure, preferential co-investment access, and key-man provisions - Anchor investor leverage: As a multi-hundred-million anchor LP, CPPIB can condition commitment on GP governance commitments that smaller LPs cannot negotiate</p><p><strong>The crucial question:</strong> Do these fund LP governance tools produce measurable differences in outcomes (better returns, fewer conflicts, higher quality disclosure) for CPPIB's fund LP investments specifically — as distinct from the direct investment component?</p><p>This question is difficult to answer from public data because CPPIB's returns are reported in aggregate; the fund LP component is not separately reported with performance attribution.</p><p>### AustralianSuper's PE Model</p><p><strong>Scale:</strong> AustralianSuper manages approximately A$300bn+, with significant PE exposure across fund LP, co-investment, and direct strategies.</p><p><strong>Industry superfund structure:</strong> AustralianSuper is an \"industry fund\" — a member-owned Australian superannuation fund that runs for the benefit of members rather than shareholders. This structure removes the profit motive that conflicts retail asset managers' interests with beneficiary interests, and also creates a governance alignment that enables more active LP oversight.</p><p><strong>Internalization strategy:</strong> AustralianSuper has been internalizing investment management — building internal investment teams for asset classes where it was previously entirely dependent on external managers. For PE, this means building direct investment capability rather than relying solely on fund LP structures.</p><p><strong>Australian LP market context:</strong> Australia's superannuation system creates large, mandatory pension contributions (currently 11.5% of wages) that produce large institutional LP pools. Australian industry funds have been the most progressive LP institutions globally on governance requirements, partly because of their member-benefit orientation and partly because of scale.</p><p>### Transferability Limitations to US LP Context</p><p><strong>Limitation 1: Staff and internal capacity</strong> CPPIB has approximately 2,000 total employees, with hundreds dedicated to PE investing. A comparably sized US public pension fund — CalPERS (~$500bn AUM) — has substantially fewer investment staff relative to assets, and is subject to public employee compensation constraints that make it difficult to attract the caliber of PE professionals that CPPIB employs. The governance leverage that comes from internal expertise is not replicable without internal investment capacity.</p><p><strong>Limitation 2: Scale and anchor investor leverage</strong> CPPIB and AustralianSuper are large enough that GP fundraising teams actively compete for their capital. This gives them negotiating leverage over side letter terms, co-investment access, and governance conditions. Smaller US pension funds (PSERS, KPERS) are not anchor LPs — they receive standard fund terms without negotiating leverage. LP governance reform that works for CPPIB-scale institutions does not automatically work for typical LP institutions.</p><p><strong>Limitation 3: Legal and political constraints</strong> Canadian and Australian pension governance frameworks give investment boards more operational independence from political interference than most US public pension funds. US public pension funds operate under state law and are often subject to board composition requirements, investment mandate restrictions, and public contracting rules that constrain their ability to negotiate aggressive LP governance terms.</p><p><strong>Limitation 4: Fee structure</strong> CPPIB's scale and direct investment capability allow it to negotiate fee structures substantially below standard 2/20. A $300m CPPIB commitment to a fund might carry 1.5/15 terms vs. 2/20 for smaller LPs. This fee advantage is part of the \"governance premium\" — but it reflects size negotiating leverage, not governance sophistication per se.</p><p>### The LP Governance Evidence Quality Assessment</p><p>What CPPIB evidence supports: - LP governance practices (LPAC participation, co-investment rights, side letters) are implementable and compatible with strong returns at sufficient scale - GPs will accept enhanced governance conditions from large anchor LPs without walking away - Internal PE investment capacity enables credible direct investment as an alternative to fund LP investing, changing negotiating dynamics</p><p>What CPPIB evidence does not support: - That governance benefits transfer to smaller LP institutions without similar capacity - That the fund LP-specific returns (distinct from direct investment returns) show a measurable governance premium - That ILPA Principles-level governance demands, if universally required by legislation, would produce CPPIB-level outcomes for typical LPs</p><p>### Policy Implications</p><p>The CPPIB/AustralianSuper model suggests two policy directions — one realistic and one aspirational:</p><p><strong>Realistic (market-led LP governance development):</strong> Large US pension funds (CalPERS, CalSTRS, TIAA-CREF) could develop more CPPIB-like internal capacity if given sufficient operational independence and compensation flexibility. Congressional or state legislation giving pension funds more investment governance independence (analogous to Canada's CPPIB Act, which created CPPIB as a commercially independent entity) could enable this.</p><p><strong>Aspirational (LP governance through scale aggregation):</strong> Creating LP governance consortia — groups of smaller pension funds that jointly negotiate governance terms as a combined anchor LP — could partially replicate the scale leverage that CPPIB exercises individually. This approach (similar to the Dutch PGGM/APG cooperative model) has been proposed but not implemented at scale in the US.</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### CPPIB's PE Investment Architecture</p><p><strong>Scale:</strong> CPPIB manages approximately C$570bn+ in assets, with private equity representing approximately 30-35% of the portfolio — roughly C$170-200bn in PE exposure.</p><p><strong>Direct investment vs. fund LP split:</strong> CPPIB has increasingly shifted toward direct PE investing — investing directly in companies alongside PE managers (co-investments) or through wholly-owned platforms — rather than purely passive fund LP investing. Estimated split (as of 2024): approximately 50-60% of PE exposure through fund LP positions; 40-50% through direct investments and co-investments. The shift toward direct is part of CPPIB's stated strategy to reduce fee drag and increase governance control.</p><p><strong>Implications for governance evidence:</strong> - CPPIB's overall PE performance and governance practices partially reflect the direct investment model, not just fund LP governance - The governance tools CPPIB applies to direct investments (board seats, information rights, operational oversight) are qualitatively different from what it can enforce as a fund LP - When using CPPIB as evidence for \"LP governance works,\" it's important to distinguish CPPIB's direct investment governance evidence from its fund LP governance evidence</p><p><strong>Fund LP governance tools that CPPIB actually uses:</strong> - Co-investment rights: CPPIB negotiates for meaningful co-investment access alongside fund investments — giving it direct deal-level visibility and reducing effective fee burden - LPAC participation: CPPIB participates in LP Advisory Committees and uses this to push for enhanced reporting standards, conflict-of-interest policies, and fairness opinions - Side letter rights: CPPIB negotiates individualized side letters covering enhanced disclosure, preferential co-investment access, and key-man provisions - Anchor investor leverage: As a multi-hundred-million anchor LP, CPPIB can condition commitment on GP governance commitments that smaller LPs cannot negotiate</p><p><strong>The crucial question:</strong> Do these fund LP governance tools produce measurable differences in outcomes (better returns, fewer conflicts, higher quality disclosure) for CPPIB's fund LP investments specifically — as distinct from the direct investment component?</p><p>This question is difficult to answer from public data because CPPIB's returns are reported in aggregate; the fund LP component is not separately reported with performance attribution.</p><p>### AustralianSuper's PE Model</p><p><strong>Scale:</strong> AustralianSuper manages approximately A$300bn+, with significant PE exposure across fund LP, co-investment, and direct strategies.</p><p><strong>Industry superfund structure:</strong> AustralianSuper is an \"industry fund\" — a member-owned Australian superannuation fund that runs for the benefit of members rather than shareholders. This structure removes the profit motive that conflicts retail asset managers' interests with beneficiary interests, and also creates a governance alignment that enables more active LP oversight.</p><p><strong>Internalization strategy:</strong> AustralianSuper has been internalizing investment management — building internal investment teams for asset classes where it was previously entirely dependent on external managers. For PE, this means building direct investment capability rather than relying solely on fund LP structures.</p><p><strong>Australian LP market context:</strong> Australia's superannuation system creates large, mandatory pension contributions (currently 11.5% of wages) that produce large institutional LP pools. Australian industry funds have been the most progressive LP institutions globally on governance requirements, partly because of their member-benefit orientation and partly because of scale.</p><p>### Transferability Limitations to US LP Context</p><p><strong>Limitation 1: Staff and internal capacity</strong> CPPIB has approximately 2,000 total employees, with hundreds dedicated to PE investing. A comparably sized US public pension fund — CalPERS (~$500bn AUM) — has substantially fewer investment staff relative to assets, and is subject to public employee compensation constraints that make it difficult to attract the caliber of PE professionals that CPPIB employs. The governance leverage that comes from internal expertise is not replicable without internal investment capacity.</p><p><strong>Limitation 2: Scale and anchor investor leverage</strong> CPPIB and AustralianSuper are large enough that GP fundraising teams actively compete for their capital. This gives them negotiating leverage over side letter terms, co-investment access, and governance conditions. Smaller US pension funds (PSERS, KPERS) are not anchor LPs — they receive standard fund terms without negotiating leverage. LP governance reform that works for CPPIB-scale institutions does not automatically work for typical LP institutions.</p><p><strong>Limitation 3: Legal and political constraints</strong> Canadian and Australian pension governance frameworks give investment boards more operational independence from political interference than most US public pension funds. US public pension funds operate under state law and are often subject to board composition requirements, investment mandate restrictions, and public contracting rules that constrain their ability to negotiate aggressive LP governance terms.</p><p><strong>Limitation 4: Fee structure</strong> CPPIB's scale and direct investment capability allow it to negotiate fee structures substantially below standard 2/20. A $300m CPPIB commitment to a fund might carry 1.5/15 terms vs. 2/20 for smaller LPs. This fee advantage is part of the \"governance premium\" — but it reflects size negotiating leverage, not governance sophistication per se.</p><p>### The LP Governance Evidence Quality Assessment</p><p>What CPPIB evidence supports: - LP governance practices (LPAC participation, co-investment rights, side letters) are implementable and compatible with strong returns at sufficient scale - GPs will accept enhanced governance conditions from large anchor LPs without walking away - Internal PE investment capacity enables credible direct investment as an alternative to fund LP investing, changing negotiating dynamics</p><p>What CPPIB evidence does not support: - That governance benefits transfer to smaller LP institutions without similar capacity - That the fund LP-specific returns (distinct from direct investment returns) show a measurable governance premium - That ILPA Principles-level governance demands, if universally required by legislation, would produce CPPIB-level outcomes for typical LPs</p><p>### Policy Implications</p><p>The CPPIB/AustralianSuper model suggests two policy directions — one realistic and one aspirational:</p><p><strong>Realistic (market-led LP governance development):</strong> Large US pension funds (CalPERS, CalSTRS, TIAA-CREF) could develop more CPPIB-like internal capacity if given sufficient operational independence and compensation flexibility. Congressional or state legislation giving pension funds more investment governance independence (analogous to Canada's CPPIB Act, which created CPPIB as a commercially independent entity) could enable this.</p><p><strong>Aspirational (LP governance through scale aggregation):</strong> Creating LP governance consortia — groups of smaller pension funds that jointly negotiate governance terms as a combined anchor LP — could partially replicate the scale leverage that CPPIB exercises individually. This approach (similar to the Dutch PGGM/APG cooperative model) has been proposed but not implemented at scale in the US.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"CPPIB proves LP governance works.\"</strong> CPPIB proves LP governance works for CPPIB-scale institutions with CPPIB-level internal capacity. Whether it works for typical US public pension funds is a separate question the CPPIB evidence doesn't directly answer.</li></ol><ol><li><strong>\"CPPIB is primarily a fund LP investor.\"</strong> CPPIB has increasingly shifted toward direct PE investing — approximately 40-50% of its PE exposure is through direct investments and co-investments rather than passive fund LP positions. CPPIB's governance model is partly a direct investor model, not purely an enhanced fund LP model.</li></ol><ol><li><strong>\"Australian industry funds are interchangeable with US public pension funds.\"</strong> Australian industry funds operate under a different legal framework (superannuation legislation), different governance model (member-benefit orientation), and different scale dynamics (mandatory 11.5% contribution rate). These institutional differences make direct comparison with US public pension funds misleading.</li></ol><p>---</p>"}, "8": {"section": "Summary", "html": "<p>CPPIB and AustralianSuper demonstrate the most sophisticated LP governance models in PE globally — but their effectiveness is substantially a function of exceptional scale, internal investment capacity, and institutional independence that is not replicable for typical US pension fund LPs without structural reforms. CPPIB uses co-investment rights, LPAC participation, side letters, and anchor investor leverage to enforce governance standards that smaller LPs cannot negotiate. AustralianSuper's internalization strategy represents the endpoint of LP governance evolution. The International Comparison as Governance Evidence note's claim that LP governance produces better outcomes is valid for CPPIB-scale institutions; the claim that it supports universal LP governance reform requires supplementary evidence specific to median-sized LP institutions, which is not currently available.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>CPPIB and AustralianSuper demonstrate the most sophisticated LP governance models in PE globally — but their effectiveness is substantially a function of exceptional scale, internal investment capacity, and institutional independence that is not replicable for typical US pension fund LPs without structural reforms. CPPIB uses co-investment rights, LPAC participation, side letters, and anchor investor leverage to enforce governance standards that smaller LPs cannot negotiate. AustralianSuper's internalization strategy represents the endpoint of LP governance evolution. The International Comparison as Governance Evidence note's claim that LP governance produces better outcomes is valid for CPPIB-scale institutions; the claim that it supports universal LP governance reform requires supplementary evidence specific to median-sized LP institutions, which is not currently available.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

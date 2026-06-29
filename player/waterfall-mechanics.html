@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "waterfall-mechanics", "title": "Waterfall Mechanics", "draft_watermark": false, "estimated_runtime_sec": 470, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Where the cash actually splits", "on_screen_bullets": ["Turns '20% over 8%' into cash", "Small design tweaks = $millions", "'20% carry' tells you little"], "narration": "We've talked about a twenty percent carry over an eight percent hurdle. The waterfall is the machine that turns those words into actual cash moving between people. And it's not a formality — a small change in the waterfall's design, the catch-up rate, whether it runs deal-by-deal or whole-fund, how the hurdle compounds, can shift tens of millions of dollars between the LPs and the GP. That's why professional investors pull waterfall terms apart line by line: the headline twenty percent carry tells you almost nothing until you know the structure underneath it. This is the technical core of fund economics.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A priority sequence", "on_screen_bullets": ["Rules for order of payout", "LP capital + return first", "Then GP carry"], "narration": "The definition. A distribution waterfall is the contractual sequence of rules that sets the order and priority in which cash from a fund's exits is paid out to the LPs and the GP. Its whole job is to make sure the LPs get their capital back, plus a minimum return, before the GP earns any carried interest. It's not about how much — it's about who gets paid, in what order.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Pools that fill in order", "on_screen_bullets": ["Bucket 1: return LP capital", "Bucket 2: LP preferred return", "Bucket 3: GP catch-up"], "narration": "The name is the picture. Imagine a real waterfall: water fills the top pool, and the pool below it gets nothing until the one above overflows. A PE waterfall works the same way. When a company is sold and cash comes in, it doesn't get split on the spot — it flows through buckets in strict priority. Bucket one: return of capital — the LPs get their money back first, and until they're whole, nothing flows on. Bucket two: the minimum return — the LPs earn their preferred return, typically eight percent a year, the interest they were owed for waiting and accepting illiquidity. Bucket three: the GP catch-up — now the GP takes a disproportionate share of the next dollars, to make up for getting nothing in the first two buckets. Each pool must overflow before the next one sees a drop.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The restaurant partnership", "on_screen_bullets": ["You: $100k LP; partner runs it", "Capital back → 8% → catch-up", "Then 80/20 on the rest"], "narration": "Make it concrete with a restaurant. You put in a hundred thousand — you're the LP. Your partner runs it — they're the GP. The deal: when you sell, you get your hundred thousand back first. Then you get eight percent a year on it for however long it ran — your hurdle. Then your partner catches up until they hold twenty percent of the profit so far. And everything after that splits eighty-twenty, you and them. Say it sells for a hundred and fifty thousand after one year. You get your hundred thousand back. You get eight thousand, the eight percent. Then the partner catches up — about two thousand, so that of the ten thousand of profit counted so far, their two thousand is exactly twenty percent. And the remaining forty thousand splits eighty-twenty: thirty-two thousand to you, eight thousand to them. That's a full waterfall in one dinner.", "est_sec": 60}, {"n": 5, "beat": "mechanics", "visual": "diagram", "source_section": "Diagram", "on_screen_title": "The four tiers", "on_screen_bullets": ["1 capital · 2 pref · 3 catch-up · 4 split", "Lower tier waits for overflow", "Catch-up is the only GP-first tier"], "mermaid": "flowchart TD\n  P[\"Exit proceeds arrive\"] --> T1[\"Tier 1 – Return of Capital<br/>100% to LPs until capital repaid\"]\n  T1 -->|overflow| T2[\"Tier 2 – Preferred Return<br/>100% to LPs until ~8% p.a. hurdle met\"]\n  T2 -->|overflow| T3[\"Tier 3 – GP Catch-Up<br/>~100% to GP until GP holds 20% of profit\"]\n  T3 -->|overflow| T4[\"Tier 4 – Carry Split<br/>80% LP / 20% GP on everything beyond\"]", "narration": "Here are the four tiers formally. Tier one, return of capital: a hundred percent to the LPs until their drawn-down capital — including, in most agreements, the fees they paid — is fully repaid. Tier two, preferred return: a hundred percent to the LPs until they've earned their roughly eight percent a year, accruing from the date capital was called. Tier three, the GP catch-up: now nearly all of the next dollars flow to the GP, until the GP holds twenty percent of the total profit. And tier four, the carry split: everything beyond that divides eighty to the LPs, twenty to the GP. The thing to notice is tier three — the catch-up is the one tier that flows up to the GP before the ongoing split, and it exists precisely because the GP got nothing in tiers one and two.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "American vs. European", "on_screen_bullets": ["European: whole-fund, LP-friendly", "American: deal-by-deal, GP-friendly", "Catch-up rate swings the money"], "narration": "Two design choices decide who gets paid sooner. A European, or whole-fund, waterfall applies the tiers across the entire fund: the GP earns no carry until all the LPs' capital and preferred return, across every deal, are returned. That's LP-friendly — carry comes late and safely. An American, or deal-by-deal, waterfall runs the tiers on each deal as it exits, so the GP can earn carry on a winning early deal even while the overall fund is unproven. That's GP-friendly, and it's why deal-by-deal structures lean so heavily on clawbacks to recover carry if later deals disappoint. And the catch-up rate itself is negotiated: a full, hundred-percent catch-up gets the GP to its twenty percent fastest; a fifty-percent catch-up shares those dollars and is gentler on LPs. None of this shows up in the words two and twenty — but it's where the real money moves.", "est_sec": 60}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Fund III: $400m in, $680m out", "on_screen_bullets": ["$400m raised, $380m deployed", "8 companies sold for $680m", "European waterfall in action"], "narration": "Walk a realistic mid-market fund through it. Fund Three raises four hundred million. Over an eight-year life it deploys three hundred and eighty million into eight companies — the other twenty million covers management fees along the way. It sells all eight for a combined six hundred and eighty million. Under a European, whole-fund waterfall, the cash fills the tiers in order: first the LPs get back their four hundred million of contributed capital; then they receive their compounded eight percent preferred return on it; only once both are satisfied does the GP catch up toward its twenty percent of the profit; and the remainder splits eighty-twenty. Because it's whole-fund, the GP touches no carry until the LPs are fully made whole across all eight deals at once — which is exactly the protection a deal-by-deal structure trades away for earlier GP payouts.", "est_sec": 58}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["'20% carry' ≠ the full story", "Catch-up can mean carry on all profit", "Deal-by-deal needs a clawback"], "narration": "The misconceptions here are expensive ones. First, twenty percent carry is not the story — it's the headline. The catch-up, the hurdle compounding, and whole-fund versus deal-by-deal can swing the actual split dramatically. Second, people forget what a full catch-up does: with a soft hurdle and a hundred-percent catch-up, the GP ends up earning carry on the entire profit, not just the slice above eight percent — the hurdle becomes a timing speed bump, not a permanent carve-out for LPs. And third, never look at a deal-by-deal waterfall without asking about the clawback: paying carry early only protects LPs if there's a robust mechanism to claw it back when later deals turn. The structure beneath two and twenty is the whole game.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The order is the mechanism", "on_screen_bullets": ["Capital → pref → catch-up → 80/20", "European safer; American earlier", "Read the structure, not the headline"], "narration": "To recap. The waterfall is the priority sequence that turns carry from a phrase into cash: tier one returns LP capital, tier two pays the preferred return, tier three lets the GP catch up to its twenty percent of profit, and tier four splits the rest eighty-twenty. Whole-fund European waterfalls protect LPs by paying the GP last; deal-by-deal American ones pay the GP earlier and lean on clawbacks. The order is the mechanism — and the headline twenty percent means little until you've read the structure beneath it. Next, the J-curve: why all of this produces negative returns early before the distributions ever start.", "est_sec": 46}], "end_card": {"quiz_label": "Q1", "question_on_screen": "In a 4-tier waterfall, what must happen before the GP receives any catch-up — and why does the catch-up tier exist at all?", "narration": "Before the next lesson, answer this from memory. In the four-tier waterfall, what has to happen before the GP gets a single dollar of catch-up — and why does that catch-up tier exist in the first place? Say it out loud, then check the notes below."}, "quiz": [{"label": "Q1. Ordering question:", "question": "Put the following waterfall tiers in correct order:\n- GP catch-up\n- 80/20 profit split\n- Preferred return to LPs\n- Return of LP capital", "answer": "(1) Return of LP capital, (2) Preferred return to LPs, (3) GP catch-up, (4) 80/20 profit split."}, {"label": "Q2. Short answer:", "question": "Why does the GP catch-up provision exist?", "answer": "Because the GP earns nothing in Tier 1 and Tier 2 — all distributions go to LPs. The catch-up allows the GP to \"catch up\" to its contractual 20% share of total profits before the ongoing 80/20 split begins."}, {"label": "Q3. Calculation:", "question": "A fund has $100M invested capital and achieves $160M in proceeds. The hurdle is $20M (simplified). How much carried interest does the GP earn, assuming 100% catch-up and 20% carry?", "answer": "Work through the tiers:\n- Tier 1: $100M to LPs. Remaining: $60M.\n- Tier 2: $20M to LPs (hurdle). Remaining: $40M.\n- Tier 3 (catch-up): GP needs 20% of ($20M + C). C = $5M. Remaining: $40M − $5M = $35M.\n- Tier 4: $35M × 80% = $28M to LPs; $35M × 20% = $7M to GP.\n- Total GP carry = $5M + $7M = **$12M** = 20% of $60M total profit. Correct."}, {"label": "Q4. True or False:", "question": "Under a European waterfall, the GP can receive carried interest before all LP capital has been returned.", "answer": "False. Under a European (whole-fund) waterfall, no carry is paid until all LP capital across the entire fund has been returned plus the preferred return earned."}, {"label": "Q5. Multiple choice:", "question": "What is the primary risk of an American (deal-by-deal) waterfall from the LP's perspective?\n\n- A) The GP earns less carry than under a European waterfall\n- B) The GP may earn carry on early winners before overall fund performance is clear, creating clawback exposure\n- C) The hurdle rate is lower\n- D) LPs cannot access their money during the catch-up phase", "answer": "**B** — The American waterfall allows deal-by-deal carry payments, meaning the GP may be overpaid if early wins are followed by later losses, and clawback provisions must compensate."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Waterfall Mechanics\n\n[hook] Where the cash actually splits\nWe've talked about a twenty percent carry over an eight percent hurdle. The waterfall is the machine that turns those words into actual cash moving between people. And it's not a formality — a small change in the waterfall's design, the catch-up rate, whether it runs deal-by-deal or whole-fund, how the hurdle compounds, can shift tens of millions of dollars between the LPs and the GP. That's why professional investors pull waterfall terms apart line by line: the headline twenty percent carry tells you almost nothing until you know the structure underneath it. This is the technical core of fund economics.\n\n[definition] A priority sequence\nThe definition. A distribution waterfall is the contractual sequence of rules that sets the order and priority in which cash from a fund's exits is paid out to the LPs and the GP. Its whole job is to make sure the LPs get their capital back, plus a minimum return, before the GP earns any carried interest. It's not about how much — it's about who gets paid, in what order.\n\n[intuition] Pools that fill in order\nThe name is the picture. Imagine a real waterfall: water fills the top pool, and the pool below it gets nothing until the one above overflows. A PE waterfall works the same way. When a company is sold and cash comes in, it doesn't get split on the spot — it flows through buckets in strict priority. Bucket one: return of capital — the LPs get their money back first, and until they're whole, nothing flows on. Bucket two: the minimum return — the LPs earn their preferred return, typically eight percent a year, the interest they were owed for waiting and accepting illiquidity. Bucket three: the GP catch-up — now the GP takes a disproportionate share of the next dollars, to make up for getting nothing in the first two buckets. Each pool must overflow before the next one sees a drop.\n\n[intuition] The restaurant partnership\nMake it concrete with a restaurant. You put in a hundred thousand — you're the LP. Your partner runs it — they're the GP. The deal: when you sell, you get your hundred thousand back first. Then you get eight percent a year on it for however long it ran — your hurdle. Then your partner catches up until they hold twenty percent of the profit so far. And everything after that splits eighty-twenty, you and them. Say it sells for a hundred and fifty thousand after one year. You get your hundred thousand back. You get eight thousand, the eight percent. Then the partner catches up — about two thousand, so that of the ten thousand of profit counted so far, their two thousand is exactly twenty percent. And the remaining forty thousand splits eighty-twenty: thirty-two thousand to you, eight thousand to them. That's a full waterfall in one dinner.\n\n[mechanics] The four tiers\nHere are the four tiers formally. Tier one, return of capital: a hundred percent to the LPs until their drawn-down capital — including, in most agreements, the fees they paid — is fully repaid. Tier two, preferred return: a hundred percent to the LPs until they've earned their roughly eight percent a year, accruing from the date capital was called. Tier three, the GP catch-up: now nearly all of the next dollars flow to the GP, until the GP holds twenty percent of the total profit. And tier four, the carry split: everything beyond that divides eighty to the LPs, twenty to the GP. The thing to notice is tier three — the catch-up is the one tier that flows up to the GP before the ongoing split, and it exists precisely because the GP got nothing in tiers one and two.\n\n[mechanics] American vs. European\nTwo design choices decide who gets paid sooner. A European, or whole-fund, waterfall applies the tiers across the entire fund: the GP earns no carry until all the LPs' capital and preferred return, across every deal, are returned. That's LP-friendly — carry comes late and safely. An American, or deal-by-deal, waterfall runs the tiers on each deal as it exits, so the GP can earn carry on a winning early deal even while the overall fund is unproven. That's GP-friendly, and it's why deal-by-deal structures lean so heavily on clawbacks to recover carry if later deals disappoint. And the catch-up rate itself is negotiated: a full, hundred-percent catch-up gets the GP to its twenty percent fastest; a fifty-percent catch-up shares those dollars and is gentler on LPs. None of this shows up in the words two and twenty — but it's where the real money moves.\n\n[worked-example] Fund III: $400m in, $680m out\nWalk a realistic mid-market fund through it. Fund Three raises four hundred million. Over an eight-year life it deploys three hundred and eighty million into eight companies — the other twenty million covers management fees along the way. It sells all eight for a combined six hundred and eighty million. Under a European, whole-fund waterfall, the cash fills the tiers in order: first the LPs get back their four hundred million of contributed capital; then they receive their compounded eight percent preferred return on it; only once both are satisfied does the GP catch up toward its twenty percent of the profit; and the remainder splits eighty-twenty. Because it's whole-fund, the GP touches no carry until the LPs are fully made whole across all eight deals at once — which is exactly the protection a deal-by-deal structure trades away for earlier GP payouts.\n\n[pitfalls] What people get wrong\nThe misconceptions here are expensive ones. First, twenty percent carry is not the story — it's the headline. The catch-up, the hurdle compounding, and whole-fund versus deal-by-deal can swing the actual split dramatically. Second, people forget what a full catch-up does: with a soft hurdle and a hundred-percent catch-up, the GP ends up earning carry on the entire profit, not just the slice above eight percent — the hurdle becomes a timing speed bump, not a permanent carve-out for LPs. And third, never look at a deal-by-deal waterfall without asking about the clawback: paying carry early only protects LPs if there's a robust mechanism to claw it back when later deals turn. The structure beneath two and twenty is the whole game.\n\n[recap] The order is the mechanism\nTo recap. The waterfall is the priority sequence that turns carry from a phrase into cash: tier one returns LP capital, tier two pays the preferred return, tier three lets the GP catch up to its twenty percent of profit, and tier four splits the rest eighty-twenty. Whole-fund European waterfalls protect LPs by paying the GP last; deal-by-deal American ones pay the GP earlier and lean on clawbacks. The order is the mechanism — and the headline twenty percent means little until you've read the structure beneath it. Next, the J-curve: why all of this produces negative returns early before the distributions ever start.\n\nQ: Put the following waterfall tiers in correct order:\n- GP catch-up\n- 80/20 profit split\n- Preferred return to LPs\n- Return of LP capital\nA: (1) Return of LP capital, (2) Preferred return to LPs, (3) GP catch-up, (4) 80/20 profit split.\nQ: Why does the GP catch-up provision exist?\nA: Because the GP earns nothing in Tier 1 and Tier 2 — all distributions go to LPs. The catch-up allows the GP to \"catch up\" to its contractual 20% share of total profits before the ongoing 80/20 split begins.\nQ: A fund has $100M invested capital and achieves $160M in proceeds. The hurdle is $20M (simplified). How much carried interest does the GP earn, assuming 100% catch-up and 20% carry?\nA: Work through the tiers:\n- Tier 1: $100M to LPs. Remaining: $60M.\n- Tier 2: $20M to LPs (hurdle). Remaining: $40M.\n- Tier 3 (catch-up): GP needs 20% of ($20M + C). C = $5M. Remaining: $40M − $5M = $35M.\n- Tier 4: $35M × 80% = $28M to LPs; $35M × 20% = $7M to GP.\n- Total GP carry = $5M + $7M = **$12M** = 20% of $60M total profit. Correct.\nQ: Under a European waterfall, the GP can receive carried interest before all LP capital has been returned.\nA: False. Under a European (whole-fund) waterfall, no carry is paid until all LP capital across the entire fund has been returned plus the preferred return earned.\nQ: What is the primary risk of an American (deal-by-deal) waterfall from the LP's perspective?\n\n- A) The GP earns less carry than under a European waterfall\n- B) The GP may earn carry on early winners before overall fund performance is clear, creating clawback exposure\n- C) The hurdle rate is lower\n- D) LPs cannot access their money during the catch-up phase\nA: **B** — The American waterfall allows deal-by-deal carry payments, meaning the GP may be overpaid if early wins are followed by later losses, and clawback provisions must compensate.\nEnd-card question: In a 4-tier waterfall, what must happen before the GP receives any catch-up — and why does the catch-up tier exist at all?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The waterfall is the mechanism that turns the abstract concept of \"20% carried interest above an 8% hurdle\" into actual cash flows. A small change in waterfall design — the catch-up rate, whether you use a deal-by-deal or whole-fund structure, or how the hurdle compounds — can move tens of millions of dollars between LPs and the GP. Professional investors analyse waterfall terms rigorously because the headline \"20% carry\" tells you very little without knowing the structure beneath it. This note builds the technical foundation you need to evaluate and model fund economics.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A distribution waterfall is the contractual sequence of rules that determines the order and priority in which cash proceeds from a PE fund's exits are distributed to LPs and the GP — ensuring LPs receive their capital back plus a minimum return before the GP earns any carried interest.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a waterfall in the natural world. Water flows down, filling each pool in sequence. The lower pool doesn't receive water until the upper pool overflows.</p><p>A PE distribution waterfall works the same way. When a portfolio company is sold and cash comes in, it doesn't get split immediately. It flows through a series of buckets in a strict priority order:</p><p><strong>Bucket 1 — Return of capital:</strong> LPs get their money back first. Until they are whole, nothing flows further.</p><p><strong>Bucket 2 — The minimum return (hurdle):</strong> LPs then earn their preferred return — typically 8% per year on their money. Think of this as the interest they were owed for waiting 5-10 years and accepting illiquidity risk.</p><p><strong>Bucket 3 — GP catch-up:</strong> Now the GP gets a disproportionate share of the next dollars. This compensates the GP for the fact that it received nothing during the first two tiers, even though it was managing the fund the whole time. The catch-up continues until the GP holds 20% of total profits distributed so far.</p><p><strong>Bucket 4 — Ongoing profit split:</strong> All remaining profits are divided 80% to LPs and 20% to the GP (carried interest).</p><p>The order is non-negotiable: LP capital first, LP hurdle second, GP catch-up third, then the split. This is what \"preferred return\" means — LPs have a preferred position in the distribution sequence.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of a PE waterfall like a series of <strong>loan repayment tranches</strong> at a restaurant partnership:</p><p>You and a business partner open a restaurant. You put in $100K (you are the LP). Your partner runs it (they are the GP). The deal: 1. When you sell the restaurant, you get your $100K back first. 2. Then you get 8% per year on that $100K for however long it ran (your hurdle return). 3. Then your partner gets a catch-up share until they hold 20% of the remaining profits. 4. Everything after that is split 80/20 — you get 80%, partner gets 20%.</p><p>If the restaurant sells for $150K after 1 year: 1. You get back $100K 2. You get $8K (8% of $100K for 1 year) 3. Partner catches up: they need to get 20% of ($8K + catch-up amount). Catch-up = $2K (so now GP has $2K and LP has $8K = $10K total = $2K is 20%) 4. Remaining $40K: $32K to you, $8K to partner 5. Total: You = $140K. Partner = $10K. Partner earned 20% of the $50K total profit.</p><p>---</p>"}, "4": {"section": "Diagram", "html": "<p>Proceeds fill each tier in strict priority — a lower tier receives nothing until the tier above it overflows. This <em>sequence</em> is the whole concept; the percentages live in the prose.</p><p>The catch-up (Tier 3) is the only tier that flows <em>up</em> to the GP before the ongoing split — it exists precisely because the GP received nothing in Tiers 1–2.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p><strong>The Four Tiers in Detail</strong></p><p><strong>Tier 1: Return of Capital</strong> LPs receive 100% of distributions until they have received back an amount equal to their total capital contributions (drawn-down capital). This includes capital used for investments AND capital paid as management fees. Management fees are treated as \"invested\" for return-of-capital purposes in most LPAs — meaning LPs must receive back not only their deal capital but also the fees they paid. [needs-verification — LPA-specific, practices vary]</p><p><strong>Tier 2: Preferred Return (Hurdle)</strong> After capital is returned, LPs receive 100% of distributions until they have earned an annual preferred return on their invested capital, typically compounding at 8% per annum. The preferred return accrues from the date capital is called, not from fund inception. This is important: different tranches of capital called at different times accrue hurdles for different periods.</p><p>Preferred return formula (simplified): LP Capital × (1 + 8%)^n, where n = years invested. [needs-verification — compounding method varies: daily, quarterly, or annual compound are all used in practice]</p><p><strong>Tier 3: GP Catch-Up</strong> Once the LP hurdle is satisfied, the GP receives 100% of subsequent distributions (or in some structures, an accelerated split like 50/50 or 80/20 in the GP's favour) until the GP has received an amount equal to 20% of total profits paid out to date (Tier 2 preferred return + Tier 3 catch-up combined).</p><p>The effect: at the end of Tier 3, the GP holds exactly 20% of total fund profits, and LPs hold 80%.</p><p><strong>Tier 4: Carried Interest Split</strong> All remaining proceeds are split 80% LP / 20% GP indefinitely. This is the \"20% carry\" referred to in the headline economics.</p><p><strong>Graphical Logic (Written Form)</strong></p><p>Imagine the fund generated $150M on a $100M investment: - $150M flows in - First $100M → goes to LPs (return of capital) - Next $8M → goes to LPs (simplified hurdle on $100M at 8%) - Next $2M → goes to GP (catch-up; makes GP whole at 20% of $10M total profit in tiers 2+3) - Remaining $40M → 80% LP ($32M) / 20% GP ($8M) - Total GP: $2M + $8M = $10M = exactly 20% of $50M total profit - Total LP: $100M + $8M + $32M = $140M</p><p>This is the worked example in the next section with real numbers.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Illustrative mid-market buyout — European waterfall</strong></p><p>A mid-market PE fund (Fund III) raises $400M. Over its 8-year life it deploys $380M into 8 companies (the remaining $20M covers management fees over the period). It exits all 8 companies for a combined $680M.</p><p>Gross profit: $680M - $380M = $300M.</p><p>Under a European (whole-fund) waterfall: 1. <strong>Return of capital:</strong> First $380M (of the $680M proceeds) flows entirely to LPs. 2. <strong>Preferred return:</strong> 8% compounded annually on $380M over various holding periods. For simplicity, assume this amounts to approximately $120M. [needs-verification — highly illustrative] 3. <strong>GP catch-up:</strong> GP receives an accelerated share until it holds 20% of ($120M preferred + catch-up). This results in approximately $30M to the GP. [needs-verification — illustrative] 4. <strong>80/20 split:</strong> Remaining $150M split 80/20: $120M to LPs, $30M to GP.</p><p>Total GP carried interest: ~$60M on a $400M fund. Total LP proceeds: ~$620M. [needs-verification — illustrative only]</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The GP receives 20% of all money returned to LPs.\"</strong> Incorrect. The GP receives 20% of profits above the hurdle rate — which is a subset of total returns. In a fund that returns 1.1x (barely profitable), the GP may earn almost no carry because the hurdle alone consumes most of the profit.</p><p><strong>Misconception 2: \"The catch-up means the GP gets paid before LPs.\"</strong> Incorrect. The catch-up only begins after LPs have received their capital back AND their preferred return. At the start of Tier 3, LPs have already been made whole. The catch-up compensates the GP for what it would have earned on those first tiers if the 80/20 split had applied throughout.</p><p><strong>Misconception 3: \"European waterfalls are better for everyone.\"</strong> European waterfalls are better for LPs (more protection) but worse for GPs (they wait longer for carry). GPs prefer American structures for the earlier carry cash flows.</p><p><strong>Misconception 4: \"The hurdle rate is based on the total fund size.\"</strong> The hurdle applies to drawn-down capital, calculated from the date each tranche was called. Capital called in Year 4 accrues only 6 years of hurdle (assuming a 10-year fund), while Year 1 capital accrues 9 years.</p><p><strong>Misconception 5: \"Once carry is paid, it cannot be reclaimed.\"</strong> In a well-structured LPA, carry paid under an American waterfall is subject to clawback if later deals underperform. The clawback provision is the counterweight to deal-by-deal distributions.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>A distribution waterfall is the four-tier contractual sequence governing how PE fund proceeds are divided between LPs and the GP. Tier 1 returns all LP capital. Tier 2 pays LPs their preferred annual return (typically 8%). Tier 3 gives the GP a catch-up to bring it to 20% of total profits. Tier 4 splits remaining profits 80/20 (LPs/GP). The European (whole-fund) waterfall requires all LP capital and hurdle to be returned before any carry is paid, protecting LPs from overpaying carry on early winners. The American (deal-by-deal) waterfall pays carry after each individual exit, requiring clawback provisions to reconcile overpayments if the overall fund underperforms. Understanding waterfall mechanics is essential for calculating actual net LP returns and evaluating the alignment between GP and LP incentives.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

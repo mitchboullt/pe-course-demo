@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "what-is-private-equity", "title": "What Is Private Equity", "draft_watermark": false, "_gate_note": "Source note PASSES the shippable gate (status: complete, source/secondary, zero needs-verification markers). All figures verified against the public record: Hilton ~$26bn entry / ~$14bn profit; RJR Nabisco ~$25bn LBO (1989); private capital AUM ~$14.8tn mid-2024 with PE proper >$8tn.", "_notes_panel": "Each scene's source_section names the note.md ## heading whose verbatim prose build_player.py shows in the 'Lesson notes' panel (pass --note). The note is the single source of truth.", "estimated_runtime_sec": 452, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Trillions you've never seen trade", "on_screen_bullets": ["Owns companies you use daily", "No stock ticker to watch", "~$8 trillion, quietly"], "narration": "There is an entire layer of the economy that owns the companies you deal with every week — the hotel you stayed in, the software your office runs on, the clinic down the road — and yet you will never see any of it trade on a stock exchange. No ticker. No daily price. This is private equity, and it controls well over eight trillion dollars of capital worldwide. By the end of this lesson you'll understand the basic machine: who puts up the money, where it goes, how the profit gets made, and how that profit is split. Get this one idea right and every other topic in the course — leveraged buyouts, fund economics, exits — clicks into place. Get it wrong, and none of them will.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "What it actually is", "on_screen_bullets": ["Raise a pool of capital", "Buy private companies", "Improve them, then sell", "Beat the public market"], "narration": "So let's define it cleanly. Private equity is an asset class where an investment firm raises money from large investors, pools it into a single fund, and uses that money to buy ownership of private companies — companies that are not listed on a public stock market. Then comes the part that makes it private equity rather than just investing: the firm actively manages those companies to make them more valuable, and after a few years it sells them. The whole point is to earn a return meaningfully above what you'd get from public stocks. Four features set it apart. The companies are private. The firm takes control and actually runs them. The fund has a fixed end date. And the deals are often financed heavily with debt, which magnifies both the gains and the risks.", "est_sec": 52}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "House-flipping, industrial scale", "on_screen_bullets": ["Raise money", "Buy undervalued", "Renovate", "Sell at a profit", "Split the gain"], "narration": "Here's the mental model. Think of a house-flipper. They raise some money, buy a run-down or underpriced house, renovate it, sell it for more than they paid, and split the profit with whoever backed them. A private equity firm does exactly that — but the house is a company. The renovation is new management, cost discipline, faster growth, or bolt-on acquisitions. The sale is a trade sale, a stock-market listing, or a sale to another buyer. And the people who put up the money are pension funds and university endowments. The borrowed money used to help buy it has a name you'll hear constantly — leverage. The analogy isn't perfect, because a firm juggles many companies at once over many years with far more complex financing. But the core loop is the same three steps: buy, improve, sell.", "est_sec": 54}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Key Components", "on_screen_title": "Two sides of the table", "on_screen_bullets": ["GP runs the fund", "LPs supply the capital", "LPs are passive", "Fund owns the companies"], "narration": "Every deal has two sides. On one side is the General Partner — the GP. That's the investment firm itself: names like Blackstone, KKR, Carlyle, Apollo. The GP raises the fund, decides what to buy, and runs the companies. On the other side are the Limited Partners — the LPs. These are the investors who actually supply the cash: pension funds like CalPERS, endowments like Yale, sovereign wealth funds, family offices. The crucial thing about LPs is that they're passive. They hand over capital and they have limited liability — they can only lose what they put in — but they make no investment decisions. And here's a subtlety people miss: it's the fund, a legal partnership, that owns the companies. Not the GP firm directly. The GP just manages the fund on the LPs' behalf.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "diagram", "source_section": "Technical Explanation", "on_screen_title": "The 10-year life of a fund", "on_screen_bullets": ["Raise → invest → grow → exit", "~5 years to deploy", "~10 years total", "Then it winds down"], "mermaid": "flowchart LR\n  F[\"Fundraising<br/>Yr 0-1\"] --> I[\"Investment period<br/>Yr 1-5: capital calls\"]\n  I --> V[\"Value creation<br/>Yr 2-8: run the companies\"]\n  V --> H[\"Harvest / exits<br/>Yr 4-10: sell, distribute\"]\n  H --> W[\"Fund winds down<br/>final distributions\"]", "narration": "A fund isn't open-ended — it lives for about ten years, and it moves through four phases. First, fundraising: the GP pitches its strategy and collects binding commitments from LPs. Notice the LPs don't wire the cash up front — they promise to provide it when called. Second, the investment period, roughly the first five years: the GP hunts for companies and, as each deal closes, issues a capital call to draw down the money it needs. Third, value creation, the middle years: the GP works hands-on with each company to grow it. Fourth, harvesting: starting a few years in and running to the end, the GP sells the companies and returns the proceeds to LPs. When the last company is sold, the fund makes its final distributions and legally shuts down. Raise, invest, grow, exit, wind down — that rhythm is the heartbeat of the whole industry.", "est_sec": 60}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Hilton: the model in one deal", "on_screen_bullets": ["2007: bought for ~$26bn", "Crisis nearly sank it", "Fixed, grew, re-listed", "2018: ~$14bn profit"], "narration": "Let me make it concrete with the most profitable private equity deal ever recorded. In 2007, Blackstone bought Hilton Hotels for about twenty-six billion dollars — equity from its fund, and the rest loaded onto Hilton as debt. The timing looked catastrophic: the 2008 financial crisis hit almost immediately, and that debt nearly buried the company. But Blackstone didn't walk away. It restructured the debt, expanded the brand internationally, sharpened operations, and grew the loyalty programme. It took Hilton public again in 2013, and by the time it fully exited in 2018 it had made roughly fourteen billion dollars in profit. That is the entire lifecycle in one story: raise capital, buy with debt, manage through real difficulty, exit, and return the gains. Contrast it with the most famous deal of all — KKR's roughly twenty-five-billion-dollar buyout of RJR Nabisco in 1989, immortalised in Barbarians at the Gate. It was enormous, it was legendary — and its investors barely made a cent. Fame and profit are not the same thing.", "est_sec": 66}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["PE is not venture capital", "Not just piling on debt", "LPs don't pick deals", "Funds must sell — eventually"], "narration": "Now let's clear up the things people get wrong, because the misconceptions are everywhere. First: private equity is not venture capital. Venture backs tiny, unproven startups; private equity, in normal usage, buys established, profitable companies. Different risk, different deal, different returns. Second: it's not just financial engineering — not just piling debt onto a company and waiting. Leverage matters, but in today's competitive market most of the return has to come from genuinely improving the business. Third: the LPs do not pick the deals — they're passive, full stop. And fourth: a fund cannot hold its companies forever. The model is built around exiting within a defined window and handing cash back. If you remember those four corrections, you're already ahead of most people who talk about this industry.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The one mental model", "on_screen_bullets": ["Raise from LPs", "Buy private, with debt", "Improve over ~10 years", "Exit and split the gains"], "narration": "So here's the whole thing in one breath. A GP raises capital from institutional LPs, pools it into a roughly ten-year fund, buys private companies — usually with a healthy slug of debt — works to make them more valuable, and then sells them, returning the profits to LPs after fees and its own cut. It differs from public investing in three ways: active ownership, an illiquid fixed-life structure, and the heavy use of leverage. Hold onto that single loop — raise, buy, improve, exit — and every advanced topic ahead of you is just a detailed look at one part of it.", "est_sec": 42}], "end_card": {"quiz_label": "Q1", "question_on_screen": "What is the typical total lifespan of a private equity fund?  A) 3 years  B) 5 years  C) 10 years  D) 25 years", "narration": "Before you move on, pause and answer this from memory. What is the typical total lifespan of a private equity fund — three years, five, ten, or twenty-five? Pick one, say why, and then check yourself. I'll see you in the next lesson, where we open up the GP and LP relationship in detail."}, "quiz": [{"label": "Q1. Multiple choice:", "question": "What is the typical total lifespan of a private equity fund?\n- A) 3 years\n- B) 5 years\n- C) 10 years\n- D) 25 years", "answer": "**C** — 10 years, often with 1–2 year extension options."}, {"label": "Q2. True or False:", "question": "Limited partners make investment decisions in a PE fund.", "answer": "False. LPs are passive capital providers. The GP makes all investment decisions."}, {"label": "Q3. Short answer:", "question": "Name the four phases of a private equity fund lifecycle in order.", "answer": "(1) Fundraising, (2) Investment period / capital deployment, (3) Value creation / ownership, (4) Harvesting / exits."}, {"label": "Q4. Multiple choice:", "question": "What primarily distinguishes private equity from venture capital?\n- A) PE uses more technology\n- B) PE targets established, profitable companies; VC targets early-stage startups\n- C) PE funds are larger\n- D) VC has higher fees", "answer": "**B** — the stage and nature of target companies is the fundamental distinction."}, {"label": "Q5. Calculation:", "question": "If a PE fund acquires a company for $500M and sells it 5 years later for $900M (ignoring debt, fees, and carry for simplicity), what is the gross return multiple?", "answer": "$900M / $500M = 1.8x. This is expressed as a 1.8x MOIC (Multiple on Invested Capital)."}]};
+const WIDGET = {"type": "jcurve", "title": "Live fund J-curve", "blurb": "A fund calls capital and pays fees first, and only returns cash years later. Drag the inputs and watch the curve dip below zero before it climbs — that dip is the J-curve this lesson describes.", "defaults": {"commit": 100, "life": 10, "invest": 5, "grossMoic": 2.2, "feePct": 2.0}};
+const BRANCH = {"title": "Decision: the crisis-era hold", "setup": "It's 2010. A hotel company you bought in 2007 with heavy debt is battered but recovering. Your fund has a ~10-year life, so the clock is ticking — but you're only three years in. A rival offers to buy it now at a price that returns your capital plus a small profit, locking in a modest win and removing all further risk. Hold, and you might multiply your money as the recovery builds — or face a double-dip and a debt crisis.", "choices": [{"label": "Sell now, bank the small win", "outcome": "You return capital and a modest profit, and you've removed all downside. But you've handed the entire recovery to the buyer. This is roughly the trade Blackstone declined with Hilton — selling in 2010 would have forfeited most of the eventual ~$14bn gain. Safe, but it leaves the model's whole thesis on the table.", "verdict": "over-cautious"}, {"label": "Restructure the debt and hold", "outcome": "You renegotiate the debt to survive the trough, then ride the operational recovery and a public listing. This is the Hilton playbook: the value came from managing through difficulty, not from a quick flip. The risk was real — but the fund's ~10-year life gave you the runway to be patient.", "verdict": "disciplined"}, {"label": "Dividend recap, then keep holding", "outcome": "You raise new debt against the recovering company to pay yourself a distribution today, then keep the upside. It de-risks your position — but it re-levers a company that nearly drowned in debt 18 months ago. Clever in a calm market; reckless if the recovery stalls. A real tool, used with real caution.", "verdict": "defensible"}]};
+const TUTOR_CONTEXT = "LESSON: What Is Private Equity\n\n[hook] Trillions you've never seen trade\nThere is an entire layer of the economy that owns the companies you deal with every week — the hotel you stayed in, the software your office runs on, the clinic down the road — and yet you will never see any of it trade on a stock exchange. No ticker. No daily price. This is private equity, and it controls well over eight trillion dollars of capital worldwide. By the end of this lesson you'll understand the basic machine: who puts up the money, where it goes, how the profit gets made, and how that profit is split. Get this one idea right and every other topic in the course — leveraged buyouts, fund economics, exits — clicks into place. Get it wrong, and none of them will.\n\n[definition] What it actually is\nSo let's define it cleanly. Private equity is an asset class where an investment firm raises money from large investors, pools it into a single fund, and uses that money to buy ownership of private companies — companies that are not listed on a public stock market. Then comes the part that makes it private equity rather than just investing: the firm actively manages those companies to make them more valuable, and after a few years it sells them. The whole point is to earn a return meaningfully above what you'd get from public stocks. Four features set it apart. The companies are private. The firm takes control and actually runs them. The fund has a fixed end date. And the deals are often financed heavily with debt, which magnifies both the gains and the risks.\n\n[intuition] House-flipping, industrial scale\nHere's the mental model. Think of a house-flipper. They raise some money, buy a run-down or underpriced house, renovate it, sell it for more than they paid, and split the profit with whoever backed them. A private equity firm does exactly that — but the house is a company. The renovation is new management, cost discipline, faster growth, or bolt-on acquisitions. The sale is a trade sale, a stock-market listing, or a sale to another buyer. And the people who put up the money are pension funds and university endowments. The borrowed money used to help buy it has a name you'll hear constantly — leverage. The analogy isn't perfect, because a firm juggles many companies at once over many years with far more complex financing. But the core loop is the same three steps: buy, improve, sell.\n\n[mechanics] Two sides of the table\nEvery deal has two sides. On one side is the General Partner — the GP. That's the investment firm itself: names like Blackstone, KKR, Carlyle, Apollo. The GP raises the fund, decides what to buy, and runs the companies. On the other side are the Limited Partners — the LPs. These are the investors who actually supply the cash: pension funds like CalPERS, endowments like Yale, sovereign wealth funds, family offices. The crucial thing about LPs is that they're passive. They hand over capital and they have limited liability — they can only lose what they put in — but they make no investment decisions. And here's a subtlety people miss: it's the fund, a legal partnership, that owns the companies. Not the GP firm directly. The GP just manages the fund on the LPs' behalf.\n\n[mechanics] The 10-year life of a fund\nA fund isn't open-ended — it lives for about ten years, and it moves through four phases. First, fundraising: the GP pitches its strategy and collects binding commitments from LPs. Notice the LPs don't wire the cash up front — they promise to provide it when called. Second, the investment period, roughly the first five years: the GP hunts for companies and, as each deal closes, issues a capital call to draw down the money it needs. Third, value creation, the middle years: the GP works hands-on with each company to grow it. Fourth, harvesting: starting a few years in and running to the end, the GP sells the companies and returns the proceeds to LPs. When the last company is sold, the fund makes its final distributions and legally shuts down. Raise, invest, grow, exit, wind down — that rhythm is the heartbeat of the whole industry.\n\n[worked-example] Hilton: the model in one deal\nLet me make it concrete with the most profitable private equity deal ever recorded. In 2007, Blackstone bought Hilton Hotels for about twenty-six billion dollars — equity from its fund, and the rest loaded onto Hilton as debt. The timing looked catastrophic: the 2008 financial crisis hit almost immediately, and that debt nearly buried the company. But Blackstone didn't walk away. It restructured the debt, expanded the brand internationally, sharpened operations, and grew the loyalty programme. It took Hilton public again in 2013, and by the time it fully exited in 2018 it had made roughly fourteen billion dollars in profit. That is the entire lifecycle in one story: raise capital, buy with debt, manage through real difficulty, exit, and return the gains. Contrast it with the most famous deal of all — KKR's roughly twenty-five-billion-dollar buyout of RJR Nabisco in 1989, immortalised in Barbarians at the Gate. It was enormous, it was legendary — and its investors barely made a cent. Fame and profit are not the same thing.\n\n[pitfalls] What people get wrong\nNow let's clear up the things people get wrong, because the misconceptions are everywhere. First: private equity is not venture capital. Venture backs tiny, unproven startups; private equity, in normal usage, buys established, profitable companies. Different risk, different deal, different returns. Second: it's not just financial engineering — not just piling debt onto a company and waiting. Leverage matters, but in today's competitive market most of the return has to come from genuinely improving the business. Third: the LPs do not pick the deals — they're passive, full stop. And fourth: a fund cannot hold its companies forever. The model is built around exiting within a defined window and handing cash back. If you remember those four corrections, you're already ahead of most people who talk about this industry.\n\n[recap] The one mental model\nSo here's the whole thing in one breath. A GP raises capital from institutional LPs, pools it into a roughly ten-year fund, buys private companies — usually with a healthy slug of debt — works to make them more valuable, and then sells them, returning the profits to LPs after fees and its own cut. It differs from public investing in three ways: active ownership, an illiquid fixed-life structure, and the heavy use of leverage. Hold onto that single loop — raise, buy, improve, exit — and every advanced topic ahead of you is just a detailed look at one part of it.\n\nQ: What is the typical total lifespan of a private equity fund?\n- A) 3 years\n- B) 5 years\n- C) 10 years\n- D) 25 years\nA: **C** — 10 years, often with 1–2 year extension options.\nQ: Limited partners make investment decisions in a PE fund.\nA: False. LPs are passive capital providers. The GP makes all investment decisions.\nQ: Name the four phases of a private equity fund lifecycle in order.\nA: (1) Fundraising, (2) Investment period / capital deployment, (3) Value creation / ownership, (4) Harvesting / exits.\nQ: What primarily distinguishes private equity from venture capital?\n- A) PE uses more technology\n- B) PE targets established, profitable companies; VC targets early-stage startups\n- C) PE funds are larger\n- D) VC has higher fees\nA: **B** — the stage and nature of target companies is the fundamental distinction.\nQ: If a PE fund acquires a company for $500M and sells it 5 years later for $900M (ignoring debt, fees, and carry for simplicity), what is the gross return multiple?\nA: $900M / $500M = 1.8x. This is expressed as a 1.8x MOIC (Multiple on Invested Capital).\nEnd-card question: What is the typical total lifespan of a private equity fund?  A) 3 years  B) 5 years  C) 10 years  D) 25 years";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Understanding what private equity is forms the bedrock of everything else in this course. Every concept you will encounter — LBOs, fund economics, due diligence, value creation, exits — only makes sense if you first understand the basic model: who raises the money, where it goes, how profits are generated, and how those profits are shared. Private equity also controls trillions of dollars of capital globally and influences companies across virtually every industry, making it one of the most consequential corners of the financial world.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Private equity is an asset class in which investment firms raise capital from institutional and wealthy investors, pool it into a closed-end fund, use it to acquire ownership stakes in private (non-publicly listed) companies, actively manage those companies to increase their value, and then sell them — targeting returns significantly above public markets.</p><p>---</p>"}, "2": {"section": "Mental Model / Analogy", "html": "<p>Think of a private equity firm like a <strong>house-flipping operation at industrial scale</strong>.</p><p>A house flipper: - Raises money (from partners or a bank) - Buys undervalued or distressed properties - Renovates them to increase their value - Sells them at a profit - Splits the profits with whoever put up the capital</p><p>A PE firm does exactly this, but: - The \"house\" is a company - The renovation is operational improvement, new management, acquisitions, or financial restructuring - The \"sale\" is a trade sale, IPO, or secondary buyout - The \"partners\" are pension funds and endowments - The debt used to buy is called leverage</p><p>The analogy breaks down because PE firms manage far more complexity — multiple companies simultaneously, over longer time horizons, with far more sophisticated financing structures — but the core logic is the same: buy, improve, sell.</p><p>---</p>"}, "3": {"section": "Key Components", "html": "<p><strong>1. The General Partner (GP)</strong> The investment management firm. Raises the fund, makes investment decisions, manages portfolio companies, and bears unlimited liability for the fund's obligations. Examples: KKR, Blackstone, Carlyle, Apollo.</p><p><strong>2. The Limited Partners (LPs)</strong> The investors who provide capital. They have limited liability (they can only lose what they invest). They do not make investment decisions. Examples: CalPERS (pension fund), Yale Endowment, Abu Dhabi Investment Authority (sovereign wealth fund), family offices.</p><p><strong>3. The Fund</strong> A legal entity (typically a limited partnership) that holds the capital and investments. The GP manages it; LPs invest in it.</p><p><strong>4. Portfolio Companies</strong> The companies the fund acquires. They are private (or taken private from a public exchange). They are the GP's operating assets during the fund's life.</p><p><strong>5. Investment Banks and Advisors</strong> Third parties who advise on deal sourcing, financing, due diligence, and exits. They are not permanent participants but are central to deal execution.</p><p><strong>6. Debt Providers (in buyouts)</strong> Banks, credit funds, and direct lenders who provide the leverage used in LBO transactions. The debt sits on the portfolio company's balance sheet, not the fund's.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>Private equity firms operate as <strong>investment managers</strong>. They raise a series of closed-end, limited-partnership funds, each with a defined capital commitment period (typically 5 years to deploy capital) and a total fund life of approximately 10 years (extendable by 1-2 years with LP consent).</p><p>The fund lifecycle has four phases: 1. <strong>Fundraising (Year 0-1):</strong> The GP markets the fund to prospective LPs and collects binding capital commitments. LPs do not transfer cash upfront — they commit to provide it when called. 2. <strong>Investment Period (Years 1-5):</strong> The GP identifies, evaluates, and acquires portfolio companies, drawing down LP capital through capital calls as deals close. 3. <strong>Ownership and Value Creation (Years 2-8):</strong> The GP actively manages portfolio companies — improving operations, expanding revenue, restructuring costs, or making add-on acquisitions. 4. <strong>Harvesting / Exits (Years 4-10):</strong> The GP sells portfolio companies via trade sales, secondary buyouts, or IPOs, returning proceeds to LPs.</p><p>The asset class is categorized into several strategies by target company size and deal type: - <strong>Buyout (LBO):</strong> Acquiring majority control, often with significant leverage. The dominant PE strategy by committed capital (Preqin, 2024). - <strong>Growth equity:</strong> Minority stakes in profitable, growing companies that don't need operational overhaul. - <strong>Venture capital:</strong> Early-stage companies with high risk and high return potential. - <strong>Distressed / Special situations:</strong> Companies in financial difficulty. - <strong>Infrastructure / Real assets:</strong> Long-duration physical assets.</p><p>This course focuses primarily on <strong>buyout / LBO</strong> private equity.</p><p><strong>Industry scale:</strong> Global private <em>capital</em> AUM stood at roughly $14.8 trillion in mid-2024 (McKinsey), of which private equity proper — buyout, growth, and venture — is the largest slice at well over $8 trillion, with buyout the dominant strategy by committed capital. The largest alternative-asset managers running major PE platforms include Blackstone, Apollo, KKR, Carlyle, and Ares.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Blackstone and Hilton Hotels (2007-2013)</strong></p><p>In 2007, Blackstone acquired Hilton Hotels for approximately $26 billion — one of the largest hotel buyouts in history. This was a classic LBO: Blackstone put up equity capital from its fund and loaded the remainder of the purchase price onto Hilton as debt.</p><p>The timing looked disastrous — the 2008 financial crisis hit shortly after, and Hilton's debt burden became severely strained. But Blackstone worked intensively with Hilton's management team, restructured the debt, expanded the brand internationally, improved operations, and grew the loyalty program.</p><p>By the time Blackstone took Hilton public again in 2013, the investment had recovered completely. Blackstone fully exited in May 2018, realising a total profit of approximately $14 billion on its Hilton investment — widely regarded as the most profitable private equity investment ever made.</p><p>This example illustrates the full PE lifecycle: raise capital, acquire a company with debt, manage through difficulty, exit via IPO, return profits to LPs.</p><p><strong>Historical reference: KKR and RJR Nabisco (1989)</strong></p><p>KKR's roughly $25 billion leveraged buyout of RJR Nabisco (won November 1988 at about $109 per share) was the largest LBO of its era and remains the most famous PE deal in history — the subject of the book <em>Barbarians at the Gate</em>. It cemented the LBO model in financial history and demonstrated both the power and the controversy of the PE industry. (Notably, KKR's investors ultimately earned a very low return on it — fame is not the same as profit.)</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Private equity is the same as venture capital.\"</strong> Incorrect. VC is a subset of private equity in the broad sense, but in industry usage, \"private equity\" refers to buyout and growth equity strategies targeting established, profitable businesses. VC targets early-stage startups with unproven business models. The risk profiles, deal structures, and return dynamics are fundamentally different.</p><p><strong>Misconception 2: \"PE firms own the companies in the fund.\"</strong> Technically the fund (the limited partnership) owns the portfolio companies, not the PE firm itself. The GP manages the fund but is a separate legal entity.</p><p><strong>Misconception 3: \"PE is mostly about financial engineering — loading companies with debt.\"</strong> While leverage is important in buyouts, modern PE returns are increasingly driven by operational improvement and revenue growth. Pure financial engineering (multiple expansion and debt paydown alone) is insufficient in today's competitive market. See Three Sources of PE Returns.</p><p><strong>Misconception 4: \"LPs actively manage portfolio companies.\"</strong> LPs are passive investors. They commit capital but have no decision-making power over individual investments. The GP makes all investment decisions.</p><p><strong>Misconception 5: \"PE firms keep profits indefinitely.\"</strong> PE funds have fixed lives. The GP must sell investments and return capital. The entire model is built around an exit within a defined timeframe.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Private equity is a closed-end investment model in which a GP raises capital from institutional LPs, pools it into a 10-year fund, acquires private companies (typically using leverage), works to improve those companies' value, and exits via sale or IPO — returning profits to LPs after fees and carried interest. PE differs from public equity in its active ownership model, illiquid structure, and use of debt. The industry manages trillions of dollars globally and operates primarily through buyout, growth equity, and related strategies.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

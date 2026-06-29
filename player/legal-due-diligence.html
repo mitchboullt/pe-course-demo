@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "legal-due-diligence", "title": "Legal Due Diligence", "draft_watermark": false, "estimated_runtime_sec": 415, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Buying the legal entity", "on_screen_bullets": ["Liabilities travel with the asset", "Every risk becomes a warranty", "Shapes price, conditions, SPA"], "narration": "PE firms are buying the legal entity, not just the business — and every undisclosed lawsuit, missing IP registration, or change-of-control clause is a liability that travels with the asset. Legal due diligence transforms the clean picture management presented in the CIM into a forensic legal reality check. It protects the buyer from paying full price for a business that comes with hidden legal time-bombs, and it determines exactly which representations and warranties must be covered in the sale agreement. Practically, it shapes four things: purchase-price adjustments, where material risks cut the price or require an escrow; deal conditionality, where some findings can block or delay closing; the drafting of the SPA, where every risk becomes a warranty or indemnity; and the hundred-day plan, where findings become operational priorities. It's the third of the three core diligence streams, and it's where deals get protected or sunk.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The legal reality check", "on_screen_bullets": ["Contracts, structure, litigation", "IP, employment, regulation", "Risks to completion, price, value"], "narration": "The definition. Legal due diligence is the systematic review of a target company's legal position — covering contracts, corporate structure, litigation, intellectual property, employment obligations, and regulatory compliance — to identify risks that could affect deal completion, purchase price, or post-acquisition value. Where financial diligence verifies the numbers, legal diligence verifies that the company can keep operating and transacting as you expect once you own it.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The conveyancing solicitor", "on_screen_bullets": ["Is the title clean?", "Does the seller own it?", "Thousands of data-room files"], "narration": "Imagine buying a house. Before you sign, you want a solicitor to check: is the title clean, are there disputes with neighbours, does the seller actually own what they're selling, are there planning restrictions you'd inherit? Legal due diligence does exactly that, but for a company. The PE firm's lawyers go through thousands of documents to answer three questions: is this company who they say they are, does it own what it claims to own, and are there legal commitments or disputes that could hurt us after we buy it? The difference from the house is complexity — a company has customers with contracts, employees with rights, suppliers with exclusivity clauses, regulators with licences, and sometimes competitors with litigation pending, and every one of those is a risk category. It's done by external M&A law firms, usually with specialist sub-teams for employment, IP, competition, and real estate, reviewing files the seller uploads to a virtual data room.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Three risks, one price", "on_screen_bullets": ["CDD: market risk", "FDD: earnings risk", "LDD: structural/legal risk"], "narration": "Here's the mental model: legal due diligence builds a risk register for the legal entity. Line the three streams up and they're complementary. Commercial diligence tells you whether the market is attractive — that's market risk. Financial diligence tells you whether the numbers are real — that's earnings risk. Legal diligence tells you whether the company can keep operating and transacting after you acquire it — that's structural and legal risk. All three feed the purchase price and the SPA simultaneously. Another way to see it: legal diligence is reading the fine print before signing a long-term contract. The headline terms look fine — it's the buried clauses, the auto-renewals, the termination triggers, the cross-defaults, that cause the problems later.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Eight parallel workstreams", "on_screen_bullets": ["Structure, contracts, employment, IP", "Litigation, regulation, property, insurance", "Change-of-control is the killer clause"], "narration": "Technically, legal diligence runs eight workstreams in parallel. One, corporate structure — the entity tree, the cap table, share classes, and any charges over shares, plus watching for orphaned subsidiaries that carry legacy liabilities. Two, material contracts — customer and supplier agreements, where the single most critical task is identifying change-of-control clauses that let a counterparty terminate or renegotiate when ownership changes, because that can directly disrupt revenue at close. Three, employment — key-personnel contracts, non-competes, pension obligations, and any tribunal claims. Four, intellectual property — who actually owns the patents, trademarks, and code, whether founders and contractors signed IP assignments, and what open-source licences are embedded. Five, litigation and disputes — existing claims, regulatory investigations, and crucially any discrepancy between what management disclosed and what the data room shows. Six, regulatory and compliance — are the operating licences even transferable on a change of control, plus data protection and sector rules like FCA for finance or CQC for healthcare. Seven, real estate — leasehold terms, break clauses, and dilapidations obligations. And eight, insurance — coverage, claims history, and gaps. The output is a risk-ranked findings report that feeds straight into the SPA.", "est_sec": 64}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "KKR / Alliance Boots, £11.1bn", "on_screen_bullets": ["Pharmacy licences tied to named pharmacists", "Legacy real-estate dilapidations", "Priced in, not deal-killing"], "narration": "Take KKR's roughly eleven-billion-pound acquisition of Alliance Boots in 2007. Boots ran pharmacies across heavily regulated European markets, and legal diligence found that some of its pharmacy licences were personal licences, tied to named pharmacists employed by the company, not to the corporate entity. That meant planning licence assignments in advance and, in some markets, notifying regulators of the change of control — adding weeks to the closing timeline and forcing pre-close regulatory engagement. Separately, Boots carried legacy real-estate liabilities from historical retail sites — long leases on poor locations with significant dilapidations obligations — which diligence quantified in the tens of millions and which were reflected in the final price and the SPA indemnities. The point: legal findings don't necessarily kill a deal; they get priced in or ring-fenced through indemnities. The whole value of the exercise is finding them before signing rather than discovering them after close. And the converse lesson — a Steinhoff-style collapse — is that an unusually complex web of off-balance-sheet entities is itself a red flag that should trigger deeper scrutiny, not just be treated as administrative noise.", "est_sec": 62}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not box-ticking — it moves prices", "FDD and LDD are linked", "W&I doesn't excuse weak DD"], "narration": "Four corrections. First, legal diligence is not box-checking — it regularly produces findings that kill deals or force material price cuts; undisclosed litigation, missing IP, and problematic employment arrangements turn up in the majority of complex deals. Second, legal and financial diligence are deeply connected, not separate — off-balance-sheet liabilities like operating leases and pension deficits appear in legal documents before they ever hit the financial statements; financial diligence normalises earnings, legal diligence finds the liabilities the P&L can't see. Third, warranty-and-indemnity insurance does not let you skimp on diligence — W&I policies exclude known risks, and what counts as known is determined by the diligence process; weak diligence means the insurer can refuse to pay for an issue that should reasonably have been found, so thorough diligence actually makes the insurance more valuable. And fourth, don't assume that what the seller didn't disclose is therefore fine — sellers disclose what they know and disclose narrowly; good legal diligence finds what the seller doesn't know about, what they know but haven't fully disclosed, and what takes legal interpretation to even recognise as a risk.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The structural risk check", "on_screen_bullets": ["Eight workstreams → findings report", "CoC clauses, IP, licence transfer, litigation", "CDD + FDD + LDD = full picture"], "narration": "To recap. Legal due diligence is the forensic legal review of a target before acquisition, across eight workstreams — corporate structure, material contracts, employment, IP, litigation, regulatory compliance, real estate, and insurance — producing a risk-ranked findings report that drives the SPA warranties and indemnities, the deal conditions, the price, and the W&I underwriting. The most commercially dangerous findings are change-of-control clauses in material contracts, missing IP ownership, non-transferable regulatory licences, and undisclosed litigation. And it never operates alone: together with commercial and financial diligence it produces the complete risk-adjusted picture that decides whether a deal proceeds, at what price, and on what terms. Next we add the fast-growing fourth stream — ESG due diligence.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Which legal-DD finding is most likely to disrupt revenue the moment a deal closes, and why? How do CDD, FDD and LDD divide the risk picture between them?", "narration": "Before the next lesson, answer both. Which legal-diligence finding can disrupt revenue at the very moment a deal closes, and why — and how do commercial, financial, and legal diligence split the risk picture between them? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Legal Due Diligence\n\n[hook] Buying the legal entity\nPE firms are buying the legal entity, not just the business — and every undisclosed lawsuit, missing IP registration, or change-of-control clause is a liability that travels with the asset. Legal due diligence transforms the clean picture management presented in the CIM into a forensic legal reality check. It protects the buyer from paying full price for a business that comes with hidden legal time-bombs, and it determines exactly which representations and warranties must be covered in the sale agreement. Practically, it shapes four things: purchase-price adjustments, where material risks cut the price or require an escrow; deal conditionality, where some findings can block or delay closing; the drafting of the SPA, where every risk becomes a warranty or indemnity; and the hundred-day plan, where findings become operational priorities. It's the third of the three core diligence streams, and it's where deals get protected or sunk.\n\n[definition] The legal reality check\nThe definition. Legal due diligence is the systematic review of a target company's legal position — covering contracts, corporate structure, litigation, intellectual property, employment obligations, and regulatory compliance — to identify risks that could affect deal completion, purchase price, or post-acquisition value. Where financial diligence verifies the numbers, legal diligence verifies that the company can keep operating and transacting as you expect once you own it.\n\n[intuition] The conveyancing solicitor\nImagine buying a house. Before you sign, you want a solicitor to check: is the title clean, are there disputes with neighbours, does the seller actually own what they're selling, are there planning restrictions you'd inherit? Legal due diligence does exactly that, but for a company. The PE firm's lawyers go through thousands of documents to answer three questions: is this company who they say they are, does it own what it claims to own, and are there legal commitments or disputes that could hurt us after we buy it? The difference from the house is complexity — a company has customers with contracts, employees with rights, suppliers with exclusivity clauses, regulators with licences, and sometimes competitors with litigation pending, and every one of those is a risk category. It's done by external M&A law firms, usually with specialist sub-teams for employment, IP, competition, and real estate, reviewing files the seller uploads to a virtual data room.\n\n[intuition] Three risks, one price\nHere's the mental model: legal due diligence builds a risk register for the legal entity. Line the three streams up and they're complementary. Commercial diligence tells you whether the market is attractive — that's market risk. Financial diligence tells you whether the numbers are real — that's earnings risk. Legal diligence tells you whether the company can keep operating and transacting after you acquire it — that's structural and legal risk. All three feed the purchase price and the SPA simultaneously. Another way to see it: legal diligence is reading the fine print before signing a long-term contract. The headline terms look fine — it's the buried clauses, the auto-renewals, the termination triggers, the cross-defaults, that cause the problems later.\n\n[mechanics] Eight parallel workstreams\nTechnically, legal diligence runs eight workstreams in parallel. One, corporate structure — the entity tree, the cap table, share classes, and any charges over shares, plus watching for orphaned subsidiaries that carry legacy liabilities. Two, material contracts — customer and supplier agreements, where the single most critical task is identifying change-of-control clauses that let a counterparty terminate or renegotiate when ownership changes, because that can directly disrupt revenue at close. Three, employment — key-personnel contracts, non-competes, pension obligations, and any tribunal claims. Four, intellectual property — who actually owns the patents, trademarks, and code, whether founders and contractors signed IP assignments, and what open-source licences are embedded. Five, litigation and disputes — existing claims, regulatory investigations, and crucially any discrepancy between what management disclosed and what the data room shows. Six, regulatory and compliance — are the operating licences even transferable on a change of control, plus data protection and sector rules like FCA for finance or CQC for healthcare. Seven, real estate — leasehold terms, break clauses, and dilapidations obligations. And eight, insurance — coverage, claims history, and gaps. The output is a risk-ranked findings report that feeds straight into the SPA.\n\n[worked-example] KKR / Alliance Boots, £11.1bn\nTake KKR's roughly eleven-billion-pound acquisition of Alliance Boots in 2007. Boots ran pharmacies across heavily regulated European markets, and legal diligence found that some of its pharmacy licences were personal licences, tied to named pharmacists employed by the company, not to the corporate entity. That meant planning licence assignments in advance and, in some markets, notifying regulators of the change of control — adding weeks to the closing timeline and forcing pre-close regulatory engagement. Separately, Boots carried legacy real-estate liabilities from historical retail sites — long leases on poor locations with significant dilapidations obligations — which diligence quantified in the tens of millions and which were reflected in the final price and the SPA indemnities. The point: legal findings don't necessarily kill a deal; they get priced in or ring-fenced through indemnities. The whole value of the exercise is finding them before signing rather than discovering them after close. And the converse lesson — a Steinhoff-style collapse — is that an unusually complex web of off-balance-sheet entities is itself a red flag that should trigger deeper scrutiny, not just be treated as administrative noise.\n\n[pitfalls] What people get wrong\nFour corrections. First, legal diligence is not box-checking — it regularly produces findings that kill deals or force material price cuts; undisclosed litigation, missing IP, and problematic employment arrangements turn up in the majority of complex deals. Second, legal and financial diligence are deeply connected, not separate — off-balance-sheet liabilities like operating leases and pension deficits appear in legal documents before they ever hit the financial statements; financial diligence normalises earnings, legal diligence finds the liabilities the P&L can't see. Third, warranty-and-indemnity insurance does not let you skimp on diligence — W&I policies exclude known risks, and what counts as known is determined by the diligence process; weak diligence means the insurer can refuse to pay for an issue that should reasonably have been found, so thorough diligence actually makes the insurance more valuable. And fourth, don't assume that what the seller didn't disclose is therefore fine — sellers disclose what they know and disclose narrowly; good legal diligence finds what the seller doesn't know about, what they know but haven't fully disclosed, and what takes legal interpretation to even recognise as a risk.\n\n[recap] The structural risk check\nTo recap. Legal due diligence is the forensic legal review of a target before acquisition, across eight workstreams — corporate structure, material contracts, employment, IP, litigation, regulatory compliance, real estate, and insurance — producing a risk-ranked findings report that drives the SPA warranties and indemnities, the deal conditions, the price, and the W&I underwriting. The most commercially dangerous findings are change-of-control clauses in material contracts, missing IP ownership, non-transferable regulatory licences, and undisclosed litigation. And it never operates alone: together with commercial and financial diligence it produces the complete risk-adjusted picture that decides whether a deal proceeds, at what price, and on what terms. Next we add the fast-growing fourth stream — ESG due diligence.\n\nEnd-card question: Which legal-DD finding is most likely to disrupt revenue the moment a deal closes, and why? How do CDD, FDD and LDD divide the risk picture between them?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>PE firms are buying the legal entity, not just the business. Every undisclosed lawsuit, missing IP registration, or contract change-of-control clause is a liability that travels with the asset. Legal diligence transforms the \"clean\" picture management presented in the CIM into a forensic legal reality check. It protects the buyer from paying full price for a business that comes with hidden legal time-bombs — and it determines which representations and warranties must be covered in the SPA.</p><p>Practically speaking, legal DD directly shapes: - <strong>Purchase price adjustments</strong> — material risks reduce price or require escrow/indemnity carve-outs - <strong>Deal conditionality</strong> — certain findings (regulatory consent, material litigation) can block or delay closing - <strong>SPA drafting</strong> — every risk discovered becomes a warranty, indemnity, or disclosure item - <strong>100-Day Plan</strong> — LDD findings often generate operational priorities: renegotiate supplier contracts, clear employment disputes, register missing IP</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Legal due diligence (LDD) is the systematic review of a target company's legal position — covering contracts, corporate structure, litigation, intellectual property, employment obligations, and regulatory compliance — to identify risks that could affect deal completion, purchase price, or post-acquisition value.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you're buying a house. Before you sign, you want a solicitor to check: is the title clean? Are there disputes with neighbours? Does the seller actually own what they're selling? Are there planning restrictions you'd inherit?</p><p>Legal due diligence does exactly the same thing — but for a company. The PE firm's lawyers go through thousands of documents to answer: Is this company who they say they are? Does it own what it claims to own? Are there any legal commitments or disputes that could hurt us after we buy it?</p><p>The key difference from the house analogy: businesses are far more complex. A company has customers with contracts, employees with rights, suppliers with exclusivity clauses, regulators with licences, and sometimes competitors with litigation pending. Every one of these is a potential risk category.</p><p><strong>Who does it?</strong> External law firms specialising in M&amp;A, usually with specialist sub-teams for employment, IP, competition law, real estate, and tax (though tax DD is usually a separate workstream).</p><p><strong>What do they review?</strong> Documents uploaded to a virtual data room (VDR) by the seller — typically thousands of files organised by category.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of legal DD as building a <strong>risk register for the legal entity</strong>. Commercial DD tells you whether the <em>market</em> is attractive. Financial DD tells you whether the <em>numbers</em> are real. Legal DD tells you whether the <em>company</em> can keep operating and transacting as you expect after you acquire it.</p><p>The three DD streams are complementary: - <strong>CDD</strong>: market risk - <strong>FDD</strong>: earnings risk - <strong>LDD</strong>: structural/legal risk</p><p>All three feed into the purchase price and SPA simultaneously.</p><p>Another mental model: legal DD is like checking the fine print before signing a long-term contract. The headline terms look fine — but it's the buried clauses (auto-renewal, termination triggers, cross-default provisions) that cause problems later.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>Legal due diligence is structured across several workstreams conducted in parallel:</p><p>### 1. Corporate Structure Review - Verify the legal entity structure: subsidiaries, holding companies, intermediate entities - Confirm ownership: shareholders, cap table, share classes, drag-along/tag-along rights - Check for any pledges or charges over shares that could complicate acquisition - Review articles of association, shareholders agreements, constitutional documents - Identify any <strong>orphaned entities</strong> (subsidiaries with no obvious function that may carry legacy liabilities)</p><p>### 2. Material Contracts Review - Customer contracts: revenue concentration, termination rights, exclusivity provisions - Supplier contracts: change-of-control clauses that could trigger renegotiation or termination - Distribution agreements, partnership agreements, joint ventures - <strong>Change-of-control clause identification</strong> is critical: some contracts auto-terminate or require counterparty consent if ownership changes — this can directly disrupt revenue post-close - Finance documents: existing debt facilities, security packages, cross-defaults</p><p>### 3. Employment and Management Review - Employment contracts for key personnel (particularly management team) - Non-compete and non-solicitation obligations — both inbound (protecting the target) and outbound (obligations that restrict management post-exit) - Pension and benefits obligations - Trade union agreements, collective bargaining arrangements - Outstanding employment tribunal claims - TUPE implications (Transfer of Undertakings — relevant in carve-out deals) [needs-verification on UK-specific applicability in cross-border contexts]</p><p>### 4. Intellectual Property - Ownership of patents, trademarks, domain names, copyright - IP assignments from founders and early employees — are they documented? - Licences in and out: scope, exclusivity, termination rights - Open-source software: licence types (GPL vs MIT vs Apache) can carry viral provisions that affect commercial licensing [needs-verification on GPL viral obligation specifics] - Trade secrets: how are they protected? NDA frameworks in place?</p><p>### 5. Litigation and Disputes - Existing claims: amounts at stake, probability of outcome, stage of proceedings - Regulatory investigations: competition authority reviews, FCA/SEC inquiries - Historical settlements: what they reveal about recurring conduct risk - Pending claims management disclosed vs. undisclosed — discrepancies are red flags</p><p>### 6. Regulatory and Compliance - Operating licences: are they transferable? Do they require regulatory approval on change of control? - Data protection: GDPR compliance posture (EU operations), data processing agreements, breach history [needs-verification on post-Brexit UK GDPR applicability] - Environmental permits and liabilities - Industry-specific regulation: FCA authorisation for financial services targets, CQC for healthcare, Ofgem for energy - Sanctions and AML: particularly relevant in international businesses</p><p>### 7. Real Estate - Property ownership vs. leasehold: term remaining, break clauses, rent review mechanisms - Dilapidations obligations (cost of reinstating leased premises to original condition) - Environmental contamination of owned land</p><p>### 8. Insurance - Review of current coverage: D&amp;O, professional indemnity, product liability, property - Claims history and exclusions - Gap analysis: does current coverage match the risk profile?</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>KKR's acquisition of Alliance Boots (2007) — £11.1bn</strong></p><p>Alliance Boots operated pharmacies in highly regulated European markets. Legal DD identified that Boots' pharmacy licences in several jurisdictions were personal licences tied to named pharmacists employed by the company, not to the entity itself. This required advance planning for licence assignments and, in some markets, regulatory notification of change of control — adding weeks to the closing timeline and requiring pre-close regulatory engagement.</p><p>Separately, Boots carried legacy real estate liabilities from historical retail sites — long leases on poor-performing locations with significant dilapidations obligations. Legal DD quantified this as a liability in the tens of millions, which was reflected in the final price and SPA indemnity provisions.</p><p><strong>Significance:</strong> This deal illustrates how legal DD findings don't necessarily kill a deal — they get priced in or ring-fenced via indemnities. The key is identifying them before signing, not discovering them post-close.</p><p>---</p><p><strong>Cerberus Capital's acquisition of Steinhoff (hypothetical — illustrative of legal risk that wasn't found)</strong></p><p>Steinhoff International collapsed in 2017 after €6.5bn in accounting fraud was uncovered. While this was primarily an FDD failure, legal DD on the corporate structure would have revealed an unusually complex web of off-balance-sheet entities across multiple jurisdictions — a legal red flag that should have triggered deeper scrutiny. The lesson: legal structure complexity is itself a risk signal, not just an operational nuisance.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Legal DD is just box-checking — the lawyers read documents and nothing material ever comes up.\"</strong> False. Legal DD regularly produces findings that either kill deals or result in material price adjustments. Undisclosed litigation, missing IP registrations, pension deficits, and problematic employment arrangements are found in the majority of complex deals. The quality of legal DD determines the quality of SPA protections.</p><p><strong>Misconception 2: \"Legal and financial DD are separate — they don't affect each other.\"</strong> False. FDD and LDD are deeply connected. Off-balance-sheet liabilities (operating leases, contingent claims, pension obligations) appear first in legal documents before they appear in financial statements. FDD normalises earnings; LDD finds the liabilities that FDD can't see in the P&amp;L.</p><p><strong>Misconception 3: \"W&amp;I insurance means you don't need thorough legal DD.\"</strong> Dangerous. W&amp;I policies exclude known risks — and what's \"known\" is determined by the DD process. Weak DD means the insurer doesn't have to pay out if an issue should reasonably have been found. Thorough DD actually makes W&amp;I insurance more valuable by defining the boundary of unknown vs. known risk.</p><p><strong>Misconception 4: \"The seller has to disclose everything — so what's not disclosed is fine.\"</strong> Not in practice. Sellers disclose what they know. Legal DD finds what the seller may not know about (legacy entities, historical compliance failures), what they know but haven't disclosed fully, and what requires legal interpretation to understand as a risk.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Legal due diligence is the forensic legal review of a target company before acquisition. It covers eight main workstreams: corporate structure, material contracts, employment, IP, litigation, regulatory compliance, real estate, and insurance. The primary output is a risk-ranked findings report that feeds directly into SPA warranty/indemnity drafting, deal conditionality, purchase price adjustment, and W&amp;I insurance underwriting.</p><p>The most commercially dangerous findings are change-of-control clauses in material contracts, missing IP ownership, regulatory licence transferability issues, and undisclosed litigation. Legal DD does not operate in isolation: it is deeply linked to financial DD (legal documents reveal liabilities that don't yet appear in financials) and commercial DD (legal risks affect the market position the thesis is built on). Together, CDD + FDD + LDD produce the complete risk-adjusted picture that determines whether a deal proceeds, at what price, and on what terms.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

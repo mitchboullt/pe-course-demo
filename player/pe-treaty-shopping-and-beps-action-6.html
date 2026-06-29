@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-treaty-shopping-and-beps-action-6", "title": "PE Treaty Shopping and BEPS Action 6", "draft_watermark": false, "estimated_runtime_sec": 420, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The foundation under attack", "on_screen_bullets": ["Treaty access is the holdco's whole point", "26% vs 5% withholding", "Action 6 is existential for shells"], "narration": "The BEPS overview flagged treaty abuse as critical; this lesson goes inside it, because treaty shopping is the foundation of PE holding-company architecture. The stakes are enormous and concrete. Without treaty access, a dividend from a German portfolio company up to a Cayman fund would face withholding tax of about twenty-six percent. With a Luxembourg holding company tapping the Germany-Luxembourg treaty, that rate drops to five percent — and on a five-hundred-million-euro dividend, the difference is over a hundred million. That single number is why PE funds go to enormous lengths to maintain Luxembourg holding structures, and it's why BEPS Action six is an existential challenge to any holding company that lacks genuine economic substance. This lesson is about the treaty saving that built European PE structures, and the test that now threatens it.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Insert a holdco, claim the treaty", "on_screen_bullets": ["Holdco in low-withholding jurisdiction", "Accesses treaty-reduced rates", "PPT denies it if that's the purpose"], "narration": "The definition. PE treaty shopping is the practice of inserting holding companies in low-withholding-tax jurisdictions — Luxembourg, the Netherlands, Ireland — between an offshore PE fund and its portfolio companies, in order to access treaty-reduced dividend and interest withholding rates. And BEPS Action six's Principal Purpose Test challenges this directly: it denies the treaty benefits when obtaining those benefits was one of the principal purposes of the holding company's location. Put a company somewhere to get the treaty, and the test takes the treaty away.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The fake mailing address", "on_screen_bullets": ["Treaty = a bilateral rate deal", "Shopping = a letterbox address", "Substance proves the address is real"], "narration": "The mental model. Tax treaties are bilateral agreements between two countries to reduce double taxation on cross-border income — Germany and Luxembourg agree that dividends from a German company to a Luxembourg company are taxed at five percent rather than Germany's standard twenty-six, and that's meant for genuine cross-border investment, a real Luxembourg business investing into Germany. But PE discovered you can route any investment through Luxembourg to capture that benefit, even if the Luxembourg company has no real employees or activity — that's treaty shopping, using a Luxembourg letterbox company purely for the tax break, not because there's any genuine reason to be in Luxembourg. The analogy: it's like putting a mailing address in a low-postage country to claim cheaper shipping rates, without actually being present there. And BEPS Action six is the postal authority saying: if your package really originates in Cayman but you've slapped a Luxembourg address on it purely to get the Luxembourg rate, and you have no real presence in Luxembourg, we don't have to give you the Luxembourg rate. Real presence — substance — is the proof that the Luxembourg address is genuine rather than a sticker on a Cayman parcel.", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "The Principal Purpose Test (PPT)", "on_screen_title": "The Principal Purpose Test", "on_screen_bullets": ["Objective: reasonable to conclude", "One of the principal purposes", "Thin escape clause"], "narration": "Technically, the weapon is the Principal Purpose Test, now embedded in tax treaties through the multilateral instrument, and three features make it potent. First, the standard is objective: a benefit is denied if it's reasonable to conclude that obtaining it was a principal purpose of the arrangement — so the tax authority doesn't need to prove the taxpayer subjectively intended to abuse the treaty, only that it's reasonable to conclude treaty abuse was a principal purpose. Second, the threshold is low: it's one of the principal purposes, not the sole or even the primary purpose, so if treaty access was even one of several significant reasons for the structure, the test can apply. And third, there's an escape clause: benefits are restored if granting them would be in accordance with the object and purpose of the treaty's provisions — which sounds like a lifeline, but it's a thin one. Apply it to the Luxembourg holding company. The tax authority says: you put the holdco in Luxembourg because of the Germany-Luxembourg treaty, that's a principal purpose, denied. The taxpayer invokes the escape clause: the treaty was meant to facilitate cross-border investment by Luxembourg residents, and we are Luxembourg residents. But that argument is very weak if the holdco has no substance, because a nominee director is hard to describe as a genuine Luxembourg investment business. The escape clause protects real businesses; it does almost nothing for shells.", "est_sec": 56}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Limitation on Benefits (LoB) — The US Model", "on_screen_title": "PPT vs the US LoB", "on_screen_bullets": ["LoB: objective eligibility tests", "Active business, ownership, equivalent beneficiary", "Funds rely on specific exemptions"], "narration": "There's a second approach worth knowing, because the US does it differently. Rather than the subjective Principal Purpose Test, the US treaty network uses a Limitation on Benefits clause, which requires the claimant to pass objective tests for eligibility — not a reasonableness judgment but mechanical criteria. The typical tests: a publicly-traded-company test, listed on a recognised exchange in the treaty country; an ownership-and-base-erosion test, requiring shares to be held by residents of the treaty country and income not stripped out to non-residents; an active-trade-or-business test, requiring real business activity connected to the income; an equivalent-beneficiary test, where the entity's owners are themselves entitled to comparable treaty benefits; and a catch-all of competent-authority discretion. Apply this to a PE structure: a Luxembourg holdco with no employees fails the active-business test; its diverse Cayman-fund owners generally aren't Luxembourg residents, so it fails the ownership test; and most PE structures end up relying on the equivalent-beneficiary test or on specific exemptions for regulated investment funds. The implementation choice matters: most countries using the multilateral instrument adopted the Principal Purpose Test alone, as the minimum standard, while the US prefers the Limitation on Benefits and uses the Principal Purpose Test only as a backstop. So PE structures tapping EU treaties face the subjective test, while structures tapping US treaties face both the objective tests and domestic anti-conduit rules — different gauntlets, same destination.", "est_sec": 58}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Substance Requirements: The BEPS Solution", "on_screen_title": "Building real substance", "on_screen_bullets": ["Resident decision-making directors", "Real office, local board meetings", "€500k–€2m a year"], "narration": "So how does PE survive the Principal Purpose Test? By building genuine economic substance in the treaty jurisdiction — the substance arms race that BEPS deliberately triggered. What real substance looks like in Luxembourg now: a handful of qualified investment professionals actually domiciled there; a board with a majority of Luxembourg-resident directors who hold genuine decision-making authority, not nominee directors; a physical office, not just a registered-address service; board meetings held in Luxembourg that actually review investment decisions rather than rubber-stamping decisions made in Cayman; and real compliance, risk, and portfolio-monitoring functions on the ground. The cost is significant: building genuine Luxembourg substance runs roughly five-hundred-thousand to two million euros a year for a mid-market fund, in personnel, office, compliance, and travel — and it's now simply a standard operating cost for European PE managers, which is why the major firms all have Luxembourg offices with real investment teams. There's a neat convergence here that lowers the effective cost: the AIFMD requires an EU management company that isn't a letterbox entity and makes real decisions, so one genuine Luxembourg investment team can satisfy both the AIFMD passport requirement and the BEPS substance requirement at the same time. The single biggest behavioural effect of Action six is that it forced PE to actually move real people and real decisions to Luxembourg — which is exactly what it was designed to do.", "est_sec": 58}, {"n": 7, "beat": "mechanics", "visual": "slide", "source_section": "EU Parent-Subsidiary Directive and Anti-Abuse", "on_screen_title": "Even intra-EU isn't safe", "on_screen_bullets": ["Parent-Subsidiary Directive: 0% intra-EU", "ATAD anti-abuse: no artificial arrangements", "Same substance test inside the EU"], "narration": "One more layer closes off a common escape route. You might think PE could just rely on the EU's Parent-Subsidiary Directive, which eliminates dividend withholding taxes between an EU parent and an EU subsidiary entirely — zero percent intra-EU, no treaty shopping required. But since twenty-fifteen, that directive carries its own anti-abuse provision, implemented through the EU anti-tax-avoidance directive: member states must not grant the directive's benefits for wholly artificial arrangements that don't reflect economic reality and whose main purpose is to obtain a tax advantage. That's essentially an EU-law version of the Principal Purpose Test for purely intra-EU structures — so a Luxembourg holding company without substance cannot rely on the directive's dividend exemption even when both companies sit inside the EU. The significance is that there's no clever workaround left: whether PE accesses a bilateral treaty, facing the Principal Purpose Test, or relies on the EU directive, facing its anti-abuse rule, the same fundamental requirement applies — the holding company must have genuine substance. The substance demand is now universal across both the treaty network and EU law, which is why the only durable response is to actually build the substance rather than to find a structure that avoids the test.", "est_sec": 52}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["PPT isn't only for obvious abuse", "An office alone isn't enough", "Substance must include real decisions"], "narration": "Four corrections to close. First, the belief that the Principal Purpose Test only catches obviously abusive structures — false; the one-of-the-principal-purposes standard is broad enough to capture structures where treaty access is just one of several legitimate business reasons, not only structures designed solely for the tax benefit. Second, the belief that simply having a Luxembourg office satisfies the test — false; substance requires genuine decision-making, not just a physical address, so a staffed office that doesn't actually make real investment decisions still fails. Third, the belief that the Principal Purpose Test is the same as a domestic general anti-abuse rule — not identical; the anti-abuse rule is a domestic-law concept while the Principal Purpose Test is a treaty-level provision, and they can apply cumulatively. And fourth, the belief that all US treaties use the Limitation on Benefits instead of the Principal Purpose Test — most US treaties use the Limitation on Benefits as the primary test, but the multilateral instrument's Principal Purpose Test has been layered on as an additional backstop in some of them. To recap: treaty shopping, routing dividends through Luxembourg or the Netherlands to cut withholding, is the foundational PE holding strategy, and Action six's Principal Purpose Test denies the benefit wherever obtaining it was a principal purpose, with only a thin escape clause for entities lacking substance — so the industry's response has been to build real Luxembourg substance at significant annual cost. That substance question leads directly into the next lesson, on how PE chooses its fund domicile in this post-BEPS world.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The PPT denies a treaty benefit if obtaining it was 'one of the principal purposes' — explain why this standard is much harder to escape than 'the sole purpose.' Then: why is the PPT's 'escape clause' thin protection for a holding company with no substance?", "narration": "Before the next lesson, reason it through. The Principal Purpose Test denies a treaty benefit if obtaining it was one of the principal purposes — explain why that standard is far harder for a structure to escape than a sole-purpose or primary-purpose test would be. And why is the test's escape clause such thin protection for a holding company that has no real substance? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE Treaty Shopping and BEPS Action 6\n\n[hook] The foundation under attack\nThe BEPS overview flagged treaty abuse as critical; this lesson goes inside it, because treaty shopping is the foundation of PE holding-company architecture. The stakes are enormous and concrete. Without treaty access, a dividend from a German portfolio company up to a Cayman fund would face withholding tax of about twenty-six percent. With a Luxembourg holding company tapping the Germany-Luxembourg treaty, that rate drops to five percent — and on a five-hundred-million-euro dividend, the difference is over a hundred million. That single number is why PE funds go to enormous lengths to maintain Luxembourg holding structures, and it's why BEPS Action six is an existential challenge to any holding company that lacks genuine economic substance. This lesson is about the treaty saving that built European PE structures, and the test that now threatens it.\n\n[definition] Insert a holdco, claim the treaty\nThe definition. PE treaty shopping is the practice of inserting holding companies in low-withholding-tax jurisdictions — Luxembourg, the Netherlands, Ireland — between an offshore PE fund and its portfolio companies, in order to access treaty-reduced dividend and interest withholding rates. And BEPS Action six's Principal Purpose Test challenges this directly: it denies the treaty benefits when obtaining those benefits was one of the principal purposes of the holding company's location. Put a company somewhere to get the treaty, and the test takes the treaty away.\n\n[intuition] The fake mailing address\nThe mental model. Tax treaties are bilateral agreements between two countries to reduce double taxation on cross-border income — Germany and Luxembourg agree that dividends from a German company to a Luxembourg company are taxed at five percent rather than Germany's standard twenty-six, and that's meant for genuine cross-border investment, a real Luxembourg business investing into Germany. But PE discovered you can route any investment through Luxembourg to capture that benefit, even if the Luxembourg company has no real employees or activity — that's treaty shopping, using a Luxembourg letterbox company purely for the tax break, not because there's any genuine reason to be in Luxembourg. The analogy: it's like putting a mailing address in a low-postage country to claim cheaper shipping rates, without actually being present there. And BEPS Action six is the postal authority saying: if your package really originates in Cayman but you've slapped a Luxembourg address on it purely to get the Luxembourg rate, and you have no real presence in Luxembourg, we don't have to give you the Luxembourg rate. Real presence — substance — is the proof that the Luxembourg address is genuine rather than a sticker on a Cayman parcel.\n\n[mechanics] The Principal Purpose Test\nTechnically, the weapon is the Principal Purpose Test, now embedded in tax treaties through the multilateral instrument, and three features make it potent. First, the standard is objective: a benefit is denied if it's reasonable to conclude that obtaining it was a principal purpose of the arrangement — so the tax authority doesn't need to prove the taxpayer subjectively intended to abuse the treaty, only that it's reasonable to conclude treaty abuse was a principal purpose. Second, the threshold is low: it's one of the principal purposes, not the sole or even the primary purpose, so if treaty access was even one of several significant reasons for the structure, the test can apply. And third, there's an escape clause: benefits are restored if granting them would be in accordance with the object and purpose of the treaty's provisions — which sounds like a lifeline, but it's a thin one. Apply it to the Luxembourg holding company. The tax authority says: you put the holdco in Luxembourg because of the Germany-Luxembourg treaty, that's a principal purpose, denied. The taxpayer invokes the escape clause: the treaty was meant to facilitate cross-border investment by Luxembourg residents, and we are Luxembourg residents. But that argument is very weak if the holdco has no substance, because a nominee director is hard to describe as a genuine Luxembourg investment business. The escape clause protects real businesses; it does almost nothing for shells.\n\n[mechanics] PPT vs the US LoB\nThere's a second approach worth knowing, because the US does it differently. Rather than the subjective Principal Purpose Test, the US treaty network uses a Limitation on Benefits clause, which requires the claimant to pass objective tests for eligibility — not a reasonableness judgment but mechanical criteria. The typical tests: a publicly-traded-company test, listed on a recognised exchange in the treaty country; an ownership-and-base-erosion test, requiring shares to be held by residents of the treaty country and income not stripped out to non-residents; an active-trade-or-business test, requiring real business activity connected to the income; an equivalent-beneficiary test, where the entity's owners are themselves entitled to comparable treaty benefits; and a catch-all of competent-authority discretion. Apply this to a PE structure: a Luxembourg holdco with no employees fails the active-business test; its diverse Cayman-fund owners generally aren't Luxembourg residents, so it fails the ownership test; and most PE structures end up relying on the equivalent-beneficiary test or on specific exemptions for regulated investment funds. The implementation choice matters: most countries using the multilateral instrument adopted the Principal Purpose Test alone, as the minimum standard, while the US prefers the Limitation on Benefits and uses the Principal Purpose Test only as a backstop. So PE structures tapping EU treaties face the subjective test, while structures tapping US treaties face both the objective tests and domestic anti-conduit rules — different gauntlets, same destination.\n\n[mechanics] Building real substance\nSo how does PE survive the Principal Purpose Test? By building genuine economic substance in the treaty jurisdiction — the substance arms race that BEPS deliberately triggered. What real substance looks like in Luxembourg now: a handful of qualified investment professionals actually domiciled there; a board with a majority of Luxembourg-resident directors who hold genuine decision-making authority, not nominee directors; a physical office, not just a registered-address service; board meetings held in Luxembourg that actually review investment decisions rather than rubber-stamping decisions made in Cayman; and real compliance, risk, and portfolio-monitoring functions on the ground. The cost is significant: building genuine Luxembourg substance runs roughly five-hundred-thousand to two million euros a year for a mid-market fund, in personnel, office, compliance, and travel — and it's now simply a standard operating cost for European PE managers, which is why the major firms all have Luxembourg offices with real investment teams. There's a neat convergence here that lowers the effective cost: the AIFMD requires an EU management company that isn't a letterbox entity and makes real decisions, so one genuine Luxembourg investment team can satisfy both the AIFMD passport requirement and the BEPS substance requirement at the same time. The single biggest behavioural effect of Action six is that it forced PE to actually move real people and real decisions to Luxembourg — which is exactly what it was designed to do.\n\n[mechanics] Even intra-EU isn't safe\nOne more layer closes off a common escape route. You might think PE could just rely on the EU's Parent-Subsidiary Directive, which eliminates dividend withholding taxes between an EU parent and an EU subsidiary entirely — zero percent intra-EU, no treaty shopping required. But since twenty-fifteen, that directive carries its own anti-abuse provision, implemented through the EU anti-tax-avoidance directive: member states must not grant the directive's benefits for wholly artificial arrangements that don't reflect economic reality and whose main purpose is to obtain a tax advantage. That's essentially an EU-law version of the Principal Purpose Test for purely intra-EU structures — so a Luxembourg holding company without substance cannot rely on the directive's dividend exemption even when both companies sit inside the EU. The significance is that there's no clever workaround left: whether PE accesses a bilateral treaty, facing the Principal Purpose Test, or relies on the EU directive, facing its anti-abuse rule, the same fundamental requirement applies — the holding company must have genuine substance. The substance demand is now universal across both the treaty network and EU law, which is why the only durable response is to actually build the substance rather than to find a structure that avoids the test.\n\n[pitfalls] What people get wrong\nFour corrections to close. First, the belief that the Principal Purpose Test only catches obviously abusive structures — false; the one-of-the-principal-purposes standard is broad enough to capture structures where treaty access is just one of several legitimate business reasons, not only structures designed solely for the tax benefit. Second, the belief that simply having a Luxembourg office satisfies the test — false; substance requires genuine decision-making, not just a physical address, so a staffed office that doesn't actually make real investment decisions still fails. Third, the belief that the Principal Purpose Test is the same as a domestic general anti-abuse rule — not identical; the anti-abuse rule is a domestic-law concept while the Principal Purpose Test is a treaty-level provision, and they can apply cumulatively. And fourth, the belief that all US treaties use the Limitation on Benefits instead of the Principal Purpose Test — most US treaties use the Limitation on Benefits as the primary test, but the multilateral instrument's Principal Purpose Test has been layered on as an additional backstop in some of them. To recap: treaty shopping, routing dividends through Luxembourg or the Netherlands to cut withholding, is the foundational PE holding strategy, and Action six's Principal Purpose Test denies the benefit wherever obtaining it was a principal purpose, with only a thin escape clause for entities lacking substance — so the industry's response has been to build real Luxembourg substance at significant annual cost. That substance question leads directly into the next lesson, on how PE chooses its fund domicile in this post-BEPS world.\n\nEnd-card question: The PPT denies a treaty benefit if obtaining it was 'one of the principal purposes' — explain why this standard is much harder to escape than 'the sole purpose.' Then: why is the PPT's 'escape clause' thin protection for a holding company with no substance?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Treaty shopping is the foundation of PE holding company architecture. Without treaty access, dividend distributions from a German portfolio company to a Cayman fund would face 26.375% withholding tax. With a Luxembourg holding company accessing the Germany-Luxembourg treaty, that rate falls to 5%. On a €500m dividend, the difference is €107m. This is why PE funds go to enormous lengths to maintain Luxembourg holding structures — and why BEPS Action 6 is an existential challenge to holding company structures that lack genuine economic substance. For a practitioner processing W-8 forms at CVC Secondary Partners, treaty shopping is directly relevant: the W-8-BEN-E submitted by CVC's Luxembourg entity to underlying US portfolio companies claims a reduced 0% or 5% withholding rate under the US-Luxembourg treaty — a claim that the IRS can now challenge using a version of the PPT embedded in US domestic law (the \"conduit arrangement\" doctrine) and in the MLI.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE treaty shopping is the practice of inserting holding companies in low-withholding-tax jurisdictions (Luxembourg, Netherlands, Ireland) between an offshore PE fund and its portfolio companies to access treaty-reduced dividend and interest withholding rates — and BEPS Action 6's Principal Purpose Test (PPT) challenges this by denying treaty benefits when obtaining those benefits was one of the principal purposes of the holding company's location.</p>"}, "2": {"section": "Mental Model / Analogy", "html": "<p>Treaty shopping is like using a mailing address in a low-postage country to claim reduced shipping rates, without actually being present there. BEPS Action 6's PPT is the postal authority saying: \"If your package originates in Cayman but you've put a Luxembourg address on it purely to get the Luxembourg shipping rate — and you have no real presence in Luxembourg — we don't have to give you the Luxembourg rate.\" Real presence (substance) is the proof that the Luxembourg address is genuine.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"PPT only applies to obvious abusive structures.\"</strong> The \"one of the principal purposes\" test is broad — it can capture structures where treaty access is one of several legitimate business reasons for the structure, not just structures designed solely for treaty benefits.</li><li><strong>\"Having a Luxembourg office satisfies the PPT.\"</strong> Substance requires genuine decision-making, not just a physical address. A manned office that doesn't make real investment decisions still fails.</li><li><strong>\"The PPT is the same as GAAR.\"</strong> Not identical — the GAAR (General Anti-Abuse Rule) is a domestic law concept; the PPT is a treaty-level provision. They may apply cumulatively in some situations.</li><li><strong>\"US treaties all have LoB instead of PPT.\"</strong> Most US treaties use LoB as the primary test; the MLI's PPT has been included as an additional backstop in some US treaties via MLI adoption.</li></ol>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

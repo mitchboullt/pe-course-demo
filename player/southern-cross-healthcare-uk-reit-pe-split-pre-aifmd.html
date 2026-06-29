@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "southern-cross-healthcare-uk-reit-pe-split-pre-aifmd", "title": "Southern Cross Healthcare — UK REIT-PE Split Pre-AIFMD", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "ManorCare before ManorCare", "on_screen_bullets": ["Same architecture, seven years earlier", "Collapsed just before AIFMD", "A natural test of the rules"], "narration": "We just built the REIT-PE split in the abstract. Southern Cross is the case that proves it isn't an American quirk — it's a structural pattern. It matters for three reasons. First, it is ManorCare before ManorCare: Blackstone used the same architecture in two-thousand-four through two-thousand-six that Carlyle would use at ManorCare a few years later — acquire the care-home operator, sale-leaseback the properties into a REIT, distribute the proceeds, and leave the operating company holding fixed rent it couldn't service in a downturn. Second, it happened right before AIFMD, the European directive with anti-asset-stripping rules, which lets us ask a sharp question: would those rules actually have stopped this? And third, it's the real test of whether a stricter regulatory regime changes PE behaviour at all. So this lesson is both a case study and a regulatory experiment.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The UK precursor", "on_screen_bullets": ["UK's largest care-home operator", "Blackstone 2004 → collapse 2011", "£250m+ rent, margins couldn't cover"], "narration": "The definition. Southern Cross Healthcare was the UK's largest care-home operator, acquired by Blackstone in two-thousand-four and collapsed in twenty-eleven after a Blackstone-engineered sale-leaseback stripped its property assets into a REIT, leaving the operating company with over two-hundred-fifty million pounds in annual rent that clinical margins could not sustain. It is the UK's direct precursor to the ManorCare pattern — and the decisive test case for whether AIFMD's anti-asset-stripping provisions actually changed PE conduct in essential services.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The five-step playbook", "on_screen_bullets": ["Sell properties, lease them back", "Extract capital, then IPO out", "Operator left holding the rent"], "narration": "Plain English, in five steps. In two-thousand-four Blackstone bought Southern Cross — about seven-hundred-fifty care homes, around thirty-seven thousand residents — for roughly a hundred-sixty-two million pounds. Step one: sell the properties, to a property company called NHP, generating around a billion pounds. Step two: lease them back, on long triple-net leases with rent rising about two-and-a-half percent a year regardless of occupancy or care economics. Step three: extract capital, using the proceeds to repay acquisition debt and fund distributions to Blackstone's investors. Step four: sell the operating company, by floating Southern Cross on the London Stock Exchange in two-thousand-six at around a one-point-four-billion-pound valuation — a seven-to-nine-times gain on the purchase price in about two years. Step five: the operating company collapses. Left with over two-hundred-fifty million pounds of annual rent that kept rising, Southern Cross began losing money as occupancy fell after the financial crisis and local-authority care fees were squeezed. By twenty-eleven it couldn't pay the rent, and thirty-one thousand elderly residents faced displacement. The government had to coordinate an emergency transfer of the homes to other operators. The crucial point: Blackstone had already exited via the IPO in two-thousand-six, and bore no residual responsibility for the twenty-eleven collapse.", "est_sec": 58}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The Toys R Us difference", "on_screen_bullets": ["Toy shoppers go elsewhere", "Care-home residents cannot", "Exit ability sets the harm"], "narration": "The mental model. Southern Cross is the UK's Toys R Us of care homes, with one decisive difference. When Toys R Us went bankrupt under its PE owners, the harm was real — tens of thousands of jobs lost — but the customers could simply shop elsewhere, because toys aren't essential. When Southern Cross went bankrupt, its customers were thirty-one thousand elderly, often cognitively impaired residents who could not just go to another care home — UK care-home supply is fixed, and these residents had no alternative and no ability to choose. That's the exit-ability gradient made concrete: the lower an individual's ability to exit — children in a school, the elderly in a care home, patients in a hospital — the greater the harm when the PE-owned operator collapses under the rent burden the split created. Same financial structure, radically different human stakes depending on who the captive customer is.", "est_sec": 46}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The arithmetic of collapse", "on_screen_bullets": ["~£1bn sale, 20–25yr leases", "Rent ~£250m vs EBITDAR ~£200m", "Coverage below 0.9x = insolvent"], "narration": "The technical arithmetic. Blackstone's real-estate and capital-partners funds acquired Southern Cross in two-thousand-four with roughly five-to-six-times leverage on the hundred-sixty-two-million-pound price. Over two-thousand-four to two-thousand-six the properties were sold to NHP for around one billion pounds, on triple-net leases with twenty-to-twenty-five-year initial terms and rent escalating at retail-price-index plus a small margin — about two-and-a-half percent a year — with rent coverage set at inception around one-point-three times. Blackstone exited at the two-thousand-six IPO at a one-point-four-billion valuation, an estimated seven-to-nine-times return on a two-year hold. Then watch the coverage decay. By twenty-eleven the annual rent obligation had grown past two-hundred-fifty million pounds, while pre-rent earnings — EBITDAR — had fallen to roughly two-hundred to two-hundred-twenty million as occupancy and fee rates dropped. That put rent coverage below zero-point-nine times: mathematically, the business could not pay its rent from operations. With around thirty-one thousand residents across seven-hundred-fifty homes at risk, the resolution was an emergency, government-coordinated transfer of the homes to other operators, and Southern Cross was wound down in October twenty-eleven. The fragility wasn't the initial capital extraction — it was the twenty-year rent commitment that made the business brittle to any decline.", "est_sec": 62}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "The AIFMD Article 26-30 Test", "on_screen_title": "Would AIFMD have stopped it?", "on_screen_bullets": ["Article 28: no 24-month asset strip", "Sale-leaseback isn't asset stripping", "Long leases sit outside the rule"], "narration": "Now the regulatory experiment: would AIFMD's anti-asset-stripping rules have prevented this? AIFMD Articles twenty-six to thirty require a manager to notify regulators when it takes control of an EU company, and Article twenty-eight prohibits distributions, capital reductions, or buybacks that cut the company's net assets below a threshold during the twenty-four months after acquiring control. Apply that to Southern Cross. Was the sale-leaseback itself asset stripping? Technically no — it was an asset sale at fair value, with proceeds initially received by the company, and Article twenty-eight targets shareholder distributions, not arm's-length sales. But were the proceeds then distributed to Blackstone, via debt repayment and dividends, within that twenty-four-month window? Yes — and that step would likely have fallen within the Article twenty-eight prohibition. So the conclusion is partial: AIFMD would probably have constrained the capital-distribution component of the exit. It would not have prohibited the sale-leaseback, and it would not have touched the long-term triple-net lease. And the lease was the actual vulnerability — the twenty-year rent commitment that made the business fragile to any occupancy or fee decline. AIFMD regulates immediate extractions; it does not regulate the contractual obligations that create long-term structural fragility. That gap is the whole point.", "est_sec": 58}, {"n": 7, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Two countries, one pattern", "on_screen_bullets": ["Southern Cross 2011 vs ManorCare 2018", "~0.85x coverage at collapse, both", "No PE accountability, either side"], "narration": "Put the two cases side by side and the pattern is unmistakable. Southern Cross: Blackstone, acquired two-thousand-four, properties sold to the UK REIT NHP, rent of around two-hundred-fifty million pounds at collapse, coverage near zero-point-eight-five times, thirty-one thousand residents affected, resolved by emergency operator transfer. ManorCare: Carlyle, acquired two-thousand-seven, properties sold to the US REIT Welltower, rent around four-hundred-seventy-seven million dollars at collapse, coverage near zero-point-eight-five times, roughly fifty to sixty thousand residents affected, resolved by Chapter Eleven bankruptcy. One pre-AIFMD, one post-Dodd-Frank — two different regulatory regimes — and in both, the PE firm had already exited and bore no accountability for the collapse. The near-identical structure and outcome across two countries, two firms, and seven years apart is the strongest available evidence that the REIT-PE split is a structural phenomenon that neither Dodd-Frank nor AIFMD has resolved. And to be clear on the UK ownership chain, since it's often muddled: NHP's homes later fed into Four Seasons Health Care, which was a separate operator under different owners, not a Blackstone company.", "est_sec": 56}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["AIFMD didn't prevent it", "Two causes, both true", "The pattern recurred in 2019"], "narration": "Four corrections. First, the claim that AIFMD prevented Southern Cross — it came into force in July twenty-eleven, around when the company collapsed, and even applied from two-thousand-four it would not have prohibited the sale-leaseback or the long lease. Second, the claim that Blackstone is simply responsible for the collapse — Blackstone had exited at the two-thousand-six IPO, so the proximate cause was fixed rent meeting falling occupancy and fees, while the structural cause was the sale-leaseback that imposed that rent; both are true at once. Third, the claim that the UK regulatory response fixed things — the post-collapse inquiry made modest disclosure recommendations but didn't restrict PE ownership of care homes, and Four Seasons, carrying the same NHP-legacy lease structure, entered administration in twenty-nineteen with the same below-one-times rent coverage, eight years later, same structural cause. And fourth, the claim that this is a UK-only problem — the same structure and outcome appeared in the US with ManorCare and in aged-care concerns in Australia; it's an international pattern, not a national failure. The overall lesson for the regulatory thread: AIFMD is a better framework than Dodd-Frank because it constrains mechanisms Dodd-Frank ignores, but it does not resolve the core structural problem, because the long-term lease is the real vulnerability and no current framework addresses it. Next we go inside that lease itself — triple-net mechanics.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Southern Cross's fragility came from the long-term lease, not the initial capital extraction. Explain why that distinction determines whether AIFMD's anti-asset-stripping rule could have prevented the collapse. Why is the near-identical ManorCare outcome strong evidence the split is structural, not regime-specific?", "narration": "Before the next lesson, reason it through. Southern Cross's fragility came from the long-term lease, not the initial capital extraction — explain why that distinction decides whether AIFMD's anti-asset-stripping rule could have prevented the collapse. And why is the near-identical ManorCare outcome, under a different regime, strong evidence that the split is structural rather than regime-specific? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Southern Cross Healthcare — UK REIT-PE Split Pre-AIFMD\n\n[hook] ManorCare before ManorCare\nWe just built the REIT-PE split in the abstract. Southern Cross is the case that proves it isn't an American quirk — it's a structural pattern. It matters for three reasons. First, it is ManorCare before ManorCare: Blackstone used the same architecture in two-thousand-four through two-thousand-six that Carlyle would use at ManorCare a few years later — acquire the care-home operator, sale-leaseback the properties into a REIT, distribute the proceeds, and leave the operating company holding fixed rent it couldn't service in a downturn. Second, it happened right before AIFMD, the European directive with anti-asset-stripping rules, which lets us ask a sharp question: would those rules actually have stopped this? And third, it's the real test of whether a stricter regulatory regime changes PE behaviour at all. So this lesson is both a case study and a regulatory experiment.\n\n[definition] The UK precursor\nThe definition. Southern Cross Healthcare was the UK's largest care-home operator, acquired by Blackstone in two-thousand-four and collapsed in twenty-eleven after a Blackstone-engineered sale-leaseback stripped its property assets into a REIT, leaving the operating company with over two-hundred-fifty million pounds in annual rent that clinical margins could not sustain. It is the UK's direct precursor to the ManorCare pattern — and the decisive test case for whether AIFMD's anti-asset-stripping provisions actually changed PE conduct in essential services.\n\n[intuition] The five-step playbook\nPlain English, in five steps. In two-thousand-four Blackstone bought Southern Cross — about seven-hundred-fifty care homes, around thirty-seven thousand residents — for roughly a hundred-sixty-two million pounds. Step one: sell the properties, to a property company called NHP, generating around a billion pounds. Step two: lease them back, on long triple-net leases with rent rising about two-and-a-half percent a year regardless of occupancy or care economics. Step three: extract capital, using the proceeds to repay acquisition debt and fund distributions to Blackstone's investors. Step four: sell the operating company, by floating Southern Cross on the London Stock Exchange in two-thousand-six at around a one-point-four-billion-pound valuation — a seven-to-nine-times gain on the purchase price in about two years. Step five: the operating company collapses. Left with over two-hundred-fifty million pounds of annual rent that kept rising, Southern Cross began losing money as occupancy fell after the financial crisis and local-authority care fees were squeezed. By twenty-eleven it couldn't pay the rent, and thirty-one thousand elderly residents faced displacement. The government had to coordinate an emergency transfer of the homes to other operators. The crucial point: Blackstone had already exited via the IPO in two-thousand-six, and bore no residual responsibility for the twenty-eleven collapse.\n\n[intuition] The Toys R Us difference\nThe mental model. Southern Cross is the UK's Toys R Us of care homes, with one decisive difference. When Toys R Us went bankrupt under its PE owners, the harm was real — tens of thousands of jobs lost — but the customers could simply shop elsewhere, because toys aren't essential. When Southern Cross went bankrupt, its customers were thirty-one thousand elderly, often cognitively impaired residents who could not just go to another care home — UK care-home supply is fixed, and these residents had no alternative and no ability to choose. That's the exit-ability gradient made concrete: the lower an individual's ability to exit — children in a school, the elderly in a care home, patients in a hospital — the greater the harm when the PE-owned operator collapses under the rent burden the split created. Same financial structure, radically different human stakes depending on who the captive customer is.\n\n[mechanics] The arithmetic of collapse\nThe technical arithmetic. Blackstone's real-estate and capital-partners funds acquired Southern Cross in two-thousand-four with roughly five-to-six-times leverage on the hundred-sixty-two-million-pound price. Over two-thousand-four to two-thousand-six the properties were sold to NHP for around one billion pounds, on triple-net leases with twenty-to-twenty-five-year initial terms and rent escalating at retail-price-index plus a small margin — about two-and-a-half percent a year — with rent coverage set at inception around one-point-three times. Blackstone exited at the two-thousand-six IPO at a one-point-four-billion valuation, an estimated seven-to-nine-times return on a two-year hold. Then watch the coverage decay. By twenty-eleven the annual rent obligation had grown past two-hundred-fifty million pounds, while pre-rent earnings — EBITDAR — had fallen to roughly two-hundred to two-hundred-twenty million as occupancy and fee rates dropped. That put rent coverage below zero-point-nine times: mathematically, the business could not pay its rent from operations. With around thirty-one thousand residents across seven-hundred-fifty homes at risk, the resolution was an emergency, government-coordinated transfer of the homes to other operators, and Southern Cross was wound down in October twenty-eleven. The fragility wasn't the initial capital extraction — it was the twenty-year rent commitment that made the business brittle to any decline.\n\n[mechanics] Would AIFMD have stopped it?\nNow the regulatory experiment: would AIFMD's anti-asset-stripping rules have prevented this? AIFMD Articles twenty-six to thirty require a manager to notify regulators when it takes control of an EU company, and Article twenty-eight prohibits distributions, capital reductions, or buybacks that cut the company's net assets below a threshold during the twenty-four months after acquiring control. Apply that to Southern Cross. Was the sale-leaseback itself asset stripping? Technically no — it was an asset sale at fair value, with proceeds initially received by the company, and Article twenty-eight targets shareholder distributions, not arm's-length sales. But were the proceeds then distributed to Blackstone, via debt repayment and dividends, within that twenty-four-month window? Yes — and that step would likely have fallen within the Article twenty-eight prohibition. So the conclusion is partial: AIFMD would probably have constrained the capital-distribution component of the exit. It would not have prohibited the sale-leaseback, and it would not have touched the long-term triple-net lease. And the lease was the actual vulnerability — the twenty-year rent commitment that made the business fragile to any occupancy or fee decline. AIFMD regulates immediate extractions; it does not regulate the contractual obligations that create long-term structural fragility. That gap is the whole point.\n\n[example] Two countries, one pattern\nPut the two cases side by side and the pattern is unmistakable. Southern Cross: Blackstone, acquired two-thousand-four, properties sold to the UK REIT NHP, rent of around two-hundred-fifty million pounds at collapse, coverage near zero-point-eight-five times, thirty-one thousand residents affected, resolved by emergency operator transfer. ManorCare: Carlyle, acquired two-thousand-seven, properties sold to the US REIT Welltower, rent around four-hundred-seventy-seven million dollars at collapse, coverage near zero-point-eight-five times, roughly fifty to sixty thousand residents affected, resolved by Chapter Eleven bankruptcy. One pre-AIFMD, one post-Dodd-Frank — two different regulatory regimes — and in both, the PE firm had already exited and bore no accountability for the collapse. The near-identical structure and outcome across two countries, two firms, and seven years apart is the strongest available evidence that the REIT-PE split is a structural phenomenon that neither Dodd-Frank nor AIFMD has resolved. And to be clear on the UK ownership chain, since it's often muddled: NHP's homes later fed into Four Seasons Health Care, which was a separate operator under different owners, not a Blackstone company.\n\n[pitfalls] What people get wrong\nFour corrections. First, the claim that AIFMD prevented Southern Cross — it came into force in July twenty-eleven, around when the company collapsed, and even applied from two-thousand-four it would not have prohibited the sale-leaseback or the long lease. Second, the claim that Blackstone is simply responsible for the collapse — Blackstone had exited at the two-thousand-six IPO, so the proximate cause was fixed rent meeting falling occupancy and fees, while the structural cause was the sale-leaseback that imposed that rent; both are true at once. Third, the claim that the UK regulatory response fixed things — the post-collapse inquiry made modest disclosure recommendations but didn't restrict PE ownership of care homes, and Four Seasons, carrying the same NHP-legacy lease structure, entered administration in twenty-nineteen with the same below-one-times rent coverage, eight years later, same structural cause. And fourth, the claim that this is a UK-only problem — the same structure and outcome appeared in the US with ManorCare and in aged-care concerns in Australia; it's an international pattern, not a national failure. The overall lesson for the regulatory thread: AIFMD is a better framework than Dodd-Frank because it constrains mechanisms Dodd-Frank ignores, but it does not resolve the core structural problem, because the long-term lease is the real vulnerability and no current framework addresses it. Next we go inside that lease itself — triple-net mechanics.\n\nEnd-card question: Southern Cross's fragility came from the long-term lease, not the initial capital extraction. Explain why that distinction determines whether AIFMD's anti-asset-stripping rule could have prevented the collapse. Why is the near-identical ManorCare outcome strong evidence the split is structural, not regime-specific?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Southern Cross is the most important case study in the UK REIT-PE split literature for three reasons:</p><ol><li><strong>It is ManorCare before ManorCare.</strong> Blackstone used the same economic architecture in 2004-2007 that Carlyle used at ManorCare in 2007-2012: acquire care home operator, sale-leaseback properties into a REIT (NHP in the UK case, Welltower/HCN in the ManorCare case), use proceeds to fund distributions to PE owners, leave operating company with fixed rent obligations it cannot service in a downturn.</li></ol><ol><li><strong>It happened before AIFMD.</strong> Southern Cross collapsed in 2011; AIFMD came into force in July 2011 (though firms had until July 2013 to comply). The question this case enables: would AIFMD Article 26-30's anti-asset stripping provisions have prevented the Southern Cross structure if they had been in force from 2004? This directly tests AIFMD's effectiveness as a regulatory tool.</li></ol><ol><li><strong>It is the test of the International Comparison as Governance Evidence thesis.</strong> The course's argument (in International Comparison as Governance Evidence) is that AIFMD's stricter regulatory environment changes PE behaviour. Southern Cross, as a pre-AIFMD UK case, is the counterfactual — what UK care home PE looks like without AIFMD. Comparing pre-2011 and post-2013 UK care home PE provides evidence on whether AIFMD changed the pattern.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Southern Cross Healthcare was the UK's largest care home operator, acquired by Blackstone in 2004 and collapsed in 2011 after a Blackstone-engineered sale-leaseback stripped its property assets into a REIT, leaving the operating company with £250m+ in annual rent obligations that clinical margins could not sustain — the UK's direct precursor to the ManorCare pattern, and the decisive test case for whether AIFMD's anti-asset stripping provisions actually changed PE essential services conduct.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>In 2004, Blackstone acquired Southern Cross Healthcare, the UK's largest care home operator, for approximately £162m. Southern Cross at the time owned approximately 750 care homes providing residential, nursing, and dementia care to around 37,000 residents.</p><p>Blackstone's value extraction strategy followed the same playbook that would later define ManorCare:</p><p><strong>Step 1:</strong> Sell the properties. Blackstone sold Southern Cross's care home properties to NHP (a REIT-like property company), generating approximately £1.1bn in proceeds. [needs-verification: exact NHP sale amount]</p><p><strong>Step 2:</strong> Lease them back. Southern Cross signed long-term triple-net leases with NHP, agreeing to pay annual rent for the use of care homes it had previously owned. Rent escalation was written in at approximately 2.5% per year, regardless of occupancy or clinical economics.</p><p><strong>Step 3:</strong> Extract capital. Blackstone used the sale-leaseback proceeds to repay acquisition debt and fund distributions to its fund investors.</p><p><strong>Step 4:</strong> Sell the operating company. Blackstone listed Southern Cross on the London Stock Exchange in 2006, selling its stake to public market investors at approximately £1.4bn valuation — a 7-9x gain on the 2004 acquisition price.</p><p><strong>Step 5:</strong> Operating company collapses. Left with £250m+ in annual rent obligations (rising at 2.5% per year regardless of care home economics), Southern Cross began losing money as occupancy fell after the GFC and government funding constraints reduced local authority care fees. By 2011, Southern Cross was unable to service its rent and announced it could not continue operating. 31,000 elderly residents faced displacement.</p><p>The UK government had to coordinate an emergency restructuring with NHP and the company's lenders to transfer care home operations to other operators. Southern Cross ceased to exist as a company in October 2011.</p><p><strong>The Blackstone outcome:</strong> Blackstone had exited via the 2006 IPO. It bore no residual financial responsibility for the 2011 collapse — the public market shareholders, NHP (the REIT), and the UK care system absorbed the cost.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Southern Cross is the UK's Toys R Us of care homes, with one crucial difference.</p><p>When Toys R Us went bankrupt in 2017 (KKR/Bain/Vornado), the customers — shoppers — could go to other toy stores. The harm was real (33,000 jobs lost) but the product (toys) was not essential.</p><p>When Southern Cross went bankrupt in 2011, the customers — 31,000 elderly, often cognitively impaired care home residents — could not go to other care homes. UK care home supply is fixed. The harm was an existential threat to extremely vulnerable people who had no alternative and no ability to choose.</p><p>This is the exit ability gradient made concrete: the lower an individual's ability to exit (children in a school, elderly in a care home, patients in a hospital), the greater the harm when the PE-owned operator collapses under the rent burden created by the REIT-PE split.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Southern Cross Transaction Structure</p><p><strong>Acquisition (2004):</strong> - Acquirer: Blackstone Real Estate Partners IV and Blackstone Capital Partners IV - Target: Southern Cross Healthcare (750 care homes, ~37,000 residents) - Price: ~£162m - Structure: LBO with approximately 5-6x leverage</p><p><strong>Sale-leaseback (2004-2006):</strong> - Properties sold to NHP (later merged into Four Seasons Holdings, then partially acquired by Barchester Healthcare) - Estimated proceeds: £1-1.1bn from property sales - NNN lease terms: 20-25 year initial term; annual rent escalation at RPI + 0-1%, approximately 2.5% average - Rent coverage target at inception: approximately 1.3x EBITDAR/rent</p><p><strong>IPO exit (2006):</strong> - Southern Cross listed on LSE at £1.4bn valuation - Blackstone sold approximately 60-70% of its stake at IPO - Blackstone's retained stake sold in secondary market over 2006-2007 - Total Blackstone return: estimated 7-9x MOIC on 2-year hold</p><p><strong>Collapse (2011):</strong> - Southern Cross annual rent obligation: estimated £250m+ - Southern Cross EBITDAR (pre-rent earnings): ~£200-220m at time of announcement - Rent coverage: below 0.9x — mathematically insolvent at rent - Resident count at risk: ~31,000 in ~750 homes - Resolution: emergency government-coordinated transfer of homes to other operators; Southern Cross wound down October 2011</p><p>---</p><p>### The AIFMD Article 26-30 Test</p><p>Would AIFMD's anti-asset stripping provisions have prevented the Southern Cross structure?</p><p><strong>What AIFMD Articles 26-30 require:</strong> - Article 26: AIFM must notify competent authority when acquiring \"control\" of an EU company (&gt;50%) - Article 28: No \"asset stripping\" — prohibits distributions, capital reductions, share redemptions, or acquisitions reducing the company's net assets below subscribed capital + non-distributable reserves during the 24 months following acquisition of control - Article 30: Special rules for \"natural persons and small and medium-sized enterprises\" — not applicable to large operators like Southern Cross</p><p><strong>The Southern Cross mechanism under AIFMD analysis:</strong></p><p>The Blackstone sale-leaseback of Southern Cross's care home properties was executed over 2004-2006, approximately a 2-year window. Under AIFMD Article 28 analysis:</p><ul class='notelist'><li>Was the sale-leaseback a \"distribution\" or \"capital reduction\"? Technically no: it was an asset sale (properties sold at market value) with proceeds initially received by the company. AIFMD's asset stripping prohibition targets shareholder distributions, not arm's length asset sales.</li></ul><ul class='notelist'><li>Were the sale-leaseback proceeds distributed to shareholders? Yes — the proceeds were used to repay acquisition debt and return capital to Blackstone via dividends and refinancing. These distributions would fall within the AIFMD Article 28 prohibition if they reduced net assets below the subscribed capital threshold within 24 months of acquisition.</li></ul><p><strong>The conclusion:</strong> AIFMD's anti-asset stripping provisions would likely have constrained the capital distribution component of the Blackstone exit — the step where sale-leaseback proceeds were returned to Blackstone via debt repayment and dividends. However, AIFMD would not have prohibited the sale-leaseback itself (an asset sale at fair value is not \"asset stripping\" under AIFMD Article 28). The operating company would still have been left with the long-term NNN rent obligation.</p><p><strong>The critical gap:</strong> AIFMD Article 28's 24-month window restricts <em>immediate</em> capital extractions but does not govern the structural burden imposed by long-term lease obligations. Southern Cross's problem was not the initial capital extraction; it was the 20-year rent commitment that made the business fragile to any occupancy or fee rate decline. AIFMD does not regulate contractual obligations that create long-term structural vulnerability.</p><p>---</p><p>### Post-AIFMD UK Care Home PE: Did the Pattern Change?</p><p>If AIFMD changed UK PE behaviour in care homes, we would expect: 1. Fewer sale-leaseback structures in UK care homes post-2013 2. Lower rent-to-EBITDAR ratios for care home operators 3. Fewer care home collapses attributable to rent burden</p><p><strong>Evidence post-AIFMD:</strong></p><ul class='notelist'><li>Four Seasons Health Care (second largest UK care home operator, owned by private equity succession): entered administration in 2019. Four Seasons held properties on leaseback from NHP (the same REIT that held Southern Cross properties). Annual rent: ~£90m against EBITDAR of approximately £70-80m (coverage below 1x).</li></ul><ul class='notelist'><li>HC-One (third largest UK care home operator, backed by private equity succession since approximately 2011): uses a sale-leaseback structure with PHP (Primary Health Properties REIT). Rent coverage in 2021-22: approximately 1.0-1.1x EBITDAR.</li></ul><ul class='notelist'><li>Barchester Healthcare (private, no PE ownership post-2008): owns most of its properties outright. Consistently higher EBITDAR margins than NNN-leased competitors.</li></ul><p><strong>Preliminary conclusion:</strong> The post-AIFMD UK care home PE landscape still shows persistent use of sale-leaseback structures and rent coverage ratios below 1.3x — the same pattern that produced Southern Cross. AIFMD's anti-asset stripping provisions have not demonstrably eliminated the structural vulnerability that the REIT-PE split creates. The pattern persists because AIFMD constrains capital distributions but not the long-term lease obligations that are the actual fragility mechanism.</p><p>This is a specific, empirically documented limitation of the AIFMD regulatory track that strengthens the course thesis's Regulatory Question thread: Track 2 regulation (structural rules) changes some behaviours but cannot eliminate the core structural problem if the mechanism operates through long-term contracts rather than immediate distributions.</p><p>---</p><p>### Why Southern Cross Matters for the International Comparison</p><p>The International Comparison as Governance Evidence note argues that AIFMD's regulatory environment produces better outcomes than the US Dodd-Frank approach. Southern Cross complicates this argument:</p><p><strong>AIFMD as partial solution:</strong> The post-AIFMD UK care home industry still shows the same structural REIT-PE split vulnerability. AIFMD did not end PE ownership of UK care homes; it did not prohibit sale-leaseback structures; and the care home operators that failed post-2013 (Four Seasons 2019) still failed for rent-burden reasons.</p><p><strong>The distributional improvement:</strong> What AIFMD may have changed is the <em>scale</em> of capital extraction and the <em>speed</em> at which the structural vulnerability accumulates. If AIFMD constrains how much capital can be extracted in the 24 months post-acquisition, the remaining lease obligations may be more serviced and less predatory. But the mechanism persists.</p><p><strong>The research gap:</strong> No systematic academic study comparing pre-AIFMD and post-AIFMD UK care home PE sector outcomes (rent coverage ratios, operator failure rates, staffing levels) is yet available. Without this comparison, the conclusion is tentative: AIFMD changed some behaviours but not the structural mechanism that produces Southern Cross-type outcomes.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Southern Cross vs. ManorCare: The Structural Comparison</strong></p><p>| Feature | Southern Cross (UK, 2011) | ManorCare (US, 2018) | |---|---|---| | PE Acquirer | Blackstone (2004) | Carlyle (2007) | | Property buyer | NHP (UK REIT) | Welltower/HCN (US REIT) | | Property sale proceeds | ~£1bn+ | ~$3.2bn | | Annual rent at collapse | ~£250m | ~$477m | | Rent coverage at collapse | ~0.85x | ~0.85x | | Residents affected | 31,000 | 60,000 | | Regulatory regime at time | Pre-AIFMD | Post-Dodd-Frank (no equivalent provision) | | Resolution | Emergency operator transfer | Bankruptcy (Chapter 11), care home sales | | PE accountability | None (already exited) | None (already exited) |</p><p>The near-identical structure, outcome, and PE accountability gap — across two countries, two GPs, seven years apart, with and without the regulatory context — is the strongest available evidence that the REIT-PE split is a structural phenomenon that neither Dodd-Frank nor AIFMD has yet resolved.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"AIFMD prevented Southern Cross.\"</strong> AIFMD came into force in July 2011; Southern Cross collapsed in June 2011. Even if AIFMD had been in force since 2004 (the Blackstone acquisition), Article 28's anti-asset stripping provisions do not prohibit sale-leaseback transactions. They constrain immediate distributions, not long-term lease obligations.</p><p><strong>Misconception 2: \"Blackstone is responsible for Southern Cross's collapse.\"</strong> Blackstone had exited via the 2006 IPO. The proximate cause of the 2011 collapse was the combination of fixed rent obligations and declining occupancy/government fee rates. The structural cause was the 2004-2006 sale-leaseback that imposed the fixed rent obligations. Both are true simultaneously.</p><p><strong>Misconception 3: \"The UK regulatory response to Southern Cross improved the situation.\"</strong> The Competition Commission inquiry (2012) made modest disclosure recommendations but did not restrict PE ownership of care homes. Four Seasons (the second-largest UK care home operator, with the same NHP-legacy REIT structure) entered administration in 2019 — eight years after Southern Cross, with the same structural cause. The UK regulatory response did not prevent the pattern from recurring.</p><p><strong>Misconception 4: \"This is a UK-only problem.\"</strong> The same structure, same REIT vehicle, and same outcome occurred in the US (ManorCare, 2018) and Australia (aged care sector PE concerns). The REIT-PE split in healthcare is an international pattern, not a UK-specific failure.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

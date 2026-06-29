@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-due-diligence-and-deal-pricing", "title": "Synthesis: Due Diligence and Deal Pricing", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "DD produces the price", "on_screen_bullets": ["Five topics, one process", "Output: max rational price", "Entry multiple is an output, not input"], "narration": "Commercial due diligence, financial due diligence, EBITDA add-backs, the LBO model, and the entry multiple are taught as five separate topics. In practice they are one process with one output: the maximum price a PE firm can rationally offer. The chain has no gaps. Commercial diligence validates the business, and its most consequential financial output isn't its risk register but its exit-multiple assumption — how much a buyer will pay in five years — which lives directly inside the LBO model. Financial diligence validates the numbers, producing the adjusted EBITDA, the net-debt schedule, and the working-capital peg. EBITDA add-backs are the battlefield where that EBITDA is fought over — at twelve times, every million of disputed EBITDA moves the price by twelve million, so the battle over add-backs is the battle over the price. The LBO model converts the exit-multiple assumption and the validated EBITDA into a maximum sustainable price — the point where IRR drops below the hurdle. And the entry multiple is the final expression of all of it. The synthesis: the entry multiple is the output of the diligence and modelling process, not an input — you can't decide what multiple to pay before running diligence; the multiple emerges from what diligence finds.", "est_sec": 60}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "Why a £2m finding moves £24m", "on_screen_bullets": ["Add-back disputes = price talks", "CDD affects price, not just risk", "Did the GP overpay? Ask the model"], "narration": "Studying these five concepts separately gives you five independent tools; studying them together answers the question every deal team is actually asking — what is this company worth to us, and why? It lets you explain why a two-million financial-diligence finding matters: at twelve times it's a twenty-four-million price movement, not a rounding error, because EBITDA add-back disputes are purchase-price negotiations by another name. It lets you explain why commercial diligence affects the price, not just the risk: a weaker exit-multiple assumption, driven by a finding of competitive deterioration, directly reduces the maximum entry multiple the IRR will support. It lets you evaluate whether a GP overpaid — by asking what exit multiple their model assumed, whether diligence supported it, and whether they built on seller-claimed or validated EBITDA. And it lets you understand why auction dynamics can override good analysis: a firm can know eleven times is their ceiling and still lose to a bidder at thirteen whose model accepted a higher exit assumption or a lower hurdle.", "est_sec": 54}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "From thesis to entry multiple", "on_screen_bullets": ["CDD → exit multiple assumption", "FDD → adjusted EBITDA + net debt", "Model → ceiling; auction → clearing price"], "narration": "The concept map runs in four stages. Thesis formation sets the hypothesis diligence will test and the value-creation plan that drives the EBITDA-growth assumption. In due diligence, commercial diligence investigates market, competition, customers, and growth, and its key financial output is the exit-multiple assumption: strong findings let the GP assume a higher exit and therefore pay a higher entry multiple at the same IRR; weak findings force a lower exit assumption and a lower maximum entry. Financial diligence, meanwhile, produces the adjusted EBITDA via the add-back battle, plus the net debt and the working-capital peg. Stage three: the LBO model takes those inputs — validated EBITDA as the operating base, the net-debt schedule for the equity calculation, the debt structure sized off that EBITDA, and the commercial exit-multiple range — and outputs the maximum entry multiple, the highest ratio at which the model still produces the minimum required IRR, typically twenty percent. And stage four: the actual entry multiple is the lesser of the model's maximum and the auction's clearing price. If the model says twelve and the auction clears at eleven, the GP bids eleven with headroom; if the auction clears at thirteen, the GP can't win at a twenty-percent IRR without either walking away or justifying a more aggressive exit assumption.", "est_sec": 60}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Westfield bids for Meridian", "on_screen_bullets": ["Seller: £44m adj EBITDA, 15x ask", "FDD validates £40.4m; net debt £14m→£26.1m", "CDD exit 13x → max entry 12.6x"], "narration": "Watch it in a live auction. Westfield Capital is bidding for Meridian Software, an NHS-facing vertical software business. The seller claims a hundred eighty million of revenue, thirty-six million reported EBITDA, a seller-adjusted forty-four million after eight million of add-backs, fourteen million of net debt, and a fifteen-times asking price — six hundred sixty million enterprise value. Commercial diligence, by a strategy firm over six weeks, finds NHS IT spending growing seven percent, a defensible thirty-four-percent subsegment share, net retention of a hundred-and-eight percent, and very sticky six-year contracts — concluding the asset will attract thirteen-to-sixteen times from financial buyers and seventeen-to-nineteen from a strategic, and recommending the model use thirteen times in the base case. That thirteen-times exit feeds straight into the LBO model. Financial diligence, in parallel, fights the add-back battle: it validates two-point-eight million of departed-CEO pay and one-point-six million of one-time legal settlement, but rejects two-point-one million of recurring cybersecurity spend and one-and-a-half million of a digital-transformation initiative budgeted again next year — so validated adjusted EBITDA is forty-point-four million, not forty-four. It also finds net debt is really twenty-six-point-one million once deferred revenue, a pension deficit, and lease liabilities are counted — twelve million more than the seller showed — and sets the working-capital peg at thirteen rather than fifteen.", "est_sec": 66}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "The £152m gap, fully traced", "on_screen_bullets": ["Model supports 12.6x, not 15x", "Every gap = a specific DD finding", "Westfield max £508m; walks at £580m auction"], "narration": "Now the model converts those diligence outputs into a ceiling. On a forty-point-four-million base growing eight percent with margin improvement, year-five EBITDA is about sixty-six million; at the thirteen-times commercial exit that's an eight-hundred-fifty-eight-million exit enterprise value. Working back through the debt paydown and the twenty-percent IRR hurdle, the maximum entry equity is about two hundred eighty million, the maximum entry enterprise value about five hundred eight million — a maximum entry multiple of twelve-point-six times, not the seller's fifteen. And every piece of the roughly hundred-fifty-two-million gap between the seller's six-sixty and Westfield's five-zero-eight traces to a specific finding: fifty-four million from the rejected add-backs at the seller's multiple, twelve million from the undisclosed debt-like items, ninety-seven million because the model simply can't support fifteen times when commercial diligence caps the exit at thirteen, and two million from the working-capital peg. That is how diligence creates the price, not just the risk. In the auction, two rival PE bidders come in at five hundred eighty and five hundred forty million; Westfield can go to five hundred eight and still clear its hurdle, but to win at five-eighty it would need to assume a fifteen-times exit its advisors don't support, accept a sub-hurdle eighteen-percent IRR, or push growth to ten or eleven percent. It can't justify any of those, so it declines and walks — and that is not a failure of analysis, it's the correct application of diligence discipline to a competitive auction.", "est_sec": 70}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Comps set range, not your max", "Add-back fights are price fights", "Net debt ≠ bank debt minus cash"], "narration": "Five things people miss. First, the entry multiple is set by comparable transactions — no, comps establish the market range, but what a firm can rationally pay is constrained by the model's hurdle, which depends on validated EBITDA and the commercial-diligence exit multiple; a sector may trade at fourteen-to-sixteen times, but if diligence cuts your EBITDA and forces a conservative exit, your model might only support eleven or twelve. Second, financial-diligence disputes are accounting minutiae — at any multiple above eight times, a one-million EBITDA dispute is an eight-million-plus price dispute; the diligence team arguing whether a cybersecurity upgrade is one-time or recurring are negotiating the purchase price in accounting language. Third, commercial and financial diligence can be read independently — they interact through the model, because the commercial exit-multiple assumption is the primary driver of the maximum entry multiple, so reading both reports without putting them into the model and watching the ceiling move is an unfinished analysis. Fourth, the model is built after diligence is complete — in practice it's live throughout, updated in real time as findings land, and the final version is a record of every finding and its price implication. And fifth, net debt is just bank debt minus cash — it includes pension deficits, deferred revenue, lease liabilities, and contingent obligations that can double or triple the headline figure; missing them means paying more equity than you intended and getting less at exit.", "est_sec": 64}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Practical Example", "on_screen_title": "Advent walks from Kapten", "on_screen_bullets": ["Seller: £22m EBITDA, 20x = £440m", "FDD £18.8m; CDD exit only 13x", "Max £251m; Advent walks at £290m"], "narration": "A second case, illustratively — Advent and Kapten Payments, a B2B payments platform. The seller claims sixty-five million of recurring revenue, twenty-two million adjusted EBITDA, eight million net debt, and a twenty-times ask — four hundred forty million. Commercial diligence finds the payments sector growing but Kapten only middling within it: a moderate net-promoter score, flat hundred-and-one-percent net retention meaning no real upsell, and three credible competitors with rising price pressure — so it recommends a thirteen-times base exit, not the premium multiples reserved for high-growth fintechs. Financial diligence finds the recurring-revenue figure inflated — seven million of so-called ARR is actually month-to-month with no term — and rejects a three-point-two-million founder-restructuring add-back as recurring, leaving validated EBITDA of eighteen-point-eight million, not twenty-two; net debt, with deferred revenue and leases, is really thirteen-point-nine. Run the model: eighteen-point-eight growing twelve percent reaches about thirty-three million by year five, times the thirteen-times exit is four hundred thirty million; after debt paydown and the twenty-percent hurdle, the maximum entry is about two hundred fifty-one million — a thirteen-point-three-times multiple against the seller's twenty. The hundred-eighty-nine-million gap is fully traceable: the rejected add-back at the seller's multiple, the extra debt-like items, and above all the model's inability to support twenty times when the exit is capped at thirteen. Advent can stretch only to two hundred ninety million — and that's already a sub-hurdle seventeen-percent IRR — so it walks. The correct outcome of applying diligence discipline to a deal priced for perfection.", "est_sec": 68}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "DD is a pricing exercise", "on_screen_bullets": ["Every finding is a pricing input", "CDD → exit multiple; FDD → EBITDA", "Model sets ceiling, auction sets price"], "narration": "To recap. Due diligence and deal pricing are not sequential steps — diligence first, then price — they're a single integrated process in which every finding is a pricing input. Commercial diligence determines the exit-multiple assumption in the model, so a finding about competitive deterioration translates directly into a lower maximum entry multiple. Financial diligence validates the EBITDA denominator, so every pound of EBITDA validation is a pound times the multiple in purchase price, and the add-back battle is a pricing negotiation in accounting clothing. The model converts all of it into a price ceiling — the multiple at which the IRR clears the hurdle — and the final entry multiple is constrained from above by the model and set by the auction below. Understanding this transforms diligence from a risk exercise into a pricing exercise, which is what it has been all along. That completes the deal-pricing synthesis. Next we connect operational value creation back to the three sources of return — value creation and returns attribution.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A seller asks 15x on £44m 'adjusted' EBITDA but the buyer walks. Trace how CDD and FDD findings turn into the gap between the £660m ask and the ~£508m maximum — and why the entry multiple is an output, not an input.", "narration": "Before the next lesson, reason it through. A seller asks fifteen times on forty-four million of adjusted EBITDA, but the buyer walks away. Trace how the commercial and financial diligence findings turn into the gap between the six-hundred-sixty-million ask and the roughly five-hundred-eight-million maximum — and explain why the entry multiple is an output of the process, not an input. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: Due Diligence and Deal Pricing\n\n[hook] DD produces the price\nCommercial due diligence, financial due diligence, EBITDA add-backs, the LBO model, and the entry multiple are taught as five separate topics. In practice they are one process with one output: the maximum price a PE firm can rationally offer. The chain has no gaps. Commercial diligence validates the business, and its most consequential financial output isn't its risk register but its exit-multiple assumption — how much a buyer will pay in five years — which lives directly inside the LBO model. Financial diligence validates the numbers, producing the adjusted EBITDA, the net-debt schedule, and the working-capital peg. EBITDA add-backs are the battlefield where that EBITDA is fought over — at twelve times, every million of disputed EBITDA moves the price by twelve million, so the battle over add-backs is the battle over the price. The LBO model converts the exit-multiple assumption and the validated EBITDA into a maximum sustainable price — the point where IRR drops below the hurdle. And the entry multiple is the final expression of all of it. The synthesis: the entry multiple is the output of the diligence and modelling process, not an input — you can't decide what multiple to pay before running diligence; the multiple emerges from what diligence finds.\n\n[intuition] Why a £2m finding moves £24m\nStudying these five concepts separately gives you five independent tools; studying them together answers the question every deal team is actually asking — what is this company worth to us, and why? It lets you explain why a two-million financial-diligence finding matters: at twelve times it's a twenty-four-million price movement, not a rounding error, because EBITDA add-back disputes are purchase-price negotiations by another name. It lets you explain why commercial diligence affects the price, not just the risk: a weaker exit-multiple assumption, driven by a finding of competitive deterioration, directly reduces the maximum entry multiple the IRR will support. It lets you evaluate whether a GP overpaid — by asking what exit multiple their model assumed, whether diligence supported it, and whether they built on seller-claimed or validated EBITDA. And it lets you understand why auction dynamics can override good analysis: a firm can know eleven times is their ceiling and still lose to a bidder at thirteen whose model accepted a higher exit assumption or a lower hurdle.\n\n[mechanics] From thesis to entry multiple\nThe concept map runs in four stages. Thesis formation sets the hypothesis diligence will test and the value-creation plan that drives the EBITDA-growth assumption. In due diligence, commercial diligence investigates market, competition, customers, and growth, and its key financial output is the exit-multiple assumption: strong findings let the GP assume a higher exit and therefore pay a higher entry multiple at the same IRR; weak findings force a lower exit assumption and a lower maximum entry. Financial diligence, meanwhile, produces the adjusted EBITDA via the add-back battle, plus the net debt and the working-capital peg. Stage three: the LBO model takes those inputs — validated EBITDA as the operating base, the net-debt schedule for the equity calculation, the debt structure sized off that EBITDA, and the commercial exit-multiple range — and outputs the maximum entry multiple, the highest ratio at which the model still produces the minimum required IRR, typically twenty percent. And stage four: the actual entry multiple is the lesser of the model's maximum and the auction's clearing price. If the model says twelve and the auction clears at eleven, the GP bids eleven with headroom; if the auction clears at thirteen, the GP can't win at a twenty-percent IRR without either walking away or justifying a more aggressive exit assumption.\n\n[worked-example] Westfield bids for Meridian\nWatch it in a live auction. Westfield Capital is bidding for Meridian Software, an NHS-facing vertical software business. The seller claims a hundred eighty million of revenue, thirty-six million reported EBITDA, a seller-adjusted forty-four million after eight million of add-backs, fourteen million of net debt, and a fifteen-times asking price — six hundred sixty million enterprise value. Commercial diligence, by a strategy firm over six weeks, finds NHS IT spending growing seven percent, a defensible thirty-four-percent subsegment share, net retention of a hundred-and-eight percent, and very sticky six-year contracts — concluding the asset will attract thirteen-to-sixteen times from financial buyers and seventeen-to-nineteen from a strategic, and recommending the model use thirteen times in the base case. That thirteen-times exit feeds straight into the LBO model. Financial diligence, in parallel, fights the add-back battle: it validates two-point-eight million of departed-CEO pay and one-point-six million of one-time legal settlement, but rejects two-point-one million of recurring cybersecurity spend and one-and-a-half million of a digital-transformation initiative budgeted again next year — so validated adjusted EBITDA is forty-point-four million, not forty-four. It also finds net debt is really twenty-six-point-one million once deferred revenue, a pension deficit, and lease liabilities are counted — twelve million more than the seller showed — and sets the working-capital peg at thirteen rather than fifteen.\n\n[worked-example] The £152m gap, fully traced\nNow the model converts those diligence outputs into a ceiling. On a forty-point-four-million base growing eight percent with margin improvement, year-five EBITDA is about sixty-six million; at the thirteen-times commercial exit that's an eight-hundred-fifty-eight-million exit enterprise value. Working back through the debt paydown and the twenty-percent IRR hurdle, the maximum entry equity is about two hundred eighty million, the maximum entry enterprise value about five hundred eight million — a maximum entry multiple of twelve-point-six times, not the seller's fifteen. And every piece of the roughly hundred-fifty-two-million gap between the seller's six-sixty and Westfield's five-zero-eight traces to a specific finding: fifty-four million from the rejected add-backs at the seller's multiple, twelve million from the undisclosed debt-like items, ninety-seven million because the model simply can't support fifteen times when commercial diligence caps the exit at thirteen, and two million from the working-capital peg. That is how diligence creates the price, not just the risk. In the auction, two rival PE bidders come in at five hundred eighty and five hundred forty million; Westfield can go to five hundred eight and still clear its hurdle, but to win at five-eighty it would need to assume a fifteen-times exit its advisors don't support, accept a sub-hurdle eighteen-percent IRR, or push growth to ten or eleven percent. It can't justify any of those, so it declines and walks — and that is not a failure of analysis, it's the correct application of diligence discipline to a competitive auction.\n\n[pitfalls] What siloed study misses\nFive things people miss. First, the entry multiple is set by comparable transactions — no, comps establish the market range, but what a firm can rationally pay is constrained by the model's hurdle, which depends on validated EBITDA and the commercial-diligence exit multiple; a sector may trade at fourteen-to-sixteen times, but if diligence cuts your EBITDA and forces a conservative exit, your model might only support eleven or twelve. Second, financial-diligence disputes are accounting minutiae — at any multiple above eight times, a one-million EBITDA dispute is an eight-million-plus price dispute; the diligence team arguing whether a cybersecurity upgrade is one-time or recurring are negotiating the purchase price in accounting language. Third, commercial and financial diligence can be read independently — they interact through the model, because the commercial exit-multiple assumption is the primary driver of the maximum entry multiple, so reading both reports without putting them into the model and watching the ceiling move is an unfinished analysis. Fourth, the model is built after diligence is complete — in practice it's live throughout, updated in real time as findings land, and the final version is a record of every finding and its price implication. And fifth, net debt is just bank debt minus cash — it includes pension deficits, deferred revenue, lease liabilities, and contingent obligations that can double or triple the headline figure; missing them means paying more equity than you intended and getting less at exit.\n\n[worked-example] Advent walks from Kapten\nA second case, illustratively — Advent and Kapten Payments, a B2B payments platform. The seller claims sixty-five million of recurring revenue, twenty-two million adjusted EBITDA, eight million net debt, and a twenty-times ask — four hundred forty million. Commercial diligence finds the payments sector growing but Kapten only middling within it: a moderate net-promoter score, flat hundred-and-one-percent net retention meaning no real upsell, and three credible competitors with rising price pressure — so it recommends a thirteen-times base exit, not the premium multiples reserved for high-growth fintechs. Financial diligence finds the recurring-revenue figure inflated — seven million of so-called ARR is actually month-to-month with no term — and rejects a three-point-two-million founder-restructuring add-back as recurring, leaving validated EBITDA of eighteen-point-eight million, not twenty-two; net debt, with deferred revenue and leases, is really thirteen-point-nine. Run the model: eighteen-point-eight growing twelve percent reaches about thirty-three million by year five, times the thirteen-times exit is four hundred thirty million; after debt paydown and the twenty-percent hurdle, the maximum entry is about two hundred fifty-one million — a thirteen-point-three-times multiple against the seller's twenty. The hundred-eighty-nine-million gap is fully traceable: the rejected add-back at the seller's multiple, the extra debt-like items, and above all the model's inability to support twenty times when the exit is capped at thirteen. Advent can stretch only to two hundred ninety million — and that's already a sub-hurdle seventeen-percent IRR — so it walks. The correct outcome of applying diligence discipline to a deal priced for perfection.\n\n[recap] DD is a pricing exercise\nTo recap. Due diligence and deal pricing are not sequential steps — diligence first, then price — they're a single integrated process in which every finding is a pricing input. Commercial diligence determines the exit-multiple assumption in the model, so a finding about competitive deterioration translates directly into a lower maximum entry multiple. Financial diligence validates the EBITDA denominator, so every pound of EBITDA validation is a pound times the multiple in purchase price, and the add-back battle is a pricing negotiation in accounting clothing. The model converts all of it into a price ceiling — the multiple at which the IRR clears the hurdle — and the final entry multiple is constrained from above by the model and set by the auction below. Understanding this transforms diligence from a risk exercise into a pricing exercise, which is what it has been all along. That completes the deal-pricing synthesis. Next we connect operational value creation back to the three sources of return — value creation and returns attribution.\n\nEnd-card question: A seller asks 15x on £44m 'adjusted' EBITDA but the buyer walks. Trace how CDD and FDD findings turn into the gap between the £660m ask and the ~£508m maximum — and why the entry multiple is an output, not an input.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>Commercial due diligence, financial due diligence, EBITDA add-backs, the LBO model, and the entry multiple are taught as five separate topics. In practice they are one process with one output: the maximum price a PE firm can rationally offer.</p><p>The connection is a direct causal chain with no gaps:</p><ol><li><strong>Commercial Due Diligence</strong> validates the business — market position, growth prospects, customer quality, competitive dynamics. Its most consequential financial output is not its risk register but its <strong>exit multiple assumption</strong>: how much will a buyer pay for this business in five years? That assumption lives directly inside the LBO model.</li></ol><ol><li><strong>Financial Due Diligence</strong> validates the numbers — specifically the EBITDA. Its output is the FDD-adjusted EBITDA, the net debt schedule, and the NWC peg. The FDD-adjusted EBITDA is the denominator in the entry multiple and the cornerstone of the LBO model's operating forecast.</li></ol><ol><li><strong>EBITDA Add-Backs and Adjustments</strong> is the battlefield where FDD adjusts the EBITDA. It is not a technical accounting exercise — it is a pricing negotiation. At 12x, every £1M of EBITDA disputed moves the purchase price by £12M. The battle over add-backs IS the battle over the entry price.</li></ol><ol><li><strong>LBO Model Architecture</strong> converts CDD's exit multiple assumption and FDD's validated EBITDA into a maximum sustainable price — the point at which the IRR drops below the return hurdle. The model does not set the price; it sets the ceiling.</li></ol><ol><li><strong>Entry Multiple</strong> is the final expression of all the above: EV / FDD-adjusted EBITDA. It is not chosen independently from a comparable transactions table. It is constrained from above by the LBO model (what IRR allows), informed from above by CDD (what exit multiple can be assumed), and determined at the bottom by the auction (what the competition bids).</li></ol><p>The synthesis: <strong>the entry multiple is the output of the due diligence and modelling process, not an input. You cannot determine what multiple to pay before running DD. The multiple emerges from what DD finds.</strong></p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying these five concepts separately produces five independent analytical tools. Studying them together produces the answer to the question every deal team is actually trying to answer: <em>what is this company worth to us, and why?</em></p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Explain why a £2M FDD finding matters</strong> — at 12x, it is a £24M price movement, not a rounding error; EBITDA add-back disputes are purchase price negotiations by another name</li><li><strong>Explain why CDD affects price, not just risk</strong> — a weaker exit multiple assumption in the LBO model (driven by CDD finding competitive deterioration) directly reduces the maximum entry multiple the IRR will support</li><li><strong>Evaluate whether a GP overpaid</strong> — by asking: what exit multiple did their LBO model assume? Was that supported by CDD findings? What EBITDA did they build on — seller-claimed or FDD-validated?</li><li><strong>Understand why auction dynamics can override good analysis</strong> — the LBO model's ceiling and the actual clearing price are two different things; a PE firm can know that 11x is their maximum and still lose the auction to a bidder at 13x whose model accepted a higher exit multiple assumption or lower IRR hurdle</li><li><strong>Trace the source of every post-close value creation challenge</strong> to a specific DD finding or LBO model assumption that proved incorrect</li></ul><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>Scenario: Bidding for a healthcare IT company in a competitive auction</strong></p><p>A PE firm (call them Westfield Capital) is in the final round of an auction for Meridian Software, a UK-based vertical software business serving NHS trusts and healthcare providers.</p><p><strong>What the seller claims:</strong> - Revenue: £180M (85% ARR) - Reported EBITDA: £36M (20% margin) - Adjusted EBITDA (seller's version): £44M (after £8M of add-backs) - Net debt: £14M - Asking price: 15x seller-adjusted EBITDA = £660M EV</p><p><strong>CDD findings (conducted by OC&amp;C, 6-week engagement):</strong></p><p><em>Market:</em> - NHS IT spending growing 7% annually on structural tailwinds (digitisation mandates) - Meridian holds 34% share of its specific subsegment — defensible moat - One credible new entrant in Year 2, but Meridian's switching costs are high (average 5-year implementation cycles)</p><p><em>Revenue quality:</em> - NRR: 108% (customers expand usage over time) — strong - Average contract length: 6.2 years — very sticky - No customer &gt; 12% of revenue — concentration acceptable</p><p><em>CDD verdict on exit:</em> \"Asset will attract 13-16x from financial buyers at exit; 17-19x from strategic acquirer (large EHR vendor). We recommend modelling 13x in base case, 16x in upside, 11x in downside.\"</p><p>This means the LBO model will use <strong>13x exit multiple</strong> in the base case. That is a CDD output feeding directly into the LBO model.</p><p>---</p><p><strong>FDD findings (conducted by KPMG, parallel with CDD):</strong></p><p><em>EBITDA add-back scrutiny — the battlefield:</em></p><p>| Add-back claimed | Amount | FDD verdict | Reason | |---|---|---|---| | Departed CEO excess remuneration | £2.8M | ✅ Validated | New CEO at market rate — genuine saving | | One-time legal settlement | £1.6M | ✅ Validated | Non-recurring — court case resolved | | Annual cybersecurity upgrade | £2.1M | ❌ Rejected | Third consecutive year — structurally recurring | | \"Digital transformation\" initiative | £1.5M | ❌ Rejected | Similar spend budgeted for Year +1 in management plan |</p><p>FDD-validated adjusted EBITDA: £36M + £2.8M + £1.6M = <strong>£40.4M</strong> (not seller's £44M)</p><p><em>Net debt and debt-like items:</em></p><p>| Item | Amount | Treatment | |---|---|---| | Bank debt (confirmed) | £14M | Debt | | Deferred revenue | £3.2M | Debt-like | | Pension deficit | £6.8M | Debt-like | | IFRS 16 lease liabilities | £2.1M | Debt-like | | <strong>Total net debt</strong> | <strong>£26.1M</strong> | |</p><p>FDD net debt: <strong>£26.1M</strong> (vs. seller's stated £14M — a £12.1M difference)</p><p><em>NWC peg:</em> Seller proposed £15M. FDD analysis shows normalised NWC = £13M. Peg set at £13M (saving buyer £2M at close).</p><p>---</p><p><strong>The LBO Model runs on FDD and CDD outputs:</strong></p><p><em>Operating model base (FDD EBITDA → CDD growth assumption):</em> - Base EBITDA: £40.4M - EBITDA growth: 8% annual (CDD validates 7-9% band; GP uses 8% as base) - Margin improvement: 22.4% → 25% over 5 years (value creation plan) - Year 5 EBITDA: approximately £40.4M × 1.08^5 × (25/22.4) ≈ <strong>£66M</strong></p><p><em>Exit (CDD base case exit multiple = 13x):</em> - Exit EV: 13x £66M = <strong>£858M</strong></p><p><em>Debt structure (sized against FDD EBITDA):</em> - TLB: 5x × £40.4M = £202M - Entry net debt total: £202M + £26.1M existing = <strong>£228M</strong></p><p><em>Entry equity:</em> Maximum entry EV at 20% IRR hurdle: - Exit equity (at £858M EV, net of exit debt ≈ £160M after paydown) = ~£698M - For 20% IRR over 5 years: entry equity = £698M / (1.20^5) = £698M / 2.488 = <strong>£280M</strong> - Maximum entry EV = £280M equity + £228M debt = <strong>£508M</strong> - Maximum entry multiple = £508M / £40.4M = <strong>12.6x</strong> [illustrative]</p><p><strong>The gap between seller's ask and buyer's maximum:</strong></p><p>| Component | Seller Position | Westfield Position | Gap | |---|---|---|---| | Adjusted EBITDA | £44M | £40.4M (FDD-validated) | £3.6M EBITDA × 15x = <strong>£54M</strong> | | Net debt | £14M | £26.1M | <strong>£12.1M</strong> equity difference | | Entry multiple (IRR-constrained) | 15x | 12.6x max | (12.6x − 15x) × £40.4M = <strong>£97M</strong> | | NWC peg | £15M | £13M | <strong>£2M</strong> equity difference | | <strong>Total gap</strong> | <strong>£660M EV</strong> | <strong>~£508M EV</strong> | <strong>~£152M</strong> |</p><p>Each of the four gap components is directly traceable to a DD finding or LBO model constraint: - £54M: FDD rejected £3.6M of seller add-backs × 15x multiple - £12.1M: FDD identified undisclosed debt-like items - £97M: LBO model cannot support 15x because CDD's 13x exit assumption constrains max entry to 12.6x at 20% IRR - £2M: FDD NWC peg analysis</p><p>This is how due diligence creates deal price, not just deal risk.</p><p>---</p><p><strong>What happens in the auction:</strong></p><p>Two other PE bidders are in the final round. One bids £580M (14.3x FDD EBITDA). Another bids £540M (13.4x).</p><p>Westfield can bid up to £508M and still clear their 20% hurdle. To win at £580M, Westfield's LBO model would need to either: (a) assume 15x exit multiple (requiring a more optimistic CDD read than their advisors recommend), or (b) accept an 18% IRR (below hurdle), or (c) increase EBITDA growth assumption to 10-11% per year.</p><p>Westfield cannot justify the winning bid at their current assumptions. They decline to increase the bid. The winning bidder at £580M has modelled a 15x exit multiple — betting on a strategic sale, not a financial buyer exit.</p><p>This is not a failure of Westfield's analysis. It is the correct application of DD-driven discipline to a competitive auction.</p><p>---</p>"}, "4": {"section": "How They Interact in Practice", "html": "<p><strong>Scenario: Bidding for a healthcare IT company in a competitive auction</strong></p><p>A PE firm (call them Westfield Capital) is in the final round of an auction for Meridian Software, a UK-based vertical software business serving NHS trusts and healthcare providers.</p><p><strong>What the seller claims:</strong> - Revenue: £180M (85% ARR) - Reported EBITDA: £36M (20% margin) - Adjusted EBITDA (seller's version): £44M (after £8M of add-backs) - Net debt: £14M - Asking price: 15x seller-adjusted EBITDA = £660M EV</p><p><strong>CDD findings (conducted by OC&amp;C, 6-week engagement):</strong></p><p><em>Market:</em> - NHS IT spending growing 7% annually on structural tailwinds (digitisation mandates) - Meridian holds 34% share of its specific subsegment — defensible moat - One credible new entrant in Year 2, but Meridian's switching costs are high (average 5-year implementation cycles)</p><p><em>Revenue quality:</em> - NRR: 108% (customers expand usage over time) — strong - Average contract length: 6.2 years — very sticky - No customer &gt; 12% of revenue — concentration acceptable</p><p><em>CDD verdict on exit:</em> \"Asset will attract 13-16x from financial buyers at exit; 17-19x from strategic acquirer (large EHR vendor). We recommend modelling 13x in base case, 16x in upside, 11x in downside.\"</p><p>This means the LBO model will use <strong>13x exit multiple</strong> in the base case. That is a CDD output feeding directly into the LBO model.</p><p>---</p><p><strong>FDD findings (conducted by KPMG, parallel with CDD):</strong></p><p><em>EBITDA add-back scrutiny — the battlefield:</em></p><p>| Add-back claimed | Amount | FDD verdict | Reason | |---|---|---|---| | Departed CEO excess remuneration | £2.8M | ✅ Validated | New CEO at market rate — genuine saving | | One-time legal settlement | £1.6M | ✅ Validated | Non-recurring — court case resolved | | Annual cybersecurity upgrade | £2.1M | ❌ Rejected | Third consecutive year — structurally recurring | | \"Digital transformation\" initiative | £1.5M | ❌ Rejected | Similar spend budgeted for Year +1 in management plan |</p><p>FDD-validated adjusted EBITDA: £36M + £2.8M + £1.6M = <strong>£40.4M</strong> (not seller's £44M)</p><p><em>Net debt and debt-like items:</em></p><p>| Item | Amount | Treatment | |---|---|---| | Bank debt (confirmed) | £14M | Debt | | Deferred revenue | £3.2M | Debt-like | | Pension deficit | £6.8M | Debt-like | | IFRS 16 lease liabilities | £2.1M | Debt-like | | <strong>Total net debt</strong> | <strong>£26.1M</strong> | |</p><p>FDD net debt: <strong>£26.1M</strong> (vs. seller's stated £14M — a £12.1M difference)</p><p><em>NWC peg:</em> Seller proposed £15M. FDD analysis shows normalised NWC = £13M. Peg set at £13M (saving buyer £2M at close).</p><p>---</p><p><strong>The LBO Model runs on FDD and CDD outputs:</strong></p><p><em>Operating model base (FDD EBITDA → CDD growth assumption):</em> - Base EBITDA: £40.4M - EBITDA growth: 8% annual (CDD validates 7-9% band; GP uses 8% as base) - Margin improvement: 22.4% → 25% over 5 years (value creation plan) - Year 5 EBITDA: approximately £40.4M × 1.08^5 × (25/22.4) ≈ <strong>£66M</strong></p><p><em>Exit (CDD base case exit multiple = 13x):</em> - Exit EV: 13x £66M = <strong>£858M</strong></p><p><em>Debt structure (sized against FDD EBITDA):</em> - TLB: 5x × £40.4M = £202M - Entry net debt total: £202M + £26.1M existing = <strong>£228M</strong></p><p><em>Entry equity:</em> Maximum entry EV at 20% IRR hurdle: - Exit equity (at £858M EV, net of exit debt ≈ £160M after paydown) = ~£698M - For 20% IRR over 5 years: entry equity = £698M / (1.20^5) = £698M / 2.488 = <strong>£280M</strong> - Maximum entry EV = £280M equity + £228M debt = <strong>£508M</strong> - Maximum entry multiple = £508M / £40.4M = <strong>12.6x</strong> [illustrative]</p><p><strong>The gap between seller's ask and buyer's maximum:</strong></p><p>| Component | Seller Position | Westfield Position | Gap | |---|---|---|---| | Adjusted EBITDA | £44M | £40.4M (FDD-validated) | £3.6M EBITDA × 15x = <strong>£54M</strong> | | Net debt | £14M | £26.1M | <strong>£12.1M</strong> equity difference | | Entry multiple (IRR-constrained) | 15x | 12.6x max | (12.6x − 15x) × £40.4M = <strong>£97M</strong> | | NWC peg | £15M | £13M | <strong>£2M</strong> equity difference | | <strong>Total gap</strong> | <strong>£660M EV</strong> | <strong>~£508M EV</strong> | <strong>~£152M</strong> |</p><p>Each of the four gap components is directly traceable to a DD finding or LBO model constraint: - £54M: FDD rejected £3.6M of seller add-backs × 15x multiple - £12.1M: FDD identified undisclosed debt-like items - £97M: LBO model cannot support 15x because CDD's 13x exit assumption constrains max entry to 12.6x at 20% IRR - £2M: FDD NWC peg analysis</p><p>This is how due diligence creates deal price, not just deal risk.</p><p>---</p><p><strong>What happens in the auction:</strong></p><p>Two other PE bidders are in the final round. One bids £580M (14.3x FDD EBITDA). Another bids £540M (13.4x).</p><p>Westfield can bid up to £508M and still clear their 20% hurdle. To win at £580M, Westfield's LBO model would need to either: (a) assume 15x exit multiple (requiring a more optimistic CDD read than their advisors recommend), or (b) accept an 18% IRR (below hurdle), or (c) increase EBITDA growth assumption to 10-11% per year.</p><p>Westfield cannot justify the winning bid at their current assumptions. They decline to increase the bid. The winning bidder at £580M has modelled a 15x exit multiple — betting on a strategic sale, not a financial buyer exit.</p><p>This is not a failure of Westfield's analysis. It is the correct application of DD-driven discipline to a competitive auction.</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"The entry multiple is set by looking at comparable transactions.\"</p><p>Precedent transactions and comparable companies establish the <em>market range</em> — what other buyers have paid. But the entry multiple a PE firm can rationally pay is constrained by the LBO model's return hurdle, which is itself determined by: - The EBITDA the firm is building on (FDD-validated, not seller-claimed) - The exit multiple the firm can assume (CDD-validated, not just the current sector average)</p><p>A sector may trade at 14-16x, but if FDD reduces your EBITDA by 10% and CDD forces a conservative exit multiple, your LBO model might only support 11-12x. Studying comps in isolation would tell you to bid 14-16x and lose money.</p><p>### 2. \"FDD disputes are accounting minutiae — not commercial decisions.\"</p><p>At any entry multiple above 8x, a £1M EBITDA dispute is a £8M+ price dispute. At 12x, a £3.6M EBITDA adjustment (as in the example above) moves the price by £43M — a 7% swing on a £600M deal. This is not a technical accounting question. It is a commercial negotiation disguised as an accounting question. The FDD team and the M&amp;A lawyers are negotiating the purchase price when they argue about whether the cybersecurity upgrade is one-time or recurring.</p><p>### 3. \"CDD and FDD answer different questions and can be read independently.\"</p><p>CDD and FDD interact through the LBO model. Specifically: CDD's exit multiple assumption is the primary driver of the maximum entry multiple the LBO model supports. If CDD finds the business is exceptional (NRR 115%, dominant market position, sector tailwind), the GP can assume a 15x exit and pay a high entry multiple. If CDD finds the business is mediocre (NRR 95%, competitive pressure, no clear growth), the GP must assume a 10x exit and can pay much less.</p><p>A deal team that reads the CDD report and the FDD report in isolation — without putting both into the LBO model and watching what happens to the maximum supportable entry multiple — has not completed their analysis.</p><p>### 4. \"The LBO model is built after DD is complete, using its outputs.\"</p><p>In practice, the LBO model is live throughout the DD process. When FDD sends a preliminary finding rejecting £2M of add-backs, the analyst opens the model and checks whether the IRR still clears the hurdle. When CDD raises a competitive concern in week 3, the model is re-run with a lower exit multiple that afternoon. The model is not built after DD — it is updated in real-time as DD progresses. The final version is a record of every significant DD finding and its price implication.</p><p>### 5. \"Net debt is just the debt balance — you find it on the balance sheet.\"</p><p>FDD's net debt schedule includes pension deficits, deferred revenue, lease liabilities, contingent liabilities, and other off-balance-sheet obligations that are not visible in the headline \"bank debt minus cash\" figure. These items affect the equity cheque at close — they convert enterprise value to a lower equity value. In the example above, FDD found £12.1M of additional debt-like items not in the seller's presentation. Those items move directly from enterprise value to the buyer's equity shortfall. Missing them means paying more equity than you intended to — and receiving less equity value at exit.</p><p>---</p>"}, "6": {"section": "Practical Example", "html": "<p><strong>Illustrative: Advent International acquires a fintech SaaS company</strong></p><p><em>Context:</em> Advent International acquires Kapten Payments, a UK-based B2B payments platform, in a competitive auction process.</p><p><em>Seller's materials:</em> - Claimed ARR: £65M - Claimed adjusted EBITDA: £22M (margin 33.8%) - Net debt: £8M - Asking price: 20x adjusted EBITDA = £440M EV</p><p><em>CDD conducted by LEK (4 weeks):</em> - Payments sector structural growth: strong (SME card acceptance digitising) - Kapten's NPS: 42 (moderate; not exceptional) - NRR: 101% (flat — no meaningful upsell) - Three credible competitors; pricing competition increasing - CDD exit conclusion: comparable payments fintechs trade 14-18x for high-growth, 11-13x for slower growth. At 101% NRR and moderate NPS, <strong>LEK recommends 13x base, 11x downside, 15x upside exit multiple assumption</strong></p><p><em>FDD conducted by Deloitte (parallel, 4 weeks):</em> - Revenue quality: ARR figure inflated. £7M of \"ARR\" is month-to-month contracts with no term. True ARR = £58M. - EBITDA claimed add-backs of £7M:   - £3.2M: \"founder cost restructuring\" — ongoing executive restructuring costs (recurring based on company history) → REJECTED   - £2.1M: transaction costs — validated ✅   - £1.7M: above-market founder salary → validated ✅ (transitional) - FDD-adjusted EBITDA: £15M + £2.1M + £1.7M = <strong>£18.8M</strong> (not seller's £22M) - Net debt: stated £8M + £4.1M deferred revenue (treated as debt-like due to nature of advance payments) + £1.8M IFRS 16 = <strong>£13.9M</strong></p><p><em>LBO Model (base case):</em> - Entry EBITDA: £18.8M - CDD EBITDA growth: 12% per year (strong sector growth) - Year 5 EBITDA: £18.8M × 1.12^5 = <strong>£33.1M</strong> - CDD exit multiple: 13x - Exit EV: 13 × £33.1M = <strong>£430M</strong> - Debt structure: 5x leverage × £18.8M = £94M + £13.9M existing = £107.9M total net debt at entry - Projected exit debt: ~£75M (after 5 years of paydown) - Exit equity: £430M − £75M = £355M - For 20% IRR: entry equity = £355M / 2.488 = <strong>£143M</strong> - Max entry EV = £143M + £107.9M = <strong>£250.9M</strong> - Max entry multiple = £250.9M / £18.8M = <strong>13.3x</strong></p><p><em>Seller asks 20x. Advent can support 13.3x.</em></p><p>The entire £189M gap between seller's £440M and Advent's £251M maximum breaks down as: - FDD EBITDA gap: £3.2M × 20x = £64M - FDD net debt gap: £5.9M = £5.9M - Entry multiple gap (20x vs 13.3x) × FDD EBITDA (£18.8M) = £126M</p><p>This deal does not close at the seller's price. Either the seller accepts a significantly lower price, or a strategic buyer (who can assume synergies and a higher exit value) wins the auction.</p><p>Advent walks away at £290M — their maximum at 17% IRR (below hurdle), knowing they cannot justify the deal at the seller's expectations. This is the correct outcome of applying DD discipline rigorously to a deal that was priced for perfection.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Due diligence and deal pricing are not sequential steps — DD first, then price. They are a single integrated process in which every DD finding is a pricing input. Commercial due diligence determines the exit multiple assumption in the LBO model — a finding about competitive deterioration or revenue quality weakness translates directly into a lower maximum entry multiple. Financial due diligence validates the EBITDA denominator in the entry multiple — every pound of EBITDA validation is a pound times the entry multiple in purchase price. The EBITDA add-back battle is not an accounting dispute; it is a pricing negotiation. The LBO model converts all DD outputs into a maximum price ceiling — the entry multiple at which the IRR clears the hurdle. The final entry multiple is constrained from above by the LBO model and set by the auction below it. Understanding this synthesis transforms DD from a risk exercise into a pricing exercise — which is what it has been all along.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

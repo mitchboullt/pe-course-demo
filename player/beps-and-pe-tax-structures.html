@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "beps-and-pe-tax-structures", "title": "BEPS and PE Tax Structures", "draft_watermark": false, "estimated_runtime_sec": 435, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The architecture under attack", "on_screen_bullets": ["PE built around tax efficiency", "BEPS targets every element", "Pillar Two: biggest constraint since LBOs began"], "narration": "We've covered how the GP's personal carry is taxed; now we move up to the fund and portfolio-company level, to the international tax architecture PE is built on. Historically, PE fund structures were designed around tax efficiency — offshore fund vehicles in the Cayman Islands, holding companies in Luxembourg or the Netherlands tapping treaty-reduced withholding taxes, and management entities positioned to receive carry at capital-gains rates. The OECD's BEPS programme systematically challenged every element of that architecture. Several of its actions directly target hybrid mismatches, treaty shopping, artificial avoidance of taxable presence, and transfer-pricing documentation — all staples of PE holding structures. And Pillar Two, the fifteen-percent global minimum tax effective in the EU and UK from twenty-twenty-four, is the most significant new tax constraint on PE portfolio companies since the LBO era began. This is where the international plumbing of PE gets retrofitted.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "OECD's 15-action programme", "on_screen_bullets": ["Base Erosion and Profit Shifting", "2013–2015 reform, 15 actions", "Reshapes PE holdcos, treaties, minimum tax"], "narration": "The definition. BEPS — Base Erosion and Profit Shifting — is the OECD's twenty-thirteen-to-twenty-fifteen reform programme of fifteen actions targeting multinational tax avoidance. Its application to PE specifically reshapes how funds structure their holding companies, how they access tax treaties, how they satisfy substance requirements, and how they navigate the new fifteen-percent global minimum tax under Pillar Two. Fifteen coordinated actions, aimed at the gap between where profits are earned and where they're taxed.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Substance now required", "on_screen_bullets": ["Before: nominee director, big treaty saving", "After: real economic substance needed", "Pillar Two: at least 15%, somewhere"], "narration": "Plain English. Before BEPS, a PE firm could set up a holding company in Luxembourg with a single nominee director and no employees, claim a tax treaty to slash dividend withholding — say from twenty-six percent down to five — and pocket the difference. Luxembourg had no objection because the company was technically there; the source country had no recourse because the treaty was a legitimate bilateral agreement. No substance, minimal cost, large saving. BEPS says: the treaty benefit is only available if the structure has a genuine economic purpose and real substance — and a holding company with one nominee director and no employees fails that test. So now you need real employees making real investment decisions in Luxembourg, which is exactly what the large firms have done, building out genuine European investment teams in Luxembourg, London, and Dublin to satisfy the substance requirements. And at the portfolio-company level, Pillar Two adds a hard floor: whatever a company earns globally, it pays at least fifteen percent tax on it, with a top-up tax imposed by whichever in-scope country sits highest in the ownership chain if the rate falls short. Substance for the holding companies, a minimum rate for the operating companies — that's the new world.", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "The 15 BEPS Actions — PE-Relevant Summary", "on_screen_title": "The PE-critical actions", "on_screen_bullets": ["Action 4: 30% EBITDA interest cap", "Action 6: treaty abuse / PPT", "Action 13: country-by-country reporting"], "narration": "Technically, of the fifteen actions, a handful matter most for PE. Action two, hybrid mismatches, targets instruments treated as debt in one country, generating a deduction, and as equity in another, generating exempt income — a classic PE structuring trick now neutralised. Action four, interest deductibility, is the most direct hit on the LBO model: it caps net interest deductions at thirty percent of EBITDA, and since PE runs at six-or-seven times leverage, that cap frequently binds, especially after rates rose. Action six, treaty abuse, is critical — it introduces a principal-purpose test that denies treaty benefits if obtaining them was a principal purpose of the arrangement, which targets substance-free holding companies directly. Actions eight-through-ten on transfer pricing tighten the rules on intra-group interest, management fees, and intellectual property within portfolio groups. Action thirteen, country-by-country reporting, forces large portfolio groups above seven-hundred-fifty million euros in revenue to file detailed reports that let tax authorities see and challenge the structure. And action fifteen, the multilateral instrument, lets countries amend their entire treaty network at once to bake in these changes without renegotiating each treaty individually. Of these, action four is the one that most directly erodes LBO tax efficiency, and action six is the one that forced real substance into the holding structures — together they're the heart of BEPS's impact on PE.", "est_sec": 60}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Action 4: Interest Deductibility Limitation", "on_screen_title": "The interest cap bites", "on_screen_bullets": ["Deduction capped at 30% of EBITDA", "Binding at PE leverage levels", "Rate shock made it worse"], "narration": "Action four deserves its own scene, because it strikes at the core of how LBOs generate returns. The classic LBO tax benefit was that interest on the acquisition debt was fully deductible against corporate income, massively reducing a portfolio company's effective tax rate and leaving more cash for equity. Action four caps net interest deductions at thirty percent of EBITDA, adopted across the EU and in the UK, Germany, and France. Work an example. A company with a hundred million in EBITDA and three-hundred million of debt at an eight-percent coupon pays twenty-four million in interest, and since thirty percent of EBITDA is thirty million, all twenty-four million is deductible — no constraint yet. But take a company with the same hundred million EBITDA carrying six-hundred million of debt: that's forty-eight million in interest against a thirty-million cap, so eighteen million of interest is disallowed and the effective tax cost jumps. At the six-to-seven-times leverage typical of PE, the cap is frequently binding — and the recent interest-rate shock made it dramatically worse, because higher coupons pushed interest expense well above thirty percent of EBITDA even on moderate leverage. There's a partial relief valve, a group-ratio rule that allows deductibility up to the wider group's actual leverage ratio, useful when leverage is concentrated at the portfolio level. But the headline is clear: the single biggest tax engine of the leveraged buyout has been deliberately throttled, and over a multi-year hold the disallowed interest can cost tens of millions, materially denting equity returns.", "est_sec": 58}, {"n": 6, "beat": "mechanics", "visual": "mermaid", "source_section": "PE Fund Structure Under BEPS: The Revised Architecture", "on_screen_title": "The retrofitted structure", "on_screen_bullets": ["Was: holdco with nominee director", "Now: real substance layer", "Treaty access needs PPT compliance"], "mermaid": "graph TD\n    Fund[\"Cayman LP fund\"] --> Lux[\"Luxembourg vehicle<br/>GENUINE substance:<br/>investment team, decisions\"]\n    Lux --> Hold[\"Luxembourg holdco<br/>real substance,<br/>PPT-compliant\"]\n    Hold --> PC[\"Portfolio company<br/>(Germany / UK / France)\"]\n    Old[\"OLD: holdco =<br/>1 nominee director,<br/>no employees\"] -.->|fails PPT| Hold", "narration": "Here's how the structure itself had to be retrofitted, shown on screen — the old way and the new. The pre-BEPS structure was a stack: a Cayman fund on top, a Luxembourg holding company in the middle with one nominee director and no employees, and the portfolio company at the bottom. That holding company existed purely to capture treaty benefits, and under the principal-purpose test it now fails — that's the dotted line in the diagram. The post-BEPS structure adds genuine substance: the Cayman fund still sits on top, but beneath it the Luxembourg vehicle now carries a real investment team and operations, and the holding company beneath that has real substance and is compliant with the principal-purpose test before any treaty benefit is claimed, before the portfolio company at the base. The retrofit metaphor is apt: BEPS is like a building code applied to existing structures, so you must add load-bearing walls, real substance, not just facades, and structures that can't be economically retrofitted simply get demolished and restructured. And the cost is genuine — building real Luxembourg substance for a mid-market fund adds something like half-a-million to two million in annual operating costs versus the trivial cost of a nominee shell. But the alternative is worse: a structure condemned under the principal-purpose test loses its treaty benefits entirely and may have its income reclassified, which costs far more than the substance. So firms pay for the load-bearing walls because the facade no longer passes inspection.", "est_sec": 60}, {"n": 7, "beat": "mechanics", "visual": "table", "source_section": "Pillar Two: The 15% Global Minimum Tax", "on_screen_title": "Pillar Two: the 15% floor", "on_screen_bullets": ["Effective EU/UK from end-2023", "Fund excluded; portfolio cos in scope", "Top-up tax where rate below 15%"], "narration": "The newest and most consequential layer is Pillar Two, the fifteen-percent global minimum tax, effective in the EU and the UK from the end of twenty-twenty-three with a hundred-forty-plus countries in the agreement. The mechanics for PE turn on a crucial distinction. The PE investment fund itself is excluded, under a specific investment-fund exclusion, so the fund vehicle is generally out of scope. But the portfolio companies are very much in scope whenever they're part of a multinational group with consolidated revenues at or above seven-hundred-fifty million euros. For those, a top-up tax applies wherever any jurisdiction's effective tax rate falls below fifteen percent — so if a portfolio company books profit in a zero-tax jurisdiction, a top-up is collected by whichever in-scope country sits highest in the ownership chain, dragging the effective rate up to the floor. The practical consequence is that LBO models must now include a Pillar Two analysis at the due-diligence stage for any sizable target, because the days of routing profit through a low-tax jurisdiction and keeping the effective rate near zero are over for groups above that threshold. Note also that the US has not implemented Pillar Two, so US-domiciled groups aren't directly subject to it — but the EU and UK operations of US-sponsored portfolio companies are fully in scope, and the EU operations of US managers fall under the EU anti-tax-avoidance directives regardless. The fifteen-percent floor is now a planning input for essentially every large cross-border deal.", "est_sec": 58}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["BEPS didn't end PE tax advantages", "Pillar Two hits portfolio cos, not the fund", "Substance is decisions, not headcount"], "narration": "Four corrections to close. First, the belief that BEPS eliminated PE's tax advantages — not entirely; PE retains significant advantages, with carry still flowing at capital-gains rates, leverage still deductible within the thirty-percent EBITDA cap, and participation exemptions on exits in many jurisdictions, so BEPS reduced the most aggressive elements without dismantling the foundational efficiency of the LBO model. Second, the belief that Pillar Two applies to PE funds — the investment-fund exclusion generally takes the fund vehicle out of scope, so it's the portfolio companies that are caught, not the fund. Third, the belief that US sponsors face full BEPS exposure — the US hasn't implemented Pillar Two, but the EU and UK portfolio companies of US sponsors are fully in scope, and EU operations of US managers fall under the anti-tax-avoidance directives, so US sponsors face partial, not zero, exposure. And fourth, the belief that substance requirements are just about employee headcount — substance requires real decision-making in the jurisdiction, actual investment approvals and board decisions, so an entity with ten administrative staff but no investment decision-makers can still fail the test. To recap: BEPS systematically reshaped PE's international tax architecture — action four throttling the interest deduction, action six forcing genuine substance into holding companies, action thirteen creating the transparency that enables challenge, and Pillar Two imposing a fifteen-percent floor on portfolio companies — producing a more expensive, more complex compliance environment without demolishing PE's structural advantages. BEPS adjusted the architecture; it didn't tear down the foundations. Next we drill into the treaty-abuse action specifically — how PE shopped treaties and what the principal-purpose test now does about it.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "BEPS Action 4 caps interest deductions at 30% of EBITDA. Explain why this binds at typical PE leverage (6-7x) and why the rate shock made it worse. Then: Pillar Two excludes the FUND but catches the PORTFOLIO COMPANIES — explain that distinction.", "narration": "Before the next lesson, reason it through. BEPS Action four caps net interest deductions at thirty percent of EBITDA — explain why that binds at the six-to-seven-times leverage typical of PE, and why the recent interest-rate shock made the constraint significantly worse. And Pillar Two excludes the fund vehicle but catches the portfolio companies — explain that distinction and why it matters for deal due diligence. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: BEPS and PE Tax Structures\n\n[hook] The architecture under attack\nWe've covered how the GP's personal carry is taxed; now we move up to the fund and portfolio-company level, to the international tax architecture PE is built on. Historically, PE fund structures were designed around tax efficiency — offshore fund vehicles in the Cayman Islands, holding companies in Luxembourg or the Netherlands tapping treaty-reduced withholding taxes, and management entities positioned to receive carry at capital-gains rates. The OECD's BEPS programme systematically challenged every element of that architecture. Several of its actions directly target hybrid mismatches, treaty shopping, artificial avoidance of taxable presence, and transfer-pricing documentation — all staples of PE holding structures. And Pillar Two, the fifteen-percent global minimum tax effective in the EU and UK from twenty-twenty-four, is the most significant new tax constraint on PE portfolio companies since the LBO era began. This is where the international plumbing of PE gets retrofitted.\n\n[definition] OECD's 15-action programme\nThe definition. BEPS — Base Erosion and Profit Shifting — is the OECD's twenty-thirteen-to-twenty-fifteen reform programme of fifteen actions targeting multinational tax avoidance. Its application to PE specifically reshapes how funds structure their holding companies, how they access tax treaties, how they satisfy substance requirements, and how they navigate the new fifteen-percent global minimum tax under Pillar Two. Fifteen coordinated actions, aimed at the gap between where profits are earned and where they're taxed.\n\n[intuition] Substance now required\nPlain English. Before BEPS, a PE firm could set up a holding company in Luxembourg with a single nominee director and no employees, claim a tax treaty to slash dividend withholding — say from twenty-six percent down to five — and pocket the difference. Luxembourg had no objection because the company was technically there; the source country had no recourse because the treaty was a legitimate bilateral agreement. No substance, minimal cost, large saving. BEPS says: the treaty benefit is only available if the structure has a genuine economic purpose and real substance — and a holding company with one nominee director and no employees fails that test. So now you need real employees making real investment decisions in Luxembourg, which is exactly what the large firms have done, building out genuine European investment teams in Luxembourg, London, and Dublin to satisfy the substance requirements. And at the portfolio-company level, Pillar Two adds a hard floor: whatever a company earns globally, it pays at least fifteen percent tax on it, with a top-up tax imposed by whichever in-scope country sits highest in the ownership chain if the rate falls short. Substance for the holding companies, a minimum rate for the operating companies — that's the new world.\n\n[mechanics] The PE-critical actions\nTechnically, of the fifteen actions, a handful matter most for PE. Action two, hybrid mismatches, targets instruments treated as debt in one country, generating a deduction, and as equity in another, generating exempt income — a classic PE structuring trick now neutralised. Action four, interest deductibility, is the most direct hit on the LBO model: it caps net interest deductions at thirty percent of EBITDA, and since PE runs at six-or-seven times leverage, that cap frequently binds, especially after rates rose. Action six, treaty abuse, is critical — it introduces a principal-purpose test that denies treaty benefits if obtaining them was a principal purpose of the arrangement, which targets substance-free holding companies directly. Actions eight-through-ten on transfer pricing tighten the rules on intra-group interest, management fees, and intellectual property within portfolio groups. Action thirteen, country-by-country reporting, forces large portfolio groups above seven-hundred-fifty million euros in revenue to file detailed reports that let tax authorities see and challenge the structure. And action fifteen, the multilateral instrument, lets countries amend their entire treaty network at once to bake in these changes without renegotiating each treaty individually. Of these, action four is the one that most directly erodes LBO tax efficiency, and action six is the one that forced real substance into the holding structures — together they're the heart of BEPS's impact on PE.\n\n[mechanics] The interest cap bites\nAction four deserves its own scene, because it strikes at the core of how LBOs generate returns. The classic LBO tax benefit was that interest on the acquisition debt was fully deductible against corporate income, massively reducing a portfolio company's effective tax rate and leaving more cash for equity. Action four caps net interest deductions at thirty percent of EBITDA, adopted across the EU and in the UK, Germany, and France. Work an example. A company with a hundred million in EBITDA and three-hundred million of debt at an eight-percent coupon pays twenty-four million in interest, and since thirty percent of EBITDA is thirty million, all twenty-four million is deductible — no constraint yet. But take a company with the same hundred million EBITDA carrying six-hundred million of debt: that's forty-eight million in interest against a thirty-million cap, so eighteen million of interest is disallowed and the effective tax cost jumps. At the six-to-seven-times leverage typical of PE, the cap is frequently binding — and the recent interest-rate shock made it dramatically worse, because higher coupons pushed interest expense well above thirty percent of EBITDA even on moderate leverage. There's a partial relief valve, a group-ratio rule that allows deductibility up to the wider group's actual leverage ratio, useful when leverage is concentrated at the portfolio level. But the headline is clear: the single biggest tax engine of the leveraged buyout has been deliberately throttled, and over a multi-year hold the disallowed interest can cost tens of millions, materially denting equity returns.\n\n[mechanics] The retrofitted structure\nHere's how the structure itself had to be retrofitted, shown on screen — the old way and the new. The pre-BEPS structure was a stack: a Cayman fund on top, a Luxembourg holding company in the middle with one nominee director and no employees, and the portfolio company at the bottom. That holding company existed purely to capture treaty benefits, and under the principal-purpose test it now fails — that's the dotted line in the diagram. The post-BEPS structure adds genuine substance: the Cayman fund still sits on top, but beneath it the Luxembourg vehicle now carries a real investment team and operations, and the holding company beneath that has real substance and is compliant with the principal-purpose test before any treaty benefit is claimed, before the portfolio company at the base. The retrofit metaphor is apt: BEPS is like a building code applied to existing structures, so you must add load-bearing walls, real substance, not just facades, and structures that can't be economically retrofitted simply get demolished and restructured. And the cost is genuine — building real Luxembourg substance for a mid-market fund adds something like half-a-million to two million in annual operating costs versus the trivial cost of a nominee shell. But the alternative is worse: a structure condemned under the principal-purpose test loses its treaty benefits entirely and may have its income reclassified, which costs far more than the substance. So firms pay for the load-bearing walls because the facade no longer passes inspection.\n\n[mechanics] Pillar Two: the 15% floor\nThe newest and most consequential layer is Pillar Two, the fifteen-percent global minimum tax, effective in the EU and the UK from the end of twenty-twenty-three with a hundred-forty-plus countries in the agreement. The mechanics for PE turn on a crucial distinction. The PE investment fund itself is excluded, under a specific investment-fund exclusion, so the fund vehicle is generally out of scope. But the portfolio companies are very much in scope whenever they're part of a multinational group with consolidated revenues at or above seven-hundred-fifty million euros. For those, a top-up tax applies wherever any jurisdiction's effective tax rate falls below fifteen percent — so if a portfolio company books profit in a zero-tax jurisdiction, a top-up is collected by whichever in-scope country sits highest in the ownership chain, dragging the effective rate up to the floor. The practical consequence is that LBO models must now include a Pillar Two analysis at the due-diligence stage for any sizable target, because the days of routing profit through a low-tax jurisdiction and keeping the effective rate near zero are over for groups above that threshold. Note also that the US has not implemented Pillar Two, so US-domiciled groups aren't directly subject to it — but the EU and UK operations of US-sponsored portfolio companies are fully in scope, and the EU operations of US managers fall under the EU anti-tax-avoidance directives regardless. The fifteen-percent floor is now a planning input for essentially every large cross-border deal.\n\n[pitfalls] What people get wrong\nFour corrections to close. First, the belief that BEPS eliminated PE's tax advantages — not entirely; PE retains significant advantages, with carry still flowing at capital-gains rates, leverage still deductible within the thirty-percent EBITDA cap, and participation exemptions on exits in many jurisdictions, so BEPS reduced the most aggressive elements without dismantling the foundational efficiency of the LBO model. Second, the belief that Pillar Two applies to PE funds — the investment-fund exclusion generally takes the fund vehicle out of scope, so it's the portfolio companies that are caught, not the fund. Third, the belief that US sponsors face full BEPS exposure — the US hasn't implemented Pillar Two, but the EU and UK portfolio companies of US sponsors are fully in scope, and EU operations of US managers fall under the anti-tax-avoidance directives, so US sponsors face partial, not zero, exposure. And fourth, the belief that substance requirements are just about employee headcount — substance requires real decision-making in the jurisdiction, actual investment approvals and board decisions, so an entity with ten administrative staff but no investment decision-makers can still fail the test. To recap: BEPS systematically reshaped PE's international tax architecture — action four throttling the interest deduction, action six forcing genuine substance into holding companies, action thirteen creating the transparency that enables challenge, and Pillar Two imposing a fifteen-percent floor on portfolio companies — producing a more expensive, more complex compliance environment without demolishing PE's structural advantages. BEPS adjusted the architecture; it didn't tear down the foundations. Next we drill into the treaty-abuse action specifically — how PE shopped treaties and what the principal-purpose test now does about it.\n\nEnd-card question: BEPS Action 4 caps interest deductions at 30% of EBITDA. Explain why this binds at typical PE leverage (6-7x) and why the rate shock made it worse. Then: Pillar Two excludes the FUND but catches the PORTFOLIO COMPANIES — explain that distinction.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>PE fund structures have historically been designed around tax efficiency: offshore fund vehicles in Cayman, holding companies in Luxembourg or the Netherlands accessing treaty-reduced withholding taxes, and management entities positioned to receive carry at capital gain rates. BEPS systematically challenged every element of this architecture. Actions 2, 6, 7, and 13 directly target hybrid mismatches, treaty shopping, artificial PE avoidance, and transfer pricing documentation — all staples of PE holding structures. Pillar Two (the 15% global minimum tax, effective in the EU and UK from 2024) is the most significant new tax constraint on PE portfolio companies since the LBO era began. For a learner who processes K-1 allocations and W-8/W-9 withholding packages for CVC Secondary Partners — a Luxembourg-domiciled secondary fund — BEPS is not abstract international tax policy; it directly determines the withholding rates on distributions flowing from US portfolio companies through CVC's holding structure, and whether CVC's fund structure survives treaty abuse challenge.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>BEPS (Base Erosion and Profit Shifting) is the OECD's 2013–2015 reform programme of 15 actions targeting multinational tax avoidance — and its application to PE specifically reshapes how PE funds structure their holding companies, access tax treaties, satisfy substance requirements, and navigate the new 15% global minimum tax under Pillar Two.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Before BEPS, a PE firm could set up a holding company in Luxembourg with one nominee director, claim the Germany-Luxembourg tax treaty (reducing German dividend withholding from 26% to 5%), and enjoy the difference. Luxembourg had no problem because the holding company was technically there. Germany had no recourse because the treaty was a legitimate bilateral agreement. No substance, minimal cost, large tax saving.</p><p>BEPS says: \"The treaty benefit is only available if the structure has a genuine economic purpose and real substance.\" A holding company with one nominee director and no employees fails this test. Now you need real employees in Luxembourg making real investment decisions — which is exactly what firms like KKR, Blackstone, and Apollo have done, building out genuine European investment teams in Luxembourg, London, and Dublin to satisfy BEPS substance requirements.</p><p>At the portfolio company level, BEPS Pillar Two says: whatever you earn globally, you will pay at least 15% tax on it. If a PE portfolio company has profitable operations in a zero-tax jurisdiction, a top-up tax will be imposed by whichever Pillar Two country is highest in the ownership chain.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"BEPS eliminated PE's tax advantages.\"</strong> Not entirely — PE retains significant tax advantages (carried interest capital gain treatment, leverage deductibility within EBITDA cap, participation exemptions on exits in many jurisdictions). BEPS reduced the most aggressive elements, not the foundational tax efficiency of the LBO model.</li><li><strong>\"BEPS Pillar Two applies to PE funds.\"</strong> The investment fund exclusion means PE funds themselves (the LP vehicle) are generally excluded. The portfolio companies are in scope, not the fund.</li><li><strong>\"US sponsors face full BEPS exposure.\"</strong> The US has not implemented Pillar Two. However, EU/UK-based portfolio companies of US sponsors are fully in scope, and EU/UK operations of US GPs are subject to ATAD I/II.</li><li><strong>\"Substance requirements are just about employees.\"</strong> Substance requires real decision-making (investment approvals, board decisions) in the jurisdiction — not just nominal headcount. An entity with 10 administrative staff but no investment decision-makers may still fail the substance test.</li></ol>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

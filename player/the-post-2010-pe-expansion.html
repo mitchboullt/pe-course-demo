@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "the-post-2010-pe-expansion", "title": "The Post-2010 PE Expansion", "draft_watermark": false, "estimated_runtime_sec": 435, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The bridge to today", "on_screen_bullets": ["Healthcare + housing PE scaled here", "Secondary market exploded", "Set up the 2022 shock"], "narration": "The post-2010 expansion is the explanatory bridge between the crisis history and the present moment. Everything in PE's live disputes — PE in healthcare, PE in housing, the carried-interest tax debate, the regulatory-adequacy question, wealth concentration — reached its current scale and political salience during this decade. It explains why the healthcare and housing controversies emerged at scale precisely now: PE entered nursing homes, physician practices, manufactured housing, and single-family rentals not gradually but in a wave during 2012 to 2021, enabled by cheap debt and abundant LP capital. It explains why the secondary market exists at its current scale, growing from about twenty-five billion in annual volume in 2010 to a hundred thirty billion in 2022. And it explains why the 2022 rate shock is having the consequences it is: a portfolio of companies built on six-to-eight-times leverage at SOFR-plus-three percent, when SOFR was basically zero, becomes dangerously expensive when SOFR rises past five percent. The expansion created the conditions; the shock is stress-testing them.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The longest expansion", "on_screen_bullets": ["~2010–2021, six conditions", "$1tn → $8–12tn AUM", "New sectors at impossible scale"], "narration": "The definition. The post-2010 PE expansion, roughly 2010 to 2021, was the longest and largest sustained expansion in PE industry history, driven by six enabling conditions from the crisis reset — near-zero interest rates, cov-lite normalisation, bank retreat from leveraged lending, LP yield-seeking capital inflows, and the secondary market's maturation — growing global PE assets from about one trillion in 2010 to eight-to-twelve trillion in 2022, expanding PE's reach into healthcare, housing, technology, infrastructure, and private credit at scales previously impossible, and creating the specific conditions — massive leverage at near-zero rates — that the 2022 rate shock is now compressing.", "est_sec": 42}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Three new parameters", "on_screen_bullets": ["Debt became almost free", "Covenants removed", "LPs desperate for yield"], "narration": "After the crisis, the pipeline that is the PE industry was rebuilt under three new conditions that changed its operating parameters permanently. First, debt became almost free — the Fed held rates near zero from 2008 to 2015, then briefly raised them, then returned to near-zero through COVID; and cheap debt is the most important input to PE's leverage math, because when debt costs two-or-three percent instead of six-or-eight, the EBITDA yield needed to service a given amount of debt falls dramatically, so a company that could support four-times leverage at eight percent could now support six-or-seven times at three percent, at the same coverage. Second, covenants were removed — cov-lite became the norm, so companies could carry far more leverage without triggering maintenance defaults if performance dipped, removing the discipline that would have forced early restructuring. And third, institutional investors were desperate for yield — with ten-year Treasuries near two percent, pension funds couldn't meet their seven-to-eight-percent actuarial targets, so they poured capital into PE, which offered the prospect of twelve-to-fifteen percent even with illiquidity and leverage. Combined with bank retreat creating the private-credit opportunity, the secondary market's maturation, and a regulatory environment that required registration but not constraint, these produced the longest and largest PE expansion in history — a decade of unprecedented throughput, with the system operating far beyond its original design specifications by 2021.", "est_sec": 58}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The flywheel at low gravity", "on_screen_bullets": ["Cheaper material, no sensors, more capital", "Self-reinforcing acceleration", "Gravity returned in 2022"], "narration": "The mental model: think of the post-2010 expansion as a flywheel. After the crisis, the pipeline was rebuilt with three enhancements: cheaper raw material, near-zero debt costs; removed pressure sensors, cov-lite with no automatic alerts; and more raw material than ever, LP capital flooding in for yield. A flywheel, once spinning, becomes self-reinforcing: PE generated strong returns from 2012 to 2015 off distressed assets, those returns attracted more LP capital, more capital enabled larger funds, larger funds pursued larger deals, larger deals generated more carry, more carry attracted talent, and better deal sourcing generated more returns — the wheel accelerated. Each revolution also created new sectors: healthcare PE works with cov-lite at low rates, housing PE works, private credit emerges, the secondary market institutionalises, infrastructure scales. But the flywheel's flaw was that it was spinning at near-zero gravity — near-zero interest rates. When gravity returned in 2022 and rates rose, the momentum worked against it: all the cov-lite floating-rate debt that had enabled the spin became expensive at once, and the debt's mass, the huge leverage ratios, meant the deceleration was sharp. The flywheel didn't stop — PE is still operational — but it slowed dramatically, stress-testing which companies were built for normal gravity and which were only viable in near-zero gravity.", "est_sec": 56}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Six conditions, scale explosion", "on_screen_bullets": ["Rates, cov-lite, LP glut, private credit", "AUM $1tn → $8–12tn; multiples 7–8x → 11–13x", "Float + cov-lite = the vulnerability"], "narration": "Technically, six conditions drove it. Near-zero rates from 2008 to 2022 lowered portfolio interest expense and, by lowering the cost of capital across the economy, supported higher entry multiples. Cov-lite normalised from five-to-ten percent of loans pre-crisis to about eighty percent by 2018. LP capital chased yield, because a portfolio of Treasuries and public equity couldn't clear a seven-to-eight-percent actuarial target while PE offered twelve-to-fifteen, so annual global fundraising rose from about two hundred billion in 2012 to over six hundred billion in 2019 and roughly nine hundred fifty billion in 2021, a record, driving fund sizes to new highs and creating deployment pressure. Bank retreat under Basel III made banks reluctant to hold leveraged loans, and direct-lending funds filled the gap, with private credit reaching about one-point-seven trillion by 2024. The secondary market matured from about twenty-five billion in annual volume to a hundred thirty billion. And Dodd-Frank normalised PE regulation without constraining it. The scale explosion: AUM grew from about one trillion in 2010, to three trillion by 2015, to five trillion by 2019, to eight-to-twelve trillion by 2021; average entry multiples rose from seven-or-eight times EBITDA to eleven-to-thirteen; and leverage sat around six-or-seven times with cov-lite at eighty percent of volume. But the vulnerability was built in: nearly all portfolio debt was floating-rate, SOFR-linked, and cov-lite. Take a company at six-times leverage on a hundred-million EBITDA, six hundred million of debt at SOFR-plus-three hundred: interest went from about eighteen million when SOFR was basically zero to fifty million when SOFR hit five-point-three-three, so coverage collapsed from five-and-a-half times to two — and with cov-lite, no formal trigger fired; the company just kept running until it missed a payment or sought a restructuring. That simultaneous, quiet compression across thousands of companies is the 2022 shock — diffuse rather than acute, the mirror image of the 2008 freeze.", "est_sec": 72}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Apollo: PE firm to credit giant", "on_screen_bullets": ["GFC credit thesis validated", "Athene insurance float = permanent capital", "$75bn (2010) → ~$600bn+ (2024)"], "narration": "The clearest illustration of the decade's logic is Apollo's transformation from a PE firm into a credit powerhouse. In 2010, Apollo managed about seventy-five billion, mostly PE and crisis-era distressed credit — and the crisis had proven its credit thesis, since buying leveraged loans at fifty-to-seventy cents in 2009 generated exceptional returns. Its leadership made a strategic decision: credit as the primary growth engine. They recognised three things — the bank retreat from leveraged lending created a structural opening for non-bank credit providers; insurance companies, holding long-duration liabilities, needed high-quality assets matching that duration; and the near-zero rate environment made floating-rate direct loans extremely attractive to yield-starved investors. The key move was acquiring a controlling stake in Athene, a life insurer, through which Apollo could invest the insurance float — premiums received but claims not yet paid — into its own originated credit, earn management fees on those assets, and eventually merge Athene in, in 2022, bringing over two hundred billion of float under direct management. That float is permanent capital, requiring no periodic fundraising, so it let Apollo originate and hold credit without the constraint of fund capital calls and return cycles. By 2024, Apollo manages about six hundred to six hundred-fifty billion, with credit the majority and PE now the minority of its business. Apollo's transformation captures the whole expansion in one firm: low rates creating credit demand, bank retreat creating the supply opportunity, LP yield-seeking providing investor demand, and the insurance-float mechanism providing permanent capital. The crisis is the single most important event in Apollo's institutional history.", "est_sec": 64}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Expansion ≠ pure PE skill", "2022 isn't a second GFC", "Private credit isn't safer, just opaque"], "narration": "Five corrections. First, the expansion was not the result of exceptional PE management skill — it was primarily enabled by structural conditions, near-zero rates, cov-lite normalisation, and LP inflows; the same leverage structures and playbooks generated dramatically higher returns in a near-zero-rate environment than they would have in a normal one, and when rates normalised, the same structures produced very different outcomes. Second, the 2022 rate shock is not PE's second crisis in the 2008 sense — the mechanism is different; 2008 was a credit-market freeze that closed deal markets for eighteen-plus months, while 2022 is a coverage compression across existing portfolios, a slow-burn stress like a slowly tightening vice rather than a sudden collapse, because cov-lite means no immediate default. Third, private credit is not a safe alternative to bank lending — it involves the same borrower credit risk with added opacity, no public prices and quarterly appraisals, and potential conflicts where the PE firm is both equity sponsor and lender; private does not mean safer, it means less visible. Fourth, the expansion's end does not mean PE is in permanent decline — it's a cyclical stress phase, the fourth iteration of innovation, excess, crisis, reform, after which PE rebuilds on a new floor. And fifth, the strong secondary-fund returns of the crisis vintage were not pure luck — they required accurate portfolio assessment, disciplined modelling of discounted positions, and patience to hold through full fund lives, and the subsequent decade of growth required sustained capability, not a single lucky entry.", "est_sec": 60}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Reset enabled escalation", "on_screen_bullets": ["Six GFC-reset conditions", "AUM $1tn → $8–12tn; new sectors", "Float + cov-lite = the rate-shock fuse"], "narration": "To recap. The post-2010 PE expansion was the longest and largest in history, powered by six structural conditions created by the crisis reset: near-zero rates, cov-lite normalisation at over eighty percent of loans, LP yield-seeking inflows as PE was the only asset class clearing actuarial targets, bank retreat creating the private-credit opportunity, secondary-market maturation including the GP-led continuation fund, and Dodd-Frank's regulation-without-constraint. Global PE assets grew from about one trillion to eight-to-twelve trillion, reaching into healthcare, housing, technology, and private credit, the last growing from near-zero to one-point-seven trillion. The GP-led secondary, a new deal type moving prized companies into continuation funds to extend hold periods beyond the standard ten-year life, emerged and reshaped PE's structural ecology. And the expansion's fatal feature was its rate-dependence: nearly all portfolio debt was floating-rate and cov-lite, so when SOFR rose from near-zero to over five percent, coverage compressed simultaneously across thousands of companies built on near-zero assumptions — the fourth iteration of the pattern, where the crisis reset enabled the larger expansion, the expansion carried the excess to 2021's peak, and the 2022 rate shock is the crisis stage. That shock is the next lesson — the post-2022 PE market reset.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name four of the six GFC-reset conditions that powered the post-2010 expansion. Why does a portfolio built on floating-rate, cov-lite debt at near-zero SOFR become a 'slow-burn' problem rather than a 2008-style freeze when rates rise?", "narration": "Before the next lesson, answer both. Name four of the six crisis-reset conditions that powered the post-2010 expansion. And why does a portfolio built on floating-rate, cov-lite debt at near-zero SOFR become a slow-burn problem when rates rise, rather than a sudden 2008-style credit freeze? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The Post-2010 PE Expansion\n\n[hook] The bridge to today\nThe post-2010 expansion is the explanatory bridge between the crisis history and the present moment. Everything in PE's live disputes — PE in healthcare, PE in housing, the carried-interest tax debate, the regulatory-adequacy question, wealth concentration — reached its current scale and political salience during this decade. It explains why the healthcare and housing controversies emerged at scale precisely now: PE entered nursing homes, physician practices, manufactured housing, and single-family rentals not gradually but in a wave during 2012 to 2021, enabled by cheap debt and abundant LP capital. It explains why the secondary market exists at its current scale, growing from about twenty-five billion in annual volume in 2010 to a hundred thirty billion in 2022. And it explains why the 2022 rate shock is having the consequences it is: a portfolio of companies built on six-to-eight-times leverage at SOFR-plus-three percent, when SOFR was basically zero, becomes dangerously expensive when SOFR rises past five percent. The expansion created the conditions; the shock is stress-testing them.\n\n[definition] The longest expansion\nThe definition. The post-2010 PE expansion, roughly 2010 to 2021, was the longest and largest sustained expansion in PE industry history, driven by six enabling conditions from the crisis reset — near-zero interest rates, cov-lite normalisation, bank retreat from leveraged lending, LP yield-seeking capital inflows, and the secondary market's maturation — growing global PE assets from about one trillion in 2010 to eight-to-twelve trillion in 2022, expanding PE's reach into healthcare, housing, technology, infrastructure, and private credit at scales previously impossible, and creating the specific conditions — massive leverage at near-zero rates — that the 2022 rate shock is now compressing.\n\n[intuition] Three new parameters\nAfter the crisis, the pipeline that is the PE industry was rebuilt under three new conditions that changed its operating parameters permanently. First, debt became almost free — the Fed held rates near zero from 2008 to 2015, then briefly raised them, then returned to near-zero through COVID; and cheap debt is the most important input to PE's leverage math, because when debt costs two-or-three percent instead of six-or-eight, the EBITDA yield needed to service a given amount of debt falls dramatically, so a company that could support four-times leverage at eight percent could now support six-or-seven times at three percent, at the same coverage. Second, covenants were removed — cov-lite became the norm, so companies could carry far more leverage without triggering maintenance defaults if performance dipped, removing the discipline that would have forced early restructuring. And third, institutional investors were desperate for yield — with ten-year Treasuries near two percent, pension funds couldn't meet their seven-to-eight-percent actuarial targets, so they poured capital into PE, which offered the prospect of twelve-to-fifteen percent even with illiquidity and leverage. Combined with bank retreat creating the private-credit opportunity, the secondary market's maturation, and a regulatory environment that required registration but not constraint, these produced the longest and largest PE expansion in history — a decade of unprecedented throughput, with the system operating far beyond its original design specifications by 2021.\n\n[intuition] The flywheel at low gravity\nThe mental model: think of the post-2010 expansion as a flywheel. After the crisis, the pipeline was rebuilt with three enhancements: cheaper raw material, near-zero debt costs; removed pressure sensors, cov-lite with no automatic alerts; and more raw material than ever, LP capital flooding in for yield. A flywheel, once spinning, becomes self-reinforcing: PE generated strong returns from 2012 to 2015 off distressed assets, those returns attracted more LP capital, more capital enabled larger funds, larger funds pursued larger deals, larger deals generated more carry, more carry attracted talent, and better deal sourcing generated more returns — the wheel accelerated. Each revolution also created new sectors: healthcare PE works with cov-lite at low rates, housing PE works, private credit emerges, the secondary market institutionalises, infrastructure scales. But the flywheel's flaw was that it was spinning at near-zero gravity — near-zero interest rates. When gravity returned in 2022 and rates rose, the momentum worked against it: all the cov-lite floating-rate debt that had enabled the spin became expensive at once, and the debt's mass, the huge leverage ratios, meant the deceleration was sharp. The flywheel didn't stop — PE is still operational — but it slowed dramatically, stress-testing which companies were built for normal gravity and which were only viable in near-zero gravity.\n\n[mechanics] Six conditions, scale explosion\nTechnically, six conditions drove it. Near-zero rates from 2008 to 2022 lowered portfolio interest expense and, by lowering the cost of capital across the economy, supported higher entry multiples. Cov-lite normalised from five-to-ten percent of loans pre-crisis to about eighty percent by 2018. LP capital chased yield, because a portfolio of Treasuries and public equity couldn't clear a seven-to-eight-percent actuarial target while PE offered twelve-to-fifteen, so annual global fundraising rose from about two hundred billion in 2012 to over six hundred billion in 2019 and roughly nine hundred fifty billion in 2021, a record, driving fund sizes to new highs and creating deployment pressure. Bank retreat under Basel III made banks reluctant to hold leveraged loans, and direct-lending funds filled the gap, with private credit reaching about one-point-seven trillion by 2024. The secondary market matured from about twenty-five billion in annual volume to a hundred thirty billion. And Dodd-Frank normalised PE regulation without constraining it. The scale explosion: AUM grew from about one trillion in 2010, to three trillion by 2015, to five trillion by 2019, to eight-to-twelve trillion by 2021; average entry multiples rose from seven-or-eight times EBITDA to eleven-to-thirteen; and leverage sat around six-or-seven times with cov-lite at eighty percent of volume. But the vulnerability was built in: nearly all portfolio debt was floating-rate, SOFR-linked, and cov-lite. Take a company at six-times leverage on a hundred-million EBITDA, six hundred million of debt at SOFR-plus-three hundred: interest went from about eighteen million when SOFR was basically zero to fifty million when SOFR hit five-point-three-three, so coverage collapsed from five-and-a-half times to two — and with cov-lite, no formal trigger fired; the company just kept running until it missed a payment or sought a restructuring. That simultaneous, quiet compression across thousands of companies is the 2022 shock — diffuse rather than acute, the mirror image of the 2008 freeze.\n\n[worked-example] Apollo: PE firm to credit giant\nThe clearest illustration of the decade's logic is Apollo's transformation from a PE firm into a credit powerhouse. In 2010, Apollo managed about seventy-five billion, mostly PE and crisis-era distressed credit — and the crisis had proven its credit thesis, since buying leveraged loans at fifty-to-seventy cents in 2009 generated exceptional returns. Its leadership made a strategic decision: credit as the primary growth engine. They recognised three things — the bank retreat from leveraged lending created a structural opening for non-bank credit providers; insurance companies, holding long-duration liabilities, needed high-quality assets matching that duration; and the near-zero rate environment made floating-rate direct loans extremely attractive to yield-starved investors. The key move was acquiring a controlling stake in Athene, a life insurer, through which Apollo could invest the insurance float — premiums received but claims not yet paid — into its own originated credit, earn management fees on those assets, and eventually merge Athene in, in 2022, bringing over two hundred billion of float under direct management. That float is permanent capital, requiring no periodic fundraising, so it let Apollo originate and hold credit without the constraint of fund capital calls and return cycles. By 2024, Apollo manages about six hundred to six hundred-fifty billion, with credit the majority and PE now the minority of its business. Apollo's transformation captures the whole expansion in one firm: low rates creating credit demand, bank retreat creating the supply opportunity, LP yield-seeking providing investor demand, and the insurance-float mechanism providing permanent capital. The crisis is the single most important event in Apollo's institutional history.\n\n[pitfalls] What people get wrong\nFive corrections. First, the expansion was not the result of exceptional PE management skill — it was primarily enabled by structural conditions, near-zero rates, cov-lite normalisation, and LP inflows; the same leverage structures and playbooks generated dramatically higher returns in a near-zero-rate environment than they would have in a normal one, and when rates normalised, the same structures produced very different outcomes. Second, the 2022 rate shock is not PE's second crisis in the 2008 sense — the mechanism is different; 2008 was a credit-market freeze that closed deal markets for eighteen-plus months, while 2022 is a coverage compression across existing portfolios, a slow-burn stress like a slowly tightening vice rather than a sudden collapse, because cov-lite means no immediate default. Third, private credit is not a safe alternative to bank lending — it involves the same borrower credit risk with added opacity, no public prices and quarterly appraisals, and potential conflicts where the PE firm is both equity sponsor and lender; private does not mean safer, it means less visible. Fourth, the expansion's end does not mean PE is in permanent decline — it's a cyclical stress phase, the fourth iteration of innovation, excess, crisis, reform, after which PE rebuilds on a new floor. And fifth, the strong secondary-fund returns of the crisis vintage were not pure luck — they required accurate portfolio assessment, disciplined modelling of discounted positions, and patience to hold through full fund lives, and the subsequent decade of growth required sustained capability, not a single lucky entry.\n\n[recap] Reset enabled escalation\nTo recap. The post-2010 PE expansion was the longest and largest in history, powered by six structural conditions created by the crisis reset: near-zero rates, cov-lite normalisation at over eighty percent of loans, LP yield-seeking inflows as PE was the only asset class clearing actuarial targets, bank retreat creating the private-credit opportunity, secondary-market maturation including the GP-led continuation fund, and Dodd-Frank's regulation-without-constraint. Global PE assets grew from about one trillion to eight-to-twelve trillion, reaching into healthcare, housing, technology, and private credit, the last growing from near-zero to one-point-seven trillion. The GP-led secondary, a new deal type moving prized companies into continuation funds to extend hold periods beyond the standard ten-year life, emerged and reshaped PE's structural ecology. And the expansion's fatal feature was its rate-dependence: nearly all portfolio debt was floating-rate and cov-lite, so when SOFR rose from near-zero to over five percent, coverage compressed simultaneously across thousands of companies built on near-zero assumptions — the fourth iteration of the pattern, where the crisis reset enabled the larger expansion, the expansion carried the excess to 2021's peak, and the 2022 rate shock is the crisis stage. That shock is the next lesson — the post-2022 PE market reset.\n\nEnd-card question: Name four of the six GFC-reset conditions that powered the post-2010 expansion. Why does a portfolio built on floating-rate, cov-lite debt at near-zero SOFR become a 'slow-burn' problem rather than a 2008-style freeze when rates rise?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The post-2010 expansion is the explanatory bridge between the GFC history and the present moment. Everything in the thesis's live disputes — PE in healthcare, PE in housing, the carried interest tax debate, the regulatory adequacy question, the wealth concentration — reached its current scale and political salience during this decade. Understanding it explains:</p><p><strong>1. Why the Domain 8 controversies (healthcare, housing) emerged at scale precisely in this period.</strong> PE entered nursing homes, physician practices, manufactured housing, and SFR not gradually but in a wave during 2012-2021, enabled by cheap debt and abundant LP capital. Without the near-zero rate environment and the cov-lite credit market, deals at 6-8× EBITDA in essential services would have been impossible to finance profitably.</p><p><strong>2. Why CVC Secondary Partners exists at its current scale.</strong> The secondary PE market grew from approximately $25bn in annual transaction volume in 2010 to approximately $130bn in 2022. This growth — driven by LP rebalancing, the denominator effect recovery, and the innovation of GP-led secondaries — created the market in which Glendower Capital (now CVC Secondary Partners) built its business. The learner processes K-1 data for a firm whose existence and scale are products of this decade's market development.</p><p><strong>3. Why the 2022+ rate shock is having the consequences it is.</strong> A portfolio of companies built on 6-8× leverage at SOFR + 3% — when SOFR was 0.05% — becomes dangerously expensive when SOFR rises to 5.33%. The post-2010 expansion created the conditions; the 2022+ shock is stress-testing them.</p><p><strong>4. Why the Historical Pattern thread's \"reset enables escalation\" sub-claim is confirmed here.</strong> The GFC's post-2010 reset (near-zero rates + cov-lite normalisation + Dodd-Frank's form-not-substance regulatory framework) enabled a decade-long expansion that reached significantly larger scale than any previous PE cycle. Each cycle's reset preserves the activity while constraining the excess — and the activity then operates at that cycle's higher floor in the next cycle.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The post-2010 PE expansion (approximately 2010–2021) was the longest and largest sustained expansion in PE industry history, driven by six enabling conditions from the GFC reset — near-zero interest rates, cov-lite normalisation, bank retreat from leveraged lending, LP yield-seeking capital inflows, and the secondary market's maturation — growing global PE AUM from approximately $1 trillion in 2010 to $8–12 trillion in 2022, expanding PE's reach into healthcare, housing, technology, infrastructure, and private credit at scales previously impossible, and creating the specific conditions — massive leverage at near-zero rates — that the 2022+ rate shock is now compressing.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>After the GFC, the pipeline that is the PE industry was rebuilt under three new conditions that changed its operating parameters permanently:</p><p><strong>New condition 1: Debt became almost free.</strong> The Federal Reserve held interest rates near zero from 2008 to 2015, then briefly raised them, then returned to near-zero through the COVID period. For PE's leverage math, cheap debt is the most important input. When debt costs 2-3% instead of 6-8%, the EBITDA yield needed to service a given amount of debt falls dramatically — allowing higher leverage ratios at the same coverage level. A company that could support 4× EBITDA in debt at 8% interest could now support 6-7× at 3% interest, at the same ICR.</p><p><strong>New condition 2: Covenants were removed from the debt.</strong> Post-GFC, cov-lite became the norm rather than the exception. Companies could carry far more leverage without triggering maintenance covenant defaults if their performance dipped temporarily. This removed a key discipline mechanism — the covenant breach that would have forced early restructuring — and allowed companies to carry leverage that would have been untenable in the pre-GFC covenant environment.</p><p><strong>New condition 3: Institutional investors were desperate for yield.</strong> With 10-year Treasury yields near 2% or below, pension funds earning 2-3% could not meet their 7-8% actuarial return assumptions. They poured capital into PE, which offered the prospect of 12-15% returns — even if those returns required illiquidity and leverage.</p><p>These three conditions, combined with the bank retreat from leveraged lending (creating the private credit opportunity), the secondary market's maturation (creating the liquidity mechanism that made PE more attractive to LPs), and the regulatory environment (Dodd-Frank requiring registration but not constraining leverage or sector concentration), produced the longest and largest PE expansion in history.</p><p>Using the data pipeline analogy: the post-GFC conditions lowered the cost of the pipeline's raw material (debt), removed the pressure sensors that would have triggered automatic shutoffs (maintenance covenants), and flooded the pipeline with more raw material than it had ever had to process (LP capital). The result was a decade of unprecedented throughput — and a system operating far beyond its original design specifications by 2021.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of the post-2010 expansion as the <strong>flywheel effect</strong> in the PE pipeline.</p><p>After the GFC, the pipeline was rebuilt with three enhancements: 1. <strong>Cheaper raw material</strong> (near-zero debt costs) 2. <strong>Removed pressure sensors</strong> (cov-lite — no automatic alerts when pressure builds) 3. <strong>More raw material than ever before</strong> (LP capital flooding in seeking yield)</p><p>A flywheel, once spinning, becomes self-reinforcing: PE generates strong returns in 2012-2015 (from GFC distressed assets); those returns attract more LP capital; more LP capital enables larger funds; larger funds pursue larger deals; larger deals generate more carry; more carry attracts more talent; more talent produces better deal sourcing; better deals generate strong returns. The wheel accelerates.</p><p>Each revolution of the flywheel also created new sectors: healthcare PE works with cov-lite at low rates; housing PE works; private credit emerges; secondary market institutionalises; infrastructure PE scales. Each new sector creates new feeder demand for PE services — more companies need financing, more LPs need the secondary market, more fund managers need fund administration (the learner's sector).</p><p>The flywheel's flaw: it was spinning at near-zero gravity (near-zero interest rates). When gravity returned in 2022 (rates rose), the flywheel's momentum worked against it — all the cov-lite floating-rate debt that had enabled the spin simultaneously became expensive, and the debt's mass (huge leverage ratios) meant the deceleration was sharp. The flywheel didn't stop — PE is still operational — but it slowed dramatically and is stress-testing which portfolio companies were built for normal gravity and which were only viable in near-zero gravity.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Part 1: The Six Enabling Conditions</p><p><strong>Condition 1: Near-Zero Interest Rates (2008–2022)</strong> The Federal Reserve maintained the effective federal funds rate at 0–0.25% from December 2008 through December 2015. After a brief normalisation (raising to 2.5% by 2018), rates were cut back to near-zero in March 2020 in response to COVID-19, remaining near-zero through February 2022.</p><p>For PE, low rates affect the deal economics at two levels: - <em>Portfolio company interest expense:</em> A company with $500M in floating-rate TLB debt (SOFR + 300bps) paid approximately $15M in annual interest when SOFR = 0.05% (3.05% total), versus approximately $41.5M when SOFR = 5.33% (8.33% total). Low rates allowed companies to carry dramatically more debt at the same ICR. - <em>Entry multiple support:</em> Low discount rates support higher equity multiples throughout the economy — the CAPM-derived cost of capital falls when the risk-free rate falls, supporting higher EV/EBITDA multiples. This made acquisition multiples rise, supporting PE deal activity.</p><p><strong>Condition 2: Cov-Lite Normalisation</strong> Before the GFC, approximately 5-10% of leveraged loans were \"covenant-lite\" (lacking financial maintenance covenants). Post-GFC, the market voted that cov-lite was legitimate — companies in temporary distress had survived without covenant defaults, validating the structure. By 2018, approximately 80% of US leveraged loan volume was cov-lite.</p><p>This normalisation had a profound effect: PE could maintain high leverage ratios across portfolios without the early-warning mechanisms that maintenance covenants provide. Companies could carry 7× EBITDA leverage without any formal lender intervention as long as they were current on interest payments — even if their EBITDA had fallen significantly from acquisition levels.</p><p><strong>Condition 3: LP Capital Inflows — The Yield Chase</strong> With 10-year Treasury yields at 1-3% and money market rates near zero, institutional investors faced a structural mismatch: - US pension funds typically target 7-8% annual returns to meet actuarial assumptions - A portfolio of Treasuries, investment-grade bonds, and public equity at 2010-2015 valuations could not reliably produce 7-8% annually - PE offered expected returns of 12-15% gross (8-12% net of fees) — the only asset class clearing the actuarial hurdle comfortably</p><p>The result: unprecedented LP capital inflows into PE. Annual global PE fundraising rose from approximately $200-300bn in 2010-2012 to over $600bn in 2019 and approximately $950bn in 2021. This capital abundance drove: - Fund sizes to new records (Blackstone's flagship PE fund reached $26bn by 2019) - Deployment pressure (funds needed to invest capital within defined windows) - Competition for deals (too much capital chasing too few quality assets → rising entry multiples)</p><p><strong>Condition 4: Bank Retreat and Private Credit Emergence</strong> Post-Dodd-Frank capital requirements (Basel III implementation) made banks more reluctant to hold leveraged loans — the risk-weighted capital charges on leveraged lending increased. Banks increasingly originated-then-distributed rather than holding leveraged loans on balance sheets.</p><p>The gap was filled by direct lending funds — non-bank lenders who would originate loans directly to borrowers, hold them on their own balance sheets, and earn a spread without the bank intermediary: - Apollo's credit platform (built on GFC-era distressed debt expertise) - Ares Management credit - Blackstone Credit (formerly GSO Capital Partners) - HPS Investment Partners - Blue Owl Capital - By 2024, private credit AUM globally reached approximately $1.7tn</p><p>Private credit was attractive to PE sponsors because: faster execution (no public syndication), more flexible terms, no public market price transparency, and lenders who understood PE's needs intimately. It was also attractive to institutional investors because floating-rate loans provided natural protection against rising rates (before the rate shock hit the borrowers) and yields above comparable public credit.</p><p><strong>Condition 5: The Secondary Market's Maturation</strong> The GFC created the secondary PE market as a serious institutional business — LP positions selling at 40-60 cents on the dollar in 2009 attracted specialist buyers (like Glendower Capital, later CVC Secondary Partners) who bought at deep discounts and generated exceptional returns. Those successes attracted more capital into secondary funds.</p><p>Through the 2010s, the secondary market grew dramatically and diversified: - Annual secondary volume: from approximately $25bn in 2011 to approximately $130bn in 2022 - LP-led secondaries: pension funds and other LPs rebalancing PE allocations as the market recovered - GP-led secondaries: a new category — GPs moving prized portfolio companies into continuation funds to extend the holding period beyond the 10-year fund life; grew from near-zero in 2012 to approximately $60-70bn annually by 2021</p><p>The secondary market's maturation made PE more liquid — not fully liquid (still requires years to exit), but with a functioning secondary market providing an exit path. This made PE more attractive to LPs, enabling further capital inflows.</p><p><strong>Condition 6: Regulatory Normalisation Without Constraint</strong> Dodd-Frank (2010) registered PE fund managers with the SEC, created disclosure obligations, and enabled examination — but explicitly did not restrict leverage, essential services, carried interest, or fund terms. PE's operating model was unchanged; it just became visible to regulators.</p><p>This regulatory normalisation — \"PE is now formally supervised, but its activities are unrestricted\" — removed the \"regulatory overhang\" that might have constrained institutional LP investment. LPs could point to SEC registration as evidence that PE was a regulated industry, facilitating their board-level approvals for large PE allocations. The combination of \"regulated but unconstrained\" was optimal for PE's expansion.</p><p>---</p><p>### Part 2: The Scale Explosion — Numbers</p><p>The quantitative dimension of the post-2010 expansion is the most direct evidence for the Historical Pattern thread's \"reset enables escalation\" claim.</p><p><strong>AUM Growth:</strong> - 2010: approximately $1tn in global PE AUM - 2015: approximately $3tn - 2019: approximately $5tn - 2021: approximately $8-12tn (estimates vary by definition of \"PE\" — narrow PE vs. all alternatives)</p><p><strong>Fundraising Records:</strong> - 2008 (pre-GFC, peak): approximately $500bn globally - 2012 (post-GFC trough): approximately $200bn - 2019: approximately $600bn+ - 2021: approximately $950bn — a new record</p><p><strong>Entry Multiple Expansion:</strong> - Average PE entry multiple 2010: approximately 7-8× EBITDA - Average PE entry multiple 2021: approximately 11-13× EBITDA - The EBITDA multiple expansion reflected both genuine company growth and the valuation effect of near-zero discount rates</p><p><strong>Leverage at Peak:</strong> - Average leverage at PE acquisitions 2021: approximately 6-7× EBITDA - Some transactions at 8-10× EBITDA in growing sectors (technology, healthcare) - Cov-lite at 80%+ of leveraged loan volume</p><p><strong>PE-Backed Company Count:</strong> The number of PE-backed companies globally roughly tripled during this decade, as smaller funds proliferated alongside the mega-fund expansion. By 2021, tens of thousands of companies globally were PE-owned.</p><p>---</p><p>### Part 3: The Sector Expansion — Why Healthcare, Housing, Tech, and Credit All Grew Simultaneously</p><p>The post-2010 expansion was not uniformly distributed across sectors — certain sectors grew dramatically because the enabling conditions specifically suited them.</p><p><strong>Healthcare PE expansion (2012–2021)</strong> Near-zero debt and cov-lite made healthcare acquisitions at 8-10× EBITDA financeable at acceptable ICR levels. Healthcare's characteristics (government-backed revenue, fragmented market, inelastic demand) were always attractive — but 8× leverage at 8% interest was unserviceable at most healthcare EBITDA levels. At 2-3% interest, the math worked. The PE in Healthcare note's specific cases (Envision/KKR 2018, physician practice rollups, nursing home consolidation) are all products of the post-2010 enabling conditions.</p><p>The KKR/Envision acquisition ($9.9bn, 2018): financed at leverage ratios that would have been impossible at 2007 interest rates. When the No Surprises Act (2022) reduced revenue AND rates rose simultaneously, the leverage that was serviceable at 3% became fatal at 8%.</p><p><strong>SFR and Housing PE expansion (2012–2021)</strong> Invitation Homes (Blackstone) built its 82,000-home SFR portfolio during 2012-2015 specifically because: (a) foreclosed homes were cheap; (b) debt to acquire and hold them was near-free; (c) rental yields (5-7%) significantly exceeded debt costs (2-3%). As the SFR strategy proved viable, other PE-backed platforms (Progress Residential, AMH, Tricon) entered the market.</p><p>Manufactured housing community acquisitions accelerated: the captive-income characteristics made them attractive at any rate environment, but cheap financing amplified returns.</p><p><strong>Technology PE (2012–2021)</strong> PE expanded aggressively into software and technology: - Vista Equity Partners: built on the thesis that vertical SaaS companies have recurring revenue, high switching costs, and mission-critical status — making them ideal LBO targets despite being \"tech companies\" - Thoma Bravo: similar thesis; managed software companies with EBITDA discipline - The megafirms (KKR, Blackstone, Apollo, Carlyle) all built technology investment teams</p><p>Technology PE was particularly attractive because: software EBITDA margins are high (40-60% at scale); revenue is recurring (subscription SaaS); switching costs protect the customer base; and technology companies could be acquired at 10-15× EBITDA and still service debt at near-zero rates.</p><p><strong>Private Credit (2010–2021)</strong> The most structurally important expansion of the post-2010 era. Banks retreating from leveraged lending created a vacuum; PE credit platforms filled it: - Apollo Credit: originated direct loans to PE-backed companies; grew from GFC-era distressed expertise to mainstream direct lending - Ares Management: became one of the largest direct lenders globally - Blackstone Credit (GSO Capital Partners, renamed): leveraged bond + direct lending hybrid - By 2024, private credit globally is approximately $1.7tn in AUM</p><p>Private credit's growth had a feedback loop with PE's expansion: as PE acquired more companies, those companies needed debt financing; as direct lenders grew to provide that financing, they competed with each other, compressing spreads and easing terms, enabling PE to finance deals that otherwise wouldn't have worked. The borrower (PE portfolio company) and the lender (PE credit arm) were often affiliated — creating PE's potential for self-dealing in credit markets that regulators have increasingly flagged.</p><p><strong>Infrastructure PE (2012–2021)</strong> PE expanded into infrastructure — airports, toll roads, utilities, data centres, energy transition assets: - Global Infrastructure Partners (later acquired by BlackRock in 2024) - Blackstone Infrastructure - KKR Infrastructure - Macquarie (Australian infrastructure specialist)</p><p>Infrastructure's attractiveness: long-lived assets with stable, inflation-linked revenues; PE's leverage expertise transferred to financing infrastructure at higher leverage ratios than public infrastructure owners typically carried; the near-zero rate environment made infrastructure's modest return profiles acceptable to LPs.</p><p>---</p><p>### Part 4: The GP-Led Secondary Innovation — A New Transaction Type</p><p>The post-2010 expansion gave birth to a transaction type that fundamentally changed PE's structure: the GP-led secondary (continuation fund).</p><p><strong>The problem it solves:</strong> A PE fund has a 10-year life. The fund acquires a company in Year 3 that performs exceptionally well. By Year 9, the company is worth far more than at acquisition — but the fund must return capital to LPs within its 10-year term. The GP doesn't want to sell the \"crown jewel\" at an arbitrary point in the company's growth trajectory; LPs want their capital back; and the company could still generate significant returns if held longer.</p><p><strong>The solution:</strong> The GP creates a \"continuation fund\" — a new investment vehicle. LPs in the existing fund are offered the choice: (a) sell their interest in the crown-jewel company into the continuation fund at an agreed price (providing them with liquidity); or (b) roll their interest into the continuation fund (maintaining their exposure). Secondary investors buy the interests of LPs who choose to exit, providing them with liquidity.</p><p><strong>Why this became pervasive:</strong> - GPs get to retain prized assets beyond the 10-year fund life - LPs who want liquidity can get it; LPs who want to hold can continue - Secondary buyers get access to late-stage, de-risked PE assets - The transaction structure creates a fairness opinion requirement (now mandated under the SEC 2023 rules — and vacated by the Fifth Circuit)</p><p><strong>The conflict of interest:</strong> The GP sets the price for the continuation fund transaction — creating a conflict. If the GP sets the price too low, rolling LPs (who stay in) benefit at the expense of exiting LPs (who receive a lower price for their interest). If the GP sets the price too high, exiting LPs benefit but the continuation fund's future returns are impaired. This is the specific conflict the SEC's 2023 rules' fairness opinion requirement was designed to address.</p><p><strong>The scale:</strong> GP-led secondaries grew from near-zero in 2012 to approximately $60-70bn annually by 2021 — becoming a major segment of the secondary market and a structural feature of PE's ecosystem rather than an occasional transaction type. [needs-verification on specific figures]</p><p><strong>For the learner:</strong> CVC Secondary Partners participates in both LP-led secondaries (buying LP fund interests) and GP-led secondaries (participating in continuation fund transactions). Understanding the GP-led secondary innovation helps the learner understand why the secondary fund industry grew dramatically during this decade — and why the K-1 data they process for CVC reflects positions acquired through both types of transactions.</p><p>---</p><p>### Part 5: The 2021 Peak and Seeds of the Stress</p><p><strong>The 2021 frothiness:</strong> By 2021, the post-2010 expansion had reached peak conditions: - Record fundraising (~$950bn globally) - Record deal volumes - Record entry multiples (11-13× EBITDA in some sectors) - Record leverage (some deals at 8-10×) - Record secondary volumes (~$130bn+) - Record GP-led secondary volumes - Record co-investment activity - COVID-era demand surge in specific sectors (technology, healthcare, housing) inflating multiples further</p><p>Simultaneously, warning signs were accumulating: - LP concentration in PE creating denominator effect vulnerability (as public markets eventually corrected) - Portfolio company ICR at historically thin levels relative to leverage (only viable at near-zero rates) - NAV lending and subscription credit lines adding additional leverage on top of portfolio company debt - Private credit spreads compressing to near-historical lows (lenders competing away risk compensation)</p><p><strong>The specific mechanism that created the 2022+ vulnerability:</strong> The critical architectural feature: nearly all PE portfolio company debt from 2010-2022 was floating rate (SOFR-linked) and cov-lite: - Floating rate meant that when rates rose, every dollar of debt immediately became more expensive — unlike fixed-rate debt where existing obligations are unchanged by rate movements - Cov-lite meant that the stress was invisible to lenders for longer — no covenant breach to trigger mandatory discussions, just quietly mounting interest expense consuming EBITDA</p><p>When SOFR rose from 0.05% in February 2022 to 5.33% by July 2023, the arithmetic that had been valid for a decade became simultaneously invalid for thousands of PE portfolio companies: - A company at 6× EBITDA leverage, SOFR + 300bps: interest went from approximately 3.05% to approximately 8.33% - On $600M of debt at 6× a $100M EBITDA base: interest expense went from $18.3M to $50M annually - ICR went from 5.5× to 2.0× — below the threshold where most lenders historically require intervention - But cov-lite: no formal trigger; the company continues until it misses an interest payment or seeks voluntary restructuring</p><p>This is the 2022+ rate shock: not a credit-market freeze (as in 2008) but a quiet, simultaneous ICR compression across thousands of companies, all built on the same architectural features (floating rate + cov-lite + high leverage) enabled by the post-2010 expansion.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### Apollo: From PE Firm to $600bn+ Credit Powerhouse</p><p><strong>2010: Post-GFC starting point</strong> Apollo Global Management manages approximately $75bn in assets, primarily PE funds and credit from the GFC-era distressed investing. The GFC had proven Apollo's credit thesis: buying leveraged loans at 50-70 cents on the dollar in 2009-2010 generated exceptional returns.</p><p><strong>The strategic decision: credit as the primary growth engine</strong> Apollo's leadership (Leon Black, Josh Harris, Marc Rowan) recognised that: (a) the bank retreat from leveraged lending created a structural opportunity for non-bank credit providers; (b) insurance companies (holding long-duration liabilities) needed high-quality assets matching their liability duration; and (c) the near-zero rate environment made floating-rate direct loans extremely attractive to investors who needed yield above Treasury rates.</p><p><strong>The Athene acquisition — the key strategic move</strong> Apollo acquired a controlling stake in Athene Holding, a life insurance company, through which it could: - Invest Athene's insurance float (premiums received, claims not yet paid) in Apollo-originated credit assets - Earn management fees on the assets managed for Athene - Eventually merge Athene into Apollo (completed 2022), bringing $200bn+ in insurance float under Apollo's direct management</p><p>The insurance float connection transformed Apollo from a PE firm with a credit component into a credit platform with a PE heritage. The float (permanent capital requiring no periodic fundraising) enabled Apollo to originate and hold credit assets without the constraint of fund capital calls and return cycles.</p><p><strong>The scale outcome:</strong> By 2024, Apollo manages approximately $600-650bn+ in total assets, with credit representing the majority — PE is now a minority of Apollo's business. This transformation was enabled by, and is a product of, the post-2010 expansion's specific conditions: low rates creating credit demand, bank retreat creating supply opportunity, LP yield-seeking providing investor demand, and the insurance float mechanism providing permanent capital.</p><p><strong>For the learner:</strong> Apollo is one of the firms whose K-1 data flows through CVC Secondary Partners. The Apollo K-1s that the learner processes reflect Apollo's credit-heavy strategy — they include interest income from direct loans, not just capital gains from PE exits. Understanding Apollo's transformation from PE firm to credit powerhouse explains why Apollo K-1 income character looks different from purely PE-oriented managers like Bain Capital.</p><p>---</p><p>### The Secondary Market and CVC Secondary Partners' Growth</p><p><strong>The secondary market in 2010:</strong> Annual secondary PE transaction volume was approximately $25-30bn globally in 2010. The market was primarily LP-led (pension funds selling fund interests on the secondary market) and priced at meaningful discounts to NAV (reflecting the GFC hangover and illiquidity premium).</p><p>Secondary buyers from the 2009-2011 vintage — including Glendower Capital (CVC Secondary Partners' predecessor) — generated some of the best returns in PE history by buying at discounts to NAV that subsequently recovered as the economy and PE portfolios improved.</p><p><strong>The decade of growth:</strong> Through the 2010s, the secondary market grew driven by: 1. LP base expansion: more PE LPs → more secondary sellers over time 2. Denominator effect recovery and rebalancing: as public markets rose, PE allocations appeared underweight; LPs sold older vintage PE positions to redeploy into newer funds 3. GP-led secondary innovation: the continuation fund structure created a new category; GP-led secondaries grew from near-zero to 40-50% of secondary market volume by 2021</p><p><strong>The 2021 peak:</strong> Annual secondary volume reached approximately $130bn in 2021 — a 5× increase from 2010. The market was bifurcated between: - LP-led secondaries: priced near or above NAV (the denominator effect recovery meant LPs needed to sell at full value to rebalance) - GP-led secondaries: priced through a negotiated process; the fairness opinion requirement (2023 SEC rules, subsequently vacated) was designed specifically for this market</p><p><strong>CVC Secondary Partners' position:</strong> As a specialist secondary buyer with deep expertise in evaluating PE fund interests and GP-led transactions, CVC Secondary Partners grew its AUM through this decade — participating in both LP-led and GP-led secondaries across vintage years. The firm's K-1 allocations to CVC's LPs reflect the underlying performance of PE fund interests acquired during this secondary market expansion.</p><p><strong>The learner's connection:</strong> When the learner processes K-1 data for CVC Secondary Partners' holdings in KKR, Apollo, or Blackstone funds, those positions may have been acquired through the secondary market rather than as primary LP commitments. A position in KKR Fund XII acquired at 70 cents on NAV in 2015 produces K-1 allocations with a different economic basis than a position in KKR Fund XIII acquired as a primary LP commitment at par. Understanding the secondary market expansion explains why CVC's portfolio has this mixed vintage/acquisition structure.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The post-2010 PE expansion was the result of exceptional PE management skill.\"</strong> The expansion was primarily enabled by structural conditions — near-zero interest rates, cov-lite normalisation, LP capital inflows — rather than PE industry management expertise specifically. The same leverage structures, the same deal sourcing approaches, and the same value creation playbooks generated dramatically higher returns in a near-zero rate environment than they would have in a normal rate environment. When rates normalised (2022+), the same structures produced dramatically different outcomes.</p><p><strong>Misconception 2: \"The 2022+ rate shock is PE's second GFC.\"</strong> The mechanism is different. The GFC was a credit-market freeze (banks couldn't lend; deal markets closed for 18+ months). The 2022+ rate shock is an ICR compression across existing portfolios — companies cannot service their existing debt at higher rates, but they don't immediately default (cov-lite means no covenant breach). The 2022+ situation is a slow-burn stress, not an acute crisis; it resembles a slowly tightening vice rather than a sudden collapse.</p><p><strong>Misconception 3: \"Private credit is a safe alternative to bank lending.\"</strong> Private credit involves the same underlying borrower credit risk as bank lending, with additional opacity (no public prices, quarterly appraisals) and potential conflicts (PE firm as equity sponsor AND credit lender). The \"private\" in private credit does not mean safer — it means less visible. When portfolio companies default on private loans, the losses materialise in private credit fund NAV markdowns rather than in publicly visible price declines.</p><p><strong>Misconception 4: \"The CVC Secondary Partners secondary strategy was based on luck — catching the GFC at the right moment.\"</strong> Secondary PE investing requires: (a) accurate assessment of fund portfolio quality at a specific point in time; (b) ability to model the expected return on positions acquired at a discount to NAV; (c) patience to hold through the full remaining fund life; and (d) sufficient portfolio diversification to absorb individual fund underperformance. The exceptional 2009-2011 vintage returns reflected a combination of skill (selecting quality funds at discounts) and timing (buying at the GFC trough). The subsequent decade of secondary market growth required sustained analytical capability, not just a single lucky entry.</p><p><strong>Misconception 5: \"The post-2010 expansion's end means PE is in permanent decline.\"</strong> PE is not in decline — it is in a cyclical stress phase characteristic of the Historical Pattern's fourth iteration (innovation → excess → 2022+ crisis → reform in progress). The pattern predicts that the reset will preserve the activity while constraining the specific excess — after which PE will rebuild on the new floor. The specific excesses being reset: leverage at near-zero rate assumptions (the math that worked at SOFR 0.05% doesn't work at 5.33%) and cov-lite structures that delayed visibility of the building stress.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The post-2010 PE expansion (approximately 2010–2021) was the longest and largest sustained expansion in PE history, powered by six structural conditions created by the GFC reset: near-zero interest rates (the Federal Reserve's post-GFC monetary policy); cov-lite normalisation (80%+ of leveraged loans by 2018, removing the maintenance covenant mechanism that would have limited leverage); LP yield-seeking capital inflows (pension funds and endowments pouring money into PE as the only asset class clearing their 7-8% actuarial return targets); bank retreat from leveraged lending (creating the private credit opportunity); secondary market maturation ($25bn to $130bn in annual volume including the GP-led secondary innovation); and Dodd-Frank's regulatory normalisation without substantive constraint.</p><p>Global PE AUM grew from approximately $1 trillion to $8-12 trillion over the decade. The expansion reached into sectors that had been only marginally accessible to PE before: healthcare (physician practice rollups, hospital systems, nursing home chains), housing (SFR at 80,000-home institutional scale, manufactured housing communities), technology (vertical SaaS PE, cybersecurity, fintech), and private credit (from near-zero to $1.7tn in AUM). The GP-led secondary transaction — a new deal type where GPs move prized portfolio companies into continuation funds to extend hold periods beyond the standard 10-year fund life — emerged during this period and fundamentally changed PE's structural ecology.</p><p>The expansion's vulnerability was its rate-dependence: nearly all PE portfolio company debt was floating-rate (SOFR-linked) and cov-lite. When SOFR rose from 0.05% in early 2022 to 5.33% by mid-2023, ICR compressed simultaneously across thousands of PE portfolio companies that had been built on near-zero rate assumptions. This simultaneous compression — diffuse rather than acute, and slower-moving than the GFC credit freeze — is the fourth iteration of the Historical Pattern thread's cycle: the GFC reset (near-zero rates + cov-lite normalisation) enabled the larger expansion; the expansion carried the excess to 2021's peak; the 2022+ rate shock is the crisis stage, still developing.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "direct-lending-and-unitranche-debt", "title": "Direct Lending and Unitranche Debt", "draft_watermark": false, "estimated_runtime_sec": 330, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Banks left, funds arrived", "on_screen_bullets": ["Banks retreated post-crisis", "Private credit filled the gap", "Now finances most mid-market buyouts"], "narration": "The way buyouts get financed has fundamentally changed in the last fifteen years. Before the financial crisis, almost all buyout debt started at a bank, which then sold it on into the broadly syndicated loan market. After the post-crisis regulatory reforms, banks pulled back from leveraged lending — and a vast private-credit industry, now well over a trillion dollars, grew up to fill the gap. Today, specialist credit funds finance the majority of mid-market buyouts and a fast-growing share of large deals. For a sponsor, these lenders offer speed and certainty of execution that the syndicated market simply cannot match. And for investors, private credit has become a major allocation sitting right alongside private equity. So understanding direct lending is now essential to understanding how the modern buyout actually gets funded.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Lending straight to the company", "on_screen_bullets": ["Non-bank lenders, no syndication", "Held on the lender's books", "Unitranche is the signature product"], "narration": "Here is the definition. Direct lending is the provision of private credit straight to a buyout-backed company by non-bank institutional lenders, bypassing the syndicated loan market entirely — the lender keeps the loan on its own balance sheet rather than packaging and selling it. And the signature product of direct lending is the unitranche: a single, blended loan that replaces the traditional stack of separate senior and subordinated tranches. So two ideas anchor the lesson — the shift from bank-syndicated debt to balance-sheet private credit, and the simplification of the capital structure into one blended instrument. Keep both, because the speed advantage that makes direct lending so powerful flows directly from them.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "One lender, one document", "on_screen_bullets": ["Borrow direct, not via syndication", "Faster, customisable, pricier", "Unitranche collapses the stack"], "narration": "An analogy makes this concrete. Imagine you need a mortgage, but instead of going to a bank that will package your loan with thousands of others and sell it to investors, you go directly to a single wealthy lender who funds it from their own account. They can move faster and customise the terms more, but they charge a bit more for the convenience and the risk they are holding. Direct lending is the institutional version of that: a specialist credit fund lends directly to a buyout-backed company and keeps the loan itself. The unitranche then simplifies the structure even further. Instead of a senior loan from one party and a subordinated loan from another, with a complex agreement governing the relationship between them, a single lender provides one blended loan at one blended rate. One document, one lender to negotiate with, and a much faster path to closing.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Commodity versus bespoke", "on_screen_bullets": ["Syndicated market: wholesale, cheaper", "Direct lending: bespoke, certain", "Pay up for certainty of close"], "narration": "The mental model is wholesale commodity versus bespoke tailor. The syndicated loan market is like a commodity exchange for credit — standardised terms, transparent pricing, high volume, and a lower cost per unit. Direct lending is the bespoke tailor: more expensive, a little slower per unit, but everything is custom-fitted, and crucially there is no risk that the tailor cancels because the commodity price moved against them. A sponsor pays the bespoke premium when certainty of execution matters more than headline cost — and in a competitive auction, where losing the financing means losing the deal, that is almost always. The whole value proposition of direct lending is that the money is committed to close, full stop, regardless of what the market does between signing and completion.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why banks stepped back", "on_screen_bullets": ["Capital rules made it costly", "Guidance capped aggressive leverage", "Non-banks face no equivalent cap"], "narration": "Why did this gap open in the first place? Three post-crisis regulatory forces reduced banks' appetite for leveraged lending. Tighter capital requirements meant banks had to hold significant capital against leveraged loans, making the business less economically attractive. New rules restricted banks from certain proprietary credit activities. And supervisory guidance effectively discouraged banks from originating debt above roughly six times total leverage — which constrained exactly the more aggressive structures private equity favours. Non-bank lenders face no equivalent capital constraints. A credit fund can hold a seven-times-leverage transaction that a bank will not originate. So the regulatory burden landed asymmetrically: it pushed the riskier, higher-leverage lending out of the regulated banking system and into private-credit funds, which is precisely where the growth has come from.", "est_sec": 52}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Inside the unitranche", "on_screen_bullets": ["One blended rate to the borrower", "First-out and last-out split", "Hidden agreement among lenders"], "narration": "Look inside the unitranche, because there is a clever sleight of hand. The borrower sees one loan at one blended rate — simpler and faster than a layered stack. But behind the scenes, the lenders often split the risk into a first-out strip and a last-out strip. The first-out portion is effectively the senior slice, sold down to another lender at lower pricing; the last-out portion is the junior slice, retained at higher pricing. Economically this recreates the old senior-and-subordinated tranching — but the borrower never deals with it. The split is governed by an internal agreement among the lenders, a document that is invisible to the borrower yet decides lender priority in a workout: who gets paid first and who controls decisions if the company hits trouble. So unitranche is simplicity on the surface and structured priority underneath — the borrower gets one conversation, the lenders keep their hierarchy.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Direct lending versus syndicated", "on_screen_bullets": ["Higher rate, faster close", "Committed, with maintenance covenants", "One lender eases a workout"], "narration": "Set the two side by side. The syndicated market is cheaper on rate but takes longer to execute and carries syndication risk — market disruption can force the pricing up or even abort the deal. Direct lending charges a higher rate but closes faster, commits to close with high certainty, and carries no syndication risk because it is bilateral or a small club. On covenants, the syndicated market has drifted to covenant-lite, with few ongoing tests, whereas direct lenders commonly keep maintenance covenants that give early warning if the company deteriorates. And in a workout, a single direct lender can make decisions quickly, where syndicated debt requires coordinating many scattered holders. The trade is consistent: you pay more on rate and accept tighter covenants in exchange for speed, certainty, and a simpler creditor to deal with if things go wrong. In a disrupted market, that bundle can even be cheaper on a risk-adjusted basis, because the avoided syndication risk has real value.", "est_sec": 54}, {"n": 8, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "The permanent-capital edge", "on_screen_bullets": ["Insurer affiliate as funding base", "Senior strips sold to the insurer", "Near-permanent capital at scale"], "narration": "One structural development is worth understanding, because it explains why the very largest direct lenders keep gaining share. Some of them are affiliated with a large insurance company. An insurer holds policy reserves that must be invested in high-quality, near-investment-grade credit. So a credit manager paired with an insurer can originate direct loans to buyout-backed companies, sell the senior, investment-grade-equivalent strips to its affiliated insurer, and retain the junior, higher-returning piece for itself. That creates a near-permanent, low-cost capital base for direct lending — a funding advantage that pure fund-vehicle lenders, which have to raise and return capital on a cycle, cannot match. It is the structural frontier of the industry, and it suggests the biggest lenders will keep taking share from the traditional bank-and-syndication ecosystem. The model turns insurance float into an almost unlimited engine for private credit.", "est_sec": 52}, {"n": 9, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Not always pricier risk-adjusted", "Unitranche can be a club", "Covenants don't guarantee enforcement"], "narration": "Four misconceptions to clear. First, that direct lending is always more expensive than the syndicated market — not in a disrupted market, where the cost of syndication risk can make direct lending competitive on a risk-adjusted basis. Second, that unitranche means literally one lender — often a small club of three to five lenders participates, with the internal agreement governing their priority. Third, that direct lenders carry no systemic risk — false; concentrated exposure to buyout-backed companies across a large portfolio, with thin secondary liquidity, is exactly the kind of risk regulators are increasingly watching. And fourth, that maintenance covenants reliably protect lenders — sometimes, because they give early warning, but a lender with deep relationships across the sponsor's funds may feel pressure not to enforce aggressively, creating a real forbearance risk. The covenant is only as strong as the willingness to use it.", "est_sec": 54}, {"n": 10, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The new financing default", "on_screen_bullets": ["Bank retreat opened the gap", "Unitranche fits auction speed", "Permanent capital is the frontier"], "narration": "So to summarise: direct lending — private credit provided straight to buyout-backed companies by non-bank lenders — has grown from a mid-market niche into a market that now finances a large share of all buyouts. The bank retreat after the post-crisis reforms created the structural opening, a long period of low rates created investor demand for credit yield, and the disruption of the syndicated market in recent years cemented direct lending's position. The unitranche, a single blended loan replacing the senior-and-subordinated stack, is the signature product: faster, relationship-based, and usually maintenance-covenanted, which fits private equity's speed-sensitive auctions perfectly. And the insurer-funded permanent-capital model is the structural frontier, pointing to the largest direct lenders continuing to take share. Keep the core trade: you pay up on rate to buy certainty of close.", "est_sec": 48}, {"n": 11, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Why did banks retreat?", "What is the unitranche split?", "Why pay the premium?"], "narration": "Before you finish, answer these from memory. What regulatory forces drove banks out of leveraged lending and opened the gap for private credit? Inside a unitranche, what is the first-out and last-out split, and why does the borrower never see it? And why does a sponsor pay direct lending's higher rate rather than going to the cheaper syndicated market? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Direct Lending and Unitranche Debt\n\n[hook] Banks left, funds arrived\nThe way buyouts get financed has fundamentally changed in the last fifteen years. Before the financial crisis, almost all buyout debt started at a bank, which then sold it on into the broadly syndicated loan market. After the post-crisis regulatory reforms, banks pulled back from leveraged lending — and a vast private-credit industry, now well over a trillion dollars, grew up to fill the gap. Today, specialist credit funds finance the majority of mid-market buyouts and a fast-growing share of large deals. For a sponsor, these lenders offer speed and certainty of execution that the syndicated market simply cannot match. And for investors, private credit has become a major allocation sitting right alongside private equity. So understanding direct lending is now essential to understanding how the modern buyout actually gets funded.\n\n[definition] Lending straight to the company\nHere is the definition. Direct lending is the provision of private credit straight to a buyout-backed company by non-bank institutional lenders, bypassing the syndicated loan market entirely — the lender keeps the loan on its own balance sheet rather than packaging and selling it. And the signature product of direct lending is the unitranche: a single, blended loan that replaces the traditional stack of separate senior and subordinated tranches. So two ideas anchor the lesson — the shift from bank-syndicated debt to balance-sheet private credit, and the simplification of the capital structure into one blended instrument. Keep both, because the speed advantage that makes direct lending so powerful flows directly from them.\n\n[intuition] One lender, one document\nAn analogy makes this concrete. Imagine you need a mortgage, but instead of going to a bank that will package your loan with thousands of others and sell it to investors, you go directly to a single wealthy lender who funds it from their own account. They can move faster and customise the terms more, but they charge a bit more for the convenience and the risk they are holding. Direct lending is the institutional version of that: a specialist credit fund lends directly to a buyout-backed company and keeps the loan itself. The unitranche then simplifies the structure even further. Instead of a senior loan from one party and a subordinated loan from another, with a complex agreement governing the relationship between them, a single lender provides one blended loan at one blended rate. One document, one lender to negotiate with, and a much faster path to closing.\n\n[intuition] Commodity versus bespoke\nThe mental model is wholesale commodity versus bespoke tailor. The syndicated loan market is like a commodity exchange for credit — standardised terms, transparent pricing, high volume, and a lower cost per unit. Direct lending is the bespoke tailor: more expensive, a little slower per unit, but everything is custom-fitted, and crucially there is no risk that the tailor cancels because the commodity price moved against them. A sponsor pays the bespoke premium when certainty of execution matters more than headline cost — and in a competitive auction, where losing the financing means losing the deal, that is almost always. The whole value proposition of direct lending is that the money is committed to close, full stop, regardless of what the market does between signing and completion.\n\n[mechanics] Why banks stepped back\nWhy did this gap open in the first place? Three post-crisis regulatory forces reduced banks' appetite for leveraged lending. Tighter capital requirements meant banks had to hold significant capital against leveraged loans, making the business less economically attractive. New rules restricted banks from certain proprietary credit activities. And supervisory guidance effectively discouraged banks from originating debt above roughly six times total leverage — which constrained exactly the more aggressive structures private equity favours. Non-bank lenders face no equivalent capital constraints. A credit fund can hold a seven-times-leverage transaction that a bank will not originate. So the regulatory burden landed asymmetrically: it pushed the riskier, higher-leverage lending out of the regulated banking system and into private-credit funds, which is precisely where the growth has come from.\n\n[mechanics] Inside the unitranche\nLook inside the unitranche, because there is a clever sleight of hand. The borrower sees one loan at one blended rate — simpler and faster than a layered stack. But behind the scenes, the lenders often split the risk into a first-out strip and a last-out strip. The first-out portion is effectively the senior slice, sold down to another lender at lower pricing; the last-out portion is the junior slice, retained at higher pricing. Economically this recreates the old senior-and-subordinated tranching — but the borrower never deals with it. The split is governed by an internal agreement among the lenders, a document that is invisible to the borrower yet decides lender priority in a workout: who gets paid first and who controls decisions if the company hits trouble. So unitranche is simplicity on the surface and structured priority underneath — the borrower gets one conversation, the lenders keep their hierarchy.\n\n[application] Direct lending versus syndicated\nSet the two side by side. The syndicated market is cheaper on rate but takes longer to execute and carries syndication risk — market disruption can force the pricing up or even abort the deal. Direct lending charges a higher rate but closes faster, commits to close with high certainty, and carries no syndication risk because it is bilateral or a small club. On covenants, the syndicated market has drifted to covenant-lite, with few ongoing tests, whereas direct lenders commonly keep maintenance covenants that give early warning if the company deteriorates. And in a workout, a single direct lender can make decisions quickly, where syndicated debt requires coordinating many scattered holders. The trade is consistent: you pay more on rate and accept tighter covenants in exchange for speed, certainty, and a simpler creditor to deal with if things go wrong. In a disrupted market, that bundle can even be cheaper on a risk-adjusted basis, because the avoided syndication risk has real value.\n\n[example] The permanent-capital edge\nOne structural development is worth understanding, because it explains why the very largest direct lenders keep gaining share. Some of them are affiliated with a large insurance company. An insurer holds policy reserves that must be invested in high-quality, near-investment-grade credit. So a credit manager paired with an insurer can originate direct loans to buyout-backed companies, sell the senior, investment-grade-equivalent strips to its affiliated insurer, and retain the junior, higher-returning piece for itself. That creates a near-permanent, low-cost capital base for direct lending — a funding advantage that pure fund-vehicle lenders, which have to raise and return capital on a cycle, cannot match. It is the structural frontier of the industry, and it suggests the biggest lenders will keep taking share from the traditional bank-and-syndication ecosystem. The model turns insurance float into an almost unlimited engine for private credit.\n\n[application] Four myths\nFour misconceptions to clear. First, that direct lending is always more expensive than the syndicated market — not in a disrupted market, where the cost of syndication risk can make direct lending competitive on a risk-adjusted basis. Second, that unitranche means literally one lender — often a small club of three to five lenders participates, with the internal agreement governing their priority. Third, that direct lenders carry no systemic risk — false; concentrated exposure to buyout-backed companies across a large portfolio, with thin secondary liquidity, is exactly the kind of risk regulators are increasingly watching. And fourth, that maintenance covenants reliably protect lenders — sometimes, because they give early warning, but a lender with deep relationships across the sponsor's funds may feel pressure not to enforce aggressively, creating a real forbearance risk. The covenant is only as strong as the willingness to use it.\n\n[recap] The new financing default\nSo to summarise: direct lending — private credit provided straight to buyout-backed companies by non-bank lenders — has grown from a mid-market niche into a market that now finances a large share of all buyouts. The bank retreat after the post-crisis reforms created the structural opening, a long period of low rates created investor demand for credit yield, and the disruption of the syndicated market in recent years cemented direct lending's position. The unitranche, a single blended loan replacing the senior-and-subordinated stack, is the signature product: faster, relationship-based, and usually maintenance-covenanted, which fits private equity's speed-sensitive auctions perfectly. And the insurer-funded permanent-capital model is the structural frontier, pointing to the largest direct lenders continuing to take share. Keep the core trade: you pay up on rate to buy certainty of close.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What regulatory forces drove banks out of leveraged lending and opened the gap for private credit? Inside a unitranche, what is the first-out and last-out split, and why does the borrower never see it? And why does a sponsor pay direct lending's higher rate rather than going to the cheaper syndicated market? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The rise of direct lending has fundamentally changed how PE firms finance buyouts. Pre-GFC, virtually all LBO debt was bank-originated and syndicated to the broadly syndicated loan (BSL) market. Post-Dodd-Frank, banks retreated from leveraged lending, and a $1.7 trillion private credit industry emerged to fill the gap. Direct lenders now finance the majority of mid-market buyouts and a growing share of large-cap transactions. For PE sponsors, direct lending offers speed and certainty of execution that the BSL market cannot match. For LPs, private credit has become a major allocation alongside PE equity. Understanding direct lending is essential to understanding the modern LBO financing ecosystem.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Direct lending is the provision of private credit directly to PE-backed companies by non-bank institutional lenders — bypassing the syndicated loan market — with unitranche debt being the most important direct lending product: a single blended tranche that replaces the traditional senior/mezzanine stack.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you need a mortgage but instead of going to a high-street bank that will package your mortgage with thousands of others and sell it to investors, you go directly to a wealthy individual who lends you the money from their own account. They can move faster, customise the terms more, but they also charge a slightly higher rate for the convenience and the risk they're taking on. Direct lending in PE is the institutional version of this: specialist credit funds (like Ares, Apollo, HPS) lend directly to PE-backed companies, keeping the loan on their own balance sheet rather than syndicating it.</p><p>The unitranche loan simplifies the capital structure further: instead of having a senior loan from Bank A and a mezzanine loan from Fund B with a complex intercreditor agreement between them, a single lender provides one blended loan at one blended rate. One document, one lender conversation, faster closing.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of the BSL market as a wholesale commodity exchange for credit: standardised terms, transparent pricing, high volume. Direct lending is like a bespoke tailor: more expensive per unit, slower, but everything is custom-fitted and there's no risk the tailor cancels because the commodity price moved. PE sponsors pay the bespoke premium when certainty of execution matters more than cost — which in competitive auctions is almost always.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Bank Retreat and Market Gap <strong>Pre-GFC (pre-2008):</strong> Banks were the primary leveraged lenders. They originated loans and distributed risk through syndication. The BSL market (CLOs + institutional investors) absorbed this supply.</p><p><strong>Post-Dodd-Frank (2010+):</strong> Three regulatory forces reduced bank appetite: 1. <strong>Basel III capital requirements:</strong> Banks must hold 7–10% capital against leveraged loans; this makes leveraged lending less economically attractive 2. <strong>Volcker Rule:</strong> Restricted banks from certain proprietary credit activities 3. <strong>OCC/FDIC \"Guidance on Leveraged Lending\" (2013):</strong> Effectively capped bank origination of debt above 6× total leverage — constraining PE's most aggressive structures</p><p><strong>Private credit fills the gap:</strong> Non-bank lenders (BDCs, credit funds, insurance company affiliates) face no equivalent regulatory capital constraints. They can hold 7×+ leverage transactions that banks will not originate.</p><p>### Product Taxonomy</p><p>#### 1. Senior Direct Lending - First-lien term loan, similar to a traditional TLB but held on the lender's balance sheet - <strong>Pricing:</strong> SOFR + 450–650bps (50–100bps above comparable BSL TLB) - <strong>Size:</strong> Typically $50m–$500m (mid-market); larger for club deals - <strong>Covenants:</strong> Typically more covenants than BSL cov-lite (maintenance covenants for leverage and ICR are common in direct lending vs. incurrence-only in BSL) - <strong>Lenders:</strong> Ares Management, Blue Owl, Golub Capital, Monroe Capital</p><p>#### 2. Unitranche Debt - <strong>Definition:</strong> A single term loan that blends the economics of senior and subordinated debt into one instrument at one interest rate - <strong>Rate:</strong> Typically SOFR + 550–750bps — higher than pure senior but lower than senior + mezz stacked - <strong>Mechanics:</strong> The unitranche lender and sponsor agree on a \"first out / last out\" (FOLO) split internally — the unitranche lender sells down a \"first out\" strip to another lender at lower pricing, retaining the \"last out\" strip at higher pricing. Economically this recreates senior/mezz tranching, but the borrower deals with only one lender - <strong>Agreement Among Lenders (AAL):</strong> The internal document governing FOLO rights — not visible to the borrower, but governs lender priority in a workout - <strong>Speed advantage:</strong> A single unitranche lender can commit and close in 4–6 weeks vs. 10–14 weeks for a syndicated process</p><p>#### 3. Recurring Revenue / Sponsor Finance Structures - For software and tech-enabled businesses with high recurring revenue but low EBITDA (ARR lending) - Leverage calculated as a multiple of Annual Recurring Revenue (ARR) rather than EBITDA - Growing sub-segment: Thoma Bravo, Vista Equity Partners use ARR-based direct lending</p><p>### Key Direct Lending Players (2024) | Firm | AUM (Credit) | Known For | |---|---|---| | Apollo Global Management | ~$450bn | Origination at scale; Athene life insurance float | | Ares Management | ~$300bn | Mid-market focus; largest dedicated BDC manager | | Blackstone Credit &amp; Insurance | ~$300bn | Large-cap direct; BXSL BDC | | HPS Investment Partners | ~$100bn+ | Upper mid-market; recently acquired by BlackRock | | Blue Owl Capital | ~$170bn | Technology and recurring revenue; GP financing | | Golub Capital | ~$60bn | Mid-market; BDC vehicle |</p><p>### Economics Comparison: Direct Lending vs. BSL</p><p>| Factor | BSL Market | Direct Lending | |---|---|---| | All-in rate | SOFR + 350–500bps | SOFR + 450–750bps | | Execution timeline | 8–14 weeks | 4–6 weeks | | Certainty of close | Moderate (market flex risk) | High (committed to close) | | Syndication risk | Yes (market disruption can abort) | No (bilateral or club) | | Covenant package | Cov-lite (incurrence only) | Maintenance covenants common | | Flexibility in workout | Multiple lender coordination required | Single lender — faster decisions | | Minimum deal size | $250m+ for efficiency | $25m–$500m | | Maximum leverage | Market-limited (6–7× typical) | Less constrained (7–8× possible) |</p><p>### The 2022–2023 Surge in Direct Lending Market Share When the BSL market effectively froze in 2022–2023 (leveraged loan prices fell, CLO formation slowed), direct lenders became the only viable financing source for PE buyouts. Ares, Apollo, and HPS executed large-cap unitranche loans (&gt;$1bn) previously impossible for direct lenders. The $16bn Citrix leveraged buyout (2022) — originally syndicated BSL — was only completed after banks sold loans at 80 cents on the dollar, with direct lenders mopping up the residual at discounted prices. This is the moment private credit became a large-cap force, not just a mid-market niche.</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### The Bank Retreat and Market Gap <strong>Pre-GFC (pre-2008):</strong> Banks were the primary leveraged lenders. They originated loans and distributed risk through syndication. The BSL market (CLOs + institutional investors) absorbed this supply.</p><p><strong>Post-Dodd-Frank (2010+):</strong> Three regulatory forces reduced bank appetite: 1. <strong>Basel III capital requirements:</strong> Banks must hold 7–10% capital against leveraged loans; this makes leveraged lending less economically attractive 2. <strong>Volcker Rule:</strong> Restricted banks from certain proprietary credit activities 3. <strong>OCC/FDIC \"Guidance on Leveraged Lending\" (2013):</strong> Effectively capped bank origination of debt above 6× total leverage — constraining PE's most aggressive structures</p><p><strong>Private credit fills the gap:</strong> Non-bank lenders (BDCs, credit funds, insurance company affiliates) face no equivalent regulatory capital constraints. They can hold 7×+ leverage transactions that banks will not originate.</p><p>### Product Taxonomy</p><p>#### 1. Senior Direct Lending - First-lien term loan, similar to a traditional TLB but held on the lender's balance sheet - <strong>Pricing:</strong> SOFR + 450–650bps (50–100bps above comparable BSL TLB) - <strong>Size:</strong> Typically $50m–$500m (mid-market); larger for club deals - <strong>Covenants:</strong> Typically more covenants than BSL cov-lite (maintenance covenants for leverage and ICR are common in direct lending vs. incurrence-only in BSL) - <strong>Lenders:</strong> Ares Management, Blue Owl, Golub Capital, Monroe Capital</p><p>#### 2. Unitranche Debt - <strong>Definition:</strong> A single term loan that blends the economics of senior and subordinated debt into one instrument at one interest rate - <strong>Rate:</strong> Typically SOFR + 550–750bps — higher than pure senior but lower than senior + mezz stacked - <strong>Mechanics:</strong> The unitranche lender and sponsor agree on a \"first out / last out\" (FOLO) split internally — the unitranche lender sells down a \"first out\" strip to another lender at lower pricing, retaining the \"last out\" strip at higher pricing. Economically this recreates senior/mezz tranching, but the borrower deals with only one lender - <strong>Agreement Among Lenders (AAL):</strong> The internal document governing FOLO rights — not visible to the borrower, but governs lender priority in a workout - <strong>Speed advantage:</strong> A single unitranche lender can commit and close in 4–6 weeks vs. 10–14 weeks for a syndicated process</p><p>#### 3. Recurring Revenue / Sponsor Finance Structures - For software and tech-enabled businesses with high recurring revenue but low EBITDA (ARR lending) - Leverage calculated as a multiple of Annual Recurring Revenue (ARR) rather than EBITDA - Growing sub-segment: Thoma Bravo, Vista Equity Partners use ARR-based direct lending</p><p>### Key Direct Lending Players (2024) | Firm | AUM (Credit) | Known For | |---|---|---| | Apollo Global Management | ~$450bn | Origination at scale; Athene life insurance float | | Ares Management | ~$300bn | Mid-market focus; largest dedicated BDC manager | | Blackstone Credit &amp; Insurance | ~$300bn | Large-cap direct; BXSL BDC | | HPS Investment Partners | ~$100bn+ | Upper mid-market; recently acquired by BlackRock | | Blue Owl Capital | ~$170bn | Technology and recurring revenue; GP financing | | Golub Capital | ~$60bn | Mid-market; BDC vehicle |</p><p>### Economics Comparison: Direct Lending vs. BSL</p><p>| Factor | BSL Market | Direct Lending | |---|---|---| | All-in rate | SOFR + 350–500bps | SOFR + 450–750bps | | Execution timeline | 8–14 weeks | 4–6 weeks | | Certainty of close | Moderate (market flex risk) | High (committed to close) | | Syndication risk | Yes (market disruption can abort) | No (bilateral or club) | | Covenant package | Cov-lite (incurrence only) | Maintenance covenants common | | Flexibility in workout | Multiple lender coordination required | Single lender — faster decisions | | Minimum deal size | $250m+ for efficiency | $25m–$500m | | Maximum leverage | Market-limited (6–7× typical) | Less constrained (7–8× possible) |</p><p>### The 2022–2023 Surge in Direct Lending Market Share When the BSL market effectively froze in 2022–2023 (leveraged loan prices fell, CLO formation slowed), direct lenders became the only viable financing source for PE buyouts. Ares, Apollo, and HPS executed large-cap unitranche loans (&gt;$1bn) previously impossible for direct lenders. The $16bn Citrix leveraged buyout (2022) — originally syndicated BSL — was only completed after banks sold loans at 80 cents on the dollar, with direct lenders mopping up the residual at discounted prices. This is the moment private credit became a large-cap force, not just a mid-market niche.</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### The Bank Retreat and Market Gap <strong>Pre-GFC (pre-2008):</strong> Banks were the primary leveraged lenders. They originated loans and distributed risk through syndication. The BSL market (CLOs + institutional investors) absorbed this supply.</p><p><strong>Post-Dodd-Frank (2010+):</strong> Three regulatory forces reduced bank appetite: 1. <strong>Basel III capital requirements:</strong> Banks must hold 7–10% capital against leveraged loans; this makes leveraged lending less economically attractive 2. <strong>Volcker Rule:</strong> Restricted banks from certain proprietary credit activities 3. <strong>OCC/FDIC \"Guidance on Leveraged Lending\" (2013):</strong> Effectively capped bank origination of debt above 6× total leverage — constraining PE's most aggressive structures</p><p><strong>Private credit fills the gap:</strong> Non-bank lenders (BDCs, credit funds, insurance company affiliates) face no equivalent regulatory capital constraints. They can hold 7×+ leverage transactions that banks will not originate.</p><p>### Product Taxonomy</p><p>#### 1. Senior Direct Lending - First-lien term loan, similar to a traditional TLB but held on the lender's balance sheet - <strong>Pricing:</strong> SOFR + 450–650bps (50–100bps above comparable BSL TLB) - <strong>Size:</strong> Typically $50m–$500m (mid-market); larger for club deals - <strong>Covenants:</strong> Typically more covenants than BSL cov-lite (maintenance covenants for leverage and ICR are common in direct lending vs. incurrence-only in BSL) - <strong>Lenders:</strong> Ares Management, Blue Owl, Golub Capital, Monroe Capital</p><p>#### 2. Unitranche Debt - <strong>Definition:</strong> A single term loan that blends the economics of senior and subordinated debt into one instrument at one interest rate - <strong>Rate:</strong> Typically SOFR + 550–750bps — higher than pure senior but lower than senior + mezz stacked - <strong>Mechanics:</strong> The unitranche lender and sponsor agree on a \"first out / last out\" (FOLO) split internally — the unitranche lender sells down a \"first out\" strip to another lender at lower pricing, retaining the \"last out\" strip at higher pricing. Economically this recreates senior/mezz tranching, but the borrower deals with only one lender - <strong>Agreement Among Lenders (AAL):</strong> The internal document governing FOLO rights — not visible to the borrower, but governs lender priority in a workout - <strong>Speed advantage:</strong> A single unitranche lender can commit and close in 4–6 weeks vs. 10–14 weeks for a syndicated process</p><p>#### 3. Recurring Revenue / Sponsor Finance Structures - For software and tech-enabled businesses with high recurring revenue but low EBITDA (ARR lending) - Leverage calculated as a multiple of Annual Recurring Revenue (ARR) rather than EBITDA - Growing sub-segment: Thoma Bravo, Vista Equity Partners use ARR-based direct lending</p><p>### Key Direct Lending Players (2024) | Firm | AUM (Credit) | Known For | |---|---|---| | Apollo Global Management | ~$450bn | Origination at scale; Athene life insurance float | | Ares Management | ~$300bn | Mid-market focus; largest dedicated BDC manager | | Blackstone Credit &amp; Insurance | ~$300bn | Large-cap direct; BXSL BDC | | HPS Investment Partners | ~$100bn+ | Upper mid-market; recently acquired by BlackRock | | Blue Owl Capital | ~$170bn | Technology and recurring revenue; GP financing | | Golub Capital | ~$60bn | Mid-market; BDC vehicle |</p><p>### Economics Comparison: Direct Lending vs. BSL</p><p>| Factor | BSL Market | Direct Lending | |---|---|---| | All-in rate | SOFR + 350–500bps | SOFR + 450–750bps | | Execution timeline | 8–14 weeks | 4–6 weeks | | Certainty of close | Moderate (market flex risk) | High (committed to close) | | Syndication risk | Yes (market disruption can abort) | No (bilateral or club) | | Covenant package | Cov-lite (incurrence only) | Maintenance covenants common | | Flexibility in workout | Multiple lender coordination required | Single lender — faster decisions | | Minimum deal size | $250m+ for efficiency | $25m–$500m | | Maximum leverage | Market-limited (6–7× typical) | Less constrained (7–8× possible) |</p><p>### The 2022–2023 Surge in Direct Lending Market Share When the BSL market effectively froze in 2022–2023 (leveraged loan prices fell, CLO formation slowed), direct lenders became the only viable financing source for PE buyouts. Ares, Apollo, and HPS executed large-cap unitranche loans (&gt;$1bn) previously impossible for direct lenders. The $16bn Citrix leveraged buyout (2022) — originally syndicated BSL — was only completed after banks sold loans at 80 cents on the dollar, with direct lenders mopping up the residual at discounted prices. This is the moment private credit became a large-cap force, not just a mid-market niche.</p>"}, "7": {"section": "Real-World Example", "html": "<p><strong>KKR / Exact Sciences financing (hypothetical structure illustration):</strong> A typical KKR mid-market buyout of a $300m EBITDA healthcare services company in 2023. The BSL market was pricing risk-off. KKR approached Ares Management for a unitranche package: - $1.8bn unitranche (6× EBITDA) at SOFR + 625bps - Ares retained the \"last out\" strip; sold the \"first out\" strip to Golub Capital - Closed in 5 weeks from term sheet - The equivalent syndicated deal would have required 12+ weeks and faced market flex risk of 50–100bps additional pricing</p><p><strong>Apollo / Athene model — the structural advantage:</strong> Apollo's unique advantage is its affiliated insurance company, Athene. Athene holds policy reserves that must be invested in investment-grade or near-investment-grade credit. Apollo can originate direct loans for PE-backed companies and sell the senior (IG-equivalent) tranches to Athene, retaining the junior/equity upside. This creates a nearly unlimited permanent capital base for direct lending, allowing Apollo to compete at scale that pure BDC-funded lenders cannot match. [needs-verification on specific deal flow details]</p>"}, "8": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Direct lending is always more expensive than BSL.\"</strong> Not always — in a disrupted BSL market (as in 2022–2023), direct lending pricing can be competitive with BSL on a risk-adjusted basis because market flex risk has a cost.</li><li><strong>\"Unitranche means one lender.\"</strong> Not necessarily — clubs of 3–5 direct lenders frequently participate in unitranche deals, with FOLO agreements governing their internal priority.</li><li><strong>\"Direct lenders don't have systemic risk.\"</strong> False — concentrated exposure to PE-backed companies across a large portfolio, with illiquid secondary markets, creates systemic risk that regulators are increasingly monitoring.</li><li><strong>\"Direct lending covenants protect lenders better.\"</strong> Sometimes true — maintenance covenants provide early warning. But lenders with large PE LP relationships face relationship pressure not to enforce covenants aggressively, potentially creating forbearance risk.</li></ol>"}, "9": {"section": "Summary", "html": "<p>Direct lending — the provision of private credit directly to PE-backed companies by non-bank institutional lenders — has grown from a mid-market niche into a $1.7tn market that now finances a significant share of all PE buyouts. The retreat of banks from leveraged lending post-Dodd-Frank created the structural opening; near-zero rates 2010–2021 created the LP demand for credit yield; and the BSL market disruption of 2022–2023 cemented direct lending's position. The unitranche loan — a single blended tranche replacing the senior/mezzanine stack — is the signature product: faster to execute, relationship-based, and maintenance-covenanted, making it ideal for PE's speed-sensitive auction dynamics. Apollo's Athene model (insurance float funding direct lending at scale) is the structural frontier, suggesting the largest direct lenders will continue to gain share at the expense of the traditional bank/BSL ecosystem.</p>"}, "10": {"section": "Summary", "html": "<p>Direct lending — the provision of private credit directly to PE-backed companies by non-bank institutional lenders — has grown from a mid-market niche into a $1.7tn market that now finances a significant share of all PE buyouts. The retreat of banks from leveraged lending post-Dodd-Frank created the structural opening; near-zero rates 2010–2021 created the LP demand for credit yield; and the BSL market disruption of 2022–2023 cemented direct lending's position. The unitranche loan — a single blended tranche replacing the senior/mezzanine stack — is the signature product: faster to execute, relationship-based, and maintenance-covenanted, making it ideal for PE's speed-sensitive auction dynamics. Apollo's Athene model (insurance float funding direct lending at scale) is the structural frontier, suggesting the largest direct lenders will continue to gain share at the expense of the traditional bank/BSL ecosystem.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

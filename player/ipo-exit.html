@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "ipo-exit", "title": "IPO Exit", "draft_watermark": false, "estimated_runtime_sec": 435, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Highest reward, highest variance", "on_screen_bullets": ["No immediate cash", "Forces strategics to compete", "Defines what an LBO must become"], "narration": "The IPO is the exit route with the highest variance — it can deliver the best valuation the market will pay, public premiums for growth companies far above private multiples, or it can fail entirely, withdrawn mid-process when conditions turn. Three reasons it matters. First, it's the only exit that does not produce immediate cash — every other route returns capital within weeks, but an IPO produces listed shares and a lock-up, so the firm waits months to start selling and longer to fully monetise, which structurally lowers IRR at the same MOIC. Second, it's the most powerful weapon in a dual-track process — a credible IPO forces strategic buyers to compete with the public market valuation. And third, its prerequisites — scale, governance, a growth narrative — define what an LBO must become, making IPO readiness a legitimate long-term value-creation goal.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Going public, selling gradually", "on_screen_bullets": ["List on a stock exchange", "Sell down over 12–36 months", "Highest multiple, IRR-destroying timeline"], "narration": "The definition. An IPO exit is when a PE firm takes a portfolio company public on a stock exchange, creating liquid shares that the firm then sells gradually over twelve to thirty-six months — potentially achieving the highest valuation multiple of any exit route, but at the cost of a prolonged, uncertain, and IRR-destroying monetisation timeline. Highest headline price, slowest cash.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Sell to thousands, not one", "on_screen_bullets": ["Banks, prospectus, roadshow, pricing", "Lock-up 90–180 days", "Then block trades + ABBs over years"], "narration": "Most PE exits sell the whole company in one transaction to one buyer. An IPO is different — instead of one buyer you sell shares to thousands of public investors at once. Here's how it works. The firm and the company appoint investment banks, the bookrunners, to list the company; the banks research it, prepare a prospectus — the detailed legal document explaining the business — and take management on a roughly two-week roadshow to present to large institutions: pension funds, mutual funds, hedge funds, who decide whether to buy. Based on that demand the banks price the shares and list the company, and on day one the shares trade publicly, so the firm now holds shares in a public company rather than ownership of a private one. But the crucial part: the firm usually cannot sell immediately — there's a lock-up, typically ninety to a hundred-eighty days, stopping major shareholders from selling and crushing the price. After it expires, the firm sells down gradually — through block trades to institutions, accelerated book-builds, follow-on offerings, or sometimes by distributing shares in-kind directly to its LPs. From listing to full monetisation, that takes twelve to thirty-six months, with the firm usually keeping a board seat and residual stake throughout.", "est_sec": 60}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Listing your house in shares", "on_screen_bullets": ["Marketplace may value it higher", "But no-sell period, then sell slowly", "Cash later — IRR punishes the delay"], "narration": "The mental model: a trade sale is selling your house to a single buyer — agree a price, exchange, complete, cash arrives, done. An IPO is converting your house into a company, listing it on a marketplace, and then selling fractional shares over the following eighteen months. On listing day you know the shares are worth some figure, but you can't actually sell until the no-sell period expires, and once you can, you have to sell gradually to avoid crashing the price. The benefit: the marketplace might value your house at one-and-a-half million when no private buyer would go above one-point-two. The cost: eighteen months preparing the listing, six more before you can sell, and another eighteen to fully monetise — your cash comes later, and IRR punishes you for the delay even though your absolute profit is higher.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The premium, the process, the IRR cost", "on_screen_bullets": ["SaaS: 20–30x public vs 15–18x trade", "Prep → roadshow → list → lock-up → sell-down", "Same 3x MOIC: 26% IRR Yr5 → 15% Yr8"], "narration": "Technically, three things drive the IPO. First, the valuation premium: public markets, especially for high-growth tech, healthcare, and consumer businesses, can pay multiples private buyers can't justify — a SaaS company with fifty million EBITDA growing twenty percent might command twenty to thirty times in a strong public market, versus fifteen to eighteen times from the most motivated strategic; those extra turns on fifty million EBITDA are hundreds of millions of incremental value attributable purely to the route. But it's intensely market-dependent: rich in the low-rate bull years, and sharply compressed in 2022 and 2023 when many IPO windows closed entirely. Second, the process runs in stages — twelve-to-eighteen months of pre-IPO preparation getting the financials, governance, and corporate structure ready; bookrunner selection and prospectus drafting; the roadshow building the book; then listing day, with the lock-up; and finally the multi-year sell-down via block trades, accelerated book-builds, follow-on offerings, or in-kind distribution. Third, and most importantly, the IRR penalty is structural: every other route returns cash within months, but an IPO begun at year five prices by year six, the lock-up clears at year six-and-a-half, and full monetisation completes by year seven-and-a-half or eight. The same three-times MOIC is twenty-six percent IRR at year five, twenty-one at year seven, and just fifteen at year eight — one multiple, three IRRs, entirely determined by when cash reaches the LP. There's also the overhang problem: the market knows the firm must eventually sell a big block, which can suppress the price, so best practice is to announce a clear, capped sell-down schedule in advance.", "est_sec": 74}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Blackstone / Hilton", "on_screen_bullets": ["$26bn LBO 2007, crisis hit immediately", "2013 IPO ~$32bn, kept ~76%", "Fully out by 2018: ~$14bn profit, ~3.0x"], "narration": "Take Blackstone and Hilton — the gold-standard PE IPO exit. Blackstone bought Hilton in July 2007 for twenty-six billion dollars, one of the largest hotel LBOs ever, and the timing looked catastrophic: the 2008 crisis hit immediately, and Hilton's twenty-billion-plus debt load became severely distressed. Blackstone held its conviction, restructured the debt, backed management, and ran a multi-year operational improvement programme. The IPO came in December 2013 on the NYSE at twenty dollars a share, raising about two-point-three-five billion and valuing the company at roughly thirty-two billion — the largest US hotel IPO at the time. Crucially, Blackstone retained about seventy-six percent of the shares after listing; the IPO was a liquidity and valuation event, not a full exit. Over the next five years it sold down methodically — block trades, accelerated book-builds, follow-on offerings, and some in-kind distribution to its LPs — and by 2018 it had fully exited. Total profit: about fourteen billion dollars on roughly six billion of equity, around a three-times net MOIC, one of the most profitable PE investments in history. Why was the IPO right? Scale — Hilton was the world's largest hotel company, with no single strategic able to absorb it without regulatory trouble; brand value the public market would pay for; timing flexibility to list when conditions allowed and sell into a rising stock. The IRR was lower than a year-five trade sale would have given over an eleven-year hold — but the absolute MOIC was extraordinary. This is the archetypal MOIC-over-IRR exit.", "est_sec": 70}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["IPO ≠ getting the money", "IPO ≠ always highest valuation", "Lock-up expiry ≠ instant liquidity"], "narration": "Five corrections. First, the IPO is not when the firm gets its money — it's when the shares start trading; the firm keeps most of its stake, locked up, and the cash accrues over twelve to thirty-six months of sell-down, so the IPO is the beginning of the exit, not the end. Second, the IPO doesn't always produce the highest valuation — it's market-dependent, and in a sector correction public multiples can fall below what a motivated strategic would pay. Third, there's no fixed minimum EBITDA for an IPO — high-growth companies can list on revenue or ARR multiples with little or no EBITDA; the EBITDA threshold applies more to traditional industrials and services. Fourth, an IPO doesn't automatically mean the company is excellent — firms also IPO when no adequate trade buyer exists or the company is too big for any private buyer, so an IPO can reflect quality or simply the absence of alternatives. And fifth, lock-up expiry is not instant liquidity — it means the firm can sell, not that it can dump a large block without crashing its own exit price; the sell-down still has to be carefully timed.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "High MOIC, lower IRR", "on_screen_bullets": ["Highest multiple, no immediate cash", "Needs scale, governance, open window", "Hilton: the patient multi-year sell-down"], "narration": "To recap. The IPO exit can deliver the highest valuation multiple — especially for growth businesses commanding public premiums — but at the cost of a fundamentally different return profile. Unlike trade sales and SBOs it produces no immediate cash; it produces listed shares under a lock-up, then a twelve-to-thirty-six-month sell-down that delays LP cash and so destroys IRR relative to other routes at the same MOIC. Viability depends on scale, governance readiness, a compelling narrative, and above all an open IPO window that's entirely market-dependent. Blackstone and Hilton show it at its best — a company too large for any private buyer, whose full value only the public markets could unlock, generating about fourteen billion through a patient multi-year sell-down. It's the archetypal high-MOIC, lower-IRR choice. Next we step back from the routes themselves to the machinery that runs any of them — the PE exit process and timeline.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why does an IPO produce a lower IRR than a trade sale at the same MOIC? Name two of the post-lock-up sell-down methods, and explain why Hilton was a 'MOIC over IRR' exit.", "narration": "Before the next lesson, answer all three. Why does an IPO produce a lower IRR than a trade sale at the same MOIC? Name two of the methods a firm uses to sell down its stake after the lock-up expires. And why is Blackstone's Hilton exit described as a MOIC-over-IRR choice? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: IPO Exit\n\n[hook] Highest reward, highest variance\nThe IPO is the exit route with the highest variance — it can deliver the best valuation the market will pay, public premiums for growth companies far above private multiples, or it can fail entirely, withdrawn mid-process when conditions turn. Three reasons it matters. First, it's the only exit that does not produce immediate cash — every other route returns capital within weeks, but an IPO produces listed shares and a lock-up, so the firm waits months to start selling and longer to fully monetise, which structurally lowers IRR at the same MOIC. Second, it's the most powerful weapon in a dual-track process — a credible IPO forces strategic buyers to compete with the public market valuation. And third, its prerequisites — scale, governance, a growth narrative — define what an LBO must become, making IPO readiness a legitimate long-term value-creation goal.\n\n[definition] Going public, selling gradually\nThe definition. An IPO exit is when a PE firm takes a portfolio company public on a stock exchange, creating liquid shares that the firm then sells gradually over twelve to thirty-six months — potentially achieving the highest valuation multiple of any exit route, but at the cost of a prolonged, uncertain, and IRR-destroying monetisation timeline. Highest headline price, slowest cash.\n\n[intuition] Sell to thousands, not one\nMost PE exits sell the whole company in one transaction to one buyer. An IPO is different — instead of one buyer you sell shares to thousands of public investors at once. Here's how it works. The firm and the company appoint investment banks, the bookrunners, to list the company; the banks research it, prepare a prospectus — the detailed legal document explaining the business — and take management on a roughly two-week roadshow to present to large institutions: pension funds, mutual funds, hedge funds, who decide whether to buy. Based on that demand the banks price the shares and list the company, and on day one the shares trade publicly, so the firm now holds shares in a public company rather than ownership of a private one. But the crucial part: the firm usually cannot sell immediately — there's a lock-up, typically ninety to a hundred-eighty days, stopping major shareholders from selling and crushing the price. After it expires, the firm sells down gradually — through block trades to institutions, accelerated book-builds, follow-on offerings, or sometimes by distributing shares in-kind directly to its LPs. From listing to full monetisation, that takes twelve to thirty-six months, with the firm usually keeping a board seat and residual stake throughout.\n\n[intuition] Listing your house in shares\nThe mental model: a trade sale is selling your house to a single buyer — agree a price, exchange, complete, cash arrives, done. An IPO is converting your house into a company, listing it on a marketplace, and then selling fractional shares over the following eighteen months. On listing day you know the shares are worth some figure, but you can't actually sell until the no-sell period expires, and once you can, you have to sell gradually to avoid crashing the price. The benefit: the marketplace might value your house at one-and-a-half million when no private buyer would go above one-point-two. The cost: eighteen months preparing the listing, six more before you can sell, and another eighteen to fully monetise — your cash comes later, and IRR punishes you for the delay even though your absolute profit is higher.\n\n[mechanics] The premium, the process, the IRR cost\nTechnically, three things drive the IPO. First, the valuation premium: public markets, especially for high-growth tech, healthcare, and consumer businesses, can pay multiples private buyers can't justify — a SaaS company with fifty million EBITDA growing twenty percent might command twenty to thirty times in a strong public market, versus fifteen to eighteen times from the most motivated strategic; those extra turns on fifty million EBITDA are hundreds of millions of incremental value attributable purely to the route. But it's intensely market-dependent: rich in the low-rate bull years, and sharply compressed in 2022 and 2023 when many IPO windows closed entirely. Second, the process runs in stages — twelve-to-eighteen months of pre-IPO preparation getting the financials, governance, and corporate structure ready; bookrunner selection and prospectus drafting; the roadshow building the book; then listing day, with the lock-up; and finally the multi-year sell-down via block trades, accelerated book-builds, follow-on offerings, or in-kind distribution. Third, and most importantly, the IRR penalty is structural: every other route returns cash within months, but an IPO begun at year five prices by year six, the lock-up clears at year six-and-a-half, and full monetisation completes by year seven-and-a-half or eight. The same three-times MOIC is twenty-six percent IRR at year five, twenty-one at year seven, and just fifteen at year eight — one multiple, three IRRs, entirely determined by when cash reaches the LP. There's also the overhang problem: the market knows the firm must eventually sell a big block, which can suppress the price, so best practice is to announce a clear, capped sell-down schedule in advance.\n\n[worked-example] Blackstone / Hilton\nTake Blackstone and Hilton — the gold-standard PE IPO exit. Blackstone bought Hilton in July 2007 for twenty-six billion dollars, one of the largest hotel LBOs ever, and the timing looked catastrophic: the 2008 crisis hit immediately, and Hilton's twenty-billion-plus debt load became severely distressed. Blackstone held its conviction, restructured the debt, backed management, and ran a multi-year operational improvement programme. The IPO came in December 2013 on the NYSE at twenty dollars a share, raising about two-point-three-five billion and valuing the company at roughly thirty-two billion — the largest US hotel IPO at the time. Crucially, Blackstone retained about seventy-six percent of the shares after listing; the IPO was a liquidity and valuation event, not a full exit. Over the next five years it sold down methodically — block trades, accelerated book-builds, follow-on offerings, and some in-kind distribution to its LPs — and by 2018 it had fully exited. Total profit: about fourteen billion dollars on roughly six billion of equity, around a three-times net MOIC, one of the most profitable PE investments in history. Why was the IPO right? Scale — Hilton was the world's largest hotel company, with no single strategic able to absorb it without regulatory trouble; brand value the public market would pay for; timing flexibility to list when conditions allowed and sell into a rising stock. The IRR was lower than a year-five trade sale would have given over an eleven-year hold — but the absolute MOIC was extraordinary. This is the archetypal MOIC-over-IRR exit.\n\n[pitfalls] What people get wrong\nFive corrections. First, the IPO is not when the firm gets its money — it's when the shares start trading; the firm keeps most of its stake, locked up, and the cash accrues over twelve to thirty-six months of sell-down, so the IPO is the beginning of the exit, not the end. Second, the IPO doesn't always produce the highest valuation — it's market-dependent, and in a sector correction public multiples can fall below what a motivated strategic would pay. Third, there's no fixed minimum EBITDA for an IPO — high-growth companies can list on revenue or ARR multiples with little or no EBITDA; the EBITDA threshold applies more to traditional industrials and services. Fourth, an IPO doesn't automatically mean the company is excellent — firms also IPO when no adequate trade buyer exists or the company is too big for any private buyer, so an IPO can reflect quality or simply the absence of alternatives. And fifth, lock-up expiry is not instant liquidity — it means the firm can sell, not that it can dump a large block without crashing its own exit price; the sell-down still has to be carefully timed.\n\n[recap] High MOIC, lower IRR\nTo recap. The IPO exit can deliver the highest valuation multiple — especially for growth businesses commanding public premiums — but at the cost of a fundamentally different return profile. Unlike trade sales and SBOs it produces no immediate cash; it produces listed shares under a lock-up, then a twelve-to-thirty-six-month sell-down that delays LP cash and so destroys IRR relative to other routes at the same MOIC. Viability depends on scale, governance readiness, a compelling narrative, and above all an open IPO window that's entirely market-dependent. Blackstone and Hilton show it at its best — a company too large for any private buyer, whose full value only the public markets could unlock, generating about fourteen billion through a patient multi-year sell-down. It's the archetypal high-MOIC, lower-IRR choice. Next we step back from the routes themselves to the machinery that runs any of them — the PE exit process and timeline.\n\nEnd-card question: Why does an IPO produce a lower IRR than a trade sale at the same MOIC? Name two of the post-lock-up sell-down methods, and explain why Hilton was a 'MOIC over IRR' exit.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The IPO exit is the exit route with the highest variance — it can produce the best valuation the market will pay (public market premiums for growth companies can far exceed private market multiples) or it can fail entirely (IPO withdrawn mid-process due to market conditions). Understanding the IPO exit is essential for three reasons:</p><p>First, it is the only exit route that does not produce immediate cash. Every other exit route (trade sale, SBO, GP-led secondary) returns capital within weeks of closing. An IPO produces listed shares and a lock-up obligation — the PE firm waits months before selling and months more before fully monetising. This fundamental difference in cash flow timing means the IPO's IRR is structurally lower than other routes at the same MOIC.</p><p>Second, the IPO is the most powerful competitive weapon in a dual-track exit process. A credible IPO preparation forces strategic buyers to compete with the public market valuation, preventing them from pricing based on private market comparables alone.</p><p>Third, the IPO's prerequisites (scale, governance, growth narrative) define what an LBO must become before this route becomes viable — making IPO readiness a legitimate, if long-term, value creation objective during the hold period.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>An IPO exit is when a PE firm takes a portfolio company public on a stock exchange, creating liquid shares that the PE firm then sells gradually over 12–36 months — potentially achieving the highest valuation multiple of any exit route, but at the cost of a prolonged, uncertain, and IRR-destroying monetisation timeline.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Most PE exits involve selling the entire company in one transaction to one buyer. An IPO is different: instead of selling to a single buyer, you sell shares to thousands of buyers simultaneously — the public markets.</p><p>Here is how it works. The PE firm and the portfolio company together appoint investment banks (the \"bookrunners\") to help list the company on a stock exchange. The banks research the company, prepare a prospectus (a detailed legal document explaining the business), then take management on a two-week \"roadshow\" to present to large institutional investors — pension funds, mutual funds, hedge funds — who decide whether they want to buy shares.</p><p>Based on the roadshow demand, the banks price the shares and list the company. On listing day, the shares start trading publicly. The PE firm now holds shares in a public company instead of ownership of a private one.</p><p>But here is the important part: the PE firm usually <strong>cannot sell immediately</strong>. There is a lock-up period (typically 90–180 days) during which major shareholders cannot sell. This prevents the share price from being immediately crushed by the PE firm dumping a large stake on the market.</p><p>After the lock-up expires, the PE firm gradually sells its position: - Via block trades to institutional investors - Via accelerated book-builds (fast, banker-organised sales of large blocks) - Via secondary follow-on registered offerings - Sometimes via in-kind distributions of shares directly to LP investors (the LPs then manage their own sell-down)</p><p>This process — from IPO to full monetisation — typically takes 12–36 months. The PE firm often retains a board seat and residual stake throughout, maintaining some alignment with the company's public market performance.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>A trade sale is like selling your house to a single buyer — you agree a price, exchange contracts, completion happens, cash arrives. Done.</p><p>An IPO is like converting your house into a company, listing that company on a marketplace, and then selling fractional shares over the following 18 months. On listing day, you know the shares are worth £X — but you can't actually sell until the \"no-sell\" period expires, and once you can sell, you need to sell gradually to avoid crashing the price.</p><p>The benefit: the marketplace might value your house at £1.5M when no private buyer would go above £1.2M. The cost: you spent 18 months preparing the listing, you can't sell for another 6 months after listing, and it takes you another 18 months to fully monetise. Your cash comes later, and IRR punishes you for that delay even though your absolute profit is higher.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The IPO Valuation Premium</p><p>The most compelling reason to pursue an IPO over a trade sale is valuation. Public markets, particularly for high-growth technology, healthcare, and consumer businesses, can value companies at multiples that private market buyers cannot justify:</p><ul class='notelist'><li>A PE-backed SaaS company with £50M EBITDA growing at 20% might command 20x–30x EV/EBITDA in a favourable public market — far beyond what any strategic buyer or PE firm could rationally pay</li><li>The same company in a trade sale might achieve 15x–18x from the most motivated strategic buyer (including synergy premium)</li><li>The additional 2-12 turns of multiple × £50M EBITDA = £100M–£600M of incremental value — entirely attributable to the IPO exit route choice</li></ul><p>However, this premium is highly market-condition-dependent: - In bull markets with low rates and high risk appetite (2010–2021): public market multiples substantially exceeded private market multiples - In bear markets or rate-rising environments (2022–2023): public multiples compressed sharply; many IPO windows closed entirely; some PE firms that had planned IPO exits pivoted to trade sales or SBOs</p><p>### The IPO Process (Detailed Stages)</p><p><strong>Phase 1: Pre-IPO Preparation (12–18 months before listing)</strong> - <strong>Financial readiness:</strong> 2-3 years of audited financial statements under the relevant accounting standard (IFRS for UK/EU, US GAAP for NYSE/NASDAQ); management accounts reconciled to statutory accounts; any aggressive accounting practices normalised - <strong>Governance transformation:</strong> Board composition adjusted for listed company requirements (majority independent non-executives, audit committee, remuneration committee); executive team built or augmented with public company experience (particularly the CFO) - <strong>Corporate structure simplification:</strong> PE holding companies, offshore vehicles, and complex intragroup arrangements cleaned up; preference shares and PE-specific instruments converted or collapsed - <strong>Investor relations preparation:</strong> IR function established; key investor metrics defined; ESG reporting framework initiated - <strong>Clean audits:</strong> Any qualifications or material weaknesses in prior audit opinions addressed</p><p><strong>Phase 2: IPO Preparation (6 months before listing)</strong> - <strong>Bookrunner selection:</strong> The PE firm and management request proposals from investment banks; typically 1-2 global coordinator banks plus regional banks selected; banks compete on valuation expectations, distribution capabilities, and aftermarket support - <strong>Prospectus / Offering Document drafting:</strong> The legal and financial description of the company — financial history, risk factors, business description, management information, use of proceeds, principal shareholders; in the UK: Prospectus (FCA approved); in the US: S-1 registration statement (SEC review process) - <strong>Analyst preparation:</strong> Bank equity research analysts produce initiation reports (published after the IPO) - <strong>Valuation work:</strong> Banks build comparable company trading models; management prepares management case for distribution to investors</p><p><strong>Phase 3: The Roadshow (2–3 weeks before pricing)</strong> - Management and banks travel to present to institutional investors (London, Edinburgh, New York, Boston, Singapore typically) - One-on-one meetings, group lunches, large investor presentations - The banks \"build the book\" — collecting indications of interest at various price points - Pricing: based on book demand, the banks set the final IPO price; oversubscription (book covered 3x-10x) allows pricing at the top of the range or above</p><p><strong>Phase 4: Listing and Lock-Up (Day 0)</strong> - Shares begin trading - Lock-up agreement restricts major shareholders (PE firm, founders, management) from selling for typically 90–180 days - The PE firm's shares are \"listed but locked\" — they have value but no liquidity yet</p><p><strong>Phase 5: Post-IPO Sell-Down</strong> The PE firm's path to full monetisation:</p><ol><li><strong>Lock-up expiry:</strong> After the lock-up period, the PE firm can begin selling</li><li><strong>Block trades:</strong> A large institution directly buys a block of shares from the PE firm at a negotiated discount (typically 2-5% discount to market)</li><li><strong>Accelerated book-build (ABB):</strong> The banks rapidly build a book of demand from institutional investors for a large block; launched and completed in 24-48 hours; priced at a discount</li><li><strong>Follow-on registered offering:</strong> A formal secondary offering registered with the exchange; slower but avoids discount; used when market conditions support full public market pricing</li><li><strong>In-kind distribution:</strong> PE firm distributes shares directly to LPs, who then manage their own sell-down independently; used when the LP base has the infrastructure to hold public equities</li></ol><p>### IRR Implications of the IPO Timeline</p><p>The IPO's IRR penalty is structural and significant. Consider: - All other PE exit routes return cash within 3-8 months of the exit process starting - An IPO begun at Year 5 of the hold is typically priced by Year 6 (after 12-18 months of preparation) - The lock-up expires at Year 6.5 - Full monetisation completes by Year 7.5-8 (assuming 12-18 months of sell-down)</p><p>A 3x MOIC generates: 26% IRR at Year 5 | 21% IRR at Year 7 | 15% IRR at Year 8</p><p>The same MOIC, three different IRRs — entirely determined by when cash reaches the LP.</p><p>This is why IPO exit analysis must compare like-for-like: not \"the IPO produced 4x MOIC vs. the trade sale at 3x MOIC\" but \"the IPO produced 4x MOIC at Year 8 (18% IRR) vs. the trade sale at 3x MOIC at Year 5 (26% IRR) — which did the LP prefer?\"</p><p>For many LPs who weight IRR heavily (particularly those with portfolio J-curve management concerns), the trade sale's 26% IRR is better than the IPO's 18% despite the lower MOIC. For LPs focused on total cash generated (particularly large endowments with flexible mandates), the IPO's higher MOIC may be preferred.</p><p>### The Overhang Problem</p><p>After the IPO, the PE firm holds a large but illiquid-for-now block of shares. The market knows: 1. The PE firm wants to exit eventually (they are a fund with a finite life) 2. When the PE firm sells, it will be a large supply event that could depress the share price</p><p>This \"overhang\" can suppress the share price in the months after IPO — public market investors are reluctant to pay full price for a stock when a major forced seller is waiting in the wings. The PE firm must manage its communications and sell-down schedule carefully to minimise this effect.</p><p>Best practice: the PE firm announces a clear post-lock-up sell-down schedule in advance (e.g., \"we will sell no more than X% of our holding per quarter\"), reducing uncertainty and allowing the market to digest the supply.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Blackstone and Hilton Hotels (2013–2018) — The Gold Standard PE IPO Exit</strong></p><p>Blackstone acquired Hilton Hotels in July 2007 for $26 billion — one of the largest hotel LBOs ever. The timing was catastrophic: the 2008 financial crisis hit immediately after, and Hilton's $20B+ debt load became severely distressed. Blackstone maintained conviction in the asset, restructured the debt, invested in the management team, and executed a multi-year operational improvement programme.</p><p><strong>The IPO:</strong> By December 2013, Hilton Hotels &amp; Resorts completed its IPO on the NYSE at $20/share, raising approximately $2.35B and valuing the company at approximately $32B. This was the largest-ever US hotel IPO at the time. Blackstone retained approximately 76% of Hilton's shares post-IPO — its direct exit proceeds from the IPO were modest. The IPO was primarily a liquidity event and valuation establishment mechanism, not a full exit.</p><p><strong>The sell-down (2013–2018):</strong> Over the following five years, Blackstone methodically sold down its Hilton position: - Post-lock-up block trades to institutional investors - Accelerated book-builds managed by the IPO bookrunners - Secondary follow-on registered offerings - A portion distributed in-kind to Blackstone fund LPs</p><p>By 2018, Blackstone had fully exited its Hilton position. Total profit on the investment: approximately $14 billion on roughly $6 billion of equity invested, generating a ~3.0x net MOIC on the equity — one of the most profitable PE investments in history.</p><p><strong>Why IPO was the right exit route:</strong></p><ol><li><strong>Scale:</strong> Hilton was the world's largest hotel company by number of properties. At that scale, there was no obvious single strategic acquirer who could absorb it without regulatory issues. The only buyer with deep enough pockets was the public market.</li></ol><ol><li><strong>Brand value:</strong> Hilton's brand commanded a premium in the public market that no private buyer would fully reflect in a trade sale price.</li></ol><ol><li><strong>Timing flexibility:</strong> Rather than forcing a trade sale at a potentially depressed hotel sector valuation, the IPO allowed Blackstone to list when conditions were right and sell down over time as the stock appreciated.</li></ol><ol><li><strong>The total return:</strong> The IRR was lower than it would have been in a Year 5 trade sale (the investment ran 2007-2018 = 11 years) — but the absolute MOIC and total profit were extraordinary. This deal sits in the \"MOIC over IRR\" category — the multi-year IPO exit was the right choice for the specific asset.</li></ol><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The IPO is when the PE firm gets its money.\"</strong> The IPO is when the company's shares become publicly traded. The PE firm typically retains the majority of its position post-IPO, locked up for 90-180 days. The actual cash proceeds from an IPO exit accumulate over 12-36 months post-IPO through the sell-down process. The IPO is the beginning of the exit process, not its conclusion.</p><p><strong>Misconception 2: \"IPO always produces the highest valuation.\"</strong> IPO valuation is highly market-dependent. In a sector correction (technology multiples in 2022, for example), public market valuations can fall below what a motivated strategic buyer would pay. The IPO premium is not guaranteed — it is available only in the right market conditions, for the right business profile, at the right moment.</p><p><strong>Misconception 3: \"You need a specific minimum EBITDA for an IPO.\"</strong> Revenue-based (growth) companies can IPO with zero or minimal EBITDA if they have strong growth, large addressable markets, and institutional investor appetite. The EBITDA threshold applies more to traditional PE-backed industrials and services businesses. High-growth technology companies are often valued on EV/Revenue, ARR (Annual Recurring Revenue), or NTM revenue multiples — EBITDA is not the relevant metric.</p><p><strong>Misconception 4: \"An IPO exit means the company is great — only the best companies IPO.\"</strong> PE firms also use IPO as an exit when trade sale alternatives are unavailable (no strategic buyers willing to pay an adequate price) or when the company is too large for any private buyer. An IPO can reflect asset quality OR simply the absence of better alternatives. Investors should distinguish between IPOs driven by quality and IPOs driven by exit necessity.</p><p><strong>Misconception 5: \"Lock-up expiry is when the PE firm's position becomes liquid.\"</strong> Lock-up expiry means the PE firm <em>can</em> sell — not that it <em>has</em> liquidity immediately. A large block of shares from a PE firm cannot be sold instantly without crashing the price. The PE firm must carefully time and structure its sell-down to avoid devastating its own exit price through excess supply.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The IPO exit is the exit route that can deliver the highest valuation multiple — particularly for growth businesses that command public market premiums — but at the cost of a fundamentally different return profile. Unlike trade sales and SBOs, the IPO does not produce immediate cash. It produces listed shares subject to a lock-up period, followed by a 12-36 month sell-down process that substantially delays LP cash receipt and therefore destroys IRR relative to other routes at the same MOIC. IPO viability depends on scale (scale thresholds vary by company type), governance readiness, a compelling investor narrative, and — most critically — an open IPO window that is entirely market-dependent. The Blackstone/Hilton example (2013-2018) demonstrates the IPO exit at its best: a company too large for any private acquirer, whose full value was only accessible through the public markets, generating approximately $14B of profit through a patient multi-year sell-down. The IPO exit is the archetypal \"high MOIC, lower IRR\" choice in the exit decision framework — appropriate when the alternative valuation upside is substantial and the GP has time (and LP patience) to execute.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

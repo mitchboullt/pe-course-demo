@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-systemic-risk", "title": "PE Systemic Risk", "draft_watermark": false, "estimated_runtime_sec": 450, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The unresolved dispute", "on_screen_bullets": ["Stress accumulates invisibly", "Regulators have no real-time view", "Watchdogs flag it; industry disputes it"], "narration": "This is the hardest question in the whole course to resolve, because the evidence is structurally limited. PE does not report like public markets, so stress accumulates invisibly, and the regulatory apparatus has no real-time window into the industry's aggregate leverage. The twenty-twenty-two-to-twenty-three rate shock gave regulators a partial view of the problem without triggering a full-scale crisis — a stress test that was interrupted before it concluded. For practitioners, this is the question that determines whether PE's growth is sustainable or whether it carries the seeds of a future crisis that privatises the gains and socialises the losses. The Financial Stability Oversight Council, the Bank of England, the IMF, and the ECB have all flagged concern; the industry disputes the framing; and crucially, neither side has the data to settle it definitively. That genuine uncertainty is itself the lesson.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Correlated, not isolated", "on_screen_bullets": ["Scale, opacity, leverage, linkage", "Amplifies and transmits stress", "Beyond any single fund failure"], "narration": "The definition. PE systemic risk is the potential for the aggregate scale, opacity, leverage concentration, and interconnectedness of the private-equity industry to amplify and transmit financial stress across the broader financial system, in ways that no individual fund failure could produce alone. The key word is correlated. The concern was never that one PE-backed company goes bankrupt — companies fail all the time. The concern is what happens when thousands fail at once, for the same reason, with the losses flowing through the same channels into the same institutions.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "From feed to river", "on_screen_bullets": ["$1tn in 2000 → $8–12tn", "Correlated, not isolated, failure", "Same leverage, same channels"], "narration": "Plain English. Think of PE as a pipeline that has grown from a small feed into a river now connected to nearly every major financial institution on earth. In two-thousand, global PE assets were roughly one trillion dollars; by twenty-twenty-three, estimates run to eight-to-twelve trillion. PE firms are now the largest owners of healthcare businesses, a major force in housing and retail, and the dominant buyers in leveraged credit — and their investor base of pension funds, insurers, sovereign funds, and endowments are themselves systemically important. So systemic risk is not one PE-backed company going bankrupt. It's what happens when thousands of PE-backed companies face the same stress simultaneously, because they all borrowed at similar leverage in the same rate environment, and the losses flow at once through the same loan structures into the same pension-fund balance sheets, triggering the same forced selling. A pipeline failure is systemic when one transformation failure cascades forward — not when a single record is corrupt. PE systemic risk works exactly that way: the worry is correlated failure across a leveraged, opaque, interconnected system, not isolated deal failure.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The GFC parallel", "on_screen_bullets": ["Common underwriting, then linkage", "Opacity, then leverage on leverage", "Same architecture, new level"], "narration": "The mental model is the pre-2008 mortgage-securitisation system, because PE has the same architecture at a different level. Before the crisis, individual mortgages weren't systemically risky; the problem was four things together — common underwriting, where all the mortgages were issued on the same loose criteria at once; securitisation creating interconnection, so one default became a write-down on a bank balance sheet; rating-agency opacity, with no real-time view of credit quality; and leverage on leverage, the structures built on structures. Now map PE onto that. Common leverage standards: deals from twenty-fifteen to twenty-twenty-one priced at six-to-seven times EBITDA with covenant-lite terms. Interconnection: buyout loans sold into collateralised loan obligations that sit on institutional balance sheets. Valuation opacity: quarterly mark-to-model, not daily mark-to-market. And leverage on leverage: portfolio-company debt, plus a NAV loan on the fund, plus a subscription line against investor commitments. The open question is whether the concentrations are large enough and the interconnections dense enough to produce crisis-scale contagion — and that question is genuinely unresolved.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "mermaid", "source_section": "Technical Explanation", "on_screen_title": "The transmission stack", "on_screen_bullets": ["Three layers of leverage", "Cov-lite hides the stress", "Loans → CLOs → institutions"], "mermaid": "graph TD\n    LP[\"LP commitments\"] -->|subscription line| F[\"PE fund\"]\n    F -->|NAV loan| F\n    F --> PC[\"Portfolio company<br/>(LBO debt, cov-lite)\"]\n    PC -->|leveraged loan| CLO[\"CLO tranches\"]\n    CLO --> INST[\"Pensions, insurers,<br/>banks\"]\n    Rate[\"Rate shock<br/>SOFR 0.05% → 5.33%\"] -.->|hits all at once| PC", "narration": "Here's the transmission stack on screen — follow the leverage as it compounds. At the bottom, the portfolio company already carries its buyout debt, and because it's covenant-lite, there's no maintenance covenant to trip, so stress accumulates invisibly inside the capital structure until the company either misses a payment or can't refinance, and the losses crystallise suddenly rather than gradually. By twenty-twenty-two, more than eighty percent of the US leveraged-loan market, around one-point-three-to-one-point-four trillion dollars, was covenant-lite. Now stack leverage on top: the fund borrows against its own net asset value through a NAV loan, a hundred-billion-plus market with no standardised disclosure, which converts patient illiquid capital into a forced-sale risk if values fall; and it borrows against investor commitments through a subscription line, creating a banking exposure that's only as safe as those commitments. Then follow the arrows outward: the portfolio company's leveraged loan is sold into collateralised loan obligations, whose tranches sit on the balance sheets of pensions, insurers, and banks. And the dotted line is the trigger — a rate shock, SOFR going from five basis points to five-point-three-three percent, hits every cov-lite borrower at once. Because all these loans share rate sensitivity and weak covenants, the diversification assumption underpinning CLO senior-tranche pricing may not hold in exactly the stress scenario that matters most. That's the systemic channel that requires none of the fancy structures to operate.", "est_sec": 66}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Channel 4 — Interconnectedness Through the LP Network", "on_screen_title": "The LP feedback loops", "on_screen_bullets": ["Denominator effect forces selling", "Distribution drought drains liquidity", "Opacity lags reality 6–12 months"], "narration": "Two more channels operate through the investor network and through opacity, and both are self-reinforcing. The denominator effect: when public markets fall sharply, a pension fund's total assets drop while its PE allocation, marked only quarterly, does not, so the fund becomes overallocated to PE relative to target and is forced to sell LP interests on the secondary market — exactly when buyers are also retreating, which widens discounts and feeds the stress back. Alongside it, the distribution drought: PE payouts to investors depend on exits — IPOs, sales, dividend recaps — so when capital markets close, exits stop, distributions stop, and the pension funds that depend on those distributions for operating cash face compounding liquidity pressure. And underneath both sits the opacity channel: PE valuations are quarterly, proprietary, and not market-verified, so net asset values lag economic reality by six-to-twelve months in a downturn. In the two-thousand-eight crisis, PE funds showed essentially stable values through the third quarter even as the leveraged-credit markets pricing their companies had already collapsed; the write-downs came later, after the crisis had moved on. That lag creates two problems: investors can't assess their true exposure in real time, making risk management impossible, and regulators can't aggregate the system-wide leverage position to spot concentration before it becomes acute. The opacity that smooths returns in good times blinds everyone in bad ones.", "est_sec": 62}, {"n": 7, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "The BREIT redemption episode", "on_screen_bullets": ["~$70bn NAV, retail investors", "Nov 2022 ~$1.8bn redemptions, gated", "~0.2% reported vs REITs −25–30%"], "narration": "The closest thing to a live observation of these dynamics — without a full crisis — is the Blackstone BREIT episode of twenty-twenty-two to twenty-three. BREIT is a non-traded real-estate trust, a perpetual vehicle with quarterly net-asset-value calculations, marketed to wealthy retail investors with minimums as low as twenty-five hundred dollars, and by late twenty-twenty-two it had around seventy billion dollars in net asset value. As rates rose and commercial real-estate values began to fall, redemption requests spiked — reaching roughly one-point-eight billion dollars in a single month in November twenty-twenty-two, hitting the structure's gate thresholds, and Blackstone invoked the gates, queuing around fifteen billion in requests. Three things make it systemically instructive. There's no secondary market, so investors could only exit through the redemption programme, and when the gates closed they learned they couldn't get out. The proprietary quarterly mark reported only about a zero-point-two percent decline for the year while publicly traded REITs fell twenty-five-to-thirty percent — genuine outperformance or mark-to-model lag is contested. And the gates did prevent a fire sale, working as designed, but they also confirmed the liquidity mismatch: a perpetual vehicle with quarterly NAV sold to investors who believed they could redeem on demand. BREIT is small in a multi-trillion industry, but it introduced a shorter-horizon, lower-loss-tolerance retail class into an asset class built for institutional patience — and if such vehicles scale to the hundreds of billions, as the firms intend, PE's systemic profile in twenty-thirty will look materially different from today's.", "est_sec": 62}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["No depositors ≠ no systemic risk", "Illiquidity hides, doesn't remove, stress", "2022–23 was a partial test"], "narration": "Five corrections to close the section. First, the belief that PE can't cause a crisis because it has no depositors — correct that there's no classic bank run, but the credit channel, buyout loans into CLOs onto bank balance sheets, transmits stress without depositor panic, and retail vehicles do have depositor-like investors. Second, the belief that illiquidity means safety — illiquidity prevents redemption-driven selling but creates the opposite problem, stress accumulating invisibly with no daily price discovery, building for quarters before crystallising suddenly, which is the same logic cov-lite applies at the borrower level. Third, the belief that PE is too diversified to be systemic — thousands of companies across industries sounds diversified, but all buyout loans share high leverage, variable rates, and weak covenants, so a rate shock produces correlated stress across all of them at once; sector diversification does not insulate against rate risk. Fourth, the belief that the twenty-twenty-two-to-twenty-three stress proved PE resilient — that period tested PE under a rate shock but not a credit crisis; deal volumes halved, fundraising slowed, and extend-and-pretend merely deferred the reckoning, so it was a partial test, not a clean bill of health. And fifth, the belief that systemic-risk concern is just anti-PE politics — the Financial Stability Oversight Council, the Bank of England, the IMF, the ECB, and the Bank for International Settlements are financial-stability bodies, not populist critics, and their repeated flagging reflects genuine data gaps. To recap: the credit channel provides the transmission, the regulatory apparatus to manage it does not yet exist in sufficient form, and the twenty-twenty-five-to-twenty-seven wall of loan maturities will be the next real test. Next we make this precise — the exact conditions under which PE's system is, or isn't, self-correcting.", "est_sec": 64}], "end_card": {"quiz_label": "Q1", "question_on_screen": "PE has no depositors, yet regulators still flag systemic risk. Explain the credit-channel transmission mechanism that operates WITHOUT a bank run. Then: why does 'illiquidity means safety' get the risk backwards, and how does cov-lite apply the same logic at the borrower level?", "narration": "Before the next lesson, reason it through. PE has no depositors, yet regulators still flag systemic risk — explain the credit-channel transmission that operates without any bank run. And why does the claim that illiquidity means safety get the risk backwards, and how does covenant-lite lending apply that very same logic at the level of the individual borrower? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE Systemic Risk\n\n[hook] The unresolved dispute\nThis is the hardest question in the whole course to resolve, because the evidence is structurally limited. PE does not report like public markets, so stress accumulates invisibly, and the regulatory apparatus has no real-time window into the industry's aggregate leverage. The twenty-twenty-two-to-twenty-three rate shock gave regulators a partial view of the problem without triggering a full-scale crisis — a stress test that was interrupted before it concluded. For practitioners, this is the question that determines whether PE's growth is sustainable or whether it carries the seeds of a future crisis that privatises the gains and socialises the losses. The Financial Stability Oversight Council, the Bank of England, the IMF, and the ECB have all flagged concern; the industry disputes the framing; and crucially, neither side has the data to settle it definitively. That genuine uncertainty is itself the lesson.\n\n[definition] Correlated, not isolated\nThe definition. PE systemic risk is the potential for the aggregate scale, opacity, leverage concentration, and interconnectedness of the private-equity industry to amplify and transmit financial stress across the broader financial system, in ways that no individual fund failure could produce alone. The key word is correlated. The concern was never that one PE-backed company goes bankrupt — companies fail all the time. The concern is what happens when thousands fail at once, for the same reason, with the losses flowing through the same channels into the same institutions.\n\n[intuition] From feed to river\nPlain English. Think of PE as a pipeline that has grown from a small feed into a river now connected to nearly every major financial institution on earth. In two-thousand, global PE assets were roughly one trillion dollars; by twenty-twenty-three, estimates run to eight-to-twelve trillion. PE firms are now the largest owners of healthcare businesses, a major force in housing and retail, and the dominant buyers in leveraged credit — and their investor base of pension funds, insurers, sovereign funds, and endowments are themselves systemically important. So systemic risk is not one PE-backed company going bankrupt. It's what happens when thousands of PE-backed companies face the same stress simultaneously, because they all borrowed at similar leverage in the same rate environment, and the losses flow at once through the same loan structures into the same pension-fund balance sheets, triggering the same forced selling. A pipeline failure is systemic when one transformation failure cascades forward — not when a single record is corrupt. PE systemic risk works exactly that way: the worry is correlated failure across a leveraged, opaque, interconnected system, not isolated deal failure.\n\n[intuition] The GFC parallel\nThe mental model is the pre-2008 mortgage-securitisation system, because PE has the same architecture at a different level. Before the crisis, individual mortgages weren't systemically risky; the problem was four things together — common underwriting, where all the mortgages were issued on the same loose criteria at once; securitisation creating interconnection, so one default became a write-down on a bank balance sheet; rating-agency opacity, with no real-time view of credit quality; and leverage on leverage, the structures built on structures. Now map PE onto that. Common leverage standards: deals from twenty-fifteen to twenty-twenty-one priced at six-to-seven times EBITDA with covenant-lite terms. Interconnection: buyout loans sold into collateralised loan obligations that sit on institutional balance sheets. Valuation opacity: quarterly mark-to-model, not daily mark-to-market. And leverage on leverage: portfolio-company debt, plus a NAV loan on the fund, plus a subscription line against investor commitments. The open question is whether the concentrations are large enough and the interconnections dense enough to produce crisis-scale contagion — and that question is genuinely unresolved.\n\n[mechanics] The transmission stack\nHere's the transmission stack on screen — follow the leverage as it compounds. At the bottom, the portfolio company already carries its buyout debt, and because it's covenant-lite, there's no maintenance covenant to trip, so stress accumulates invisibly inside the capital structure until the company either misses a payment or can't refinance, and the losses crystallise suddenly rather than gradually. By twenty-twenty-two, more than eighty percent of the US leveraged-loan market, around one-point-three-to-one-point-four trillion dollars, was covenant-lite. Now stack leverage on top: the fund borrows against its own net asset value through a NAV loan, a hundred-billion-plus market with no standardised disclosure, which converts patient illiquid capital into a forced-sale risk if values fall; and it borrows against investor commitments through a subscription line, creating a banking exposure that's only as safe as those commitments. Then follow the arrows outward: the portfolio company's leveraged loan is sold into collateralised loan obligations, whose tranches sit on the balance sheets of pensions, insurers, and banks. And the dotted line is the trigger — a rate shock, SOFR going from five basis points to five-point-three-three percent, hits every cov-lite borrower at once. Because all these loans share rate sensitivity and weak covenants, the diversification assumption underpinning CLO senior-tranche pricing may not hold in exactly the stress scenario that matters most. That's the systemic channel that requires none of the fancy structures to operate.\n\n[mechanics] The LP feedback loops\nTwo more channels operate through the investor network and through opacity, and both are self-reinforcing. The denominator effect: when public markets fall sharply, a pension fund's total assets drop while its PE allocation, marked only quarterly, does not, so the fund becomes overallocated to PE relative to target and is forced to sell LP interests on the secondary market — exactly when buyers are also retreating, which widens discounts and feeds the stress back. Alongside it, the distribution drought: PE payouts to investors depend on exits — IPOs, sales, dividend recaps — so when capital markets close, exits stop, distributions stop, and the pension funds that depend on those distributions for operating cash face compounding liquidity pressure. And underneath both sits the opacity channel: PE valuations are quarterly, proprietary, and not market-verified, so net asset values lag economic reality by six-to-twelve months in a downturn. In the two-thousand-eight crisis, PE funds showed essentially stable values through the third quarter even as the leveraged-credit markets pricing their companies had already collapsed; the write-downs came later, after the crisis had moved on. That lag creates two problems: investors can't assess their true exposure in real time, making risk management impossible, and regulators can't aggregate the system-wide leverage position to spot concentration before it becomes acute. The opacity that smooths returns in good times blinds everyone in bad ones.\n\n[example] The BREIT redemption episode\nThe closest thing to a live observation of these dynamics — without a full crisis — is the Blackstone BREIT episode of twenty-twenty-two to twenty-three. BREIT is a non-traded real-estate trust, a perpetual vehicle with quarterly net-asset-value calculations, marketed to wealthy retail investors with minimums as low as twenty-five hundred dollars, and by late twenty-twenty-two it had around seventy billion dollars in net asset value. As rates rose and commercial real-estate values began to fall, redemption requests spiked — reaching roughly one-point-eight billion dollars in a single month in November twenty-twenty-two, hitting the structure's gate thresholds, and Blackstone invoked the gates, queuing around fifteen billion in requests. Three things make it systemically instructive. There's no secondary market, so investors could only exit through the redemption programme, and when the gates closed they learned they couldn't get out. The proprietary quarterly mark reported only about a zero-point-two percent decline for the year while publicly traded REITs fell twenty-five-to-thirty percent — genuine outperformance or mark-to-model lag is contested. And the gates did prevent a fire sale, working as designed, but they also confirmed the liquidity mismatch: a perpetual vehicle with quarterly NAV sold to investors who believed they could redeem on demand. BREIT is small in a multi-trillion industry, but it introduced a shorter-horizon, lower-loss-tolerance retail class into an asset class built for institutional patience — and if such vehicles scale to the hundreds of billions, as the firms intend, PE's systemic profile in twenty-thirty will look materially different from today's.\n\n[pitfalls] What people get wrong\nFive corrections to close the section. First, the belief that PE can't cause a crisis because it has no depositors — correct that there's no classic bank run, but the credit channel, buyout loans into CLOs onto bank balance sheets, transmits stress without depositor panic, and retail vehicles do have depositor-like investors. Second, the belief that illiquidity means safety — illiquidity prevents redemption-driven selling but creates the opposite problem, stress accumulating invisibly with no daily price discovery, building for quarters before crystallising suddenly, which is the same logic cov-lite applies at the borrower level. Third, the belief that PE is too diversified to be systemic — thousands of companies across industries sounds diversified, but all buyout loans share high leverage, variable rates, and weak covenants, so a rate shock produces correlated stress across all of them at once; sector diversification does not insulate against rate risk. Fourth, the belief that the twenty-twenty-two-to-twenty-three stress proved PE resilient — that period tested PE under a rate shock but not a credit crisis; deal volumes halved, fundraising slowed, and extend-and-pretend merely deferred the reckoning, so it was a partial test, not a clean bill of health. And fifth, the belief that systemic-risk concern is just anti-PE politics — the Financial Stability Oversight Council, the Bank of England, the IMF, the ECB, and the Bank for International Settlements are financial-stability bodies, not populist critics, and their repeated flagging reflects genuine data gaps. To recap: the credit channel provides the transmission, the regulatory apparatus to manage it does not yet exist in sufficient form, and the twenty-twenty-five-to-twenty-seven wall of loan maturities will be the next real test. Next we make this precise — the exact conditions under which PE's system is, or isn't, self-correcting.\n\nEnd-card question: PE has no depositors, yet regulators still flag systemic risk. Explain the credit-channel transmission mechanism that operates WITHOUT a bank run. Then: why does 'illiquidity means safety' get the risk backwards, and how does cov-lite apply the same logic at the borrower level?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>This is Live Dispute #4 in the course thesis — the only one with no prior dedicated note — and it is the hardest to resolve because the evidence is structurally limited. PE does not report like public markets. Stress accumulates invisibly. The regulatory apparatus has no real-time window into PE's aggregate leverage position, and the 2022–2023 rate shock gave regulators a partial view of the problem without triggering a full-scale crisis.</p><p>For practitioners, systemic risk is the question that determines whether PE's growth trajectory is sustainable or whether it carries the seeds of a future crisis that redistributes the industry's gains while socialising its losses. FSOC, the Bank of England, the IMF, and the ECB have all flagged concern. The PE industry disputes the framing. Neither side has the data to resolve it definitively.</p><p>For the learner at CVC Secondary Partners: if a PE systemic event occurs, it arrives in the K-1 pipeline as simultaneous large losses across every KKR, Apollo, Blackstone, and Carlyle fund in the same vintage year — what Portfolio Construction and Correlation Risk calls a correlation event. Understanding the mechanism is understanding why that scenario is plausible and what would have to fail for it to occur.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE systemic risk is the potential for the aggregate scale, opacity, leverage concentration, and interconnectedness of the private equity industry to amplify and transmit financial stress across the broader financial system in ways that no individual fund failure can produce alone.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of PE as a data pipeline — one that has grown from a small feed into a river that now connects to nearly every major financial institution on earth.</p><p>In 2000, global PE AUM was roughly $1tn. By 2023, estimates place it at $8–12tn [needs-verification on upper bound]. PE firms are now the largest owners of healthcare businesses, a major force in housing and retail, and the dominant buyers in leveraged credit markets. The major LP base — pension funds, insurance companies, sovereign wealth funds, endowments — are themselves systemically important institutions.</p><p>Systemic risk is not \"one PE-backed company goes bankrupt.\" Companies go bankrupt all the time. Systemic risk is: what happens when thousands of PE-backed companies face the same stress simultaneously, because they all borrowed at similar leverage levels in the same rate environment, and the losses flow simultaneously through the same CLO structures, into the same pension fund balance sheets, triggering the same forced-selling behaviour in secondary markets?</p><p>The pipeline metaphor works here. Data pipeline failures are systemic when a single transformation failure cascades forward — not when one data record is corrupt. PE systemic risk works the same way: the concern is not isolated deal failure but correlated failure across a leveraged, opaque, and interconnected system.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of the pre-GFC CDO/mortgage securitisation system. Individual mortgages were not systemically risky. The problem was: - Common underwriting standards (all mortgages issued with the same loose criteria simultaneously) - Securitisation creating interconnection (one mortgage default → CLO writedown → bank loss) - Rating agency opacity (no real-time view of credit quality) - Leverage on leverage (CDO² structures)</p><p>PE systemic risk has the same architecture at a different level: - Common leverage standards (all PE deals 2015–2021 priced at 6–7x EBITDA with cov-lite terms) - CLO interconnection (LBO loans sold into CLOs → institutional investor balance sheets) - Valuation opacity (quarterly mark-to-model, not daily mark-to-market) - Leverage on leverage (portfolio company debt + NAV loan on the fund + subscription line on LP commitments)</p><p>The question is whether the concentrations are large enough and the interconnections dense enough to produce GFC-scale contagion. That question is genuinely unresolved.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### What Systemic Risk Means in This Context</p><p>In financial regulation, systemic risk has a precise meaning: the risk that the failure of one institution, or a correlated shock across many institutions, triggers cascading failures across the financial system, producing harm that exceeds what the sum of individual failures would cause. The canonical example is the 2008 GFC: individual mortgage defaults were manageable; the securitisation structure transmitting those defaults simultaneously across every major bank's balance sheet was not.</p><p>PE's systemic risk claim is analogous but structurally distinct. PE does not have depositors; it cannot face a classic bank run (LPs cannot withdraw capital mid-fund-life). But it has five structural features that together constitute a systemic risk profile:</p><p>### Channel 1 — Cov-Lite Loan Overhang</p><p>The 2010–2021 post-GFC expansion normalised covenant-lite loan structures. By 2022, more than 80% of the US leveraged loan market ($1.3–1.4tn outstanding) carried cov-lite terms — no maintenance financial covenants, no early-warning triggers that force restructuring before a borrower reaches insolvency.</p><p>The systemic implication: cov-lite removes the circuit breaker that would distribute PE stress across multiple years (gradual covenant breach → controlled restructuring → gradual loss recognition). Instead, stress accumulates invisibly inside the borrower's capital structure — the ICR falls, the business weakens — until the company either misses an interest payment or cannot refinance a maturing loan. The losses crystallise suddenly rather than gradually. See Covenant-Lite Structures.</p><p>A rate shock (SOFR 0.05% → 5.33%, 2022–2023) applied to thousands of cov-lite PE-backed borrowers simultaneously is the mechanism for correlated sudden stress. The 2025–2027 loan maturity wall — a large volume of PE leveraged loans originated 2018–2022 coming due simultaneously — is the next stress point.</p><p>### Channel 2 — NAV Lending and Hidden Leverage</p><p>NAV lending is borrowing against the unrealized value of a PE fund's portfolio to generate cash — either to make LP distributions, fund follow-on investments, or service the fund's own operating needs. As of 2022–2023, NAV lending was a $100bn+ market and growing rapidly, primarily provided by 17Capital and major banks [needs-verification on figure].</p><p>The systemic concern is double leverage. A portfolio company already carries LBO debt (the first layer). The PE fund that owns it then borrows against its NAV (the second layer). If portfolio company values fall, the NAV loan accelerates pressure to liquidate assets — exactly when asset values are lowest. The NAV loan effectively converts what should be illiquid, patient PE capital into a forced-sale situation. See NAV Lending.</p><p>Critically: NAV lending does not appear in fund-level financial disclosures in any standardised form. Regulators have no real-time visibility into aggregate NAV loan exposure across the industry.</p><p>### Channel 3 — Subscription Credit Lines and IRR Inflation</p><p>Subscription lines borrow against unfunded LP capital commitments, bridging the gap between when a GP wants to acquire an asset and when LPs are actually called. This inflates IRR (because the clock starts when the LP is actually called, not when the fund borrowed to make the acquisition). See Subscription Credit Lines.</p><p>The systemic implication is more subtle: subscription lines create a banking-sector exposure to PE that is contingent on LP commitments. If LPs face capital stress (denominator effect triggering overallocation) and begin to default on commitments — an extreme but not impossible scenario in a severe crisis — subscription line lenders face concentrated losses on what they believed was near-riskless collateral.</p><p>### Channel 4 — Interconnectedness Through the LP Network</p><p>PE's LP base is not a collection of sophisticated, loss-absorbing endowments. It is dominated by pension funds (CalPERS, OTPP, CDPQ, Dutch ABP), sovereign wealth funds (GIC, ADIA, Temasek), insurance companies, and endowments — all of which are themselves systemically important and face their own liquidity and solvency constraints.</p><p>Two transmission mechanisms:</p><p><strong>The denominator effect:</strong> When public equity markets fall sharply, a pension fund's total AUM falls while its PE allocation (marked quarterly, not daily) does not. The fund becomes overallocated to PE relative to its target. This forces secondary market selling of LP interests — exactly when buyers are also retrenching. See Portfolio Construction and Correlation Risk.</p><p><strong>The distribution drought:</strong> PE distributions to LPs depend on exit activity (IPOs, M&amp;A, dividend recaps). When capital markets close, exit activity stops, distributions stop, and LP liquidity dries up. Pension funds depending on PE distributions for operating cash face compounding liquidity pressure.</p><p>### Channel 5 — Opacity and Mark-to-Model Valuation</p><p>PE valuations are quarterly, proprietary, and not subject to market price verification. IPEV guidelines govern the methodology but leave significant discretion to GPs. The practical consequence: PE NAVs lag underlying economic reality by 6–12 months in a downturn.</p><p>In the 2008 GFC, PE funds showed essentially stable NAVs through Q3 2008 while the leveraged credit markets that priced their portfolio companies had already collapsed. The writedowns came later, after the crisis had already progressed. See also the valuation smoothing discussion in Portfolio Construction and Correlation Risk.</p><p>This opacity creates two problems: (1) LPs cannot assess their true exposure in real-time, making risk management impossible; (2) regulators cannot aggregate PE's system-wide leverage position or identify concentration risk before it becomes acute.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p>### The Blackstone BREIT Redemption Episode (2022–2023)</p><p>Blackstone Real Estate Income Trust (BREIT) is the closest observable example of PE systemic risk dynamics playing out in practice — without producing a full crisis.</p><p><strong>What BREIT is:</strong> A non-traded REIT structured as a perpetual vehicle with quarterly NAV calculations, marketed to wealthy retail investors (minimum $2,500) and registered investment advisers. By Q3 2022, BREIT had ~$70bn in NAV and was Blackstone's fastest-growing fund product.</p><p><strong>What happened in Q4 2022:</strong> As interest rates rose and commercial real estate values began to fall, redemption requests to BREIT spiked. In November 2022, monthly redemption requests reached ~$1.8bn — approaching the gate threshold of 2% of NAV per month and 5% per quarter. Blackstone invoked the gates.</p><p><strong>Why this matters systemically:</strong> - BREIT has no secondary market (unlike traditional LP fund interests). Investors can only exit through Blackstone's quarterly redemption programme. When gates closed, ~$15bn in redemption requests were queued. - Blackstone's quarterly NAV calculation is proprietary — BREIT reported only a ~0.2% decline in 2022 while publicly traded REITs fell 25–30%. Whether this reflects genuine outperformance or mark-to-model lag is contested. - Gates prevented fire-sale: in this respect, the structure functioned as designed. But the gates also confirmed that \"perpetual vehicle with quarterly NAV\" creates liquidity mismatch — investors who believed they could redeem quarterly learned they could not.</p><p><strong>The systemic lesson:</strong> BREIT is small relative to institutional PE (~$70bn in a $8–12tn industry). But it introduced a retail investor class — with shorter investment horizons and lower loss tolerance — into an asset class structured for institutional patience. If BREIT-style vehicles scale to $500bn+ (Blackstone's stated ambition), the industry will have introduced a genuine liquidity-mismatch structure at significant scale. The systemic risk profile of PE in 2030 will be materially different from 2023 if retail democratisation proceeds as GP firms intend.</p><p><strong>CVC Secondary Partners context:</strong> CVC holds LP positions in Blackstone funds. A systemic event originating in Blackstone's credit portfolio would appear in CVC's K-1 pipeline as large loss allocations from multiple Blackstone fund vehicles in the same tax year — exactly what the denominator effect and correlation analysis in Portfolio Construction and Correlation Risk identifies as the primary LP portfolio risk.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PE firms can't cause a financial crisis because they don't have depositors.\"</strong> Correct that there's no bank-run mechanism in traditional PE. Incorrect that this eliminates systemic risk. PE's credit channel (LBO loans → CLOs → bank balance sheets) transmits stress to the banking system even without depositor panic. And BREIT-style retail structures do have de facto depositor-equivalent investors.</p><p><strong>Misconception 2: \"Illiquidity means safety.\"</strong> Illiquidity prevents one type of stress (forced selling by redemption pressure). It creates another: stress accumulates invisibly because there's no daily price discovery. Problems build for quarters or years before becoming visible — and when they crystallise, they do so suddenly. The cov-lite structure applies the same logic to borrower-level stress.</p><p><strong>Misconception 3: \"PE is too diversified to create systemic risk.\"</strong> Thousands of portfolio companies across many industries sounds diversified. But all leveraged buyout loans share common underwriting (high leverage, variable rate, cov-lite) and common macro sensitivity (interest rates). A rate shock produces correlated stress across all of them simultaneously. Sector diversification does not insulate against rate risk.</p><p><strong>Misconception 4: \"The 2022–2023 stress proved PE is resilient.\"</strong> The 2022–2023 period tested PE under a sustained rate shock but not a credit crisis. Deal volumes fell ~50%. Fundraising slowed. Secondary market discounts widened. The extend-and-pretend strategy deferred crystallisation. This is a partial stress test, not a clean bill of health. The wall of loan maturities in 2025–2027 will be the next test.</p><p><strong>Misconception 5: \"Systemic risk concerns are just anti-PE politics.\"</strong> FSOC, Bank of England, IMF, ECB, and the BIS are not populist critics. These are the institutional bodies charged with financial stability monitoring. Their repeated flagging of PE-related systemic risk reflects genuine data gaps and structural concern, not ideological opposition.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

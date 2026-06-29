@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "ic-memo-architecture", "title": "IC Memo Architecture", "draft_watermark": false, "estimated_runtime_sec": 340, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The last checkpoint", "on_screen_bullets": ["Final gate before capital", "Team wants it; committee guards it", "Quality decides governance value"], "narration": "The investment committee memo is the last institutional checkpoint before a fund commits capital. And it sits exactly on a fault line of incentives. The deal team wants the deal done — they have lived with it for months, and their standing and their future carry are tied to deploying capital. The committee's job is the opposite: to reject bad deals regardless of how much the team wants them. So the quality of this one document — whether it presents risks honestly, stress-tests the thesis against genuine downside, and names the ways the deal could fail — is the primary determinant of whether the fund's governance actually adds value or just rubber-stamps what the team already decided. A great committee process catches the overpriced, over-levered bet before it is made. A weak one waves it through with a confident-sounding memo.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A structured case for capital", "on_screen_bullets": ["Formal proposal to decision-makers", "Thesis, diligence, model, risk", "Surfaces both yes and no"], "narration": "Here is the definition. The investment committee memo is the primary governance document through which a deal team formally presents a proposed investment to senior decision-makers for approval. It organises the investment thesis, the diligence findings, the financial model outputs, the risk analysis, and the proposed deal terms into a standard format. And crucially — this is the part people forget — that format is designed to surface not just the case for the investment, but the reasons it should be rejected. A memo that only argues for the deal has failed at its actual purpose. The good memo is a dual document: it makes the strongest case to invest and, alongside it, the honest case against. Both, deliberately, in the same document.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Argument with a required rebuttal", "on_screen_bullets": ["Bull case plus honest risk case", "Only bull case conceals", "The dangerous memo looks clean"], "narration": "Think of the memo as a structured argument that is required to include its own rebuttal. The deal team writes the case for investing — the thesis, the model, the expected return. But the memo must also carry the honest risk case: here is what could go wrong, here is what happens if the central assumption misses, here is why we might simply be wrong. A team that writes only the bull case is concealing information from the people meant to check them. And a committee that approves without demanding the risk case is failing its job. Here is the subtle danger, though. The riskiest memo is not the one with an obvious flaw — flaws get caught. It is the one that presents a smooth, internally consistent bull case paired with vague, generic risk language that does not actually constrain the thesis. Polished and hollow is more dangerous than rough and flawed.", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "What the memo covers", "on_screen_bullets": ["Summary, company, thesis", "Model, diligence, risk", "Terms and exit routes"], "narration": "Structurally, most memos walk through the same territory. An executive summary up front: the target, the proposed transaction, the thesis in a few bullets, the expected return, the top handful of named risks, and a clear recommendation. A company overview — the business, its financial history, the management team, the market it sits in. The investment thesis itself — what specific value-creation levers exist and why this company, why now. The financial analysis — the leverage structure, the bridge from entry earnings to exit earnings broken out by lever, and the return under base, downside, and upside scenarios with sensitivity tables. A diligence summary across commercial, financial, legal, and operational workstreams. A dedicated risk section. The deal terms. And an exit analysis laying out the primary and backup routes. The point of the standard shape is that nothing important can quietly go missing.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three governance jobs", "on_screen_bullets": ["Aggregate the information", "Adversarial review", "Institutional memory"], "narration": "Underneath the structure, the memo is built to do three governance jobs. The first is information aggregation: forcing the team to pull every diligence workstream into one coherent document, which often exposes gaps that were invisible while the information sat scattered across separate workstreams. The second is adversarial review: committee members who are not on the deal team interrogate the thesis from a sceptical stance, and the quality of that challenge is precisely the difference between real governance and a rubber stamp. The third is institutional memory: the approved memo becomes the permanent record of why the fund invested, which later lets the firm compare actual performance against what was projected and learn across deals. When the culture is consensus-driven and the deal team are senior partners who are hard to challenge, the memo quietly degrades from a governance instrument into a performance — and that is the failure mode to watch for.", "est_sec": 54}, {"n": 6, "beat": "application", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The approval-bias problem", "on_screen_bullets": ["Committee also holds carry", "Incentive to approve, not reject", "Same bias as the deal team"], "narration": "Here is the structural problem that undermines the whole thing, and it is worth being blunt about. Picture the memo as a debate where the team argues invest and the committee is supposed to argue do not invest. But in many firms the committee is made up of partners who themselves hold carry tied to the fund's performance — and that performance depends on capital being deployed. So they share a structural incentive to approve, because more invested capital means more carry potential, rather than the pure governance incentive to reject bad deals. Unlike a genuinely independent oversight body, the committee is pulled the same direction as the team. This is the carry-incentive problem operating inside the firm: the same incentive architecture that inflates the thesis at the deal level produces approval bias at the committee level. A senior partner's deal faces especially little real resistance from peers who are not structurally motivated to say no.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Three myths", "on_screen_bullets": ["Memo isn't pure advocacy", "Approval isn't quality", "Rejection is success"], "narration": "Three misconceptions follow directly. First, that the memo is simply where the team argues for the deal — only half right; it must also honestly present the case against, or it is advocacy dressed as governance. Second, that committee approval means the deal is sound — false; approval reflects the quality of the committee process, not the quality of the deal. Plenty of approved deals fail and plenty of rejected ones would have worked; approval is a checkpoint, not a quality certificate. And third, that rejecting a deal at the full committee stage signals a broken process — backwards; rejection is the process working. The committee exists precisely to turn down deals that fall short, and a zero-percent rejection rate would be the real alarm. In fact, surveys of the industry report only a modest rejection rate at the full committee stage — low enough that many argue these processes are not adversarial enough, given how uncertain deal quality genuinely is.", "est_sec": 52}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Governance or performance", "on_screen_bullets": ["Honest risk section is the test", "Carry bias weakens the check", "Quality decides which it is"], "narration": "So to summarise: the memo is the primary governance document of the deal process, doing three jobs — aggregating information, enabling adversarial review, and preserving institutional memory. Its quality is determined above all by the honesty of its risk section and the rigour of its scenario analysis: memos that present only bull-case outcomes, or wrap risk in generic language without quantification, fail their governance function no matter how compelling the thesis reads. The structural threat is carry-incentive alignment — both the team and the committee have carry tied to deployment, which biases the whole apparatus toward approval and dulls the adversarial check. The takeaway is a diagnostic you can apply to any memo: is the risk section real and constraining, or is it decoration? That single question tells you whether you are looking at governance or at a performance.", "est_sec": 50}, {"n": 9, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Name the three governance jobs", "What signals a hollow memo?", "Why approval bias?"], "narration": "Before you finish, answer these from memory. What are the three governance functions the committee process is built to serve? What distinguishes a genuine risk section from decorative, hollow risk language? And why do committee members face an approval bias rather than a pure incentive to reject weak deals? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: IC Memo Architecture\n\n[hook] The last checkpoint\nThe investment committee memo is the last institutional checkpoint before a fund commits capital. And it sits exactly on a fault line of incentives. The deal team wants the deal done — they have lived with it for months, and their standing and their future carry are tied to deploying capital. The committee's job is the opposite: to reject bad deals regardless of how much the team wants them. So the quality of this one document — whether it presents risks honestly, stress-tests the thesis against genuine downside, and names the ways the deal could fail — is the primary determinant of whether the fund's governance actually adds value or just rubber-stamps what the team already decided. A great committee process catches the overpriced, over-levered bet before it is made. A weak one waves it through with a confident-sounding memo.\n\n[definition] A structured case for capital\nHere is the definition. The investment committee memo is the primary governance document through which a deal team formally presents a proposed investment to senior decision-makers for approval. It organises the investment thesis, the diligence findings, the financial model outputs, the risk analysis, and the proposed deal terms into a standard format. And crucially — this is the part people forget — that format is designed to surface not just the case for the investment, but the reasons it should be rejected. A memo that only argues for the deal has failed at its actual purpose. The good memo is a dual document: it makes the strongest case to invest and, alongside it, the honest case against. Both, deliberately, in the same document.\n\n[intuition] Argument with a required rebuttal\nThink of the memo as a structured argument that is required to include its own rebuttal. The deal team writes the case for investing — the thesis, the model, the expected return. But the memo must also carry the honest risk case: here is what could go wrong, here is what happens if the central assumption misses, here is why we might simply be wrong. A team that writes only the bull case is concealing information from the people meant to check them. And a committee that approves without demanding the risk case is failing its job. Here is the subtle danger, though. The riskiest memo is not the one with an obvious flaw — flaws get caught. It is the one that presents a smooth, internally consistent bull case paired with vague, generic risk language that does not actually constrain the thesis. Polished and hollow is more dangerous than rough and flawed.\n\n[mechanics] What the memo covers\nStructurally, most memos walk through the same territory. An executive summary up front: the target, the proposed transaction, the thesis in a few bullets, the expected return, the top handful of named risks, and a clear recommendation. A company overview — the business, its financial history, the management team, the market it sits in. The investment thesis itself — what specific value-creation levers exist and why this company, why now. The financial analysis — the leverage structure, the bridge from entry earnings to exit earnings broken out by lever, and the return under base, downside, and upside scenarios with sensitivity tables. A diligence summary across commercial, financial, legal, and operational workstreams. A dedicated risk section. The deal terms. And an exit analysis laying out the primary and backup routes. The point of the standard shape is that nothing important can quietly go missing.\n\n[mechanics] Three governance jobs\nUnderneath the structure, the memo is built to do three governance jobs. The first is information aggregation: forcing the team to pull every diligence workstream into one coherent document, which often exposes gaps that were invisible while the information sat scattered across separate workstreams. The second is adversarial review: committee members who are not on the deal team interrogate the thesis from a sceptical stance, and the quality of that challenge is precisely the difference between real governance and a rubber stamp. The third is institutional memory: the approved memo becomes the permanent record of why the fund invested, which later lets the firm compare actual performance against what was projected and learn across deals. When the culture is consensus-driven and the deal team are senior partners who are hard to challenge, the memo quietly degrades from a governance instrument into a performance — and that is the failure mode to watch for.\n\n[application] The approval-bias problem\nHere is the structural problem that undermines the whole thing, and it is worth being blunt about. Picture the memo as a debate where the team argues invest and the committee is supposed to argue do not invest. But in many firms the committee is made up of partners who themselves hold carry tied to the fund's performance — and that performance depends on capital being deployed. So they share a structural incentive to approve, because more invested capital means more carry potential, rather than the pure governance incentive to reject bad deals. Unlike a genuinely independent oversight body, the committee is pulled the same direction as the team. This is the carry-incentive problem operating inside the firm: the same incentive architecture that inflates the thesis at the deal level produces approval bias at the committee level. A senior partner's deal faces especially little real resistance from peers who are not structurally motivated to say no.\n\n[application] Three myths\nThree misconceptions follow directly. First, that the memo is simply where the team argues for the deal — only half right; it must also honestly present the case against, or it is advocacy dressed as governance. Second, that committee approval means the deal is sound — false; approval reflects the quality of the committee process, not the quality of the deal. Plenty of approved deals fail and plenty of rejected ones would have worked; approval is a checkpoint, not a quality certificate. And third, that rejecting a deal at the full committee stage signals a broken process — backwards; rejection is the process working. The committee exists precisely to turn down deals that fall short, and a zero-percent rejection rate would be the real alarm. In fact, surveys of the industry report only a modest rejection rate at the full committee stage — low enough that many argue these processes are not adversarial enough, given how uncertain deal quality genuinely is.\n\n[recap] Governance or performance\nSo to summarise: the memo is the primary governance document of the deal process, doing three jobs — aggregating information, enabling adversarial review, and preserving institutional memory. Its quality is determined above all by the honesty of its risk section and the rigour of its scenario analysis: memos that present only bull-case outcomes, or wrap risk in generic language without quantification, fail their governance function no matter how compelling the thesis reads. The structural threat is carry-incentive alignment — both the team and the committee have carry tied to deployment, which biases the whole apparatus toward approval and dulls the adversarial check. The takeaway is a diagnostic you can apply to any memo: is the risk section real and constraining, or is it decoration? That single question tells you whether you are looking at governance or at a performance.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What are the three governance functions the committee process is built to serve? What distinguishes a genuine risk section from decorative, hollow risk language? And why do committee members face an approval bias rather than a pure incentive to reject weak deals? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The IC memo is the last institutional checkpoint before capital is committed. It is where the deal team's incentive (complete the deal and earn carry from deployment) collides with the IC's responsibility (reject bad deals regardless of team enthusiasm). The quality of the IC memo — specifically whether it presents risks honestly, stress-tests the thesis against downside scenarios, and names failure modes explicitly — is the primary determinant of whether the fund's governance process adds value or merely ratifies the team's existing preference.</p><p>For understanding PE outcomes, the IC memo is the pivot point: a high-quality IC process with genuinely adversarial review prevents the incentive-driven thesis inflation that produces failures like EFH. A low-quality IC process that rubber-stamps well-presented proposals produces systematic overpayment and leverage excess.</p><p>For the learner: when K-1s show write-downs on specific fund positions, the failure almost always traces to an IC memo that over-stated the upside, under-stated the macro risk, or relied on an unrealistic exit multiple. The IC memo is where the decision was made; the K-1 is where the consequences appear.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>An Investment Committee (IC) memo is the primary governance document through which a PE deal team formally presents a proposed investment to senior decision-makers for approval — structuring the investment thesis, due diligence findings, financial model outputs, risk analysis, and proposed deal terms in a standard format designed to surface both the case for investment and the reasons it should be rejected.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of the IC memo as a structured argument with a required rebuttal. The deal team writes the argument for why the fund should invest. The IC's job — through both the memo's required risk section and the verbal Q&amp;A — is to act as a sceptical second-opinion that asks every question the deal team might prefer to avoid.</p><p>A good IC memo is not a sales document. It is a dual document: - <strong>The bull case:</strong> here is why we want to do this deal, here is our thesis, here is our model, here is our expected return - <strong>The honest risk case:</strong> here is what could go wrong, here is what happens if the main variable in our model misses, here is why we might be wrong</p><p>A deal team that writes only the bull case is concealing information from the IC. An IC that approves without demanding the risk case is failing its governance function.</p><p>The most dangerous IC memo is not the one with an obvious flaw — those get caught. It is the one that presents an internally consistent bull case with vague, generic risk disclosure that doesn't actually constrain the thesis.</p><p>---</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### Standard IC Memo Structure</p><p>The IC memo structure varies by firm, but most large PE firms use some version of the following:</p><p><strong>Section 1 — Executive Summary (1-2 pages)</strong> - Target company overview: name, sector, revenue/EBITDA, geography - Proposed transaction: structure, price, leverage - Investment thesis: 3-4 bullet points capturing the core value creation logic - Expected return: base-case IRR and MOIC; hold period assumption - Key risks: top 3-4, named explicitly - Recommendation: invest / proceed to exclusivity / decline</p><p><strong>Section 2 — Company Overview (3-5 pages)</strong> - Business description: products, services, customers, competitive position - Historical financial performance: 3-5 years of P&amp;L, EBITDA, cash conversion - Management team assessment: background, track record, alignment proposed - Market context: TAM, growth rate, competitive dynamics, industry structure</p><p><strong>Section 3 — Investment Thesis (3-5 pages)</strong> - The core thesis: what specific value creation levers are available and why - Competitive advantages: why is this company a better investment than its peers - Entry rationale: why now (market timing, seller motivation, deal dynamic) - Value creation plan: operational initiatives, buy-and-build plan, exit optionality</p><p><strong>Section 4 — Financial Analysis (5-10 pages)</strong> - LBO model summary: sources and uses, debt structure, projected ICR - EBITDA bridge: entry EBITDA → exit EBITDA by lever (organic growth, margin improvement, M&amp;A) - Return analysis: IRR/MOIC under base, downside, and upside scenarios - Sensitivity tables: IRR vs. exit multiple, IRR vs. EBITDA growth, IRR vs. hold period - Comparable transaction analysis: precedent deal multiples; benchmark valuation</p><p><strong>Section 5 — Due Diligence Summary (3-5 pages)</strong> - Commercial DD: market position, customer concentration, competitive threats - Financial DD: EBITDA quality, net debt, NWC normalisation - Legal DD: material contracts, litigation, employment, regulatory - ESG / operational: management assessment, operational risks</p><p><strong>Section 6 — Risk Analysis (2-3 pages)</strong> - Key investment risks: named, quantified where possible - Scenario analysis: what happens under each downside scenario - Risk mitigants: deal terms, management alignment, exit optionality - Risks that cannot be mitigated: explicitly named</p><p><strong>Section 7 — Deal Terms (1-2 pages)</strong> - Price and structure: enterprise value, equity contribution, debt structure - Key SPA terms: locked box vs. completion accounts, W&amp;I, earn-outs - Management package: MIP structure, vesting, good/bad leaver - Timeline: exclusivity period, expected closing date</p><p><strong>Section 8 — Exit Analysis (1-2 pages)</strong> - Primary exit route and rationale - Secondary exit routes and conditions - Dual-track feasibility assessment - Expected timing and exit valuation</p><p>### IC Process — Who Decides</p><p>PE IC processes vary by firm size and culture:</p><p><strong>Large firms (KKR, Blackstone, Apollo):</strong> - Global IC with senior partners (often including founders) - Regional sub-committees with delegated authority for smaller deals - Majority vote required; sometimes super-majority for large deals - Independent deal review: some firms have a separate \"devil's advocate\" partner whose job is to challenge the deal team's thesis</p><p><strong>Mid-market firms:</strong> - Full partner IC; all partners vote - Consensus culture (no explicit dissent recorded) or formal voting record - Deal team presents; other partners question; vote taken at meeting or within 48 hours</p><p><strong>Rejection rates:</strong> Gompers, Kaplan, and Mukharlyamov (2016) surveyed PE executives — reported IC rejection rates at full IC stage are approximately 5-15% (most deals are filtered earlier in the process). This is often cited as evidence that IC processes are not sufficiently rigorous; the rate of rejection after full IC presentation should arguably be higher given the quality uncertainty at that stage.</p><p>### The IC Process as Governance Mechanism</p><p>The IC memo is designed to serve three governance functions:</p><ol><li><strong>Information aggregation</strong> — forces the deal team to synthesise all DD findings into a coherent document; often reveals gaps that were not apparent when information was fragmented across workstreams</li></ol><ol><li><strong>Adversarial review</strong> — IC partners who are not deal team members ask questions from a sceptical perspective; the quality of this challenge is the difference between governance and rubber-stamping</li></ol><ol><li><strong>Institutional memory</strong> — the memo becomes the permanent record of why the fund invested; enables post-investment review of actual vs. projected performance; enables learning across deals</li></ol><p>The failure mode: when IC culture is consensus-oriented and deal teams are senior partners who are not easily challenged, the IC memo becomes a performance rather than a governance instrument.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Standard IC Memo Structure</p><p>The IC memo structure varies by firm, but most large PE firms use some version of the following:</p><p><strong>Section 1 — Executive Summary (1-2 pages)</strong> - Target company overview: name, sector, revenue/EBITDA, geography - Proposed transaction: structure, price, leverage - Investment thesis: 3-4 bullet points capturing the core value creation logic - Expected return: base-case IRR and MOIC; hold period assumption - Key risks: top 3-4, named explicitly - Recommendation: invest / proceed to exclusivity / decline</p><p><strong>Section 2 — Company Overview (3-5 pages)</strong> - Business description: products, services, customers, competitive position - Historical financial performance: 3-5 years of P&amp;L, EBITDA, cash conversion - Management team assessment: background, track record, alignment proposed - Market context: TAM, growth rate, competitive dynamics, industry structure</p><p><strong>Section 3 — Investment Thesis (3-5 pages)</strong> - The core thesis: what specific value creation levers are available and why - Competitive advantages: why is this company a better investment than its peers - Entry rationale: why now (market timing, seller motivation, deal dynamic) - Value creation plan: operational initiatives, buy-and-build plan, exit optionality</p><p><strong>Section 4 — Financial Analysis (5-10 pages)</strong> - LBO model summary: sources and uses, debt structure, projected ICR - EBITDA bridge: entry EBITDA → exit EBITDA by lever (organic growth, margin improvement, M&amp;A) - Return analysis: IRR/MOIC under base, downside, and upside scenarios - Sensitivity tables: IRR vs. exit multiple, IRR vs. EBITDA growth, IRR vs. hold period - Comparable transaction analysis: precedent deal multiples; benchmark valuation</p><p><strong>Section 5 — Due Diligence Summary (3-5 pages)</strong> - Commercial DD: market position, customer concentration, competitive threats - Financial DD: EBITDA quality, net debt, NWC normalisation - Legal DD: material contracts, litigation, employment, regulatory - ESG / operational: management assessment, operational risks</p><p><strong>Section 6 — Risk Analysis (2-3 pages)</strong> - Key investment risks: named, quantified where possible - Scenario analysis: what happens under each downside scenario - Risk mitigants: deal terms, management alignment, exit optionality - Risks that cannot be mitigated: explicitly named</p><p><strong>Section 7 — Deal Terms (1-2 pages)</strong> - Price and structure: enterprise value, equity contribution, debt structure - Key SPA terms: locked box vs. completion accounts, W&amp;I, earn-outs - Management package: MIP structure, vesting, good/bad leaver - Timeline: exclusivity period, expected closing date</p><p><strong>Section 8 — Exit Analysis (1-2 pages)</strong> - Primary exit route and rationale - Secondary exit routes and conditions - Dual-track feasibility assessment - Expected timing and exit valuation</p><p>### IC Process — Who Decides</p><p>PE IC processes vary by firm size and culture:</p><p><strong>Large firms (KKR, Blackstone, Apollo):</strong> - Global IC with senior partners (often including founders) - Regional sub-committees with delegated authority for smaller deals - Majority vote required; sometimes super-majority for large deals - Independent deal review: some firms have a separate \"devil's advocate\" partner whose job is to challenge the deal team's thesis</p><p><strong>Mid-market firms:</strong> - Full partner IC; all partners vote - Consensus culture (no explicit dissent recorded) or formal voting record - Deal team presents; other partners question; vote taken at meeting or within 48 hours</p><p><strong>Rejection rates:</strong> Gompers, Kaplan, and Mukharlyamov (2016) surveyed PE executives — reported IC rejection rates at full IC stage are approximately 5-15% (most deals are filtered earlier in the process). This is often cited as evidence that IC processes are not sufficiently rigorous; the rate of rejection after full IC presentation should arguably be higher given the quality uncertainty at that stage.</p><p>### The IC Process as Governance Mechanism</p><p>The IC memo is designed to serve three governance functions:</p><ol><li><strong>Information aggregation</strong> — forces the deal team to synthesise all DD findings into a coherent document; often reveals gaps that were not apparent when information was fragmented across workstreams</li></ol><ol><li><strong>Adversarial review</strong> — IC partners who are not deal team members ask questions from a sceptical perspective; the quality of this challenge is the difference between governance and rubber-stamping</li></ol><ol><li><strong>Institutional memory</strong> — the memo becomes the permanent record of why the fund invested; enables post-investment review of actual vs. projected performance; enables learning across deals</li></ol><p>The failure mode: when IC culture is consensus-oriented and deal teams are senior partners who are not easily challenged, the IC memo becomes a performance rather than a governance instrument.</p><p>---</p>"}, "5": {"section": "Mental Model / Analogy", "html": "<p>The IC memo is like a structured debate where the deal team argues for \"invest\" and the IC is supposed to argue for \"don't invest.\" The IC memo is the opening statement.</p><p>The problem in many PE firms: the IC is composed of partners who also have carry tied to the fund's portfolio. They have a structural incentive to approve deals (more invested capital = more carry potential) rather than a pure governance incentive to reject bad deals. A deal team that is very senior — and whose social capital at the firm depends on getting deals done — faces little real challenge from peers who are not structurally incentivised to reject.</p><p>This is the institutional version of the carry incentive problem operating inside the GP: the incentive architecture that produces thesis inflation at the deal level also produces approval bias at the IC level.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>\"The IC memo is where the deal team argues for the investment.\"</strong> Partially true — but the IC memo should also be where the deal team honestly presents the case against the investment. A memo that presents only the bull case is advocacy, not governance.</p><p><strong>\"IC approval means the deal is sound.\"</strong> False — IC approval reflects the quality of the IC process, not the quality of the deal. Many approved deals fail; many rejected deals would have succeeded. IC approval is a governance checkpoint, not a quality certification.</p><p><strong>\"Rejection after full IC is evidence of process failure.\"</strong> Incorrect — rejection at IC stage is evidence of process success. The IC is specifically designed to reject deals that do not meet the bar; a 0% rejection rate would indicate the IC is not functioning as a governance mechanism.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The IC memo is the primary governance document in the PE deal process — the structured argument through which deal teams seek capital commitment and IC partners exercise oversight. It serves three functions: information aggregation, adversarial review, and institutional memory. The quality of an IC memo is determined primarily by the honesty of its risk section and the rigour of its scenario analysis: memos that present only bull-case scenarios or use generic risk language without quantification fail their governance function regardless of how compelling the investment thesis is. The structural problem is carry incentive alignment: both deal teams and IC partners have carry tied to fund performance, creating approval bias that reduces the IC's effectiveness as an adversarial check. The EFH case study illustrates what inadequate IC governance produces at scale: a $45bn, 9.7x leveraged bet on a single macro variable that was approved without modelling the downside scenario in which it failed.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>The IC memo is the primary governance document in the PE deal process — the structured argument through which deal teams seek capital commitment and IC partners exercise oversight. It serves three functions: information aggregation, adversarial review, and institutional memory. The quality of an IC memo is determined primarily by the honesty of its risk section and the rigour of its scenario analysis: memos that present only bull-case scenarios or use generic risk language without quantification fail their governance function regardless of how compelling the investment thesis is. The structural problem is carry incentive alignment: both deal teams and IC partners have carry tied to fund performance, creating approval bias that reduces the IC's effectiveness as an adversarial check. The EFH case study illustrates what inadequate IC governance produces at scale: a $45bn, 9.7x leveraged bet on a single macro variable that was approved without modelling the downside scenario in which it failed.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

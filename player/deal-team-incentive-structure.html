@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "deal-team-incentive-structure", "title": "Deal Team Incentive Structure", "draft_watermark": false, "estimated_runtime_sec": 332, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The conflict inside the firm", "on_screen_bullets": ["Investor-versus-firm conflict is known", "Inside the firm, another conflict", "Team rewarded for completing deals"], "narration": "Everyone in private equity knows about the conflict between investors and the firm — the well-documented tension where a manager's incentives can diverge from its investors'. Far less discussed is a second conflict, one that lives entirely inside the firm. The senior partners who are supposed to be disciplining the investment process are managing a team whose own incentives systematically favour completing deals over completing good deals. This internal incentive architecture quietly explains a lot: why theses get inflated, why turning down a bad deal is undervalued, why the investment committee is a structurally weak check, and why sheer deal volume becomes a proxy for success when raising the next fund. Understanding it is understanding why disciplined behaviour is so much rarer than it should be — not because people are bad, but because of how they are rewarded.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Rewarded to deploy", "on_screen_bullets": ["Internal carry and promotion system", "A second principal-agent problem", "Complete, don't pass"], "narration": "Here is the definition. Deal team incentive structure is the internal compensation and carry-allocation system within a firm that determines how carried interest, bonuses, and promotions are distributed among investment professionals. And it creates a second-order conflict inside the firm, where individual associates and principals are incentivised to complete deals rather than reject them — because carry accrues from deployed capital, and the career penalty for a disciplined rejection is higher than the career reward for it. The phrase to hold is the asymmetry: completing a deal is observable and rewarded, while correctly passing on one is invisible. That single asymmetry, repeated across every professional and every deal, drives almost everything else in this lesson.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The pass problem", "on_screen_bullets": ["Months of work, then pass", "No deal, no credit, no carry", "Complete it: career capital"], "narration": "Make the asymmetry concrete with what happens when a junior professional does the right thing. Suppose an associate identifies a target, builds the model, leads diligence for three or four months, and then concludes: we should not do this deal. What is the outcome? No deal, so no carry. Three or four months of work with nothing visible to show. The company may then be bought by a competitor, who appears to succeed — making the associate look like they were wrong to pass. And their promotion case is weaker, because they have one fewer completed deal. Now suppose the same associate instead completes the deal. There is a deal on the portfolio, carry accrues if it does well, they pick up a board role and a developing track record, and the promotion case is stronger. So the structure rewards completing, not passing — and the asymmetry is the point: a good pass produces no observable positive outcome, while a completed deal, even one that ultimately underperforms, still produces career capital.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The over-operating surgeon", "on_screen_bullets": ["Judged on operations performed", "Not on patient outcomes", "Systematic over-investment results"], "narration": "A sharp analogy: imagine a surgeon evaluated primarily on the number of operations performed rather than on patient outcomes. A surgeon who correctly identifies that a patient does not need surgery, and refers them for conservative treatment, produces the best result for the patient — and zero operations on their record. A surgeon who operates, necessary or not, produces a visible, countable output. That incentive predictably produces systematic over-operation. Private equity has exactly the same structure, and it produces systematic over-investment: deals completed that should have been passed, because completion is measurable and rewarded while disciplined passing is invisible and, at best, career-neutral. The mechanism is not villainy; it is a measurement system that counts the wrong thing. And whenever you measure activity instead of judgment, you get more activity and less judgment.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "How carry is shared", "on_screen_bullets": ["Fund-level pool, partner-allocated", "Deal-by-deal sharpens incentives", "Both have failure modes"], "narration": "Look at how carry is allocated internally, because the structure shapes behaviour. The most common approach is a fund-level pool: the fund's total carry is pooled and allocated among partners, principals, and juniors, vesting over several years, with senior partners assigning the points annually. This creates a portfolio-level incentive — everyone cares about every deal — but it concentrates allocation power with the seniors and can create a free-rider dynamic, where one person's bad deal dilutes everyone's carry. The less common alternative is deal-by-deal carry, where the carry from each deal flows disproportionately to the people who worked on it. That sharpens the individual incentive to complete a specific deal — but it also encourages cherry-picking, where seniors take the attractive deals and push the problematic ones onto juniors, and it breeds attribution conflicts over who really sourced what. Most large firms use a fund-level pool with some sourcing credit layered on. The common thread, in either case, is that the reward flows from deals that happen.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The mid-level sweet spot", "on_screen_bullets": ["Enough carry to care", "Not senior enough to be safe", "Promotion needs completed deals"], "narration": "The completion incentive is not evenly distributed across careers — it peaks in the middle, at the vice-president and principal level, roughly four to ten years in. Three forces converge there. First, these professionals have now accumulated enough carry to care about deals significantly, unlike the most junior analysts. Second, they are not yet senior enough to have an established reputation that would protect them from completion pressure, unlike partners. And third, promotion to partner specifically requires having led a handful of completed deals as the person presenting to the investment committee — there is simply no promotion track that runs through disciplined passing. So at exactly the career stage where someone has the experience to spot a bad deal, the structural pressure to complete it anyway is most intense. The investment committee is meant to provide quality control at this level — but committee partners face their own carry incentives, and challenging a rising professional's deal damages the relationship while producing no visible benefit.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "What promotion measures", "on_screen_bullets": ["Deals sourced and completed", "Not deals correctly rejected", "Survivor bias selects for completion"], "narration": "Look at what promotion criteria actually measure, because the omissions are revealing. Advancement typically requires demonstrated deal sourcing, lead roles on a number of completed transactions, positive references from deal partners, and in later stages at least one successful exit. What is conspicuously absent from almost every promotion rubric: the number of deals correctly rejected after full diligence, any counterfactual analysis of whether a completed deal would have done worse under different decisions, and the quality of the risk analysis in the investment memos. Promotion measures what the team produced — completed deals — not the quality of the judgment that led there. And this creates a survivor-bias problem over time: professionals who pass too aggressively are simply not promoted, while those who complete deals are retained and elevated. So the system does not just reward completion bias in the moment; it gradually filters the firm's senior ranks toward people selected for deal-completion rather than deal-quality discipline.", "est_sec": 54}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Three myths", "on_screen_bullets": ["Carry alignment is asymmetric", "Seniors face reputation pull too", "Experience doesn't fully fix it"], "narration": "Three misconceptions worth dismantling. First, that carry alignment makes the firm and its investors fully aligned — it creates partial alignment on the upside but not symmetric downside alignment, because the professionals keep their salaries, their fees, and their reputations as deal-doers even when a deal goes badly; only the carry contribution is at risk. Second, that senior partners' carry aligns them with investor interests — partly, on fund returns, but seniors also have reputational capital tied to deal activity, and a partner who kills many deals is seen as obstructive while one who completes them is seen as effective, so the reputation incentive runs counter to quality discipline. And third, that good associates simply learn to pass bad deals with experience — true for some, but the system filters out those who pass too aggressively by not promoting them, so the survivors are selected for completion bias, not against it. Some firms try to counter all this by explicitly recognising disciplined passes in reviews, but that remains the exception, not the norm.", "est_sec": 56}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Completion bias, structurally", "on_screen_bullets": ["Good passes go unrewarded", "Mid-career is the pressure point", "Alignment on returns, not quality"], "narration": "So to summarise: deal team incentive structure is the principal-agent problem inside the firm. Associates, vice-presidents, and principals are evaluated mainly on deal completion and earn carry from deployed, successful capital — while disciplined passes produce no observable reward and real career costs. The result is systemic completion bias, which feeds the thesis inflation, the investment-committee approval tendency, and the deal-quality problems seen across the field. The crucial subtlety is that carry creates alignment between the firm and its investors on overall fund returns, but it does not create alignment within the deal team on deal quality — because the career incentive to complete deals operates independently of the fund-return incentive, and it bites hardest in the middle of a career. A handful of firms try to reward disciplined passing explicitly, but it remains exceptional. The throughline: measure activity, and you will get activity; the judgment you actually want goes uncounted.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Why is a good pass underrewarded?", "Where is the bias most acute?", "Why doesn't carry fix it?"], "narration": "Before you finish, answer these from memory. Why is a good pass — correctly rejecting a bad deal after full diligence — structurally underrewarded? At what career stage is completion bias most acute, and what three forces converge there? And why does carry create investor-firm alignment on returns yet fail to create deal-team alignment on deal quality? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Deal Team Incentive Structure\n\n[hook] The conflict inside the firm\nEveryone in private equity knows about the conflict between investors and the firm — the well-documented tension where a manager's incentives can diverge from its investors'. Far less discussed is a second conflict, one that lives entirely inside the firm. The senior partners who are supposed to be disciplining the investment process are managing a team whose own incentives systematically favour completing deals over completing good deals. This internal incentive architecture quietly explains a lot: why theses get inflated, why turning down a bad deal is undervalued, why the investment committee is a structurally weak check, and why sheer deal volume becomes a proxy for success when raising the next fund. Understanding it is understanding why disciplined behaviour is so much rarer than it should be — not because people are bad, but because of how they are rewarded.\n\n[definition] Rewarded to deploy\nHere is the definition. Deal team incentive structure is the internal compensation and carry-allocation system within a firm that determines how carried interest, bonuses, and promotions are distributed among investment professionals. And it creates a second-order conflict inside the firm, where individual associates and principals are incentivised to complete deals rather than reject them — because carry accrues from deployed capital, and the career penalty for a disciplined rejection is higher than the career reward for it. The phrase to hold is the asymmetry: completing a deal is observable and rewarded, while correctly passing on one is invisible. That single asymmetry, repeated across every professional and every deal, drives almost everything else in this lesson.\n\n[intuition] The pass problem\nMake the asymmetry concrete with what happens when a junior professional does the right thing. Suppose an associate identifies a target, builds the model, leads diligence for three or four months, and then concludes: we should not do this deal. What is the outcome? No deal, so no carry. Three or four months of work with nothing visible to show. The company may then be bought by a competitor, who appears to succeed — making the associate look like they were wrong to pass. And their promotion case is weaker, because they have one fewer completed deal. Now suppose the same associate instead completes the deal. There is a deal on the portfolio, carry accrues if it does well, they pick up a board role and a developing track record, and the promotion case is stronger. So the structure rewards completing, not passing — and the asymmetry is the point: a good pass produces no observable positive outcome, while a completed deal, even one that ultimately underperforms, still produces career capital.\n\n[intuition] The over-operating surgeon\nA sharp analogy: imagine a surgeon evaluated primarily on the number of operations performed rather than on patient outcomes. A surgeon who correctly identifies that a patient does not need surgery, and refers them for conservative treatment, produces the best result for the patient — and zero operations on their record. A surgeon who operates, necessary or not, produces a visible, countable output. That incentive predictably produces systematic over-operation. Private equity has exactly the same structure, and it produces systematic over-investment: deals completed that should have been passed, because completion is measurable and rewarded while disciplined passing is invisible and, at best, career-neutral. The mechanism is not villainy; it is a measurement system that counts the wrong thing. And whenever you measure activity instead of judgment, you get more activity and less judgment.\n\n[mechanics] How carry is shared\nLook at how carry is allocated internally, because the structure shapes behaviour. The most common approach is a fund-level pool: the fund's total carry is pooled and allocated among partners, principals, and juniors, vesting over several years, with senior partners assigning the points annually. This creates a portfolio-level incentive — everyone cares about every deal — but it concentrates allocation power with the seniors and can create a free-rider dynamic, where one person's bad deal dilutes everyone's carry. The less common alternative is deal-by-deal carry, where the carry from each deal flows disproportionately to the people who worked on it. That sharpens the individual incentive to complete a specific deal — but it also encourages cherry-picking, where seniors take the attractive deals and push the problematic ones onto juniors, and it breeds attribution conflicts over who really sourced what. Most large firms use a fund-level pool with some sourcing credit layered on. The common thread, in either case, is that the reward flows from deals that happen.\n\n[mechanics] The mid-level sweet spot\nThe completion incentive is not evenly distributed across careers — it peaks in the middle, at the vice-president and principal level, roughly four to ten years in. Three forces converge there. First, these professionals have now accumulated enough carry to care about deals significantly, unlike the most junior analysts. Second, they are not yet senior enough to have an established reputation that would protect them from completion pressure, unlike partners. And third, promotion to partner specifically requires having led a handful of completed deals as the person presenting to the investment committee — there is simply no promotion track that runs through disciplined passing. So at exactly the career stage where someone has the experience to spot a bad deal, the structural pressure to complete it anyway is most intense. The investment committee is meant to provide quality control at this level — but committee partners face their own carry incentives, and challenging a rising professional's deal damages the relationship while producing no visible benefit.\n\n[application] What promotion measures\nLook at what promotion criteria actually measure, because the omissions are revealing. Advancement typically requires demonstrated deal sourcing, lead roles on a number of completed transactions, positive references from deal partners, and in later stages at least one successful exit. What is conspicuously absent from almost every promotion rubric: the number of deals correctly rejected after full diligence, any counterfactual analysis of whether a completed deal would have done worse under different decisions, and the quality of the risk analysis in the investment memos. Promotion measures what the team produced — completed deals — not the quality of the judgment that led there. And this creates a survivor-bias problem over time: professionals who pass too aggressively are simply not promoted, while those who complete deals are retained and elevated. So the system does not just reward completion bias in the moment; it gradually filters the firm's senior ranks toward people selected for deal-completion rather than deal-quality discipline.\n\n[application] Three myths\nThree misconceptions worth dismantling. First, that carry alignment makes the firm and its investors fully aligned — it creates partial alignment on the upside but not symmetric downside alignment, because the professionals keep their salaries, their fees, and their reputations as deal-doers even when a deal goes badly; only the carry contribution is at risk. Second, that senior partners' carry aligns them with investor interests — partly, on fund returns, but seniors also have reputational capital tied to deal activity, and a partner who kills many deals is seen as obstructive while one who completes them is seen as effective, so the reputation incentive runs counter to quality discipline. And third, that good associates simply learn to pass bad deals with experience — true for some, but the system filters out those who pass too aggressively by not promoting them, so the survivors are selected for completion bias, not against it. Some firms try to counter all this by explicitly recognising disciplined passes in reviews, but that remains the exception, not the norm.\n\n[recap] Completion bias, structurally\nSo to summarise: deal team incentive structure is the principal-agent problem inside the firm. Associates, vice-presidents, and principals are evaluated mainly on deal completion and earn carry from deployed, successful capital — while disciplined passes produce no observable reward and real career costs. The result is systemic completion bias, which feeds the thesis inflation, the investment-committee approval tendency, and the deal-quality problems seen across the field. The crucial subtlety is that carry creates alignment between the firm and its investors on overall fund returns, but it does not create alignment within the deal team on deal quality — because the career incentive to complete deals operates independently of the fund-return incentive, and it bites hardest in the middle of a career. A handful of firms try to reward disciplined passing explicitly, but it remains exceptional. The throughline: measure activity, and you will get activity; the judgment you actually want goes uncounted.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. Why is a good pass — correctly rejecting a bad deal after full diligence — structurally underrewarded? At what career stage is completion bias most acute, and what three forces converge there? And why does carry create investor-firm alignment on returns yet fail to create deal-team alignment on deal quality? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The LP-GP principal-agent problem is well-documented: GPs have incentives that can diverge from LP interests. Less discussed is the GP-internal principal-agent problem: the senior partners who should be disciplining the investment process are managing a team whose incentives systematically favour deal completion over deal quality. Understanding this internal incentive architecture explains:</p><ol><li><strong>Why thesis inflation persists</strong> — junior professionals who source and structure deals have carry incentives tied to deal completion; the quality of the deal (which determines LP returns) matters less than its completion (which triggers their carry point)</li></ol><ol><li><strong>Why good passes are undervalued</strong> — turning down a deal that would have been a bad investment produces no visible reward (the counterfactual is not observed); completing a deal that goes well produces carry; completing a deal that goes badly still produces learning and optionality; passing produces nothing visible</li></ol><ol><li><strong>Why IC governance is structurally weak</strong> — the IC partners reviewing deals face the same carry incentive as deal teams; \"kill the deal\" requires both analytical confidence and the social capital to resist a senior team's advocacy</li></ol><ol><li><strong>Why deal volume is a proxy for firm success in fundraising</strong> — PE funds raise successor funds partly on deployed capital track record; a fund that passed on many deals (even correctly) is less marketable than one that deployed capital (even if returns vary)</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Deal team incentive structure is the internal compensation and carry allocation system within a PE firm that determines how carried interest, bonuses, and promotion opportunities are distributed among investment professionals — creating a second-order principal-agent problem within the GP where individual associates and principals are incentivized to complete deals rather than reject them, because carry accrues from deployed capital and the career penalty for a good pass is higher than the career reward for a disciplined rejection.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>A PE deal team typically includes: - <strong>Analysts/Associates</strong> (2-6 years experience): financial modelling, due diligence, deal execution - <strong>Senior Associates / Vice Presidents</strong> (4-8 years): deal sourcing, sector coverage, relationship management, co-lead on deals - <strong>Principals / Directors</strong> (6-12 years): deal leadership, IC presentation, portfolio company board roles - <strong>Partners / Managing Directors</strong> (10+ years): fund leadership, LP relationships, IC voting, carry allocation</p><p>The career path from Associate to Partner typically takes 8-12 years. At each stage, the primary evaluation criterion is deal activity — deals sourced, deals completed, deals successfully exited. The promotion decision is made by senior partners whose own interests align with deal completion.</p><p><strong>The pass problem:</strong> If an Associate identifies a company as an investment target, develops the model, leads the DD process over 3-4 months, and then concludes \"we should not do this deal,\" the outcome is: - No deal done → no carry from this deal - 3-4 months of Associate work with no output - The company may be acquired by a competitor (who succeeds → Associate \"was wrong\" in passing) - The Associate's promotion case is weaker (fewer deals completed)</p><p>If the same Associate completes the deal: - Deal done → carry accrues if it succeeds - 3-4 months of work → visible deal on the portfolio - Promotion case is stronger (deal completed, board role, track record developing)</p><p>This is the carry incentive structure at the deal team level: the incentive is to complete, not to pass. And the asymmetry is structural — a good pass produces no observable positive outcome; a completed deal, even one that ultimately underperforms, produces career capital.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of a deal team associate like a surgeon being evaluated primarily on the number of operations performed rather than patient outcomes. A surgeon who identifies that a patient does not need surgery and refers them for conservative treatment produces the best outcome for the patient — but zero operations. A surgeon who performs the operation (necessary or not) produces a visible, measurable output.</p><p>The incentive creates systematic over-operation. In PE, this is systematic over-investment: completing deals that should be passed, because completion is measurable and rewarded, while disciplined passing is invisible and career-neutral.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Carry Allocation at the Firm Level</p><p>Carried interest is allocated within the GP through an internal carry plan. Structure varies by firm, but common approaches:</p><p><strong>Fund-level carry pool (most common):</strong> - Total fund carry: 20% of profits above hurdle rate - Allocated among partners (typically 70-80%), principals/VPs (typically 10-20%), associates/analysts (0-5%) - Carried interest vests over time (typically 4-6 year vesting schedule within the fund) - Partners allocate carry points annually based on performance reviews</p><p><strong>Deal-by-deal carry (less common, more common in earlier-stage PE):</strong> - Individual deals identified as being driven by specific deal team members - Carry from that deal flows disproportionately to those members - Creates stronger individual incentive to complete any specific deal - Problematic: deal team members are incentivized to cherry-pick attractive deals and pass responsibility for problematic deals to others</p><p><strong>Phantom carry / bonus carry:</strong> - Junior professionals receive \"phantom carry\" — economic participation linked to fund performance but without actual GP ownership - Vests similarly to real carry but is structured as a bonus rather than carried interest (different tax treatment in some jurisdictions)</p><p>### The VP / Principal Sweet Spot</p><p>The most acute deal completion incentive sits at the VP/Principal level (4-10 years in): - Sufficient carry to care about deals significantly - Not yet senior enough to have established reputation that protects them from deal-completion pressure - Promotion to Partner typically requires leading 2-4 completed deals - A good pass is invisible; a completed deal is observable</p><p>At this career stage, the structural incentive to complete deals over passing is most severe. The IC process is theoretically designed to provide quality control on deal team recommendations at this level — but IC partners face their own carry incentives, and challenging a VP/Principal's deal damages the relationship without producing visible benefit.</p><p>### The \"Good Pass\" Recognition Problem</p><p>Some PE firms have attempted to address the good-pass undervaluation problem through: - <strong>Explicitly recognising disciplined passes</strong> in annual performance reviews - <strong>Tracking pass decisions and outcomes</strong> — monitoring whether passed deals were later done by competitors at poor returns, validating the pass decision - <strong>Bain Capital's \"responsible growth\" model</strong> — explicitly incorporates risk discipline into partner performance evaluation; Bain is frequently cited for strong IC process quality relative to peers</p><p>These initiatives are exceptions to the market norm. Most PE firms evaluate professionals primarily on deal completion metrics, reinforcing the completion bias.</p><p>### Salary vs. Carry at Different Career Levels</p><p>| Level | Base Salary (approx 2023, US large PE) | Annual Bonus | Carry Points | Total Comp (est.) | |---|---|---|---|---| | Analyst (Yr 1-2) | $130-170k | $100-150k | 0 | $230-320k | | Associate (Yr 2-4) | $175-220k | $150-250k | 0-0.1% | $325-470k + carry | | Senior Associate/VP | $250-325k | $250-400k | 0.1-0.5% | $500-725k + carry | | Principal/Director | $350-500k | $500-1m+ | 0.5-2.0% | $850k-1.5m+ + carry | | Partner | $500k-1m+ | $1m-5m+ | 2-10%+ | $1.5m-$50m+ (carry-dominated) |</p><p>At the Partner level, carry completely dominates compensation. A 2% carry point in a $5bn fund earning 2x net over 10 years = 2% × $5bn × 1 multiple = $100m (grossly simplified). The incentive to deploy capital (which maximises carry opportunity) vs. maintain dry powder (which is prudent but generates no carry) is economically massive.</p><p>### The Promotion Track and Deal Completion Correlation</p><p>In most PE firms, the Associate-to-VP promotion requires: - Demonstrated deal sourcing ability (deal flow generation) - Lead modelling role on 2-3 transactions - Positive references from deal team partners</p><p>The VP-to-Principal and Principal-to-Partner promotions require: - Relationship-driven deal sourcing - Lead role (IC presentation) on 2-4 completed deals - Positive portfolio company outcomes (some firms require at least one successful exit) - LP relationship management capability</p><p><strong>What is notably absent from most promotion criteria:</strong> - Number of deals rejected after full DD (a disciplined pass is career-neutral at best) - Counterfactual performance analysis (would this deal have done worse under alternative decisions?) - Quality of IC memos (depth of risk analysis, accuracy of scenario projections)</p><p>This absence reinforces the completion bias: promotion criteria measure what the deal team produced (completed deals), not the quality of the decisions that led to them.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### Carry Allocation at the Firm Level</p><p>Carried interest is allocated within the GP through an internal carry plan. Structure varies by firm, but common approaches:</p><p><strong>Fund-level carry pool (most common):</strong> - Total fund carry: 20% of profits above hurdle rate - Allocated among partners (typically 70-80%), principals/VPs (typically 10-20%), associates/analysts (0-5%) - Carried interest vests over time (typically 4-6 year vesting schedule within the fund) - Partners allocate carry points annually based on performance reviews</p><p><strong>Deal-by-deal carry (less common, more common in earlier-stage PE):</strong> - Individual deals identified as being driven by specific deal team members - Carry from that deal flows disproportionately to those members - Creates stronger individual incentive to complete any specific deal - Problematic: deal team members are incentivized to cherry-pick attractive deals and pass responsibility for problematic deals to others</p><p><strong>Phantom carry / bonus carry:</strong> - Junior professionals receive \"phantom carry\" — economic participation linked to fund performance but without actual GP ownership - Vests similarly to real carry but is structured as a bonus rather than carried interest (different tax treatment in some jurisdictions)</p><p>### The VP / Principal Sweet Spot</p><p>The most acute deal completion incentive sits at the VP/Principal level (4-10 years in): - Sufficient carry to care about deals significantly - Not yet senior enough to have established reputation that protects them from deal-completion pressure - Promotion to Partner typically requires leading 2-4 completed deals - A good pass is invisible; a completed deal is observable</p><p>At this career stage, the structural incentive to complete deals over passing is most severe. The IC process is theoretically designed to provide quality control on deal team recommendations at this level — but IC partners face their own carry incentives, and challenging a VP/Principal's deal damages the relationship without producing visible benefit.</p><p>### The \"Good Pass\" Recognition Problem</p><p>Some PE firms have attempted to address the good-pass undervaluation problem through: - <strong>Explicitly recognising disciplined passes</strong> in annual performance reviews - <strong>Tracking pass decisions and outcomes</strong> — monitoring whether passed deals were later done by competitors at poor returns, validating the pass decision - <strong>Bain Capital's \"responsible growth\" model</strong> — explicitly incorporates risk discipline into partner performance evaluation; Bain is frequently cited for strong IC process quality relative to peers</p><p>These initiatives are exceptions to the market norm. Most PE firms evaluate professionals primarily on deal completion metrics, reinforcing the completion bias.</p><p>### Salary vs. Carry at Different Career Levels</p><p>| Level | Base Salary (approx 2023, US large PE) | Annual Bonus | Carry Points | Total Comp (est.) | |---|---|---|---|---| | Analyst (Yr 1-2) | $130-170k | $100-150k | 0 | $230-320k | | Associate (Yr 2-4) | $175-220k | $150-250k | 0-0.1% | $325-470k + carry | | Senior Associate/VP | $250-325k | $250-400k | 0.1-0.5% | $500-725k + carry | | Principal/Director | $350-500k | $500-1m+ | 0.5-2.0% | $850k-1.5m+ + carry | | Partner | $500k-1m+ | $1m-5m+ | 2-10%+ | $1.5m-$50m+ (carry-dominated) |</p><p>At the Partner level, carry completely dominates compensation. A 2% carry point in a $5bn fund earning 2x net over 10 years = 2% × $5bn × 1 multiple = $100m (grossly simplified). The incentive to deploy capital (which maximises carry opportunity) vs. maintain dry powder (which is prudent but generates no carry) is economically massive.</p><p>### The Promotion Track and Deal Completion Correlation</p><p>In most PE firms, the Associate-to-VP promotion requires: - Demonstrated deal sourcing ability (deal flow generation) - Lead modelling role on 2-3 transactions - Positive references from deal team partners</p><p>The VP-to-Principal and Principal-to-Partner promotions require: - Relationship-driven deal sourcing - Lead role (IC presentation) on 2-4 completed deals - Positive portfolio company outcomes (some firms require at least one successful exit) - LP relationship management capability</p><p><strong>What is notably absent from most promotion criteria:</strong> - Number of deals rejected after full DD (a disciplined pass is career-neutral at best) - Counterfactual performance analysis (would this deal have done worse under alternative decisions?) - Quality of IC memos (depth of risk analysis, accuracy of scenario projections)</p><p>This absence reinforces the completion bias: promotion criteria measure what the deal team produced (completed deals), not the quality of the decisions that led to them.</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### Carry Allocation at the Firm Level</p><p>Carried interest is allocated within the GP through an internal carry plan. Structure varies by firm, but common approaches:</p><p><strong>Fund-level carry pool (most common):</strong> - Total fund carry: 20% of profits above hurdle rate - Allocated among partners (typically 70-80%), principals/VPs (typically 10-20%), associates/analysts (0-5%) - Carried interest vests over time (typically 4-6 year vesting schedule within the fund) - Partners allocate carry points annually based on performance reviews</p><p><strong>Deal-by-deal carry (less common, more common in earlier-stage PE):</strong> - Individual deals identified as being driven by specific deal team members - Carry from that deal flows disproportionately to those members - Creates stronger individual incentive to complete any specific deal - Problematic: deal team members are incentivized to cherry-pick attractive deals and pass responsibility for problematic deals to others</p><p><strong>Phantom carry / bonus carry:</strong> - Junior professionals receive \"phantom carry\" — economic participation linked to fund performance but without actual GP ownership - Vests similarly to real carry but is structured as a bonus rather than carried interest (different tax treatment in some jurisdictions)</p><p>### The VP / Principal Sweet Spot</p><p>The most acute deal completion incentive sits at the VP/Principal level (4-10 years in): - Sufficient carry to care about deals significantly - Not yet senior enough to have established reputation that protects them from deal-completion pressure - Promotion to Partner typically requires leading 2-4 completed deals - A good pass is invisible; a completed deal is observable</p><p>At this career stage, the structural incentive to complete deals over passing is most severe. The IC process is theoretically designed to provide quality control on deal team recommendations at this level — but IC partners face their own carry incentives, and challenging a VP/Principal's deal damages the relationship without producing visible benefit.</p><p>### The \"Good Pass\" Recognition Problem</p><p>Some PE firms have attempted to address the good-pass undervaluation problem through: - <strong>Explicitly recognising disciplined passes</strong> in annual performance reviews - <strong>Tracking pass decisions and outcomes</strong> — monitoring whether passed deals were later done by competitors at poor returns, validating the pass decision - <strong>Bain Capital's \"responsible growth\" model</strong> — explicitly incorporates risk discipline into partner performance evaluation; Bain is frequently cited for strong IC process quality relative to peers</p><p>These initiatives are exceptions to the market norm. Most PE firms evaluate professionals primarily on deal completion metrics, reinforcing the completion bias.</p><p>### Salary vs. Carry at Different Career Levels</p><p>| Level | Base Salary (approx 2023, US large PE) | Annual Bonus | Carry Points | Total Comp (est.) | |---|---|---|---|---| | Analyst (Yr 1-2) | $130-170k | $100-150k | 0 | $230-320k | | Associate (Yr 2-4) | $175-220k | $150-250k | 0-0.1% | $325-470k + carry | | Senior Associate/VP | $250-325k | $250-400k | 0.1-0.5% | $500-725k + carry | | Principal/Director | $350-500k | $500-1m+ | 0.5-2.0% | $850k-1.5m+ + carry | | Partner | $500k-1m+ | $1m-5m+ | 2-10%+ | $1.5m-$50m+ (carry-dominated) |</p><p>At the Partner level, carry completely dominates compensation. A 2% carry point in a $5bn fund earning 2x net over 10 years = 2% × $5bn × 1 multiple = $100m (grossly simplified). The incentive to deploy capital (which maximises carry opportunity) vs. maintain dry powder (which is prudent but generates no carry) is economically massive.</p><p>### The Promotion Track and Deal Completion Correlation</p><p>In most PE firms, the Associate-to-VP promotion requires: - Demonstrated deal sourcing ability (deal flow generation) - Lead modelling role on 2-3 transactions - Positive references from deal team partners</p><p>The VP-to-Principal and Principal-to-Partner promotions require: - Relationship-driven deal sourcing - Lead role (IC presentation) on 2-4 completed deals - Positive portfolio company outcomes (some firms require at least one successful exit) - LP relationship management capability</p><p><strong>What is notably absent from most promotion criteria:</strong> - Number of deals rejected after full DD (a disciplined pass is career-neutral at best) - Counterfactual performance analysis (would this deal have done worse under alternative decisions?) - Quality of IC memos (depth of risk analysis, accuracy of scenario projections)</p><p>This absence reinforces the completion bias: promotion criteria measure what the deal team produced (completed deals), not the quality of the decisions that led to them.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>\"Carry alignment means GP and LP interests are aligned.\"</strong> Carry creates partial alignment on the upside but not symmetrical downside alignment. GPs lose their carry contribution (typically 1-3% of fund committed alongside LPs) but not their salaries, not their management fees, and not their reputation as \"deal doers.\" The asymmetry is structural.</p><p><strong>\"Senior partners' carry aligns them with LP interests.\"</strong> Partially true for fund-level performance, but senior partners also have reputational capital tied to deal activity. A senior partner who kills multiple deals is seen as obstructive; one who completes deals is seen as effective. The reputation incentive runs counter to quality discipline.</p><p><strong>\"Good associates learn to pass bad deals through experience.\"</strong> True over time — but the system filters out associates who pass too aggressively (by not promoting them) and retains those who complete deals. The survivor bias in promoted professionals systematically selects for deal-completion bias rather than deal-quality discipline.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>Deal team incentive structure is the internal principal-agent problem within PE firms: associates, VPs, and principals are evaluated primarily on deal completion metrics and earn carry from deployed (and successful) capital. Disciplined passes — correctly rejecting bad investments — produce no observable reward and career costs (no deal, no visible output, risk of competitor acquiring the same target successfully). The result is systemic completion bias that produces the thesis inflation, IC approval tendencies, and deal-quality problems the course documents. Carry alignment creates LP-GP alignment on fund returns but does not create deal-team alignment on deal quality — because the career incentive (complete deals to get promoted) operates independently of the fund-return incentive. The Bain Capital model is the most cited attempt to address this through explicit recognition of disciplined passing, but it remains exceptional rather than standard.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>Deal team incentive structure is the internal principal-agent problem within PE firms: associates, VPs, and principals are evaluated primarily on deal completion metrics and earn carry from deployed (and successful) capital. Disciplined passes — correctly rejecting bad investments — produce no observable reward and career costs (no deal, no visible output, risk of competitor acquiring the same target successfully). The result is systemic completion bias that produces the thesis inflation, IC approval tendencies, and deal-quality problems the course documents. Carry alignment creates LP-GP alignment on fund returns but does not create deal-team alignment on deal quality — because the career incentive (complete deals to get promoted) operates independently of the fund-return incentive. The Bain Capital model is the most cited attempt to address this through explicit recognition of disciplined passing, but it remains exceptional rather than standard.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

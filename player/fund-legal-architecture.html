@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "fund-legal-architecture", "title": "Fund Legal Architecture", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Before money moves", "on_screen_bullets": ["Protects LP capital", "Defines who has power", "Unlocks all fund economics"], "narration": "Before a single dollar moves, the legal architecture is everything. It determines whether an LP's capital is protected if the GP makes bad decisions, whether a GP can even earn their carry if the fund underperforms, and whether regulators across five different countries will treat the fund as legitimate. Getting this wrong isn't a paperwork problem — it's an existential fund problem. And for us as learners, this is the master key: fees, carry, waterfalls, clawbacks, and LP rights all live inside these documents, so understanding the architecture unlocks every other concept in fund economics. This opens Phase 9 — how the fund vehicle itself is actually built.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The contractual skeleton", "on_screen_bullets": ["Documents + structural choices", "Formed, operated, wound down", "Protects investors and managers"], "narration": "The definition. The fund legal architecture is the set of binding legal documents and structural choices that govern how a private equity fund is formed, operated, and wound down — protecting both investors and managers while defining who has power over what. It's the contractual skeleton on which the whole fund hangs.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "A business with silent investors", "on_screen_bullets": ["Founding rules + profit split", "Money-back mechanism + tax address", "Accountability for investors"], "narration": "Think of a PE fund as building a business with silent investors. Before you open for business you need five things. One, a founding document spelling out the rules — that's the Limited Partnership Agreement, the LPA. Two, an agreed split of profits — the carried interest and hurdle rate. Three, a mechanism to get money back if things go wrong — the clawback. Four, an address for the business that minimises the tax bill — the fund domicile. And five, a way for investors to hold the manager accountable — LP consent rights and the advisory committee. None of these are optional. Every institutional investor — pension funds, endowments, sovereign wealth funds — has lawyers who review every line before committing capital. The architecture is the contract that makes the whole relationship work.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Constitution of a small country", "on_screen_bullets": ["LPA = the constitution", "Side letters = bilateral treaties", "Domicile = whose laws govern"], "narration": "The mental model: the fund architecture is like the constitution and by-laws of a small country. The LPA is the constitution — supreme, hard to amend, and everyone is bound by it. Side letters are like bilateral trade agreements with specific allies — they modify the relationship for that one party without rewriting the constitution. And fund domicile is like choosing which country's laws govern your disputes — you pick the jurisdiction with the most favourable rules for your purpose. Hold onto that hierarchy, because the constitution always wins.", "est_sec": 42}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Three tiers, four protections", "on_screen_bullets": ["Tier 1 LPA, Tier 2 side letters, Tier 3 ancillary", "Pref return, clawback, key-man, consent", "Domicile sets tax + regulation"], "narration": "Technically, a PE fund is a limited partnership, and its architecture runs on three tiers. Tier one is the LPA — the master document governing the GP and all LPs: the investment mandate, fee mechanics, the distribution waterfall, LP rights, and termination. Everything else sits beneath it. Tier two is side letters — individual agreements with specific LPs that tweak the standard terms, like reduced fees for an anchor investor or enhanced reporting, but which cannot contradict the LPA's fundamental economics. Tier three is the ancillary documents — each LP's subscription agreement, the private placement memorandum that markets the fund, and the constitutional documents in the domicile. Embedded in the LPA are the four LP protection concepts you must know: the preferred return, where the GP earns carry only after LPs get a minimum annual return, typically eight percent; the clawback, where excess carry is returned at wind-down; the key-man clause, which suspends the investment period if named partners leave; and LP consent rights, where actions like amending the LPA need a majority or supermajority. And the domicile — Cayman for international buyout funds, Delaware for US domestic, Luxembourg for European, Jersey or Guernsey for UK-focused — sets the tax treatment for LPs and the regulatory regime for the GP.", "est_sec": 66}, {"n": 6, "beat": "structure", "visual": "mermaid", "source_section": "Diagram", "on_screen_title": "Everything descends from the LPA", "on_screen_bullets": ["Side letters override per-LP only", "Ancillary docs sit beneath", "Four protections embedded inside"], "mermaid": "flowchart TD\n  LPA[\"Tier 1 — LPA (master document)<br/>mandate · fees · waterfall · LP rights\"]\n  LPA -->|overridden per-LP by| SL[\"Tier 2 — Side Letters<br/>fees · reporting · co-invest (cannot alter core economics)\"]\n  LPA -->|sits above| ANC[\"Tier 3 — Ancillary docs<br/>subscription agreements · PPM · domicile constitution\"]\n  LPA -->|embeds| P[\"4 LP protections<br/>preferred return · clawback · key-man · consent rights\"]", "narration": "Here's the structure in one picture. Everything descends from the LPA at the top. A side letter branches off to modify terms for a single LP, but the dashed truth is that it cannot contradict the LPA's core economics — the constitution wins. The ancillary documents — subscription agreements, the placement memorandum, the domicile constitution — sit beneath it. And the four LP protections aren't separate documents at all; they're embedded clauses written into the LPA itself. When you read any fund, trace every term back up to this master document.", "est_sec": 40}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Drafting a £500m fund LPA", "on_screen_bullets": ["Term sheet: 2% / 20% / 8%", "Pension LP reviews 30–60 days", "3–4 markup rounds"], "narration": "Take a mid-market buyout GP raising a five-hundred-million-pound fund. They engage a top firm like Kirkland & Ellis or Clifford Chance to draft the LPA. The process starts with a term sheet of key economics — a two percent management fee, twenty percent carry, an eight percent hurdle — agreed informally with anchor LPs before the full document is even drafted. Then a large pension-fund LP like CDPQ or ATP puts its in-house legal team and external counsel onto the LPA for thirty to sixty days. The fund might run three or four rounds of markup before it's finalised. The common LP pushback points tell you what really matters: strengthening the clawback escrow requirements, lowering the fee step-down threshold, and tightening exactly what triggers the key-man clause. This is the architecture being negotiated into existence, clause by clause.", "est_sec": 52}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["LPA doesn't protect automatically", "Side letters ≠ governance power", "Domicile isn't just a tax trick"], "narration": "Three corrections. First, the LPA does not protect the LP automatically — it only protects to the extent it contains protective provisions; a GP-drafted LPA with weak clawback and vague key-man clauses offers minimal protection, so LPs must negotiate for it. Second, side letters do not give LPs extra power over fund decisions — they typically cover fee economics and information rights, not governance, and an LP cannot use a side letter to gain an investment veto. And third, fund domicile is not merely a tax trick — tax is the primary driver, but the domicile also determines which regulatory regime applies, such as AIFMD in Europe, which directly affects how the fund can market itself to LPs.", "est_sec": 46}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The skeleton under everything", "on_screen_bullets": ["LPA is the master document", "Four protections, strategic domicile", "All PE economics live here"], "narration": "To recap. The fund legal architecture is the contractual skeleton of a PE fund. The LPA is the master document, defining the mandate, the fee and carry economics, the waterfall, and LP rights, with side letters and ancillary documents sitting beneath it. Four legal concepts protect LPs — preferred return, clawback, key-man provisions, and consent rights — and the domicile is a strategic choice driven by LP tax treatment and regulatory access. Everything else in PE economics, from fees to carry to waterfalls to the J-curve, is ultimately governed by this architecture. Now we zoom into the single most important document in that stack — the LPA itself.", "est_sec": 44}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name the three tiers of fund legal architecture and the four LP protection concepts embedded in the LPA. Why can a side letter never override the LPA's core economics?", "narration": "Before the next lesson, answer all three. Name the three tiers of the fund legal architecture; name the four LP protection concepts embedded in the LPA; and explain why a side letter can never override the LPA's core economics. Reason it out, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "What is the primary legal document governing a PE fund?", "answer": "The Limited Partnership Agreement (LPA)."}, {"label": "Q2.", "question": "Name the four key LP protection mechanisms in fund legal architecture.", "answer": "Preferred return / hurdle rate, clawback, key man clause, LP consent rights."}, {"label": "Q3.", "question": "Why might a GP choose Cayman Islands over Delaware as a fund domicile?", "answer": "No fund-level tax on returns; flexible LP law; preferred by international LPs."}, {"label": "Q4.", "question": "What is a side letter and what can it modify?", "answer": "A bilateral agreement with a specific LP modifying standard LPA terms — typically covers fees, reporting, and co-investment rights, but not fundamental governance."}, {"label": "Q5.", "question": "What does the LPAC do?", "answer": "The Limited Partner Advisory Committee — a subset of large LPs consulted on conflicts of interest, valuations, and material LPA amendments."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Fund Legal Architecture\n\n[hook] Before money moves\nBefore a single dollar moves, the legal architecture is everything. It determines whether an LP's capital is protected if the GP makes bad decisions, whether a GP can even earn their carry if the fund underperforms, and whether regulators across five different countries will treat the fund as legitimate. Getting this wrong isn't a paperwork problem — it's an existential fund problem. And for us as learners, this is the master key: fees, carry, waterfalls, clawbacks, and LP rights all live inside these documents, so understanding the architecture unlocks every other concept in fund economics. This opens Phase 9 — how the fund vehicle itself is actually built.\n\n[definition] The contractual skeleton\nThe definition. The fund legal architecture is the set of binding legal documents and structural choices that govern how a private equity fund is formed, operated, and wound down — protecting both investors and managers while defining who has power over what. It's the contractual skeleton on which the whole fund hangs.\n\n[intuition] A business with silent investors\nThink of a PE fund as building a business with silent investors. Before you open for business you need five things. One, a founding document spelling out the rules — that's the Limited Partnership Agreement, the LPA. Two, an agreed split of profits — the carried interest and hurdle rate. Three, a mechanism to get money back if things go wrong — the clawback. Four, an address for the business that minimises the tax bill — the fund domicile. And five, a way for investors to hold the manager accountable — LP consent rights and the advisory committee. None of these are optional. Every institutional investor — pension funds, endowments, sovereign wealth funds — has lawyers who review every line before committing capital. The architecture is the contract that makes the whole relationship work.\n\n[intuition] Constitution of a small country\nThe mental model: the fund architecture is like the constitution and by-laws of a small country. The LPA is the constitution — supreme, hard to amend, and everyone is bound by it. Side letters are like bilateral trade agreements with specific allies — they modify the relationship for that one party without rewriting the constitution. And fund domicile is like choosing which country's laws govern your disputes — you pick the jurisdiction with the most favourable rules for your purpose. Hold onto that hierarchy, because the constitution always wins.\n\n[mechanics] Three tiers, four protections\nTechnically, a PE fund is a limited partnership, and its architecture runs on three tiers. Tier one is the LPA — the master document governing the GP and all LPs: the investment mandate, fee mechanics, the distribution waterfall, LP rights, and termination. Everything else sits beneath it. Tier two is side letters — individual agreements with specific LPs that tweak the standard terms, like reduced fees for an anchor investor or enhanced reporting, but which cannot contradict the LPA's fundamental economics. Tier three is the ancillary documents — each LP's subscription agreement, the private placement memorandum that markets the fund, and the constitutional documents in the domicile. Embedded in the LPA are the four LP protection concepts you must know: the preferred return, where the GP earns carry only after LPs get a minimum annual return, typically eight percent; the clawback, where excess carry is returned at wind-down; the key-man clause, which suspends the investment period if named partners leave; and LP consent rights, where actions like amending the LPA need a majority or supermajority. And the domicile — Cayman for international buyout funds, Delaware for US domestic, Luxembourg for European, Jersey or Guernsey for UK-focused — sets the tax treatment for LPs and the regulatory regime for the GP.\n\n[structure] Everything descends from the LPA\nHere's the structure in one picture. Everything descends from the LPA at the top. A side letter branches off to modify terms for a single LP, but the dashed truth is that it cannot contradict the LPA's core economics — the constitution wins. The ancillary documents — subscription agreements, the placement memorandum, the domicile constitution — sit beneath it. And the four LP protections aren't separate documents at all; they're embedded clauses written into the LPA itself. When you read any fund, trace every term back up to this master document.\n\n[worked-example] Drafting a £500m fund LPA\nTake a mid-market buyout GP raising a five-hundred-million-pound fund. They engage a top firm like Kirkland & Ellis or Clifford Chance to draft the LPA. The process starts with a term sheet of key economics — a two percent management fee, twenty percent carry, an eight percent hurdle — agreed informally with anchor LPs before the full document is even drafted. Then a large pension-fund LP like CDPQ or ATP puts its in-house legal team and external counsel onto the LPA for thirty to sixty days. The fund might run three or four rounds of markup before it's finalised. The common LP pushback points tell you what really matters: strengthening the clawback escrow requirements, lowering the fee step-down threshold, and tightening exactly what triggers the key-man clause. This is the architecture being negotiated into existence, clause by clause.\n\n[pitfalls] What people get wrong\nThree corrections. First, the LPA does not protect the LP automatically — it only protects to the extent it contains protective provisions; a GP-drafted LPA with weak clawback and vague key-man clauses offers minimal protection, so LPs must negotiate for it. Second, side letters do not give LPs extra power over fund decisions — they typically cover fee economics and information rights, not governance, and an LP cannot use a side letter to gain an investment veto. And third, fund domicile is not merely a tax trick — tax is the primary driver, but the domicile also determines which regulatory regime applies, such as AIFMD in Europe, which directly affects how the fund can market itself to LPs.\n\n[recap] The skeleton under everything\nTo recap. The fund legal architecture is the contractual skeleton of a PE fund. The LPA is the master document, defining the mandate, the fee and carry economics, the waterfall, and LP rights, with side letters and ancillary documents sitting beneath it. Four legal concepts protect LPs — preferred return, clawback, key-man provisions, and consent rights — and the domicile is a strategic choice driven by LP tax treatment and regulatory access. Everything else in PE economics, from fees to carry to waterfalls to the J-curve, is ultimately governed by this architecture. Now we zoom into the single most important document in that stack — the LPA itself.\n\nQ: What is the primary legal document governing a PE fund?\nA: The Limited Partnership Agreement (LPA).\nQ: Name the four key LP protection mechanisms in fund legal architecture.\nA: Preferred return / hurdle rate, clawback, key man clause, LP consent rights.\nQ: Why might a GP choose Cayman Islands over Delaware as a fund domicile?\nA: No fund-level tax on returns; flexible LP law; preferred by international LPs.\nQ: What is a side letter and what can it modify?\nA: A bilateral agreement with a specific LP modifying standard LPA terms — typically covers fees, reporting, and co-investment rights, but not fundamental governance.\nQ: What does the LPAC do?\nA: The Limited Partner Advisory Committee — a subset of large LPs consulted on conflicts of interest, valuations, and material LPA amendments.\nEnd-card question: Name the three tiers of fund legal architecture and the four LP protection concepts embedded in the LPA. Why can a side letter never override the LPA's core economics?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Before money moves, the legal architecture is everything. It determines whether an LP's capital is protected if the GP makes bad decisions, whether a GP can earn their carry if the fund underperforms, and whether regulators in five different countries will treat the fund as legitimate. Getting this wrong is not a paperwork problem — it is an existential fund problem. For learners, understanding the legal architecture unlocks every other concept in fund economics: fees, carry, waterfalls, clawbacks, and LP rights all live inside these documents.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The fund legal architecture is the set of binding legal documents and structural choices that govern how a private equity fund is formed, operated, and wound down — protecting both investors and managers while defining who has power over what.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of a private equity fund like building a business with silent investors. Before you open for business, you need:</p><ol><li>A founding document that spells out the rules (the <strong>LPA</strong> — Limited Partnership Agreement)</li><li>An agreed split of profits (the <strong>carried interest and hurdle rate</strong>)</li><li>A mechanism for getting your money back if things go wrong (the <strong>clawback</strong>)</li><li>An address for the business that minimises your tax bill (the <strong>fund domicile</strong>)</li><li>A way for investors to hold the manager accountable (the <strong>LP consent rights and LPAC</strong>)</li></ol><p>None of these are optional. Every institutional investor — pension funds, endowments, sovereign wealth funds — has lawyers who review every line of these documents before committing capital. The legal architecture is the contract that makes the whole relationship work.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The fund legal architecture is like the constitution and by-laws of a small country. The LPA is the constitution — supreme, hard to amend, everyone is bound by it. Side letters are like bilateral trade agreements with specific allies — they modify the relationship for that party without rewriting the constitution. Fund domicile is like choosing which country's laws govern disputes — you pick the one with the most favourable rules for your purposes.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>A PE fund is legally a limited partnership. The legal architecture operates on three tiers:</p><p><strong>Tier 1 — The Limited Partnership Agreement (LPA)</strong> The master document. It governs the relationship between the GP and all LPs. It defines the investment mandate, fee mechanics, distribution waterfall, LP rights, and fund termination. All other documents sit beneath it.</p><p><strong>Tier 2 — Side Letters</strong> Individual agreements between the GP and specific LPs that modify standard LPA terms for that LP (e.g., reduced management fees for anchor investors, enhanced reporting, co-investment rights). Side letters cannot contradict the LPA on fundamental economics.</p><p><strong>Tier 3 — Ancillary Documents</strong> Subscription agreements (each LP's commitment), the PPM (Private Placement Memorandum — the marketing document), and the fund's constitutional documents in its jurisdiction of domicile.</p><p>### The Four LP Protection Concepts</p><p>Every PE fund's legal architecture must address these four concepts. They define how much an LP is protected:</p><p>| Concept | What it does | |---|---| | <strong>Preferred Return / Hurdle Rate</strong> | GP earns carry only after LPs receive a minimum annual return (typically 8%) | | <strong>Clawback</strong> | At fund wind-down, any excess carry the GP received must be returned | | <strong>Key Man Clause</strong> | If named partners leave, investment period is suspended pending LP vote | | <strong>LP Consent Rights</strong> | Certain actions (amending the LPA, extending the fund) require LP majority or supermajority approval |</p><p>### Fund Domicile</p><p>Where the fund is legally registered determines tax treatment for LPs and regulatory requirements for GPs. The most common choices are the Cayman Islands (international buyout funds), Delaware (US domestic funds), Luxembourg (European funds), and Jersey/Guernsey (UK-focused funds). See Fund Domicile and Jurisdiction for detail.</p>"}, "5": {"section": "Diagram", "html": "<p>Everything descends from the LPA. Side letters and ancillary documents sit beneath it; the four LP protections are written into it.</p><p>A side letter can tweak terms for one LP but cannot contradict the LPA's fundamental economics — the constitution wins.</p>"}, "6": {"section": "Real-World Example", "html": "<p>A mid-market buyout GP raising a €500M fund will engage Kirkland &amp; Ellis or Clifford Chance to draft an LPA. The process typically starts with a \"term sheet\" of key economics — 2% management fee, 20% carry, 8% hurdle — agreed informally with anchor LPs before the full LPA is drafted. A large pension fund LP like CDPQ or ATP will have in-house legal teams and external counsel reviewing the LPA for 30-60 days. The fund might run 3-4 rounds of markup before the LPA is finalised. Common LP pushback points include strengthening clawback escrow requirements, lowering the fee step-down threshold, and clarifying key man trigger conditions.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ul class='notelist'><li><strong>\"The LPA protects the LP automatically.\"</strong> False. The LPA only protects LPs to the extent it contains protective provisions — a GP-drafted LPA with weak clawback and vague key man clauses offers minimal protection. LPs must negotiate.</li><li><strong>\"Side letters give LPs extra power over fund decisions.\"</strong> False. Side letters typically cover fee economics and information rights, not governance rights. An LP cannot use a side letter to gain investment veto power.</li><li><strong>\"Fund domicile is just a tax trick.\"</strong> Partially false. While tax is the primary driver, domicile also determines which regulatory regime applies (e.g., AIFMD in Europe), which can affect how the fund markets itself to LPs.</li></ul>"}, "8": {"section": "Summary", "html": "<p>The fund legal architecture is the contractual skeleton of a PE fund. The LPA is the master document, defining the investment mandate, fee and carry economics, distribution waterfall, and LP rights. Four key legal concepts protect LPs: preferred return, clawback, key man provisions, and consent rights. Fund domicile is a strategic choice driven by LP tax treatment and regulatory access. Everything else in PE economics — fees, carry, waterfalls, J-curves — is ultimately governed by this legal architecture.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

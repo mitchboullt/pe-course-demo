@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lbo-model-architecture", "title": "LBO Model Architecture", "draft_watermark": false, "estimated_runtime_sec": 450, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The analytical engine", "on_screen_bullets": ["Sets the max price", "Tests the whole thesis", "Where every concept meets"], "narration": "The LBO model is the analytical engine of every PE deal. Before any offer is made, the team runs it to answer the questions that decide everything: what's the maximum price we can pay? How much leverage does the deal support? What does EBITDA have to achieve for this to work? And what happens if the thesis is wrong? Here's the deeper point — every concept you've studied separately in this course, entry multiples, debt structures, the return sources, the waterfall, IRR and MOIC, is an input or an output of this one model. The model is where all of them operate at once. Understanding its architecture — which piece feeds which, where the assumptions live, what breaks when an input is wrong — is what separates someone who can run a model from someone who only learned the parts.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Six connected modules", "on_screen_bullets": ["Entry · operating · debt · cash", "Balance sheet · returns", "One question: 20%+ IRR?"], "narration": "The definition. An LBO model is a financial model structured as six interconnected modules — transaction entry, operating forecast, debt schedule, cash flow bridge, balance sheet, and returns analysis — that collectively answer one question: at what price can we buy this company and still return twenty percent-plus IRR to our investors? Six modules, one verdict.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "A machine with six rooms", "on_screen_bullets": ["Room 1: entry gate (S&U)", "Room 2: the engine (operating)", "Each room feeds the next"], "narration": "Think of the model as a machine with six rooms, each doing one job, the output of each flowing into the next. Room one, the entry gate — sources and uses — is where you decide what you're paying and how you're financing it: total enterprise value, the split into debt and equity, and what each debt tranche costs. The equity figure from this room is your cost basis — the denominator in your eventual return. Room two, the engine — the operating model — is where you project what the company earns over five to seven years: revenue grows, margins move, and each year produces an EBITDA. From there the cash flows on through the debt schedule, the cash flow bridge, the balance sheet, and finally the returns room — each handing its output to the next, until the machine tells you whether the price in room one produces the return in room six.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Dominoes in a loop", "on_screen_bullets": ["Entry → operating → debt → cash", "Debt and cash feed each other", "Returns tell you 20%+ or not"], "narration": "Picture a chain of dominoes — except the first and last are connected, making it a loop rather than a line. The entry assumptions set the first domino. The operating model projects the business. The debt schedule tracks the cost of the debt and its repayment. The cash flow bridge connects operating performance to how much cash is available to pay debt down. And here's the connected domino — the debt schedule feeds back into the cash flow bridge, because the interest you owe depends on the debt balance, and the debt balance depends on how much cash you swept, which depends on the interest you owe. That's the famous circular reference, the loop in the chain. And the final domino, returns, tells you whether the whole thing produced a twenty percent-plus IRR. The art of modelling is knowing which assumption moves which domino, by how much.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Module 1 sets the start", "on_screen_bullets": ["Uses: price + refi + fees + WC", "Sources: senior + sub + equity", "Equity is the balancing plug"], "narration": "Let's open the first module technically, because it anchors everything. Module one — the transaction summary, the sources and uses — establishes the starting state, with two sides that must balance. The uses side: the purchase price, entry EBITDA times the entry multiple; any existing debt to be refinanced at close; transaction fees, to banks, bankers, and lawyers; and a working-capital adjustment if needed. The sources side: senior debt — the term loans and any revolver drawn at close; subordinated debt — mezzanine, PIK, high-yield; and equity, the sponsor's contribution. As we saw in the sources-and-uses lesson, the equity is the plug that forces the two sides level — and that equity number is precisely the cost basis the returns module will divide into. So the very first room already fixes the denominator of your return; everything downstream determines the numerator.", "est_sec": 58}, {"n": 6, "beat": "mechanics", "visual": "diagram", "source_section": "Diagram", "on_screen_title": "The six modules wired up", "on_screen_bullets": ["1 S&U → 2 operating → 4 FCF", "3 debt ↔ 4 FCF (circular)", "5 balance sheet → 6 returns"], "mermaid": "flowchart TD\n  M1[\"1 Sources & Uses<br/>entry equity = the plug\"] --> M2[\"2 Operating model<br/>revenue → EBITDA\"]\n  M2 --> M4[\"4 FCF bridge<br/>EBITDA → cash\"]\n  M4 -->|cash sweep| M3[\"3 Debt schedule<br/>per-tranche balances\"]\n  M3 -->|cash interest| M4\n  M3 --> M5[\"5 Balance sheet<br/>net debt at exit\"]\n  M5 --> M6[\"6 Returns<br/>MOIC · IRR · attribution · sensitivity\"]\n  M1 -->|entry equity| M6", "narration": "Here's the whole machine wired up. Module one, sources and uses, sets the entry equity and feeds two things: the operating model, and — directly — the returns module, because that entry equity is the cost basis. The operating model turns revenue into EBITDA and passes it to module four, the cash flow bridge, which converts EBITDA into the actual cash available. That cash sweeps down the debt schedule, module three, reducing the per-tranche balances — and the debt schedule sends cash interest back up to the cash flow bridge. That two-way arrow between modules three and four is the circular reference: cash determines debt paydown, debt determines interest, interest determines cash. The debt schedule then hands the net debt at exit to the balance sheet, module five, which passes it to module six, returns — where MOIC, IRR, attribution, and the sensitivity tables finally tell you whether the price in module one cleared the hurdle. Six rooms, one loop, one answer.", "est_sec": 62}, {"n": 7, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Following one assumption through", "on_screen_bullets": ["Raise the entry multiple in Module 1", "Bigger equity plug ripples down", "Lower IRR pops out of Module 6"], "narration": "See how it behaves by pushing one assumption through the chain. Suppose, in module one, you raise the entry multiple — you bid more. The purchase price rises, and since the debt is capped by leverage, the equity plug gets bigger. That bigger cost basis flows straight to module six as a larger denominator. Meanwhile nothing in the operating model changed — same EBITDA path — and the debt schedule and cash flows are broadly unchanged, so the exit equity is roughly the same. Divide a similar exit equity by a larger entry equity, and the MOIC and IRR in module six drop. That's the whole model in motion: a single input in room one ripples through the loop and pops out as a lower return in room six — which is exactly why the team runs the model before bidding, to find the highest price that still clears twenty percent. The model is, in effect, the LBO floor calculator we met earlier.", "est_sec": 60}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Precision ≠ accuracy", "Garbage in, garbage out", "The circular ref needs care"], "narration": "Three corrections. First, a model's precision is not its accuracy — it will output an IRR to two decimal places off assumptions that are educated guesses, and that false confidence is dangerous; the discipline is to stress the inputs, not admire the outputs. Second, garbage in, garbage out — the model faithfully computes whatever you feed it, so an optimistic revenue forecast or a generous exit multiple produces a beautiful, meaningless answer; the assumptions are the analysis, the arithmetic is just bookkeeping. And third, the circular reference between the debt schedule and cash flow bridge has to be handled carefully — it's why these models use iterative calculation, and a mishandled circularity is one of the most common ways an LBO model silently breaks. Respect the loop.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Six rooms, one answer", "on_screen_bullets": ["Entry equity in, returns out", "Circular ref links debt & cash", "Assumptions are the analysis"], "narration": "To recap. The LBO model is six interconnected modules — sources and uses, operating model, debt schedule, cash flow bridge, balance sheet, and returns — that together answer one question: at what price does this deal still return twenty percent-plus? Module one fixes the entry equity, your cost basis; the operating model and cash flows determine the exit equity; the debt schedule and cash flow bridge form the famous circular reference, cash and interest defining each other; and the returns module delivers the verdict. Every concept in this course lives somewhere in this machine. Its precision is seductive but its accuracy lives in the assumptions, so model humbly and stress hard. Next we open the most intricate room — the debt schedule mechanics.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "What is the 'circular reference' in an LBO model — which two modules create it, and why does it exist?", "narration": "Before the next lesson, explain the loop. What is the circular reference in an LBO model — which two modules feed each other, and why is that circularity unavoidable? Reason it out, then check the notes below."}, "quiz": [{"label": "Q1 (Ordering):", "question": "Put the six LBO model modules in the correct logical sequence:\n\nReturns Analysis, Operating Model, Debt Schedule, Sources & Uses, Cash Flow Bridge, Balance Sheet", "answer": "(1) Sources & Uses, (2) Operating Model, (3) Debt Schedule, (4) Cash Flow Bridge, (5) Balance Sheet, (6) Returns Analysis."}, {"label": "Q2 (Short answer):", "question": "What creates the circular reference in an LBO model and how is it typically resolved?", "answer": "Interest expense depends on the debt balance → the debt balance depends on the cash sweep → the cash sweep depends on FCF → FCF depends on interest expense (deducted from EBITDA). This is resolved by enabling Excel's iterative calculations, which recalculate the sheet multiple times until the values converge."}, {"label": "Q3 (Calculation):", "question": "An LBO model shows: Entry EBITDA £50M, entry multiple 9x (entry equity £90M after £360M of debt), exit EBITDA £70M at exit multiple 10x, exit debt £280M. Calculate gross MOIC and identify which return source was largest.", "answer": "- Entry EV = 9 × £50M = £450M. Entry debt = £360M. Entry equity = £90M.\n- Exit EV = 10 × £70M = £700M. Exit debt = £280M. Exit equity = £420M.\n- Gross MOIC = £420M / £90M = **4.67x**\n- Return attribution: EBITDA growth (£70M − £50M) × 10x = £200M; Multiple expansion (10x − 9x) × £50M = £50M; Debt paydown £360M − £280M = £80M; Total = £330M = £420M − £90M ✓\n- Largest source: **EBITDA growth (£200M, 61%)**"}, {"label": "Q4 (True/False):", "question": "The LBO model determines the price a PE firm will pay for a company.", "answer": "False. The LBO model determines the *maximum* price at which the deal still meets the return hurdle. The *actual* price is determined by competition in the M&A process. The model constrains the upper bound; the auction sets the actual bid."}, {"label": "Q5 (Concept):", "question": "Why does a PE base case use more conservative assumptions than management's projections?", "answer": "Management teams have financial incentives tied to deal completion (transaction bonuses) and may be optimistic about their own business. PE firms underwrite to achievable assumptions — what the company must do to generate adequate returns, not its best case. Paying a price based on management's projections means any shortfall destroys returns; conservative underwriting preserves IRR in realistic scenarios."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LBO Model Architecture\n\n[hook] The analytical engine\nThe LBO model is the analytical engine of every PE deal. Before any offer is made, the team runs it to answer the questions that decide everything: what's the maximum price we can pay? How much leverage does the deal support? What does EBITDA have to achieve for this to work? And what happens if the thesis is wrong? Here's the deeper point — every concept you've studied separately in this course, entry multiples, debt structures, the return sources, the waterfall, IRR and MOIC, is an input or an output of this one model. The model is where all of them operate at once. Understanding its architecture — which piece feeds which, where the assumptions live, what breaks when an input is wrong — is what separates someone who can run a model from someone who only learned the parts.\n\n[definition] Six connected modules\nThe definition. An LBO model is a financial model structured as six interconnected modules — transaction entry, operating forecast, debt schedule, cash flow bridge, balance sheet, and returns analysis — that collectively answer one question: at what price can we buy this company and still return twenty percent-plus IRR to our investors? Six modules, one verdict.\n\n[intuition] A machine with six rooms\nThink of the model as a machine with six rooms, each doing one job, the output of each flowing into the next. Room one, the entry gate — sources and uses — is where you decide what you're paying and how you're financing it: total enterprise value, the split into debt and equity, and what each debt tranche costs. The equity figure from this room is your cost basis — the denominator in your eventual return. Room two, the engine — the operating model — is where you project what the company earns over five to seven years: revenue grows, margins move, and each year produces an EBITDA. From there the cash flows on through the debt schedule, the cash flow bridge, the balance sheet, and finally the returns room — each handing its output to the next, until the machine tells you whether the price in room one produces the return in room six.\n\n[intuition] Dominoes in a loop\nPicture a chain of dominoes — except the first and last are connected, making it a loop rather than a line. The entry assumptions set the first domino. The operating model projects the business. The debt schedule tracks the cost of the debt and its repayment. The cash flow bridge connects operating performance to how much cash is available to pay debt down. And here's the connected domino — the debt schedule feeds back into the cash flow bridge, because the interest you owe depends on the debt balance, and the debt balance depends on how much cash you swept, which depends on the interest you owe. That's the famous circular reference, the loop in the chain. And the final domino, returns, tells you whether the whole thing produced a twenty percent-plus IRR. The art of modelling is knowing which assumption moves which domino, by how much.\n\n[mechanics] Module 1 sets the start\nLet's open the first module technically, because it anchors everything. Module one — the transaction summary, the sources and uses — establishes the starting state, with two sides that must balance. The uses side: the purchase price, entry EBITDA times the entry multiple; any existing debt to be refinanced at close; transaction fees, to banks, bankers, and lawyers; and a working-capital adjustment if needed. The sources side: senior debt — the term loans and any revolver drawn at close; subordinated debt — mezzanine, PIK, high-yield; and equity, the sponsor's contribution. As we saw in the sources-and-uses lesson, the equity is the plug that forces the two sides level — and that equity number is precisely the cost basis the returns module will divide into. So the very first room already fixes the denominator of your return; everything downstream determines the numerator.\n\n[mechanics] The six modules wired up\nHere's the whole machine wired up. Module one, sources and uses, sets the entry equity and feeds two things: the operating model, and — directly — the returns module, because that entry equity is the cost basis. The operating model turns revenue into EBITDA and passes it to module four, the cash flow bridge, which converts EBITDA into the actual cash available. That cash sweeps down the debt schedule, module three, reducing the per-tranche balances — and the debt schedule sends cash interest back up to the cash flow bridge. That two-way arrow between modules three and four is the circular reference: cash determines debt paydown, debt determines interest, interest determines cash. The debt schedule then hands the net debt at exit to the balance sheet, module five, which passes it to module six, returns — where MOIC, IRR, attribution, and the sensitivity tables finally tell you whether the price in module one cleared the hurdle. Six rooms, one loop, one answer.\n\n[worked-example] Following one assumption through\nSee how it behaves by pushing one assumption through the chain. Suppose, in module one, you raise the entry multiple — you bid more. The purchase price rises, and since the debt is capped by leverage, the equity plug gets bigger. That bigger cost basis flows straight to module six as a larger denominator. Meanwhile nothing in the operating model changed — same EBITDA path — and the debt schedule and cash flows are broadly unchanged, so the exit equity is roughly the same. Divide a similar exit equity by a larger entry equity, and the MOIC and IRR in module six drop. That's the whole model in motion: a single input in room one ripples through the loop and pops out as a lower return in room six — which is exactly why the team runs the model before bidding, to find the highest price that still clears twenty percent. The model is, in effect, the LBO floor calculator we met earlier.\n\n[pitfalls] What people get wrong\nThree corrections. First, a model's precision is not its accuracy — it will output an IRR to two decimal places off assumptions that are educated guesses, and that false confidence is dangerous; the discipline is to stress the inputs, not admire the outputs. Second, garbage in, garbage out — the model faithfully computes whatever you feed it, so an optimistic revenue forecast or a generous exit multiple produces a beautiful, meaningless answer; the assumptions are the analysis, the arithmetic is just bookkeeping. And third, the circular reference between the debt schedule and cash flow bridge has to be handled carefully — it's why these models use iterative calculation, and a mishandled circularity is one of the most common ways an LBO model silently breaks. Respect the loop.\n\n[recap] Six rooms, one answer\nTo recap. The LBO model is six interconnected modules — sources and uses, operating model, debt schedule, cash flow bridge, balance sheet, and returns — that together answer one question: at what price does this deal still return twenty percent-plus? Module one fixes the entry equity, your cost basis; the operating model and cash flows determine the exit equity; the debt schedule and cash flow bridge form the famous circular reference, cash and interest defining each other; and the returns module delivers the verdict. Every concept in this course lives somewhere in this machine. Its precision is seductive but its accuracy lives in the assumptions, so model humbly and stress hard. Next we open the most intricate room — the debt schedule mechanics.\n\nQ: Put the six LBO model modules in the correct logical sequence:\n\nReturns Analysis, Operating Model, Debt Schedule, Sources & Uses, Cash Flow Bridge, Balance Sheet\nA: (1) Sources & Uses, (2) Operating Model, (3) Debt Schedule, (4) Cash Flow Bridge, (5) Balance Sheet, (6) Returns Analysis.\nQ: What creates the circular reference in an LBO model and how is it typically resolved?\nA: Interest expense depends on the debt balance → the debt balance depends on the cash sweep → the cash sweep depends on FCF → FCF depends on interest expense (deducted from EBITDA). This is resolved by enabling Excel's iterative calculations, which recalculate the sheet multiple times until the values converge.\nQ: An LBO model shows: Entry EBITDA £50M, entry multiple 9x (entry equity £90M after £360M of debt), exit EBITDA £70M at exit multiple 10x, exit debt £280M. Calculate gross MOIC and identify which return source was largest.\nA: - Entry EV = 9 × £50M = £450M. Entry debt = £360M. Entry equity = £90M.\n- Exit EV = 10 × £70M = £700M. Exit debt = £280M. Exit equity = £420M.\n- Gross MOIC = £420M / £90M = **4.67x**\n- Return attribution: EBITDA growth (£70M − £50M) × 10x = £200M; Multiple expansion (10x − 9x) × £50M = £50M; Debt paydown £360M − £280M = £80M; Total = £330M = £420M − £90M ✓\n- Largest source: **EBITDA growth (£200M, 61%)**\nQ: The LBO model determines the price a PE firm will pay for a company.\nA: False. The LBO model determines the *maximum* price at which the deal still meets the return hurdle. The *actual* price is determined by competition in the M&A process. The model constrains the upper bound; the auction sets the actual bid.\nQ: Why does a PE base case use more conservative assumptions than management's projections?\nA: Management teams have financial incentives tied to deal completion (transaction bonuses) and may be optimistic about their own business. PE firms underwrite to achievable assumptions — what the company must do to generate adequate returns, not its best case. Paying a price based on management's projections means any shortfall destroys returns; conservative underwriting preserves IRR in realistic scenarios.\nEnd-card question: What is the 'circular reference' in an LBO model — which two modules create it, and why does it exist?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The LBO model is the analytical engine of every PE deal. Before any offer is made, the PE team runs the model to determine: what is the maximum price we can pay? What leverage does the deal support? What does EBITDA need to achieve for the deal to work? What happens if the thesis is wrong?</p><p>Every concept studied separately in this course — entry multiples, debt structures, return sources, the waterfall, IRR and MOIC — is an input or output of the LBO model. The model is where all of those concepts operate simultaneously. Understanding its architecture — which module feeds which, where the assumptions live, and what breaks when inputs are wrong — is the difference between being able to describe PE and being able to practise it.</p><p>Critically: the model does not drive the investment decision. The investment thesis drives the decision. The model tests whether a given price is consistent with achieving the required return, given the thesis. \"The model says we can pay 12x\" is shorthand for \"at 12x, assuming this EBITDA growth and this exit multiple, we achieve our IRR hurdle.\"</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>An LBO model is a financial model structured as six interconnected modules — transaction entry, operating forecast, debt schedule, cash flow bridge, balance sheet, and returns analysis — that collectively answer a single question: at what price can we buy this company and still return 20%+ IRR to our investors?</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of an LBO model as a machine with six rooms, each doing one job, and the output of each room flowing into the next.</p><p><strong>Room 1 — The Entry Gate (Sources &amp; Uses):</strong> You decide what you're paying for the company and how you're financing it. This room establishes: total enterprise value, how that splits into debt and equity, and what each debt tranche costs. The equity figure from Room 1 is your \"cost basis\" — the denominator in your eventual return calculation.</p><p><strong>Room 2 — The Engine (Operating Model):</strong> You project what the company will earn over the next 5-7 years. Revenue grows, margins improve (or don't), and each year produces an EBITDA figure. This room doesn't know about the debt; it just models the business as a business.</p><p><strong>Room 3 — The Accounts Payable Office (Debt Schedule):</strong> Each debt tranche gets its own sub-ledger. Every year: here's how much we owe, here's the interest we paid, here's how much principal we repaid. The debt schedule takes cash from Room 4 to repay debt, and tells Room 4 how much cash it consumed on interest.</p><p><strong>Room 4 — The Cash Register (Free Cash Flow Bridge):</strong> EBITDA from Room 2 minus taxes, capex, working capital changes, and interest (from Room 3) equals free cash flow. This cash either goes to paying down debt (back to Room 3) or sits as cash. This is the room where interest expense and debt repayment interact — creating the circularity that makes LBO models technically complex.</p><p><strong>Room 5 — The Filing Cabinet (Balance Sheet):</strong> Tracks the company's total assets and liabilities over time. In simplified models this room is small — just tracking net debt. In detailed models it reconciles everything. Its primary output is the net debt figure at exit.</p><p><strong>Room 6 — The Checkout (Returns Analysis):</strong> At your assumed exit year and exit multiple, what is the enterprise value? Subtract net debt (from Rooms 3/5). That's exit equity. Divide by entry equity (from Room 1). That's your MOIC. Solve for the annualised rate that gets you from entry equity to exit equity. That's your IRR. Run sensitivity tables: what if the exit multiple is lower? What if EBITDA grows slower?</p><p>The machine runs forward: you input assumptions in Room 1 and Room 2, the model calculates through Rooms 3 and 4 simultaneously (because of the circularity), updates Room 5, and Room 6 tells you whether the deal works at the price you've offered.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>An LBO model is like a chain of dominos, but the first and last dominos are connected — making it a loop rather than a line.</p><ul class='notelist'><li>The entry assumptions (Module 1) set the first domino</li><li>The operating model (Module 2) projects the business performance</li><li>The debt schedule (Module 3) tracks debt service costs and repayment</li><li>The cash flow bridge (Module 4) connects operating performance to debt capacity</li><li>The debt schedule feeds back into the cash flow bridge (the circular reference — the \"connected\" domino)</li><li>The returns (Module 6) tell you whether the whole chain produced a 20%+ IRR</li></ul><p>The art of LBO modelling is knowing which assumptions move which dominos by how much — and which combinations of downside scenarios cascade into a deal failure. A model that shows 22% IRR in the base case but 7% in a moderate downside is a worse deal than one showing 19% in base but 15% in downside.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Module 1: Transaction Summary (Sources &amp; Uses)</p><p>The entry page establishes the starting state. It has two sides that must balance.</p><p><strong>Uses of funds:</strong> - Purchase price = Entry EBITDA × Entry multiple - Existing debt to be refinanced (if the target had debt that must be repaid at close) - Transaction fees (financing fees to banks, M&amp;A advisory fees to bankers, legal fees) - Working capital adjustment (if the NWC at close is below peg, an additional \"use\" appears)</p><p><strong>Sources of funds:</strong> - Senior debt (TLB, TLA, RCF drawn at close if applicable) - Subordinated debt (mezzanine, PIK notes, HY bonds) - Equity (PE sponsor's fund equity contribution)</p><p>The sources and uses always balance. The equity is the \"plug\" — whatever debt the lenders will provide, equity fills the gap to the total uses figure.</p><p><strong>Key calculated metrics from Module 1:</strong> - Entry Debt/EBITDA (leverage ratio) - Entry equity / total capitalisation (equity cushion) - Blended cost of debt (weighted average of all debt tranches)</p><p>### Module 2: Operating Model</p><p>The operating model projects the income statement over the hold period.</p><p><strong>Structure:</strong> - Revenue: typically projected as an annual growth rate (e.g., +8% p.a.) from a base year - Cost of goods sold / gross margin (often modelled as a % of revenue) - Operating expenses (SG&amp;A, R&amp;D): either grown with revenue or modelled as a fixed base with incremental growth - EBITDA = Revenue × EBITDA margin % (the core metric) - D&amp;A (depreciation and amortisation): necessary to get from EBITDA to EBIT and calculate tax - EBIT = EBITDA − D&amp;A - Interest expense: pulled from Module 3 (creates the link between modules) - Pre-tax profit = EBIT − Interest - Tax = Pre-tax profit × effective tax rate - Net income = Pre-tax profit − Tax</p><p><strong>Assumptions that live here:</strong> - Revenue growth rate (from the investment thesis / CDD) - EBITDA margin target (from the value creation plan — how much margin improvement is expected, and by when?) - D&amp;A: typically provided by FDD or estimated based on asset base - Effective tax rate</p><p>### Module 3: Debt Schedule</p><p>The debt schedule is the technical heart of the LBO model. Each debt tranche is modelled separately.</p><p><strong>For each tranche:</strong></p><p>| Period | Opening Balance | + PIK Accrual | − Mandatory Amortisation | − Optional Cash Sweep | Closing Balance | Cash Interest | |---|---|---|---|---|---|---| | Year 1 | £350M | £0 | −£3.5M | −£X | £346.5M − X | £350M × rate | | Year 2 | Prior close | £0 | −£3.5M | −£X | ... | ... |</p><p><strong>The cash sweep:</strong> Most TLBs include a \"cash sweep\" provision — the company must apply a percentage (typically 50-75%) of any excess cash flow (FCF above a minimum cash balance) to optional TLB prepayment. This is the mechanism by which strong operational performance accelerates debt paydown and improves equity returns.</p><p><strong>PIK tranches:</strong> If the deal includes PIK debt, the module adds a PIK accrual line (interest compounds onto the principal balance rather than being paid in cash). PIK closing balance = prior balance × (1 + PIK rate).</p><p><strong>Outputs from Module 3:</strong> - Annual cash interest expense (fed into Module 4) - Debt balance each year (fed into Module 5 and Module 6) - Total cash interest paid over hold period (informs return attribution — debt cost)</p><p>### Module 4: Free Cash Flow Bridge</p><p>This module converts EBITDA into cash available for debt service and optional repayment.</p><p><strong>The circularity:</strong> Interest expense depends on the debt balance → debt balance depends on the cash sweep → cash sweep depends on FCF → FCF depends on interest expense. This loop is resolved using Excel's iterative calculations (File → Options → Formulas → Enable Iterative Calculation). In well-built models, the circularity converges within a few iterations.</p><p>### Module 5: Balance Sheet (Simplified)</p><p>In most PE LBO models, the balance sheet is simplified to track: - Net debt = Gross debt (from Module 3) − Cash - Goodwill (purchase price premium over book value — important for accounting but not for return calculations) - Key ratios: leverage (Debt/EBITDA), interest coverage (EBITDA/Interest)</p><p>A full balance sheet is required for accounting purposes but not always built into initial deal models.</p><p>### Module 6: Returns Analysis</p><p><strong>Step 1: Calculate exit enterprise value</strong> Exit EV = Exit EBITDA (from Module 2, Year N) × Exit Multiple (assumption)</p><p><strong>Step 2: Calculate exit equity value</strong> Exit equity = Exit EV − Net debt at exit (from Module 3/5)</p><p><strong>Step 3: Calculate returns</strong> - Gross MOIC = Exit equity / Entry equity - Gross IRR = (Gross MOIC)^(1/N) − 1 (where N = hold period in years) - Or solve for the IRR that makes the NPV of cash flows = 0</p><p><strong>Step 4: Return attribution table</strong> Break down the equity gain into its three sources:</p><p>| Source | Calculation | £ | |---|---|---| | EBITDA growth | (Exit EBITDA − Entry EBITDA) × Exit Multiple | | | Multiple expansion | (Exit Multiple − Entry Multiple) × Entry EBITDA | | | Debt paydown | Entry Net Debt − Exit Net Debt | | | <strong>Total equity gain</strong> | <strong>Exit Equity − Entry Equity</strong> | |</p><p>This connects the model directly to Three Sources of PE Returns.</p><p><strong>Step 5: Sensitivity tables</strong> Two key sensitivity tables: 1. <strong>IRR matrix:</strong> Entry multiple (rows) × Exit multiple (columns) — the \"deal decision\" table 2. <strong>MOIC matrix:</strong> Same axes — shows gross cash return across scenarios</p><p>A deal typically needs IRR &gt; 20% (gross) in the base case, and at minimum IRR &gt; 15% in a downside scenario.</p><p>---</p>"}, "5": {"section": "Diagram", "html": "<p>Six modules; the two-way link between modules 3 and 4 is the famous circular reference.</p><p>Modules 3 and 4 form the loop (interest ↔ FCF ↔ sweep) that requires Excel's iterative calculation. The whole machine exists to answer one question: <em>what is the maximum price that still clears a 20%+ IRR?</em></p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Illustrative LBO model: Acquisition of a healthcare IT business</strong></p><p>All figures are representative of mid-market UK/European buyout transactions; specific company names are omitted as deal-level model outputs are confidential. [needs-verification — general market norms]</p><p><strong>Module 1: Transaction Summary</strong></p><p>| Uses | £M | Sources | £M | |---|---|---|---| | Enterprise Value (10x × £100M EBITDA) | 1,000 | TLB (5x × £100M EBITDA) | 500 | | Refinance existing debt | 50 | Mezzanine (1x EBITDA, PIK 12%) | 100 | | Transaction fees | 25 | Equity (sponsor fund) | 475 | | <strong>Total Uses</strong> | <strong>1,075</strong> | <strong>Total Sources</strong> | <strong>1,075</strong> |</p><p>Entry leverage: 6x EBITDA (£600M / £100M). Entry equity: £475M.</p><p><strong>Module 2: Operating Model (simplified)</strong></p><p>| Year | 0 (Entry) | 1 | 2 | 3 | 4 | 5 | |---|---|---|---|---|---|---| | Revenue | £556M | £600M | £648M | £700M | £756M | £816M | | Revenue growth | — | 8% | 8% | 8% | 8% | 8% | | EBITDA margin | 18% | 18.5% | 19% | 19.5% | 20% | 20% | | <strong>EBITDA</strong> | <strong>£100M</strong> | <strong>£111M</strong> | <strong>£123M</strong> | <strong>£136M</strong> | <strong>£151M</strong> | <strong>£163M</strong> |</p><p><strong>Module 3: Debt Schedule (Year 5 snapshot)</strong></p><p>| Tranche | Entry | Year 5 | |---|---|---| | TLB (cash interest ~7%, 1% mandatory amortisation + cash sweep) | £500M | ~£380M (swept from FCF) | | Mezz PIK at 12% (compounds) | £100M | ~£176M | | <strong>Total debt</strong> | <strong>£600M</strong> | <strong>~£556M</strong> |</p><p>[Interest calculations simplified for illustration]</p><p><strong>Module 4: Free Cash Flow (Year 5 estimate)</strong></p><ul class='notelist'><li>EBITDA: £163M</li><li>Less: D&amp;A: (£30M)</li><li>EBIT: £133M</li><li>Less: Interest (cash TLB approx): (£27M)</li><li>Pre-tax profit: £106M</li><li>Less: Tax (25%): (£26.5M)</li><li>Net income: £79.5M</li><li>Add back: D&amp;A: £30M</li><li>Less: Maintenance capex: (£20M)</li><li>Less: Working capital increase: (£5M)</li><li><strong>FCF: ~£84.5M per year (Year 5)</strong></li><li>Less: Mandatory amortisation: (£5M)</li><li><strong>Levered FCF for optional sweep: ~£79.5M</strong> (most applied to TLB paydown)</li></ul><p><strong>Module 6: Returns (Base Case, Year 5 exit)</strong></p><p>| Item | £M | |---|---| | Exit EBITDA | £163M | | Exit multiple (base: 10x) | 10x | | Exit EV | £1,630M | | Less: Net debt at exit | (£556M) | | <strong>Exit equity</strong> | <strong>£1,074M</strong> | | Entry equity | £475M | | <strong>Gross MOIC</strong> | <strong>2.26x</strong> | | <strong>Gross IRR</strong> | <strong>~17.7%</strong> [illustrative] |</p><p><strong>Return attribution:</strong></p><p>| Source | £M | % of gain | |---|---|---| | EBITDA growth | (£163M − £100M) × 10x = £630M | 105% | | Multiple expansion | 0 (same entry/exit multiple) | 0% | | Debt paydown | £600M − £556M = £44M | 7% | | <strong>Less: PIK compounding</strong> | <strong>−(£176M − £100M)</strong> | <strong>−13%</strong> | | <strong>Equity gain</strong> | <strong>£599M</strong> | <strong>100%</strong> |</p><p><strong>Note on PIK compounding:</strong> Even with strong EBITDA growth, the PIK note compounding from £100M to £176M (net increase of £76M in debt) substantially offsets the equity gain from debt paydown. In this example, the PIK almost entirely cancels Source 3 — this is the Synthesis - The LBO Capital Stack insight made concrete: PIK enables FCF to be reinvested in growth (Source 1) but penalises Source 3.</p><p><strong>Sensitivity table (IRR at various EBITDA growth and exit multiples):</strong></p><p>| | Exit 9x | Exit 10x | Exit 11x | Exit 12x | |---|---|---|---|---| | EBITDA growth 5% pa | 12.1% | 15.3% | 18.1% | 20.6% | | EBITDA growth 8% pa | 14.8% | 17.7% | 20.3% | 22.7% | | EBITDA growth 11% pa | 17.4% | 20.0% | 22.5% | 24.8% | | EBITDA growth 14% pa | 19.8% | 22.3% | 24.7% | 27.0% |</p><p>[All figures are illustrative; real model outputs depend on precise cash flow timing and tax treatment — needs-verification]</p><p><strong>Deal decision:</strong> At 10x entry and 10x exit (no multiple expansion), the deal requires 8%+ EBITDA growth to clear the 20% IRR hurdle. At a 9x exit (multiple compression), the deal requires 14%+ EBITDA growth — aggressive. The IRR sensitivity table is the deal team's primary decision tool: which scenarios clear the hurdle, and how probable are they?</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The LBO model tells you what to pay.\"</strong> The LBO model tells you what the <em>maximum</em> you can pay is at a given IRR hurdle. The <em>actual</em> price is determined by competition in the auction — the LBO model tells you when to stop bidding. \"The model supports 12x\" means \"at 12x and our operating assumptions, we hit 20% IRR.\" It doesn't mean 12x is the right price.</p><p><strong>Misconception 2: \"A higher EBITDA growth assumption always improves returns.\"</strong> Higher EBITDA growth improves returns <em>when exit multiple is fixed or expands</em>. In a scenario where the exit multiple compresses significantly (e.g., a downturn), higher EBITDA growth in the base case may have led to overpaying at entry — because you bid more aggressively based on growth assumptions that then proved optimistic. The sensitivity table reveals this: the combination of high EBITDA growth expectation + multiple compression is often the worst scenario.</p><p><strong>Misconception 3: \"The operating model is the hard part of the LBO model.\"</strong> The debt schedule and its interaction with the cash flow bridge (the circularity) is technically the most complex part. Projecting revenue at 8% growth is simple. Correctly modelling a PIK toggle note that accrues or pays cash based on an ICR covenant trigger, while simultaneously updating the cash sweep and the interest expense in a way that doesn't create circular errors — that is the technical challenge.</p><p><strong>Misconception 4: \"The model needs to be complex to be accurate.\"</strong> The most important sensitivity in an LBO model is the entry multiple × exit multiple table. A junior analyst with a well-structured two-page model will make better decisions than one with a 50-tab monster model that nobody can audit. Complexity beyond what is needed to capture the deal's key economics is a liability, not a quality signal.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>An LBO model has six modules: transaction entry (Sources &amp; Uses), operating model, debt schedule, cash flow bridge, balance sheet, and returns analysis. The modules are interconnected — operating model EBITDA flows into the cash flow bridge, FCF flows into the debt schedule (via cash sweep), the debt schedule feeds interest expense back into the cash flow bridge (creating the model's circular reference), and the debt schedule's exit balance feeds into the returns calculation. The model's primary output is a gross IRR and MOIC under base and downside scenarios, supported by a sensitivity table and a return attribution table that decomposes equity gains into EBITDA growth, multiple expansion, and debt paydown. The model does not determine the purchase price — it determines the maximum price consistent with achieving the return hurdle. Every model is only as good as its FDD-validated entry EBITDA and net debt inputs.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

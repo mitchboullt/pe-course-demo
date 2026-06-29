@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-lp-manager-selection", "title": "Synthesis: LP Manager Selection", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "Not measurement — construction", "on_screen_bullets": ["Four tools, one decision", "Highest return ≠ best choice", "A portfolio problem"], "narration": "The four concepts here look like sequential tools in an LP's toolkit — measure the track record, check if it persists, evaluate the manager qualitatively, and calculate co-investment economics. Studied separately, each gives you a technique. Studied together, they reveal what none teaches alone: LP manager selection is not a measurement problem but a portfolio-construction problem, and the highest measured track record is frequently not the optimal LP decision. Track-record analysis produces a ranked list by historical returns — it tells you what happened, but not whether it will recur, why it happened, or what the total economic value of the relationship is. Return persistence tells you when the track record is a valid predictive input — it's real but weaker than lore suggests, concentrated at top-decile not top-quartile. The 4 Ps framework decodes the mechanism of persistence — which people, using which process, with what repeatability. And co-investment economics redefines the objective function entirely: the LP isn't maximising fund return, it's maximising total economic return from the relationship — fund return net of fees, plus co-invest at zero or reduced fees, plus strategic value.", "est_sec": 54}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "A theory of outperformance", "on_screen_bullets": ["Track record + persistence, jointly", "4 Ps = mechanism detector", "Co-invest shifts the ranking"], "narration": "Studying these four separately produces four distinct tools — a return scorer, a persistence filter, a qualitative diligence framework, and a fee calculator. Together they produce a coherent theory of how to build an LP portfolio that outperforms over decades, not one fund cycle. Five insights are invisible from individual study. First, track record and persistence must be interpreted jointly — a top-quartile record is only as valuable as the underlying persistence probability, so the persistence filter sets how much weight to give the record. Second, the 4 Ps framework is the mechanism detector for persistence — persistence research tells you GPs persist on average, but the People test tells you whether a specific GP's persistence is person-dependent and fragile or process-dependent and durable. Third, co-investment economics shifts the comparative ranking — a GP at eighteen percent net IRR with a strong co-invest programme can beat a GP at twenty-two percent with none, on total LP returns. Fourth, the persistence-access problem constrains the set before selection even begins — the most persistent top-decile GPs are exactly the oversubscribed ones a new LP can't access. And fifth, selection is a portfolio-construction decision with a vintage-year dimension — invisible if you treat it one fund at a time.", "est_sec": 56}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "Four interlocking filters", "on_screen_bullets": ["Record → persistence → mechanism", "Plus co-invest total economics", "Reinforcing relationship loop"], "narration": "The concept map chains the four together. Track-record analysis generates a historical ranking of GP performance — but it's only predictive if return persistence confirms that the past reflects skill, not luck; and persistence is only real if driven by mechanisms that the 4 Ps diligence can decode as person-dependent and fragile or process-and-sector-dependent and durable; and to all of that, co-investment economics adds a fee-saving return layer that changes the comparative ranking once total economics are evaluated. The combined output is an LP portfolio of GP relationships optimised on four axes: persistence probability, from track record times persistence; mechanism durability, from the People and Process Ps; total relationship economics, fund net return plus co-invest uplift; and access feasibility, which persistent high-quality GPs will actually allocate. And note the reinforcing loops: a strong 4 Ps assessment raises conviction on persistence, justifying a larger commitment; a quality co-invest programme raises the effective return, which may justify a lower fund-IRR threshold; proven persistence drives demand, so the GP is oversubscribed and access is rationed, forcing the LP to deepen the relationship over multiple vintages; and a deeper relationship brings more co-invest access and higher total economics, which reinforces the relationship premium all over again.", "est_sec": 58}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Five-step selection funnel", "on_screen_bullets": ["40 longlist → 18 → 8 GPs", "GP A 19% vs GP B 17% + 80bps", "Access cap reshapes the decision"], "narration": "Watch an LP run the full process — illustratively, a three-billion-dollar US public pension with four hundred fifty million in PE, fifteen percent of assets, eight current GP relationships, able to add two or three a year. Step one, longlist using track-record analysis: screen for net IRR at or above eighteen percent on the most recent fully-realised fund, at least two realised funds each with DPI of one-and-a-half-times or more, and the right fund size for their ticket — producing forty GPs. Step two, the persistence filter: keep only GPs top-quartile on DPI, not TVPI, in two of their last three funds, flag any who more than doubled fund size between vintages, and de-weight records where one deal drove over forty percent of returns — leaving eighteen. Step three, full 4 Ps diligence on those eighteen: is the team that made the historical investments still in place and who originated the top deals; does the DPI pattern reflect systematic sector expertise or vintage luck; is the sourcing proprietary or auction-dependent; and are the current NAV marks credible against peers — leaving eight who pass. Step four, total economic analysis including co-investment: GP A shows nineteen percent net IRR but offers co-invest only rarely; GP B shows seventeen percent but offers regular pro-rata co-invest worth about twenty million a year of no-carry exposure, which at this LP's scale is worth roughly eighty basis points of additional annual portfolio return — so GP A at nineteen versus GP B at seventeen-plus-eighty-bps is roughly equivalent total economics, with GP B carrying lower concentration risk. Decision: commit to both, but weight GP B more heavily despite the lower headline IRR. And step five, access: GP A turns out to be oversubscribed and can offer the new LP only fifteen million against a forty-million target — an access constraint invisible in every prior analysis, which only appears when you treat selection as relationship sequencing across multiple fund cycles.", "est_sec": 70}, {"n": 5, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Highest IRR ≠ best investment", "Persistence ≠ which GP, just which type", "Co-invest is a decision factor"], "narration": "Five misunderstandings that vanish once you synthesise. First, the highest-returning GP is the best LP investment — only true if persistence is high, the 4 Ps confirm a durable mechanism, and co-invest economics are included; a twenty-five-percent record driven by a departed star with no co-invest and growing fund sizes can be a worse investment than a seventeen-percent GP with the opposite characteristics, and this is the most expensive mistake in LP portfolio management. Second, persistence research tells me which GPs to pick — no, it tells you which types tend to persist; the 4 Ps framework answers whether this specific GP's mechanism is still in place. Third, the 4 Ps are a qualitative check after the numbers decide — that inverts the logic; the 4 Ps explain the mechanism of past returns, which is the only basis for believing they'll recur, so a mediocre record explained by a strong sector team and process can beat a stellar record explained by a lucky vintage and a departed founder. Fourth, co-investment is a nice extra, not a decision factor — at meaningful scale it's worth fifty to two hundred basis points of additional annual return, the equivalent of upgrading a whole quartile, so ignoring it optimises the wrong objective. And fifth, selection is a static decision at commitment — it's a dynamic, multi-decade relationship portfolio, where the best allocators accept smaller initial allocations to earn larger ones later, use co-invest to deepen relationships, and sequence access over vintages.", "est_sec": 60}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Practical Example", "on_screen_title": "Yale: the integrated model", "on_screen_bullets": ["DPI not TVPI; deep 4 Ps", "Relationship investing, early access", "Co-invest as a deepening tool"], "narration": "The exemplar — the Yale endowment under David Swensen, who was CIO from 1985 to 2021, generating roughly thirteen-and-a-half percent a year over thirty-five years, well above the university endowment average, with PE and venture consistently thirty to thirty-five percent of the portfolio; exact figures approximate. Yale operated all four dimensions at once. On track record, Swensen treated past returns as a starting point, not a conclusion, tracking DPI rather than inflated TVPI and systematically rejecting GPs whose returns came from one or two outlier deals — what the team called being hit by lightning. On persistence, Yale institutionalised relationship-investment theory before the academic literature: certain GPs had durable structural advantages — proprietary deal flow, operational expertise, network monopolies — so Swensen committed to them early, when they were smaller and less proven, and held those relationships across decades, becoming a legacy LP in KKR and Sequoia who couldn't be displaced. On the 4 Ps, Yale was known for unusually deep qualitative diligence, meeting portfolio-company CEOs, former partners, and competing LPs to understand the mechanism of returns, rejecting GPs whose performance hung on one person's judgment without succession depth. And on co-investment, Yale negotiated co-invest rights as a standard term, both to amplify returns at zero or reduced fees and as a relationship-deepening tool — by being a fast, reliable co-investor it earned better terms and larger allocations. The integrated outcome was four-to-seven percent annual outperformance against the PE benchmark, explicable only by the integration. But there's a limitation: Yale built its programme in the eighties and nineties when top GPs were smaller and more accessible — an LP trying to enter KKR or Sequoia for the first time in 2025 faces a fundamentally different, far more rationed access environment.", "est_sec": 70}, {"n": 7, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "The persistence-access paradox", "on_screen_bullets": ["Best GPs are least accessible", "Most accessible lack proven records", "Build relationships over vintages"], "narration": "Sit with the uncomfortable core of this synthesis — the persistence-access paradox. Return persistence is most concentrated among top-decile GPs with long records and stable teams; but those are precisely the managers whose funds are oversubscribed and whose allocation to new LPs is minimal or nil. Meanwhile, the most accessible GPs are the newer ones without a proven persistence record. So persistence theory and persistence access are two different problems, and solving the second is a relationship-building strategy, not just an analytical one. The practical consequence is that the correct manager-selection framework produces different recommendations depending on who you are: an established LP with existing relationships, like Yale, can deepen and defend access to the best; a new entrant building a programme from scratch must commit early to promising-but-unproven GPs and grow with them, because the obviously-best managers are simply closed. That is why manager selection is ultimately a long-term relationship-portfolio challenge, not a one-time analytical exercise.", "est_sec": 48}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Optimise all four at once", "on_screen_bullets": ["Record × persistence × 4 Ps × co-invest", "Yale: integration, not one insight", "Diversify across persistence mechanisms"], "narration": "To recap. LP manager selection cannot be reduced to picking the GP with the highest historical return — it is a simultaneous optimisation across four interdependent dimensions, each taught in isolation but only useful in combination. Track-record analysis generates the measurement; return-persistence theory sets how much predictive weight that measurement deserves; the 4 Ps framework tests whether the mechanism behind past persistence is still in place; and co-investment economics redefine the total return from the relationship in a way that can overturn the track-record ranking. The Yale model operated all four at once — relationship investing, deep diligence, DPI-focused analysis, and systematic co-invest rights — delivering thirty-five years of outperformance explicable only by the integration. And the access constraint means selection is ultimately a relationship-portfolio challenge: commit early to promising GPs, deepen through co-investment, demonstrate LP quality to earn access, and diversify across persistence mechanisms, vintages, and geographies. That closes the LP-selection synthesis. Next we examine how fund-level financing reshapes the whole picture — the financing lifecycle in PE.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why is the highest-IRR GP from a track-record table frequently not the optimal LP commitment? And what is the persistence-access paradox — why does it make selection a relationship-building problem, not just an analytical one?", "narration": "Before the next lesson, answer both. Why is the highest-IRR GP from a track-record table frequently not the optimal LP commitment? And what is the persistence-access paradox — why does it turn manager selection into a relationship-building problem rather than just an analytical one? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: LP Manager Selection\n\n[hook] Not measurement — construction\nThe four concepts here look like sequential tools in an LP's toolkit — measure the track record, check if it persists, evaluate the manager qualitatively, and calculate co-investment economics. Studied separately, each gives you a technique. Studied together, they reveal what none teaches alone: LP manager selection is not a measurement problem but a portfolio-construction problem, and the highest measured track record is frequently not the optimal LP decision. Track-record analysis produces a ranked list by historical returns — it tells you what happened, but not whether it will recur, why it happened, or what the total economic value of the relationship is. Return persistence tells you when the track record is a valid predictive input — it's real but weaker than lore suggests, concentrated at top-decile not top-quartile. The 4 Ps framework decodes the mechanism of persistence — which people, using which process, with what repeatability. And co-investment economics redefines the objective function entirely: the LP isn't maximising fund return, it's maximising total economic return from the relationship — fund return net of fees, plus co-invest at zero or reduced fees, plus strategic value.\n\n[intuition] A theory of outperformance\nStudying these four separately produces four distinct tools — a return scorer, a persistence filter, a qualitative diligence framework, and a fee calculator. Together they produce a coherent theory of how to build an LP portfolio that outperforms over decades, not one fund cycle. Five insights are invisible from individual study. First, track record and persistence must be interpreted jointly — a top-quartile record is only as valuable as the underlying persistence probability, so the persistence filter sets how much weight to give the record. Second, the 4 Ps framework is the mechanism detector for persistence — persistence research tells you GPs persist on average, but the People test tells you whether a specific GP's persistence is person-dependent and fragile or process-dependent and durable. Third, co-investment economics shifts the comparative ranking — a GP at eighteen percent net IRR with a strong co-invest programme can beat a GP at twenty-two percent with none, on total LP returns. Fourth, the persistence-access problem constrains the set before selection even begins — the most persistent top-decile GPs are exactly the oversubscribed ones a new LP can't access. And fifth, selection is a portfolio-construction decision with a vintage-year dimension — invisible if you treat it one fund at a time.\n\n[mechanics] Four interlocking filters\nThe concept map chains the four together. Track-record analysis generates a historical ranking of GP performance — but it's only predictive if return persistence confirms that the past reflects skill, not luck; and persistence is only real if driven by mechanisms that the 4 Ps diligence can decode as person-dependent and fragile or process-and-sector-dependent and durable; and to all of that, co-investment economics adds a fee-saving return layer that changes the comparative ranking once total economics are evaluated. The combined output is an LP portfolio of GP relationships optimised on four axes: persistence probability, from track record times persistence; mechanism durability, from the People and Process Ps; total relationship economics, fund net return plus co-invest uplift; and access feasibility, which persistent high-quality GPs will actually allocate. And note the reinforcing loops: a strong 4 Ps assessment raises conviction on persistence, justifying a larger commitment; a quality co-invest programme raises the effective return, which may justify a lower fund-IRR threshold; proven persistence drives demand, so the GP is oversubscribed and access is rationed, forcing the LP to deepen the relationship over multiple vintages; and a deeper relationship brings more co-invest access and higher total economics, which reinforces the relationship premium all over again.\n\n[worked-example] Five-step selection funnel\nWatch an LP run the full process — illustratively, a three-billion-dollar US public pension with four hundred fifty million in PE, fifteen percent of assets, eight current GP relationships, able to add two or three a year. Step one, longlist using track-record analysis: screen for net IRR at or above eighteen percent on the most recent fully-realised fund, at least two realised funds each with DPI of one-and-a-half-times or more, and the right fund size for their ticket — producing forty GPs. Step two, the persistence filter: keep only GPs top-quartile on DPI, not TVPI, in two of their last three funds, flag any who more than doubled fund size between vintages, and de-weight records where one deal drove over forty percent of returns — leaving eighteen. Step three, full 4 Ps diligence on those eighteen: is the team that made the historical investments still in place and who originated the top deals; does the DPI pattern reflect systematic sector expertise or vintage luck; is the sourcing proprietary or auction-dependent; and are the current NAV marks credible against peers — leaving eight who pass. Step four, total economic analysis including co-investment: GP A shows nineteen percent net IRR but offers co-invest only rarely; GP B shows seventeen percent but offers regular pro-rata co-invest worth about twenty million a year of no-carry exposure, which at this LP's scale is worth roughly eighty basis points of additional annual portfolio return — so GP A at nineteen versus GP B at seventeen-plus-eighty-bps is roughly equivalent total economics, with GP B carrying lower concentration risk. Decision: commit to both, but weight GP B more heavily despite the lower headline IRR. And step five, access: GP A turns out to be oversubscribed and can offer the new LP only fifteen million against a forty-million target — an access constraint invisible in every prior analysis, which only appears when you treat selection as relationship sequencing across multiple fund cycles.\n\n[pitfalls] What siloed study misses\nFive misunderstandings that vanish once you synthesise. First, the highest-returning GP is the best LP investment — only true if persistence is high, the 4 Ps confirm a durable mechanism, and co-invest economics are included; a twenty-five-percent record driven by a departed star with no co-invest and growing fund sizes can be a worse investment than a seventeen-percent GP with the opposite characteristics, and this is the most expensive mistake in LP portfolio management. Second, persistence research tells me which GPs to pick — no, it tells you which types tend to persist; the 4 Ps framework answers whether this specific GP's mechanism is still in place. Third, the 4 Ps are a qualitative check after the numbers decide — that inverts the logic; the 4 Ps explain the mechanism of past returns, which is the only basis for believing they'll recur, so a mediocre record explained by a strong sector team and process can beat a stellar record explained by a lucky vintage and a departed founder. Fourth, co-investment is a nice extra, not a decision factor — at meaningful scale it's worth fifty to two hundred basis points of additional annual return, the equivalent of upgrading a whole quartile, so ignoring it optimises the wrong objective. And fifth, selection is a static decision at commitment — it's a dynamic, multi-decade relationship portfolio, where the best allocators accept smaller initial allocations to earn larger ones later, use co-invest to deepen relationships, and sequence access over vintages.\n\n[worked-example] Yale: the integrated model\nThe exemplar — the Yale endowment under David Swensen, who was CIO from 1985 to 2021, generating roughly thirteen-and-a-half percent a year over thirty-five years, well above the university endowment average, with PE and venture consistently thirty to thirty-five percent of the portfolio; exact figures approximate. Yale operated all four dimensions at once. On track record, Swensen treated past returns as a starting point, not a conclusion, tracking DPI rather than inflated TVPI and systematically rejecting GPs whose returns came from one or two outlier deals — what the team called being hit by lightning. On persistence, Yale institutionalised relationship-investment theory before the academic literature: certain GPs had durable structural advantages — proprietary deal flow, operational expertise, network monopolies — so Swensen committed to them early, when they were smaller and less proven, and held those relationships across decades, becoming a legacy LP in KKR and Sequoia who couldn't be displaced. On the 4 Ps, Yale was known for unusually deep qualitative diligence, meeting portfolio-company CEOs, former partners, and competing LPs to understand the mechanism of returns, rejecting GPs whose performance hung on one person's judgment without succession depth. And on co-investment, Yale negotiated co-invest rights as a standard term, both to amplify returns at zero or reduced fees and as a relationship-deepening tool — by being a fast, reliable co-investor it earned better terms and larger allocations. The integrated outcome was four-to-seven percent annual outperformance against the PE benchmark, explicable only by the integration. But there's a limitation: Yale built its programme in the eighties and nineties when top GPs were smaller and more accessible — an LP trying to enter KKR or Sequoia for the first time in 2025 faces a fundamentally different, far more rationed access environment.\n\n[intuition] The persistence-access paradox\nSit with the uncomfortable core of this synthesis — the persistence-access paradox. Return persistence is most concentrated among top-decile GPs with long records and stable teams; but those are precisely the managers whose funds are oversubscribed and whose allocation to new LPs is minimal or nil. Meanwhile, the most accessible GPs are the newer ones without a proven persistence record. So persistence theory and persistence access are two different problems, and solving the second is a relationship-building strategy, not just an analytical one. The practical consequence is that the correct manager-selection framework produces different recommendations depending on who you are: an established LP with existing relationships, like Yale, can deepen and defend access to the best; a new entrant building a programme from scratch must commit early to promising-but-unproven GPs and grow with them, because the obviously-best managers are simply closed. That is why manager selection is ultimately a long-term relationship-portfolio challenge, not a one-time analytical exercise.\n\n[recap] Optimise all four at once\nTo recap. LP manager selection cannot be reduced to picking the GP with the highest historical return — it is a simultaneous optimisation across four interdependent dimensions, each taught in isolation but only useful in combination. Track-record analysis generates the measurement; return-persistence theory sets how much predictive weight that measurement deserves; the 4 Ps framework tests whether the mechanism behind past persistence is still in place; and co-investment economics redefine the total return from the relationship in a way that can overturn the track-record ranking. The Yale model operated all four at once — relationship investing, deep diligence, DPI-focused analysis, and systematic co-invest rights — delivering thirty-five years of outperformance explicable only by the integration. And the access constraint means selection is ultimately a relationship-portfolio challenge: commit early to promising GPs, deepen through co-investment, demonstrate LP quality to earn access, and diversify across persistence mechanisms, vintages, and geographies. That closes the LP-selection synthesis. Next we examine how fund-level financing reshapes the whole picture — the financing lifecycle in PE.\n\nEnd-card question: Why is the highest-IRR GP from a track-record table frequently not the optimal LP commitment? And what is the persistence-access paradox — why does it make selection a relationship-building problem, not just an analytical one?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>The four concepts in this synthesis appear to be sequential tools in an LP's toolkit — measure the track record, check if it persists, evaluate the manager qualitatively, and calculate co-investment economics. Studied separately, each gives you a technique. Studied together, they reveal something none of them teaches alone: <strong>LP manager selection is not a measurement problem but a portfolio construction problem, and the highest measured track record is frequently not the optimal LP decision.</strong></p><p>The deep connection works like this:</p><p><strong>Track Record Analysis by LPs</strong> produces a ranked list of GPs by historical returns. It tells you what happened. It does not tell you whether what happened will happen again, why it happened, or what the total economic value of the GP relationship is. Used alone, it selects on the past — and can systematically select on luck disguised as skill.</p><p><strong>Return Persistence in PE</strong> tells you when the track record is a valid predictive input. Persistence is real but weaker than LP lore suggests, concentrated at top-decile not top-quartile, and operates through specific mechanisms (sector expertise, team stability, proprietary sourcing). If you don't understand persistence, you don't know when to trust the track record and when you're paying for a lucky vintage.</p><p><strong>LP Due Diligence on GPs</strong> (the 4 Ps framework) decodes the <em>mechanism</em> of persistence. Track record tells you a GP has been top-quartile three times. The 4 Ps framework tells you <em>why</em> — which specific people made which specific decisions, using which process, with what degree of repeatability. A persistent track record driven by a single departed partner is backward-looking noise. A persistent track record driven by a replicable sector playbook with a stable team is forward-looking signal.</p><p><strong>Co-Investment Economics</strong> redefines the objective function. The LP is not maximising fund return — they are maximising total economic return from the GP relationship, which includes fund return net of fees plus co-investment return at zero or reduced fees plus strategic relationship value. Two GPs with identical fund track records may offer materially different LP economics once co-investment is included. Selection based on track record alone misses this dimension entirely.</p><p><strong>The unified synthesis:</strong> The correct LP manager selection framework is not \"select the highest historical return\" — it is a simultaneous optimisation across four interdependent dimensions: Is the past return real and persistent? Does the 4 Ps analysis confirm the mechanism of that persistence? And does the total economic package (fund + co-invest) make this the best use of LP capital and operational capacity?</p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying these four concepts separately produces four distinct decision tools — a return scorer, a persistence filter, a qualitative DD framework, and a fee calculator. Studying them together produces something more valuable: <strong>a coherent theory of how to construct an LP portfolio that outperforms over decades, not just over one fund cycle.</strong></p><p>Specifically, the synthesis reveals five insights that are invisible from individual concept study:</p><p><strong>1. Track record analysis and persistence are not independent — they must be interpreted jointly.</strong> A top-quartile track record is only as valuable as the underlying persistence probability. Applying the track record analysis to a GP without understanding the persistence mechanism is like reading a weather forecast without knowing whether the model has predictive power in your region. The persistence filter determines how much weight to give the track record.</p><p><strong>2. The 4 Ps framework is the mechanism detector for persistence.</strong> Persistence research tells you whether a GP's returns persist on average. The 4 Ps framework tells you <em>why a specific GP's returns persist</em> — or why they might not, despite the historical pattern. The \"People\" P specifically tests whether persistence is person-dependent (fragile) or process-dependent (durable). The \"Process\" P tests whether the sourcing and execution methodology is repeatable or idiosyncratic.</p><p><strong>3. Co-investment economics shifts the comparative ranking of GPs.</strong> An LP who evaluates two GPs purely on fund IRR may rank them incorrectly if one offers meaningful co-investment access and the other does not. A GP generating 18% net fund IRR with a well-structured co-investment programme delivering £50m per year in additional no-carry exposure may produce higher <em>total LP returns</em> than a GP generating 22% fund IRR with no co-investment. The selection decision requires an integrated return model, not a league table.</p><p><strong>4. The persistence access problem constrains the selection set before the selection begins.</strong> Return persistence is most concentrated among top-decile GPs with long historical records and stable teams — exactly the managers whose funds are oversubscribed and whose allocation to new LPs is minimal. An LP without established GP relationships cannot simply \"select the most persistent managers\" because those managers are not accessible. The synthesis reveals that persistence theory and persistence access are two different problems, and solving the second requires a relationship-building strategy, not just an analytical one.</p><p><strong>5. Manager selection is a portfolio construction decision with a vintage year dimension.</strong> Because co-investment economics create a relationship premium and because persistence is strongest at top-decile GPs (who are scarce), LP portfolios should be managed as a diversified mix of relationship LPs (deep relationships with fewer, best-in-class GPs across multiple vintages) and exploratory commitments (smaller, newer GPs where the persistence track record is shorter but the access cost is lower). This portfolio logic is invisible if you treat manager selection as a one-at-a-time decision.</p><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p><strong>The key feedback loops:</strong></p><ul class='notelist'><li>Strong 4 Ps assessment → higher conviction on persistence → justifies larger fund commitment</li><li>Co-investment programme quality → raises effective LP return → may justify lower fund IRR threshold for commitment</li><li>Proven persistence → stronger LP demand → GP oversubscribed → access rationed → LP must deepen relationship over multiple vintages to secure allocation</li><li>Deeper LP-GP relationship → more co-invest access → higher total economics → reinforces the relationship premium</li></ul><p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>An LP Portfolio Team Running a Manager Selection Decision — Full Process:</strong></p><p>Suppose a $3bn US public pension fund has $450m allocated to PE (15% of AUM) and is reviewing which GPs to re-up with or add to their portfolio. They have commitments to 8 GPs currently. They can add 2–3 new commitments per year.</p><p><strong>Step 1 — Longlist using Track Record Analysis:</strong> The LP's PE team screens Preqin and Cambridge Associates for managers with: - Net IRR ≥ 18% across the most recent fully realised fund - At least two fully realised funds (DPI ≥ 1.5× for each) - AUM in their target range ($1–5bn fund size — fits their $25–75m ticket size)</p><p>This produces a longlist of 40 potential GPs.</p><p><strong>Step 2 — Apply Persistence Filter:</strong> The team reviews quartile rankings across all historical fund vintages for each longlist GP: - They keep only GPs with top-quartile DPI (not TVPI) in at least 2 of their last 3 funds - They apply a fund-size adjustment: GPs who grew fund size &gt;2× between vintages get a persistence skepticism flag - They de-weight track records where one deal generated &gt;40% of fund returns (\"blockbuster dependency\")</p><p>This filters the longlist to 18 GPs.</p><p><strong>Step 3 — 4 Ps Due Diligence:</strong> For each of the 18, the LP conducts full 4 Ps diligence: - <strong>People</strong>: Is the team that made the historical investments still in place? Who specifically originated the top deals? Has carry been distributed to retain them? - <strong>Performance</strong>: Does the DPI pattern reflect systematic sector expertise or vintage luck? Can they explain why each fund's top 3 deals succeeded? - <strong>Process</strong>: Is the sourcing model proprietary (relationship-driven) or competitive (auction-dependent)? Is the operational improvement playbook documented and transferable across the team? - <strong>Portfolio</strong>: What does the current unrealised portfolio look like? Are the NAV marks credible (compare to peers' marks in the same sectors)?</p><p>This filters to 8 GPs who pass qualitative diligence.</p><p><strong>Step 4 — Total Economic Analysis Including Co-Investment:</strong> For each of the 8, the LP models the total economic relationship: - Expected fund-level return: GP A (19% net IRR) vs. GP B (17% net IRR) — GP A initially preferred - Co-investment programme: GP A offers co-invest infrequently and only when deals are very large; GP B offers regular co-invest with pro-rata allocation rights — expected £20m/year in no-carry co-invest exposure - Blended portfolio return calculation: At the LP's PE allocation size ($450m), GP B's co-invest programme is worth approximately 80bps of additional annual net return on the PE portfolio - Adjusted comparison: GP A at 19% vs. GP B at 17% + 80bps co-invest uplift = approximately equivalent total economics, with GP B's relationship offering lower concentration risk across the fund commitment</p><p><strong>Decision:</strong> Commit to both, but weight GP B more heavily despite lower headline fund IRR because the co-invest programme makes the total relationship more valuable.</p><p><strong>Step 5 — Access and Relationship Management:</strong> The LP discovers that GP A is oversubscribed for their next fund — the GP can only offer $15m to a new LP. The LP's target commitment is $40m. The LP must decide: accept a smaller allocation now and build toward a larger commitment over Fund IX, or decline and reallocate to a GP where they can deploy $40m.</p><p>This access constraint — invisible in the track record, persistence, 4 Ps, and co-invest analyses individually — only becomes apparent when you treat manager selection as a portfolio construction problem that includes relationship sequencing over multiple fund cycles.</p><p>---</p>"}, "4": {"section": "What People Miss By Studying These Separately", "html": "<p><strong>Five critical misunderstandings that disappear once you synthesise all four concepts:</strong></p><p><strong>1. \"The highest-returning GP is the best LP investment.\"</strong> False when studied in isolation. True only if persistence is high (the track record predicts the future), the 4 Ps confirm the mechanism is durable (not person-dependent), and co-invest economics are included. A GP with 25% historical IRR driven by a single departed star partner, no co-investment programme, and growing fund sizes (persistence headwind) may be a worse LP investment than a GP with 17% IRR and the opposite characteristics.</p><p>This misunderstanding comes from using Track Record Analysis without the persistence and 4 Ps filters. It is the most expensive mistake in LP portfolio management.</p><p><strong>2. \"Return persistence research tells me which GPs to pick.\"</strong> Persistence research tells you that certain types of GPs are more likely to persist (top-decile, stable teams, sector specialists, smaller fund sizes). It does not tell you which specific GPs are actually in that category for the next fund. The 4 Ps framework answers the question persistence research raises: <em>for this specific GP, is the mechanism of past persistence still in place?</em></p><p>Studying persistence without the 4 Ps framework produces a probabilistic insight (\"top-decile GPs tend to persist\") without the ability to evaluate whether any specific GP belongs in the \"will persist\" bucket.</p><p><strong>3. \"The 4 Ps framework is a qualitative check after the numbers have already made the decision.\"</strong> In practice, many LP investment teams use 4 Ps diligence as a confirmation exercise after track record analysis has already identified the preferred candidates. This inverts the correct logic. The 4 Ps framework explains the <em>mechanism</em> of past returns — which is the only basis for believing those returns will recur. A GP with a mediocre track record explained by a strong, sector-specific team and process (low persistence evidence so far, but clear mechanism in place) may be a better forward-looking bet than a GP with a stellar track record explained by a lucky 2009 vintage and a departed founding partner.</p><p><strong>4. \"Co-investment is a nice extra, not a decision factor.\"</strong> LPs who treat co-investment as a supplementary benefit rather than an integral component of the return model systematically undervalue GPs with strong co-invest programmes and overvalue GPs with stronger headline fund returns. At meaningful LP allocation sizes ($200m+ in PE), co-investment economics can be worth 50–200bps of additional annual return on the portfolio — the equivalent of upgrading from a good to an excellent fund manager in terms of total return. The selection decision that ignores this is optimising the wrong objective.</p><p><strong>5. \"Manager selection is a static decision made at fund commitment.\"</strong> LP manager selection is a dynamic, multi-decade relationship portfolio. The best LP allocators think not about \"which GP should we commit to in Fund VIII?\" but about \"what is our GP relationship portfolio over 20 years, and how should we develop each relationship?\" This means: accepting smaller initial allocations to earn larger ones in later funds; using co-investments to deepen relationships; using LP advisory committee seats to gain governance access; and using reference sharing to help portfolio GPs and be prioritised in turn. None of this is visible from individual concept study.</p><p>---</p>"}, "5": {"section": "Practical Example", "html": "<p>### The Yale Endowment Model — LP Manager Selection as Relationship Portfolio Construction</p><p>Under David Swensen (CIO from 1985 to 2021), Yale's endowment became the most studied LP portfolio in the world, generating average returns of approximately 13.5% per year over 35 years — well above the US university endowment average. [needs-verification on exact figure] PE and VC were consistently 30–35% of Yale's portfolio. Their approach exemplifies the synthesis in practice.</p><p><strong>Track Record Analysis — Used as Entry Screen, Not Decision Driver:</strong> Yale's PE team tracked GP returns rigorously, but Swensen explicitly argued that past returns were a starting point, not a conclusion. Yale tracked DPI (not TVPI) as the primary performance metric and required fully realised fund performance before forming strong views. The team systematically rejected GPs whose returns came from one or two outlier deals — what they called \"being hit by lightning.\"</p><p><strong>Persistence — The Relationship Investment Theory:</strong> Yale institutionalised a theory of persistence that pre-dated the academic literature: certain GPs in PE and VC had durable structural advantages (proprietary deal flow, operational expertise, network monopolies) that would persist across fund cycles. Swensen committed to these GPs early — when they were smaller and less proven — and maintained those relationships across decades and multiple fund vintages. By committing to KKR in Fund I, to Sequoia Capital in early funds, and to similar GPs, Yale was in their current (much larger and more selective) funds as a legacy LP who could not be displaced.</p><p><strong>4 Ps — The Mechanism Test:</strong> Yale was known for unusually deep qualitative due diligence, including reference checks on GP partners that went far beyond the standard industry practice. Swensen's investment team regularly met with portfolio company CEOs, former GP partners, and competing LPs to understand the <em>mechanism</em> of GP returns — not just the historical record. They rejected GPs whose performance was clearly concentrated in one person's judgment without succession depth. They prioritised GPs with documented, replicable investment processes.</p><p><strong>Co-Investment — Formalised into the Relationship Structure:</strong> Yale negotiated co-investment rights as a standard term in their LP agreements with key GPs. These rights allowed Yale to invest alongside specific deals at zero or reduced fees — materially increasing the return on their PE allocation beyond the fund-level returns. More importantly, Yale used co-investments as a <em>relationship deepening tool</em>: by demonstrating capability and reliability as a co-investor (rapid decision-making, no renegotiation), they became more valued by GPs who increasingly offered them better terms and larger allocations.</p><p><strong>The Integrated Outcome:</strong> Yale's PE allocation consistently outperformed the Cambridge Associates PE benchmark by 4–7% per year. [needs-verification on exact outperformance figure] The analysis of the mechanism consistently points not to any single insight but to the integrated application of all four concepts: - Selecting on DPI-based track records (not inflated TVPI) - Identifying the persistence mechanism through deep 4 Ps diligence - Maintaining relationships through multiple fund vintages (persistence access) - Leveraging co-investment to amplify returns and deepen relationships</p><p><strong>The limitation of the Yale model:</strong> Yale was building their PE programme in the 1980s–1990s when the top GPs were smaller, less competitive, and more accessible. An LP trying to replicate the Yale approach in 2025 — entering KKR, Sequoia, or Apollo for the first time — faces a fundamentally different access environment. The persistence advantage of those GPs is now widely understood, their funds are massively oversubscribed, and new LP access is minimal. The synthesis therefore reveals an uncomfortable truth: the correct LP manager selection framework produces different practical recommendations depending on whether you are an established LP with existing relationships or a new entrant building a programme from scratch.</p><p>---</p>"}, "6": {"section": "Why This Relationship Matters", "html": "<p>Studying these four concepts separately produces four distinct decision tools — a return scorer, a persistence filter, a qualitative DD framework, and a fee calculator. Studying them together produces something more valuable: <strong>a coherent theory of how to construct an LP portfolio that outperforms over decades, not just over one fund cycle.</strong></p><p>Specifically, the synthesis reveals five insights that are invisible from individual concept study:</p><p><strong>1. Track record analysis and persistence are not independent — they must be interpreted jointly.</strong> A top-quartile track record is only as valuable as the underlying persistence probability. Applying the track record analysis to a GP without understanding the persistence mechanism is like reading a weather forecast without knowing whether the model has predictive power in your region. The persistence filter determines how much weight to give the track record.</p><p><strong>2. The 4 Ps framework is the mechanism detector for persistence.</strong> Persistence research tells you whether a GP's returns persist on average. The 4 Ps framework tells you <em>why a specific GP's returns persist</em> — or why they might not, despite the historical pattern. The \"People\" P specifically tests whether persistence is person-dependent (fragile) or process-dependent (durable). The \"Process\" P tests whether the sourcing and execution methodology is repeatable or idiosyncratic.</p><p><strong>3. Co-investment economics shifts the comparative ranking of GPs.</strong> An LP who evaluates two GPs purely on fund IRR may rank them incorrectly if one offers meaningful co-investment access and the other does not. A GP generating 18% net fund IRR with a well-structured co-investment programme delivering £50m per year in additional no-carry exposure may produce higher <em>total LP returns</em> than a GP generating 22% fund IRR with no co-investment. The selection decision requires an integrated return model, not a league table.</p><p><strong>4. The persistence access problem constrains the selection set before the selection begins.</strong> Return persistence is most concentrated among top-decile GPs with long historical records and stable teams — exactly the managers whose funds are oversubscribed and whose allocation to new LPs is minimal. An LP without established GP relationships cannot simply \"select the most persistent managers\" because those managers are not accessible. The synthesis reveals that persistence theory and persistence access are two different problems, and solving the second requires a relationship-building strategy, not just an analytical one.</p><p><strong>5. Manager selection is a portfolio construction decision with a vintage year dimension.</strong> Because co-investment economics create a relationship premium and because persistence is strongest at top-decile GPs (who are scarce), LP portfolios should be managed as a diversified mix of relationship LPs (deep relationships with fewer, best-in-class GPs across multiple vintages) and exploratory commitments (smaller, newer GPs where the persistence track record is shorter but the access cost is lower). This portfolio logic is invisible if you treat manager selection as a one-at-a-time decision.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>LP manager selection cannot be reduced to picking the GP with the highest historical return. It is a simultaneous optimisation across four interdependent dimensions — each taught in isolation but only useful in combination.</p><p>Track record analysis generates the measurement; return persistence theory determines how much predictive weight that measurement deserves; the 4 Ps framework identifies whether the mechanism behind past persistence is still in place; and co-investment economics redefine the total return from the GP relationship in a way that can overturn what the track record ranking suggested.</p><p>The Yale Endowment model under David Swensen operated all four dimensions simultaneously and implicitly — relationship investing (persistence theory), deep qualitative diligence (4 Ps), DPI-focused track record analysis, and systematic co-investment rights (relationship economics) — and delivered 35 years of sustained PE outperformance that is explicable only by the integration, not by any single concept.</p><p>The access constraint — that the most persistently top-decile GPs are precisely the ones most difficult for new LPs to access — means that LP manager selection is ultimately a long-term relationship portfolio construction challenge: committing earlier to promising GPs, deepening relationships through co-investment, demonstrating LP quality to earn preferred access, and building a GP portfolio that diversifies across persistence mechanisms, vintage years, and geographies rather than concentrating in any one dimension of quality.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

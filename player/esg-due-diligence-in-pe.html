@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "esg-due-diligence-in-pe", "title": "ESG Due Diligence in PE", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "From sideshow to deal gate", "on_screen_bullets": ["LP mandates via side letters", "SFDR + regulatory pressure", "Liabilities and exit multiple"], "narration": "ESG has moved from a peripheral LP concern to a central deal-execution requirement, and for five concrete reasons. First, LP mandates are now enforced through side letters — large pension funds and sovereign wealth funds require ESG reporting as a condition of commitment, and an ESG-blind investment can trigger their excusal rights and damage the GP's fundraising. Second, regulation is expanding — Europe's disclosure regime forces funds to classify and document their ESG integration. Third, material ESG liabilities affect pricing — environmental contamination and safety violations aren't visible in EBITDA, but a firm that discovers them post-close pays for them with no price adjustment. Fourth, ESG is a genuine value-creation lever — energy efficiency cuts costs, strong governance cuts regulatory risk, and those are real EBITDA drivers. And fifth, ESG affects the exit — strategic buyers apply their own ESG screens, so a portfolio company with heavy liabilities can be uninvestable for its most natural buyers, compressing the exit multiple. This is now the fourth core diligence stream.", "est_sec": 54}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Risks and opportunities off the P&L", "on_screen_bullets": ["Environmental, social, governance", "Not in the financial statements", "Affects thesis, hold, exit"], "narration": "The definition. ESG due diligence in private equity is the structured pre-investment assessment of a target's environmental, social, and governance risks and opportunities — identifying material liabilities, regulatory exposures, and value-creation potential that aren't captured in financial statements but can significantly affect the investment thesis, the holding-period operations, and the exit valuation. The key phrase is off the P&L: these are the risks and opportunities the income statement doesn't show.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Buying the farm", "on_screen_bullets": ["E: soil contamination?", "S: are the workers safe and fair-paid?", "G: is management honest?"], "narration": "Imagine you're buying a farm. The standard checks — is the land productive, is the price fair, are the titles clean — are your financial and legal diligence. But a good buyer also asks three more questions: is there contamination in the soil from previous industrial use, are the farm workers paid fairly and safely, and is management transparent and honest about the farm's condition? Those three are ESG due diligence. They don't show up in this year's income statement — the soil contamination doesn't affect this year's crop yield — but it affects what you can sell the land for in ten years, and whether you'll be liable for the clean-up. Same logic in PE. A business with hidden environmental liabilities, poor labour practices, or weak governance looks fine on the P&L, but those issues materialise as regulatory fines that destroy EBITDA, reputational crises that cost customers, or exit-blocking conditions when the natural buyers apply their own screens. The alphabet: E is environmental — carbon footprint, contamination, emissions rules; S is social — how the business treats its people, suppliers, and communities; and G is governance — board conflicts, anti-corruption, tax transparency.", "est_sec": 60}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Is the house built sustainably?", "on_screen_bullets": ["Yield says it's a good deal now", "EPC rating says who'll buy it in 2030", "None of it shows in the rental yield"], "narration": "Here's the mental model. ESG diligence is like checking whether a house is built sustainably before you buy it. The financial valuation — price per square foot, rental yield — tells you if the deal is attractive today. The ESG checks ask whether the house is in a flood zone, whether there's asbestos, what its energy rating is; whether it was built by properly paid workers; whether the management company is transparent. None of that appears in the rental yield — but all of it affects the long-term value and, crucially, who will be willing to buy it when you eventually sell. A house with excellent returns but a poor energy rating may simply be unsellable to sustainability-conscious buyers in 2030. That's exactly the exit dynamic ESG diligence is protecting against.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The three dimensions + SFDR", "on_screen_bullets": ["E: contamination, carbon, transition risk", "S: safety, labour, supply chain", "G: anti-corruption, board, tax"], "narration": "Technically, ESG diligence is usually a fifth parallel workstream, run by a specialist consultant or the GP's own ESG team, drawing on data-room documents, management interviews, site visits, and third-party contamination and enforcement databases. Across the three dimensions, the red flags are specific. On environmental: historic contamination on owned or previously-owned land, which can mean clean-up liabilities in the tens of millions; carbon-intensive operations exposed to rising carbon pricing; and climate-transition risk for fossil-fuel-dependent businesses facing structural demand decline. On social: serious safety violations and pending investigations; poor labour practices like low pay and high turnover; supply-chain exposure to forced-labour risk under modern-slavery rules; and weak diversity that LPs and strategic buyers increasingly screen for. On governance: anti-corruption exposure in high-risk jurisdictions, aggressive tax structuring, weak boards with no independent directors, related-party transactions, and inadequate cyber security. Wrapping all of this is the regulatory layer — Europe's Sustainable Finance Disclosure Regulation forces funds to classify as Article 6, no sustainability integration; Article 8, light green, promoting environmental or social characteristics; or Article 9, dark green, with sustainable investment as the explicit objective. Most large buyout funds have repositioned from Article 6 to Article 8, which requires documenting genuine ESG integration — and regulators have started scrutinising funds that claim Article 8 without it, the greenwashing investigations.", "est_sec": 68}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Carlyle: the Phase 2 that saved the deal", "on_screen_bullets": ["Solvents in groundwater found pre-close", "Remediation est. £3.5–7m → price cut £5m", "Skip it: 100% buyer's cost, up to £20m+"], "narration": "Take an illustrative composite Carlyle deal — a mid-market specialty chemicals manufacturer. During legal diligence, a Phase 1 environmental assessment found that the primary facility sat on land used for solvent manufacturing back in the 1970s, never investigated for residual contamination. Instead of pressing on, the ESG workstream commissioned a Phase 2 assessment — actual soil and groundwater sampling. It found chlorinated solvents in the groundwater above regulatory limits, with estimated remediation of three-and-a-half to seven million pounds. The outcome: the contamination was disclosed, the price was cut by five million — the midpoint — with a seller indemnity above that level, and a consultant was appointed to run the remediation, which finished in three years for about four-point-two million, inside the indemnity. Now the counterfactual: had that contamination been found after close, the fund would have borne a hundred percent of the cost with no recourse — and if it had migrated to a neighbouring property, third-party claims could have run past twenty million. A three-to-seven-million pre-close negotiation prevented a potentially twenty-million-plus post-close disaster. On the value-creation side, firms like EQT report that portfolio companies with strong ESG profiles — clean governance, a credible carbon trajectory — command higher exit multiples from strategic buyers who have their own sustainability commitments.", "est_sec": 64}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not just LP box-ticking", "ESG DD ≠ legal DD", "Not only for European GPs"], "narration": "Four corrections. First, ESG is not just a box-ticking exercise for LP reporting — for leading GPs it's a genuine value-creation discipline; energy efficiency cuts operating costs, diversity programmes improve retention, governance improvements cut regulatory risk, and that value shows up in exit multiples. Second, ESG compliance doesn't simply reduce returns — better ESG correlates with better governance, fewer fraud events, and lower regulatory risk; the compliance cost is real but typically small against the liabilities avoided and the operational value created. Third, ESG diligence is not the same as legal diligence — they overlap on environmental compliance, but legal diligence asks backward-looking, what violations do we inherit, while ESG diligence asks forward-looking, what is the full footprint, how does it compare to peers, what risks materialise over a five-to-seven-year hold, and what can we improve to lift exit value. And fourth, it's not only European GPs who need it — the disclosure regime applies to EU-marketed funds, but LP pressure is global, non-European LPs like CalPERS and CPPIB have strong ESG requirements, and US strategic buyers increasingly apply screens at exit.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Liability and lever", "on_screen_bullets": ["E/S/G risks invisible on the P&L", "SFDR, PRI, LP mandates drive it", "Contamination = the signature risk"], "narration": "To recap. ESG due diligence assesses a target's environmental, social, and governance profile — contamination and carbon, labour and safety, board and anti-corruption — finding material liabilities that affect price and SPA structure, and opportunities that convert into EBITDA and exit-multiple gains over the hold. It evolved from peripheral LP reporting into a central deal discipline, driven by disclosure classification for European marketing, PRI signatory obligations, LP side-letter mandates, and strategic-buyer screens at exit. The signature risk is the environmental contamination scenario — invisible on the P&L, potentially millions to remediate, a hundred percent the buyer's problem if found post-close, and preventable with a Phase 2 assessment during diligence. And the signature opportunity is the governance build-out that widens the exit buyer universe. That completes the four diligence streams; next we synthesise them in the capstone — due diligence red flags.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why is environmental contamination called ESG DD's signature risk — what does it cost if found pre-close versus post-close? And what do SFDR Articles 6, 8 and 9 mean?", "narration": "Before the next lesson, answer both. Why is environmental contamination called the signature ESG risk — what's the difference in cost between finding it before close and after? And what do the three SFDR classifications, Article 6, 8, and 9, actually mean? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: ESG Due Diligence in PE\n\n[hook] From sideshow to deal gate\nESG has moved from a peripheral LP concern to a central deal-execution requirement, and for five concrete reasons. First, LP mandates are now enforced through side letters — large pension funds and sovereign wealth funds require ESG reporting as a condition of commitment, and an ESG-blind investment can trigger their excusal rights and damage the GP's fundraising. Second, regulation is expanding — Europe's disclosure regime forces funds to classify and document their ESG integration. Third, material ESG liabilities affect pricing — environmental contamination and safety violations aren't visible in EBITDA, but a firm that discovers them post-close pays for them with no price adjustment. Fourth, ESG is a genuine value-creation lever — energy efficiency cuts costs, strong governance cuts regulatory risk, and those are real EBITDA drivers. And fifth, ESG affects the exit — strategic buyers apply their own ESG screens, so a portfolio company with heavy liabilities can be uninvestable for its most natural buyers, compressing the exit multiple. This is now the fourth core diligence stream.\n\n[definition] Risks and opportunities off the P&L\nThe definition. ESG due diligence in private equity is the structured pre-investment assessment of a target's environmental, social, and governance risks and opportunities — identifying material liabilities, regulatory exposures, and value-creation potential that aren't captured in financial statements but can significantly affect the investment thesis, the holding-period operations, and the exit valuation. The key phrase is off the P&L: these are the risks and opportunities the income statement doesn't show.\n\n[intuition] Buying the farm\nImagine you're buying a farm. The standard checks — is the land productive, is the price fair, are the titles clean — are your financial and legal diligence. But a good buyer also asks three more questions: is there contamination in the soil from previous industrial use, are the farm workers paid fairly and safely, and is management transparent and honest about the farm's condition? Those three are ESG due diligence. They don't show up in this year's income statement — the soil contamination doesn't affect this year's crop yield — but it affects what you can sell the land for in ten years, and whether you'll be liable for the clean-up. Same logic in PE. A business with hidden environmental liabilities, poor labour practices, or weak governance looks fine on the P&L, but those issues materialise as regulatory fines that destroy EBITDA, reputational crises that cost customers, or exit-blocking conditions when the natural buyers apply their own screens. The alphabet: E is environmental — carbon footprint, contamination, emissions rules; S is social — how the business treats its people, suppliers, and communities; and G is governance — board conflicts, anti-corruption, tax transparency.\n\n[intuition] Is the house built sustainably?\nHere's the mental model. ESG diligence is like checking whether a house is built sustainably before you buy it. The financial valuation — price per square foot, rental yield — tells you if the deal is attractive today. The ESG checks ask whether the house is in a flood zone, whether there's asbestos, what its energy rating is; whether it was built by properly paid workers; whether the management company is transparent. None of that appears in the rental yield — but all of it affects the long-term value and, crucially, who will be willing to buy it when you eventually sell. A house with excellent returns but a poor energy rating may simply be unsellable to sustainability-conscious buyers in 2030. That's exactly the exit dynamic ESG diligence is protecting against.\n\n[mechanics] The three dimensions + SFDR\nTechnically, ESG diligence is usually a fifth parallel workstream, run by a specialist consultant or the GP's own ESG team, drawing on data-room documents, management interviews, site visits, and third-party contamination and enforcement databases. Across the three dimensions, the red flags are specific. On environmental: historic contamination on owned or previously-owned land, which can mean clean-up liabilities in the tens of millions; carbon-intensive operations exposed to rising carbon pricing; and climate-transition risk for fossil-fuel-dependent businesses facing structural demand decline. On social: serious safety violations and pending investigations; poor labour practices like low pay and high turnover; supply-chain exposure to forced-labour risk under modern-slavery rules; and weak diversity that LPs and strategic buyers increasingly screen for. On governance: anti-corruption exposure in high-risk jurisdictions, aggressive tax structuring, weak boards with no independent directors, related-party transactions, and inadequate cyber security. Wrapping all of this is the regulatory layer — Europe's Sustainable Finance Disclosure Regulation forces funds to classify as Article 6, no sustainability integration; Article 8, light green, promoting environmental or social characteristics; or Article 9, dark green, with sustainable investment as the explicit objective. Most large buyout funds have repositioned from Article 6 to Article 8, which requires documenting genuine ESG integration — and regulators have started scrutinising funds that claim Article 8 without it, the greenwashing investigations.\n\n[worked-example] Carlyle: the Phase 2 that saved the deal\nTake an illustrative composite Carlyle deal — a mid-market specialty chemicals manufacturer. During legal diligence, a Phase 1 environmental assessment found that the primary facility sat on land used for solvent manufacturing back in the 1970s, never investigated for residual contamination. Instead of pressing on, the ESG workstream commissioned a Phase 2 assessment — actual soil and groundwater sampling. It found chlorinated solvents in the groundwater above regulatory limits, with estimated remediation of three-and-a-half to seven million pounds. The outcome: the contamination was disclosed, the price was cut by five million — the midpoint — with a seller indemnity above that level, and a consultant was appointed to run the remediation, which finished in three years for about four-point-two million, inside the indemnity. Now the counterfactual: had that contamination been found after close, the fund would have borne a hundred percent of the cost with no recourse — and if it had migrated to a neighbouring property, third-party claims could have run past twenty million. A three-to-seven-million pre-close negotiation prevented a potentially twenty-million-plus post-close disaster. On the value-creation side, firms like EQT report that portfolio companies with strong ESG profiles — clean governance, a credible carbon trajectory — command higher exit multiples from strategic buyers who have their own sustainability commitments.\n\n[pitfalls] What people get wrong\nFour corrections. First, ESG is not just a box-ticking exercise for LP reporting — for leading GPs it's a genuine value-creation discipline; energy efficiency cuts operating costs, diversity programmes improve retention, governance improvements cut regulatory risk, and that value shows up in exit multiples. Second, ESG compliance doesn't simply reduce returns — better ESG correlates with better governance, fewer fraud events, and lower regulatory risk; the compliance cost is real but typically small against the liabilities avoided and the operational value created. Third, ESG diligence is not the same as legal diligence — they overlap on environmental compliance, but legal diligence asks backward-looking, what violations do we inherit, while ESG diligence asks forward-looking, what is the full footprint, how does it compare to peers, what risks materialise over a five-to-seven-year hold, and what can we improve to lift exit value. And fourth, it's not only European GPs who need it — the disclosure regime applies to EU-marketed funds, but LP pressure is global, non-European LPs like CalPERS and CPPIB have strong ESG requirements, and US strategic buyers increasingly apply screens at exit.\n\n[recap] Liability and lever\nTo recap. ESG due diligence assesses a target's environmental, social, and governance profile — contamination and carbon, labour and safety, board and anti-corruption — finding material liabilities that affect price and SPA structure, and opportunities that convert into EBITDA and exit-multiple gains over the hold. It evolved from peripheral LP reporting into a central deal discipline, driven by disclosure classification for European marketing, PRI signatory obligations, LP side-letter mandates, and strategic-buyer screens at exit. The signature risk is the environmental contamination scenario — invisible on the P&L, potentially millions to remediate, a hundred percent the buyer's problem if found post-close, and preventable with a Phase 2 assessment during diligence. And the signature opportunity is the governance build-out that widens the exit buyer universe. That completes the four diligence streams; next we synthesise them in the capstone — due diligence red flags.\n\nEnd-card question: Why is environmental contamination called ESG DD's signature risk — what does it cost if found pre-close versus post-close? And what do SFDR Articles 6, 8 and 9 mean?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>ESG has moved from a peripheral LP concern to a central deal-execution requirement. For a PE professional, understanding ESG DD matters for five distinct reasons:</p><ol><li><strong>LP mandates are enforced via side letters.</strong> Large institutional LPs — pension funds, SWFs, university endowments — now require ESG reporting as a standard condition of commitment. The excusal right provisions in side letters allow LPs to opt out of specific investments that conflict with their ESG policies. An ESG-blind investment can trigger LP side letter rights and damage the GP's fundraising relationships.</li></ol><ol><li><strong>Regulation is expanding.</strong> The EU's Sustainable Finance Disclosure Regulation (SFDR) requires PE funds operating in or marketing to European LPs to classify as Article 6 (no sustainability integration), Article 8 (promote environmental/social characteristics), or Article 9 (have sustainable investment as objective). GPs that cannot demonstrate ESG integration may find themselves reclassified to Article 6 — reducing their marketability to large European institutional LPs.</li></ol><ol><li><strong>Material ESG liabilities affect deal pricing.</strong> Environmental contamination, pending regulatory investigations, safety violations, and governance failures are not visible in EBITDA — but they affect what buyers will pay at exit. A PE firm that discovers environmental contamination post-close pays for remediation without having received a price adjustment.</li></ol><ol><li><strong>ESG is a genuine value creation lever.</strong> Energy efficiency programmes reduce operating costs. Strong D&amp;I practices improve talent retention and employee productivity. Robust governance reduces regulatory risk and the management time spent on compliance. These are real EBITDA drivers, not reputational window dressing.</li></ol><ol><li><strong>ESG affects exit multiple and buyer universe.</strong> Strategic buyers with their own ESG commitments apply ESG screens to acquisitions. A portfolio company with significant ESG liabilities (high carbon intensity, poor labour practices, governance failures) may be uninvestable for the most natural strategic buyers — compressing the exit multiple or eliminating entire buyer categories.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>ESG due diligence in private equity is the structured pre-investment assessment of a target company's environmental, social, and governance risks and opportunities — identifying material liabilities, regulatory exposures, and value creation potential that are not captured in financial statements but can significantly affect the investment thesis, holding period operations, and exit valuation.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you're buying a farm. Before completing the purchase, you check for obvious problems: is the land productive, is the price fair, are the legal titles clean? These are the standard financial and legal checks.</p><p>But a good buyer also asks: Is there contamination in the soil from previous industrial use? Are the farm workers paid fairly and safely? Is the management transparent and honest about the farm's condition?</p><p>These last three questions are ESG due diligence. They don't show up in the farm's income statement. The soil contamination doesn't affect this year's crop yield — but it affects what you can sell the land for in 10 years, and whether you'll be held liable for clean-up costs.</p><p>In PE, the same logic applies. A business with hidden environmental liabilities, poor labour practices, or weak governance looks fine on the P&amp;L — but those issues can materialise as: - Regulatory fines that destroy EBITDA - Reputational crises that cost customers - Exit-blocking conditions when the most natural buyers apply their own ESG screens</p><p><strong>The ESG alphabet:</strong> - <strong>E (Environmental):</strong> Does the business harm the environment? What is its carbon footprint? Are there contaminated sites? What regulations apply to its emissions? - <strong>S (Social):</strong> How does the business treat its people, suppliers, and communities? Are there safety risks? Labour violations? Supply chain issues? - <strong>G (Governance):</strong> Is the business well-governed? Are there board conflicts of interest? Anti-corruption practices? Tax transparency?</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>ESG DD is like checking whether a house is built sustainably before buying it. The financial valuation (price per square foot, rental yield) tells you if the deal is financially attractive. ESG checks whether the house: - <strong>Environmental</strong>: Is it in a flood zone? Is there asbestos? What are the heating costs? What's the EPC rating? - <strong>Social</strong>: Was it built by properly paid workers? Are neighbours likely to complain about future use? - <strong>Governance</strong>: Is the building management company transparent? Are there undisclosed charges?</p><p>None of these appear in the rental yield calculation — but all of them affect the long-term value and the buyer universe when you eventually sell. A house with excellent financial returns but poor EPC rating may be unsellable to buyers with sustainability commitments in 2030.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The ESG DD Workstream in Context</p><p>ESG DD is typically a fifth parallel workstream alongside CDD, FDD, LDD, and MTA. It is often conducted by: - A specialist ESG/sustainability consultant (for mid-market and above) - The GP's internal ESG team (larger GPs like KKR, EQT, Ardian have dedicated ESG professionals) - In smaller deals: embedded within CDD (environmental risks) and LDD (regulatory compliance)</p><p>The ESG workstream typically accesses: - Data room documents: sustainability reports, environmental permits, safety incident logs, supplier codes of conduct, board diversity data, governance documents - Management interviews: Chief Sustainability Officer (if one exists) or CEO/COO on sustainability topics - Site visits: physical inspection of manufacturing facilities, waste management, safety procedures - Third-party databases: environmental contamination registries, regulatory enforcement records, media and NGO reports</p><p>---</p><p>### The Three ESG Dimensions in Deal Context</p><p><strong>Environmental (E)</strong></p><p><em>Pre-investment red flags:</em> - <strong>Environmental contamination</strong>: Owned or previously owned land with historic industrial contamination (petroleum hydrocarbons, heavy metals, asbestos) creates clean-up liabilities that can run to tens of millions — see Due Diligence Red Flags (LDD category for related legal risks) - <strong>Carbon-intensive operations</strong>: Businesses with high Scope 1 and Scope 2 emissions face increasing carbon pricing risk (EU ETS, UK ETS, potential carbon border adjustment mechanisms) - <strong>Regulatory exposure</strong>: Operations near waterways, air quality non-compliance, hazardous waste handling outside regulatory limits — all create enforcement risk - <strong>Climate transition risk</strong>: A business heavily dependent on fossil fuels (coal, oil &amp; gas services, certain chemicals) faces long-term structural demand decline as energy transition accelerates — this is commercial risk, not just reputational</p><p><em>Value creation opportunities:</em> - Energy efficiency programmes (LED lighting, HVAC optimisation, equipment upgrades) reduce operating costs and carbon intensity simultaneously - Renewable energy procurement (power purchase agreements, on-site solar) reduces energy cost volatility and demonstrates decarbonisation progress - Waste reduction programmes improve operating cost and regulatory compliance posture - Carbon footprint measurement and reporting — increasingly required by strategic acquirers and large public customers (Scope 3 supply chain requirements)</p><p><strong>Social (S)</strong></p><p><em>Pre-investment red flags:</em> - <strong>Safety violations</strong>: Recent serious workplace accidents, RIDDOR reportable incidents (UK), OSHA violations (US), pending HSE investigations — all create regulatory and reputational risk - <strong>Labour practices</strong>: Low wages relative to sector norms, high turnover, union disputes, zero-hours contract overuse — signal both operational risk (retention) and regulatory risk (minimum wage compliance, gig economy regulation) - <strong>Supply chain standards</strong>: Suppliers in high-risk geographies with poor labour standards (forced labour risk) create Modern Slavery Act compliance exposure and ESG-motivated customer pressure - <strong>Diversity &amp; inclusion</strong>: Board with no female members, all-white senior team in a consumer-facing business — increasingly flagged by LP diversity requirements and strategic buyer ESG screens - <strong>Data privacy</strong>: GDPR non-compliance (already covered in LDD but also an ESG risk from customer trust perspective) - <strong>Community impact</strong>: Businesses operating near communities with historical conflicts (extractives, manufacturing) face activism and reputational risk</p><p><em>Value creation opportunities:</em> - D&amp;I programmes improve talent retention and access to a broader talent pool - Employee wellbeing programmes (EAP, flexible working, better benefits) reduce recruitment costs and sickness absence - Supply chain auditing programmes reduce Modern Slavery Act compliance risk and qualify the business for customers with supplier codes of conduct - Community engagement programmes reduce local opposition and support licence to operate</p><p><strong>Governance (G)</strong></p><p><em>Pre-investment red flags:</em> - <strong>Anti-corruption</strong>: Operations in high-corruption-risk jurisdictions (assessed via Transparency International CPI) without robust anti-bribery policies and training create FCPA/UKBA exposure - <strong>Tax practices</strong>: Aggressive tax structuring that may not survive regulatory scrutiny — reputational risk in consumer-facing businesses, financial risk if structures are unwound - <strong>Board composition</strong>: No independent directors, no audit committee, no succession planning — all signal governance weakness that PE ownership must immediately address - <strong>Conflicts of interest</strong>: Related-party transactions (already in FDD red flags) that reflect governance failure rather than just financial manipulation - <strong>Cyber security</strong>: Inadequate information security practices — increasing regulatory exposure and reputational risk from data breaches</p><p><em>Value creation opportunities:</em> - Professional board build-out (independent directors, audit committee, remuneration committee) improves management accountability and prepares company for exit - Anti-corruption and ethics training programmes reduce FCPA/UKBA risk in international operations - Data governance framework implementation — increasingly required by enterprise customers</p><p>---</p><p>### The Regulatory Landscape — SFDR and LP Obligations</p><p><strong>EU SFDR (Sustainable Finance Disclosure Regulation)</strong></p><p>SFDR (effective March 2021) requires EU-based PE fund managers — and non-EU managers marketing to EU investors — to classify their funds:</p><ul class='notelist'><li><strong>Article 6</strong>: Fund does not promote environmental or social characteristics and does not have a sustainable investment objective. The fund must still disclose how sustainability risks are integrated into investment decisions (or why they are not considered relevant).</li><li><strong>Article 8</strong> (\"Light Green\"): The fund promotes environmental or social characteristics, or a combination thereof. Must disclose how the characteristics are met and what proportion of investments qualify.</li><li><strong>Article 9</strong> (\"Dark Green\"): The fund has sustainable investment as its explicit objective. Requires a taxonomy alignment statement and quantitative sustainability impact metrics.</li></ul><p><strong>Practical implications for PE GPs:</strong> - Most large PE funds have repositioned from implicit Article 6 to explicit Article 8 compliance — requiring them to document ESG integration in investment processes - Article 9 is rarely used in traditional buyout PE — it is more common in dedicated impact funds - SFDR reclassification risk: the European Securities and Markets Authority (ESMA) has scrutinised funds that claim Article 8 status without genuinely integrating ESG — \"greenwashing\" investigations</p><p><strong>UN PRI (Principles for Responsible Investment)</strong></p><p>The UN PRI is a voluntary framework for institutional investors to incorporate ESG into investment decisions. Approximately 5,000+ signatories globally, including most major PE GPs (KKR, Carlyle, Blackstone, EQT, Ardian, etc.). [needs-verification on signatory count]</p><p>As a PRI signatory, a GP commits to: - Incorporating ESG issues into investment analysis - Being active owners on ESG issues in portfolio companies - Seeking appropriate ESG disclosure from investee companies - Promoting acceptance and implementation of the Principles in the investment industry</p><p><strong>LP-driven requirements:</strong> Many of the largest LPs are themselves PRI signatories and require their GP managers to be signatories as a condition of commitment. CalPERS, CPPIB, USS, and most major European public pension funds all require ESG disclosure as standard LP due diligence.</p><p><strong>TCFD (Task Force on Climate-Related Financial Disclosures)</strong></p><p>TCFD provides a framework for companies (and investors) to disclose climate-related financial risks and opportunities across four dimensions: 1. Governance: board and management oversight of climate-related risks 2. Strategy: actual and potential climate impacts on the organization's businesses, strategy, and financial planning 3. Risk management: processes for identifying, assessing, and managing climate-related risks 4. Metrics and Targets: metrics used to assess climate-related risks and opportunities, including GHG emissions</p><p>TCFD-aligned reporting is now standard at the fund level for major PE GPs and is increasingly required at the portfolio company level — GPs must collect emissions data from portfolio companies to disclose Scope 3 portfolio emissions.</p><p>---</p><p>### ESG in the Investment Process — Integration Points</p><p>| Stage | ESG Integration | |---|---| | <strong>Sourcing / Screening</strong> | Exclusion lists (weapons, tobacco, gambling — based on LP mandates); initial ESG risk screen from public information | | <strong>Pre-DD / IC Approval</strong> | Initial ESG risk assessment: is this investment compatible with fund's Article 8 status and LP side letter exclusions? | | <strong>Due Diligence</strong> | Full ESG workstream: environmental assessment, social baseline, governance review; specialist ESG adviser engaged | | <strong>Pricing and SPA</strong> | Material ESG findings affect price (environmental remediation liability); ESG warranties/indemnities in SPA; ESG conditions precedent | | <strong>100-Day Plan</strong> | ESG action plan implemented: quick wins (governance, safety), medium-term (energy audit, D&amp;I programme), long-term (emissions reduction) | | <strong>Holding Period</strong> | Annual ESG reporting to GP; ESG KPIs tracked at board level; ESG improvement linked to management bonus (some GPs) | | <strong>Exit</strong> | ESG data room prepared; ESG story communicated to buyers; ESG liabilities addressed ahead of exit; ESG premium sought from strategic buyers with ESG commitments |</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### EQT and the Integration of ESG into Deal Execution</p><p>EQT, the Swedish private equity firm with approximately €230bn AUM, has developed one of the most comprehensive ESG frameworks in PE. EQT publishes annual sustainability reports with portfolio-level emissions data, social metrics, and governance ratings.</p><p><strong>EQT's Motherbrain and ESG integration:</strong> EQT developed \"Motherbrain,\" an AI-driven sourcing and monitoring platform, which also integrates ESG risk data — flagging potential sustainability concerns in target companies before formal DD begins. ESG is embedded into the pre-DD screening rather than being a post-deal add-on. [needs-verification on Motherbrain ESG functionality]</p><p><strong>A representative EQT deal example — industrial buyout with environmental considerations:</strong></p><p>When EQT acquires manufacturing businesses, environmental DD is a standard workstream that includes: - Phase 1 Environmental Assessment: review of historical site usage, review of regulatory compliance records - Engagement with environmental specialists on potential contaminated land liability - Carbon intensity benchmarking: how does the target's Scope 1+2 emissions compare to sector peers?</p><p>In several EQT manufacturing deals, environmental DD has identified contamination liabilities that were reflected in the purchase price — either as a direct price reduction or through an indemnity structure where the seller agrees to fund remediation up to a cap. [needs-verification on specific EQT transactions]</p><p><strong>EQT's post-close ESG programme:</strong> Post-close, EQT implements a standardised ESG improvement programme: - Board governance build-out (independent directors, board diversity) - Carbon footprint measurement and reduction targets aligned with 1.5°C pathways (Paris Agreement) - Safety management system implementation (target: zero serious injuries) - Employee NPS measurement and improvement programme - Annual third-party ESG audit</p><p><strong>Why this creates value:</strong> EQT reports that portfolio companies with strong ESG profiles commanded higher exit multiples in strategic sale processes — particularly when the buyer is a listed company with its own sustainability commitments (as Scope 3 supply chain sustainability requirements spread). A portfolio company that can demonstrate ISO 14001 certification, a credible carbon reduction trajectory, and clean governance is more attractive to a broad strategic buyer universe than a company with ESG liabilities that the buyer would inherit.</p><p>---</p><p>### Carlyle Group and Contaminated Site — The ESG DD That Saved the Deal</p><p>Carlyle Group's industrial portfolio includes several manufacturing businesses where environmental DD has identified historic contamination risks.</p><p>In one representative pattern (illustrative, composite of common industry situations): [needs-verification on specific Carlyle transaction]</p><p>A Carlyle deal team acquired a mid-market specialty chemicals manufacturer. Phase 1 Environmental Assessment during LDD identified that the company's primary facility had been built on land previously used for solvent manufacturing in the 1970s. The site had not been investigated for residual contamination.</p><p><strong>The ESG DD response:</strong> Rather than proceeding without further investigation, Carlyle's ESG workstream commissioned a Phase 2 Environmental Assessment (actual soil and groundwater sampling). Results revealed: - Chlorinated solvents in groundwater at concentrations exceeding UK regulatory standards - Estimated remediation cost: £3.5–7m depending on technology selected and regulatory requirements</p><p><strong>The deal outcome:</strong> The contamination was disclosed. Price was reduced by £5m (midpoint of estimated remediation cost range, with a seller indemnity for costs above that level). Carlyle appointed an environmental consultant to design and implement the remediation programme post-close. The remediation was completed over 3 years at a total cost of £4.2m — within the indemnity structure.</p><p><strong>What happens if ESG DD is skipped:</strong> Had the contamination been discovered post-close, the fund would have borne 100% of the £4.2m remediation cost (plus legal costs) with no recourse. More seriously, if the contamination had migrated to a neighbouring property, third-party liability claims could have exceeded £20m. The £3.5–7m pre-close negotiation became a fraction of the potential post-close liability.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"ESG is just a box-ticking exercise for LP reporting.\"</strong> For leading GPs, ESG is a genuine value creation discipline. Energy efficiency programmes reduce operating costs. D&amp;I programmes improve talent retention. Governance improvements reduce regulatory risk. These create EBITDA that shows up in exit multiples. ESG-light GPs who treat it as reporting bureaucracy are leaving value on the table and increasing their exposure to deal-specific liability surprises.</p><p><strong>Misconception 2: \"ESG compliance reduces returns.\"</strong> Empirical evidence on this is mixed, but the direction of causation is often misread. Companies with better ESG practices tend to have better governance (which correlates with fewer fraud events), better talent retention, and lower regulatory risk — all of which positively affect returns. The cost of ESG compliance (reporting, audits, improvement programmes) is real but typically small relative to the value protection from avoided liabilities and the value creation from genuine operational improvements. [needs-verification on empirical ESG-returns studies in PE]</p><p><strong>Misconception 3: \"ESG DD is the same as legal DD.\"</strong> They overlap — environmental compliance is assessed in both workstreams — but ESG DD goes significantly further. LDD asks: \"Are there regulatory violations we inherit?\" ESG DD asks: \"What is the full environmental footprint of this business, how does it compare to sector norms, what risks may materialise over a 5–7 year holding period, and what opportunities exist to improve the ESG profile to enhance exit value?\" ESG DD is forward-looking and operational; LDD is backward-looking and legal.</p><p><strong>Misconception 4: \"Only European GPs need to do ESG DD.\"</strong> SFDR applies to EU-based managers and EU-marketed funds, but LP pressure for ESG integration is global. CalPERS and CPPIB (both non-European) have strong ESG requirements. US-based strategic buyers increasingly apply ESG screens. US GPs who ignore ESG are increasingly disadvantaged in European LP fundraising, in cross-border acquisitions, and in exit processes where strategic buyers have ESG commitments.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>ESG due diligence is the pre-investment assessment of a target company's environmental (contamination, carbon footprint, regulatory compliance), social (labour practices, safety, supply chain standards), and governance (board composition, anti-corruption, tax practices) profile — identifying material liabilities that affect pricing and SPA structure, and opportunities that can be converted into EBITDA improvement and exit multiple enhancement during the holding period.</p><p>ESG has evolved from a peripheral LP reporting requirement to a central deal-execution discipline, driven by: SFDR classification requirements for European fund marketing (Article 6/8/9), UN PRI signatory obligations, LP side letter excusal rights and ESG reporting mandates, and strategic buyer ESG screens that affect exit multiple and buyer universe. Major GPs (EQT, Carlyle, KKR, Ardian) have built dedicated ESG teams and integrated ESG into their investment processes at the sourcing, DD, value creation, and exit stages.</p><p>The most material ESG risk in deal execution is the environmental contamination scenario: a liability invisible in the P&amp;L that can cost £1–20m to remediate, is 100% the buyer's problem if discovered post-close, and is preventable with a Phase 2 site assessment commissioned during DD. The most material ESG value creation opportunity is the governance build-out (board independence, ethics frameworks, safety systems) that reduces regulatory risk and widens the exit buyer universe to include strategic acquirers with ESG commitments who pay a premium for ESG-clean assets.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

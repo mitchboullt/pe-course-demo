@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "j-curve-effect", "title": "J-Curve Effect", "draft_watermark": false, "estimated_runtime_sec": 455, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Why a good fund looks bad early", "on_screen_bullets": ["Negative on paper for years", "Panic = exiting at the bottom", "Routine to explain to LPs"], "narration": "Here's a trap that catches investors who don't see it coming: a private equity fund that will eventually do beautifully can look like a disaster for its first few years. Statements show your money worth less than you put in. And if you don't understand why, you might panic — try to sell at the bottom, or question the whole PE allocation, or misreport the performance to your board. This pattern has a name and a shape, and once you know it, those scary early numbers become completely routine. For GPs, explaining it is just part of the job. Let's look at the J-curve.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The shape of PE returns", "on_screen_bullets": ["Negative in years 1–3", "Sharply positive in years 4–10", "Traced by TVPI"], "narration": "The definition. The J-curve is the characteristic pattern of a PE fund's returns over time: negative in years one to three, dragged down by fees, costs, and conservative valuations — then turning sharply positive in years four through ten as investments are realised and the winners appreciate. Plot it and it looks like the letter J: a dip, then a long upward stroke.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The dip, in plain terms", "on_screen_bullets": ["Fees hit immediately", "1–2 yrs just finding deals", "Year 1 might show 0.85x"], "narration": "In plain terms, here's why it dips. You've just put money in. The manager starts charging fees straight away, which lowers the value of your stake. It then spends the first year or two simply finding companies to buy. The ones it does buy are usually held at what was paid for them — no gains marked yet — while the early legal, due-diligence, and transaction costs are recognised immediately. So your reported value sits below what you invested. A quarterly statement after year one might show a TVPI of zero-point-eight-five — meaning a hundred dollars you put in is reported as worth eighty-five. That's not failure; that's the fund still planting.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Planting an orchard", "on_screen_bullets": ["Year 1: spend, nothing grows", "Years 2–3: trees, no fruit", "Years 6–8: abundant harvest"], "narration": "Think of planting an orchard. In year one you spend on equipment, planting, and fencing — nothing grows, and you're down money. In years two and three the trees are growing but bear no fruit. In year four the first small harvests come in. And by years six to eight the orchard is producing abundantly and you're selling fruit for well above what you spent. The J-curve is just the orchard's financial statement — it looks terrible right up until the trees mature and start to bear. Nobody rips out a healthy orchard in year two because it hasn't fruited yet.", "est_sec": 46}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Two forces, two halves", "on_screen_bullets": ["Fees: $10m/yr on $500m", "$30m drag over 3 yrs ≈ −6%", "Slow deployment + cost marks"], "narration": "Technically, two structural forces shape the curve: value destruction early, value creation late. On the downward side: management fees begin immediately — two percent on five hundred million committed is ten million a year drawn before a single investment is made, so over three years that's thirty million of fee drag, which alone knocks about six percent off TVPI relative to the capital contributed. Add slow deployment — it takes three to five years to invest a fund fully, so in year one maybe fifty to a hundred million of the five hundred is actually working while the rest sits earning next to nothing. And add conservative valuations — companies marked at cost until there's a reason to move them. Then the upward side takes over: operational improvements compound, exits start producing realised cash, and surviving winners get marked up. The dip and the climb are the same fund at different stages.", "est_sec": 60}, {"n": 6, "beat": "mechanics", "visual": "diagram", "source_section": "Diagram", "on_screen_title": "The curve itself", "on_screen_bullets": ["Trough ~0.82x at Year 2", "Back above 1.0x by Year 4–5", "Then the long upward stroke"], "mermaid": "xychart-beta\n  title \"The J-curve: TVPI over a fund's life\"\n  x-axis \"Fund year\" [1, 2, 3, 4, 5, 6, 7, 8, 10]\n  y-axis \"TVPI (x)\" 0.7 --> 2.0\n  line [0.88, 0.82, 0.85, 0.95, 1.15, 1.35, 1.55, 1.75, 1.90]", "narration": "Here's the shape your eye should remember. TVPI starts just below one — about zero-point-eight-eight in year one — dips to its trough around year two at roughly zero-point-eight-two, then claws back, crossing back above one-point-zero somewhere around years four to five. From there it traces the long upward stroke of the J: one-point-one-five, one-point-three-five, one-point-five-five, and on up toward one-point-nine by year ten. The exact numbers vary fund to fund, but that silhouette — a shallow dip followed by a steep, sustained climb — is the thing to carry in your head. The trough isn't the story; the stroke is.", "est_sec": 50}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Fund X, year by year", "on_screen_bullets": ["Y1: 0.87x — looks scary", "Y3: 1.05x, DPI 0.12x", "Y5: 1.40x · Y8: 1.85x, DPI 1.40x"], "narration": "Trace a five hundred million dollar 2018-vintage fund. Year one: TVPI zero-point-eight-seven. Ten million in fees, three companies bought but marked at cost, no exits — and LPs nervous about the low number. Year three: TVPI one-point-zero-five, two modest exits, DPI of zero-point-one-two as the first real cash trickles back. Year five: TVPI one-point-four-zero, four strong exits, DPI up to zero-point-five-five — and note that a market pullback in 2022 temporarily dented the unrealised marks, but the actual exits confirmed the value. Year eight: TVPI one-point-eight-five, DPI one-point-four-zero, eighty percent of the portfolio sold. Read those four snapshots in a row: concerning at year one, rational by year three, strong by year five, clearly successful by year eight. Same fund, the whole way.", "est_sec": 60}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Sub-1.0x ≠ failing", "Early high IRR can mislead", "VC J-curves are deeper, longer"], "narration": "Four corrections. First, a TVPI below one in year two does not mean the fund is failing — that's the normal trough; zero-point-eight-five for a fund that will return two times is utterly unremarkable. Second, a high IRR early in a fund's life isn't proof of skill — it can come from subscription-line effects or one small exit, not from the portfolio actually performing. Third, the J-curve isn't the same depth and length for every strategy: venture capital curves are deeper and longer, ten to fifteen years; buyout curves are shallower and shorter, seven to ten; real estate and infrastructure shallower still. And fourth, managers can mitigate the J-curve — with subscription lines or secondary purchases — but they cannot eliminate it. The dip is structural.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Don't judge year two", "on_screen_bullets": ["Dip: fees, cost marks, slow deploy", "Climb: improvements + exits + DPI", "TVPI traces it; DPI confirms it"], "narration": "To recap. The J-curve is the J-shaped path of PE returns: negative in years one to three, then rising steeply through years four to ten and beyond. The early trough comes from immediate fee drag, cost-basis valuations, transaction expenses, and slow deployment. The later climb comes from operational improvements compounding, exits producing realised DPI, and winners being marked up. TVPI is the line that traces the whole curve; DPI is the confirmed, cash-in-hand part; RVPI is the unrealised remainder. The practical lesson is simple — never judge a PE fund by its early-year numbers. Next, we move from fund returns to the deal itself: the leveraged buyout.", "est_sec": 48}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why is TVPI typically below 1.0x in the first 2 years of a PE fund — and why is that not a sign of failure?", "narration": "Before the next lesson, answer this in your own words. Why does TVPI usually sit below one in a fund's first couple of years — and why is that completely normal rather than a warning sign? Talk it through, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "Why is TVPI typically below 1.0x in the first 2 years of a PE fund?", "answer": "Management fees are charged immediately, reducing NAV; portfolio companies are marked at cost; transaction costs are expensed; capital is not yet deployed productively."}, {"label": "Q2.", "question": "List four specific reasons the J-curve dips negative in early years.", "answer": "Management fee drag, conservative cost-basis valuations, upfront transaction costs, slow capital deployment."}, {"label": "Q3.", "question": "What does it mean when DPI is 0.0x but TVPI is 1.2x in Year 4?", "answer": "TVPI of 1.2x is entirely unrealised (RVPI) — no cash has been returned to LPs. The value exists on paper but has not been confirmed by exits. DPI is the proven part of returns."}, {"label": "Q4.", "question": "When does the J-curve typically turn positive for a buyout fund?", "answer": "Typically years 4–6, when exits begin to generate meaningful DPI and portfolio companies have been operationally improved."}, {"label": "Q5.", "question": "Why might a fund show high early IRR but not actually be performing well?", "answer": "Early IRR can be inflated by subscription credit line effects (delaying the start of LP capital at risk) or small early exits; IRR is highly sensitive to timing and can be misleading before significant DPI has been achieved."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: J-Curve Effect\n\n[hook] Why a good fund looks bad early\nHere's a trap that catches investors who don't see it coming: a private equity fund that will eventually do beautifully can look like a disaster for its first few years. Statements show your money worth less than you put in. And if you don't understand why, you might panic — try to sell at the bottom, or question the whole PE allocation, or misreport the performance to your board. This pattern has a name and a shape, and once you know it, those scary early numbers become completely routine. For GPs, explaining it is just part of the job. Let's look at the J-curve.\n\n[definition] The shape of PE returns\nThe definition. The J-curve is the characteristic pattern of a PE fund's returns over time: negative in years one to three, dragged down by fees, costs, and conservative valuations — then turning sharply positive in years four through ten as investments are realised and the winners appreciate. Plot it and it looks like the letter J: a dip, then a long upward stroke.\n\n[intuition] The dip, in plain terms\nIn plain terms, here's why it dips. You've just put money in. The manager starts charging fees straight away, which lowers the value of your stake. It then spends the first year or two simply finding companies to buy. The ones it does buy are usually held at what was paid for them — no gains marked yet — while the early legal, due-diligence, and transaction costs are recognised immediately. So your reported value sits below what you invested. A quarterly statement after year one might show a TVPI of zero-point-eight-five — meaning a hundred dollars you put in is reported as worth eighty-five. That's not failure; that's the fund still planting.\n\n[intuition] Planting an orchard\nThink of planting an orchard. In year one you spend on equipment, planting, and fencing — nothing grows, and you're down money. In years two and three the trees are growing but bear no fruit. In year four the first small harvests come in. And by years six to eight the orchard is producing abundantly and you're selling fruit for well above what you spent. The J-curve is just the orchard's financial statement — it looks terrible right up until the trees mature and start to bear. Nobody rips out a healthy orchard in year two because it hasn't fruited yet.\n\n[mechanics] Two forces, two halves\nTechnically, two structural forces shape the curve: value destruction early, value creation late. On the downward side: management fees begin immediately — two percent on five hundred million committed is ten million a year drawn before a single investment is made, so over three years that's thirty million of fee drag, which alone knocks about six percent off TVPI relative to the capital contributed. Add slow deployment — it takes three to five years to invest a fund fully, so in year one maybe fifty to a hundred million of the five hundred is actually working while the rest sits earning next to nothing. And add conservative valuations — companies marked at cost until there's a reason to move them. Then the upward side takes over: operational improvements compound, exits start producing realised cash, and surviving winners get marked up. The dip and the climb are the same fund at different stages.\n\n[mechanics] The curve itself\nHere's the shape your eye should remember. TVPI starts just below one — about zero-point-eight-eight in year one — dips to its trough around year two at roughly zero-point-eight-two, then claws back, crossing back above one-point-zero somewhere around years four to five. From there it traces the long upward stroke of the J: one-point-one-five, one-point-three-five, one-point-five-five, and on up toward one-point-nine by year ten. The exact numbers vary fund to fund, but that silhouette — a shallow dip followed by a steep, sustained climb — is the thing to carry in your head. The trough isn't the story; the stroke is.\n\n[worked-example] Fund X, year by year\nTrace a five hundred million dollar 2018-vintage fund. Year one: TVPI zero-point-eight-seven. Ten million in fees, three companies bought but marked at cost, no exits — and LPs nervous about the low number. Year three: TVPI one-point-zero-five, two modest exits, DPI of zero-point-one-two as the first real cash trickles back. Year five: TVPI one-point-four-zero, four strong exits, DPI up to zero-point-five-five — and note that a market pullback in 2022 temporarily dented the unrealised marks, but the actual exits confirmed the value. Year eight: TVPI one-point-eight-five, DPI one-point-four-zero, eighty percent of the portfolio sold. Read those four snapshots in a row: concerning at year one, rational by year three, strong by year five, clearly successful by year eight. Same fund, the whole way.\n\n[pitfalls] What people get wrong\nFour corrections. First, a TVPI below one in year two does not mean the fund is failing — that's the normal trough; zero-point-eight-five for a fund that will return two times is utterly unremarkable. Second, a high IRR early in a fund's life isn't proof of skill — it can come from subscription-line effects or one small exit, not from the portfolio actually performing. Third, the J-curve isn't the same depth and length for every strategy: venture capital curves are deeper and longer, ten to fifteen years; buyout curves are shallower and shorter, seven to ten; real estate and infrastructure shallower still. And fourth, managers can mitigate the J-curve — with subscription lines or secondary purchases — but they cannot eliminate it. The dip is structural.\n\n[recap] Don't judge year two\nTo recap. The J-curve is the J-shaped path of PE returns: negative in years one to three, then rising steeply through years four to ten and beyond. The early trough comes from immediate fee drag, cost-basis valuations, transaction expenses, and slow deployment. The later climb comes from operational improvements compounding, exits producing realised DPI, and winners being marked up. TVPI is the line that traces the whole curve; DPI is the confirmed, cash-in-hand part; RVPI is the unrealised remainder. The practical lesson is simple — never judge a PE fund by its early-year numbers. Next, we move from fund returns to the deal itself: the leveraged buyout.\n\nQ: Why is TVPI typically below 1.0x in the first 2 years of a PE fund?\nA: Management fees are charged immediately, reducing NAV; portfolio companies are marked at cost; transaction costs are expensed; capital is not yet deployed productively.\nQ: List four specific reasons the J-curve dips negative in early years.\nA: Management fee drag, conservative cost-basis valuations, upfront transaction costs, slow capital deployment.\nQ: What does it mean when DPI is 0.0x but TVPI is 1.2x in Year 4?\nA: TVPI of 1.2x is entirely unrealised (RVPI) — no cash has been returned to LPs. The value exists on paper but has not been confirmed by exits. DPI is the proven part of returns.\nQ: When does the J-curve typically turn positive for a buyout fund?\nA: Typically years 4–6, when exits begin to generate meaningful DPI and portfolio companies have been operationally improved.\nQ: Why might a fund show high early IRR but not actually be performing well?\nA: Early IRR can be inflated by subscription credit line effects (delaying the start of LP capital at risk) or small early exits; IRR is highly sensitive to timing and can be misleading before significant DPI has been achieved.\nEnd-card question: Why is TVPI typically below 1.0x in the first 2 years of a PE fund — and why is that not a sign of failure?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The J-curve is one of the most important concepts for any LP investing in private equity. It explains why PE looks \"bad\" in the first few years on paper even when the fund will ultimately generate strong returns. Without understanding the J-curve, LPs might panic and try to exit early, boards might question PE allocations prematurely, and CFOs might misreport PE portfolio performance. For GPs, understanding the J-curve is essential for LP communication — explaining why TVPI is below 1.0x in Year 2 is a routine fundraising and investor relations task.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The J-curve effect is the characteristic pattern of private equity fund returns over time — beginning negative in years one to three due to fees, costs, and conservative valuations, then turning sharply positive in years four through ten as investments are realised and winners appreciate.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When you invest in a PE fund, your returns follow a distinctive pattern that looks like the letter \"J\":</p><p><strong>The dip (Years 1-3):</strong> You have just put money in. The manager starts charging fees immediately (reducing the value of your investment). They spend the first 1-2 years just <em>finding</em> companies to buy. During this time, your portfolio companies are typically valued at what was paid for them — no gains yet. The early expenses (legal fees, due diligence costs, transaction fees) are recognised immediately. So your reported investment value is <em>below</em> what you put in. If you got a quarterly statement after Year 1, it might show TVPI of 0.85x — meaning $100 invested is reported as worth $85.</p><p><strong>The bottom of the J (Years 2-4):</strong> The fund is still building its portfolio. Some early investments may need write-downs as businesses face headwinds. Management fees are still eroding value. No exits yet. TVPI might reach its lowest point here — perhaps 0.75-0.90x for a healthy fund.</p><p><strong>The rise (Years 4-8):</strong> Companies have had time to grow, improve their operations, and increase EBITDA. The GP starts selling businesses. Exit proceeds are distributed to LPs. DPI (actual cash returned) starts climbing. Simultaneously, unsold companies are marked up to reflect their improved value. TVPI climbs well above 1.0x.</p><p><strong>The peak and return (Years 7-12):</strong> Most investments have been exited. Cash is returned. A top-quartile fund might show TVPI of 1.8-2.5x by year 10. The \"J\" is now fully traced — from negative to strongly positive.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Imagine you plant an orchard. In Year 1, you spend money on equipment, planting, and fencing — nothing grows yet, and you're down money. In Year 2-3, the trees are growing but producing no fruit. In Year 4, small harvests begin. In Year 6-8, the orchard is producing abundantly and you are selling fruit well above your original investment. The J-curve is the orchard's financial statement — it looks terrible until the trees mature and bear fruit.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>The J-curve is driven by two structural forces: <strong>value destruction</strong> in early years and <strong>value creation</strong> in later years. Understanding each:</p><p>### Early-Year Value Destruction (The Downward Part)</p><p><strong>1. Management fees begin immediately</strong> A 2% management fee on $500M committed capital = $10M per year extracted from LP capital before a single investment is made. Over 3 years = $30M in fee drag before exits begin. This alone reduces TVPI by 6% relative to contributed capital.</p><p><strong>2. Slow capital deployment</strong> Capital is not deployed all at once — it takes 3-5 years to deploy a fund fully. In Year 1, only $50-100M of $500M may be invested. The remainder earns low returns in escrow/money market. This dilutes overall fund returns.</p><p><strong>3. Conservative early-stage valuations</strong> PE portfolio companies are valued using IPEV (International Private Equity and Venture Capital Valuation) guidelines. At acquisition, assets are typically marked at cost. In the first 12-24 months: - No exit comps exist yet - Business may not yet have delivered on investment thesis - Auditors and LPs prefer conservative marks Result: no upward revaluation, while fees continue to erode NAV.</p><p><strong>4. Transaction and deal costs</strong> Legal, banking, and due diligence fees associated with acquisitions (typically 2-4% of deal value) are expensed immediately. These are visible costs that reduce TVPI in Year 1.</p><p><strong>5. Early write-downs</strong> Some early investments underperform quickly. These are written down honestly, dragging TVPI lower. (The J-curve assumes the <em>portfolio</em> recovers — but individual losers are visible early.)</p><p>### Later-Year Value Creation (The Upward Part)</p><p><strong>1. Operational improvements compound</strong> Value creation initiatives (EBITDA margin improvement, revenue growth, buy-and-build) take 2-4 years to materialise. By Year 4+, improved businesses are worth substantially more.</p><p><strong>2. Multiple expansion</strong> If a company is bought at 8x EBITDA and sold at 10x EBITDA — a market multiple expansion of 25% — this is recognised only at exit.</p><p><strong>3. Exits generate realised DPI</strong> Each exit converts unrealised value (RVPI) to realised cash (DPI). DPI provides hard evidence of returns that RVPI alone cannot.</p><p><strong>4. Survivors are marked up</strong> Remaining portfolio companies that performed well are revalued upward, lifting RVPI. Meanwhile, losers that were written down in early years are now gone (exited at loss or written off), leaving a higher-quality surviving portfolio.</p><p><strong>5. Fee drag diminishes</strong> After the investment period (typically Year 5), management fees step down to 1-1.5% on invested capital (not committed capital), reducing ongoing drag.</p><p>### J-Curve in Numbers: $500M Fund Illustration</p><p>| Year | TVPI | DPI | RVPI | Description | |---|---|---|---|---| | 0 | 1.00x | 0.00x | 1.00x | Capital just committed | | 1 | 0.88x | 0.00x | 0.88x | Fees drag; no exits; cost marks | | 2 | 0.82x | 0.00x | 0.82x | More fees; some early write-downs | | 3 | 0.85x | 0.05x | 0.80x | First small exit; portfolio stabilising | | 4 | 0.95x | 0.15x | 0.80x | More exits; remaining portfolio up | | 5 | 1.15x | 0.35x | 0.80x | Strong exit year; portfolio growing | | 6 | 1.35x | 0.65x | 0.70x | Exits accelerating | | 7 | 1.55x | 1.00x | 0.55x | Half portfolio exited | | 8 | 1.75x | 1.30x | 0.45x | Most investments exited | | 10 | 1.90x | 1.75x | 0.15x | Near complete return of capital |</p><p><em>Note: These are illustrative figures for a median-performing fund; actual returns vary significantly</em></p><p>### How DPI and RVPI Tell the J-Curve Story</p><ul class='notelist'><li><strong>DPI (Distributed to Paid-In)</strong> starts at 0.00x and rises as exits occur — this is the \"proof\" component of returns</li><li><strong>RVPI (Residual Value to Paid-In)</strong> starts at ~1.0x (cost marks) and eventually reaches near 0x when all investments are exited</li><li><strong>TVPI (Total Value to Paid-In)</strong> = DPI + RVPI — this traces the J-curve shape</li></ul><p>The J-curve is most pronounced in <strong>TVPI and IRR</strong> in early years. An IRR of −15% in Year 2 is entirely normal for a fund that will ultimately return 2.0x MOIC.</p>"}, "5": {"section": "Diagram", "html": "<p>The dual-coded payload here is the <em>shape</em> — the dip below 1.0x then the steep climb. The exact figures live in the table above; the curve is what your eye should remember.</p><p>Trough at ~Year 2 (≈0.82x), crosses back above 1.0x around Year 4–5, then traces the long upward stroke of the \"J.\"</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Illustrative \"Fund X\" — $500M 2018 vintage fund:</strong></p><p>Year 1 (2019): TVPI 0.87x. Fees = $10M. Three acquisitions made but marked at cost. No exits. LPs concerned about low early valuation.</p><p>Year 3 (2021): TVPI 1.05x. Two exits at modest returns. Remaining portfolio benefiting from 2021 M&amp;A market. DPI = 0.12x.</p><p>Year 5 (2023): TVPI 1.40x. Four exits at strong returns. DPI = 0.55x. Market pullback in 2022 temporarily reduced RVPI but strong exits have confirmed value. Remaining portfolio still at healthy marks.</p><p>Year 8 (2026): TVPI 1.85x. DPI = 1.40x. 80% of portfolio exited. Remaining companies being prepped for sale.</p><p>The J-curve narrative: looked concerning at Year 1, rational by Year 3, strong by Year 5, highly successful by Year 8.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ul class='notelist'><li><strong>\"TVPI below 1.0x in Year 2 means the fund is failing.\"</strong> False — this is the normal J-curve trough. Year 2 TVPI of 0.85x for a fund that will return 2.0x is entirely unremarkable.</li><li><strong>\"A high IRR early in fund life means the fund is performing well.\"</strong> Not necessarily — early high IRR can reflect subscriptions credit line effects or small exits, not fundamental portfolio performance.</li><li><strong>\"The J-curve is the same depth and length for all PE strategies.\"</strong> False — venture capital J-curves are typically deeper and longer (10-15 years); buyout J-curves are shallower and shorter (7-10 years); real estate and infrastructure typically have shallower J-curves.</li><li><strong>\"PE managers can eliminate the J-curve.\"</strong> No — they can mitigate it (via subscription lines, secondary purchases) but not eliminate it. See J-Curve Mitigation Strategies.</li></ul>"}, "8": {"section": "Summary", "html": "<p>The J-curve is the characteristic \"J\" shape of PE fund returns over time — negative in years 1-3, then rising steeply in years 4-10+. The early trough is caused by immediate management fee drag, conservative cost-basis valuations of portfolio companies, transaction expenses, and slow capital deployment. The subsequent rise is driven by operational improvements compounding in portfolio companies, exits generating realised DPI, and surviving winners being marked up. TVPI is the metric that traces the J-curve; DPI provides confirmed value while RVPI represents unrealised marks. Understanding the J-curve is essential for LP portfolio management and avoids the mistake of judging early-year PE performance as failure.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

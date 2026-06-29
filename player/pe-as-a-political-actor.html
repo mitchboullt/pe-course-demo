@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-as-a-political-actor", "title": "PE as a Political Actor", "draft_watermark": false, "estimated_runtime_sec": 420, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Why reform stalls", "on_screen_bullets": ["Obstacles are structural, not random", "Sustained and well-funded", "Explains the reform gap"], "narration": "The toolkit lesson ended on a puzzle: the most powerful regulatory tools remain unenacted. This lesson explains why, by examining PE as a political actor. The central finding is that comprehensive PE reform faces obstacles that are not random but structural, sustained, and well-funded — and the industry's political strategy is the primary proximate cause of the gap between what good PE governance would require and what has actually been enacted, which amounts to little more than registration plus a few sector-specific exceptions. But this lesson is not a counsel of despair: by identifying exactly which political mechanisms do the blocking, it also identifies the precise conditions under which reform becomes achievable — the leverage points where, historically, PE's political power has failed.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Five interlocking mechanisms", "on_screen_bullets": ["Lobbying, contributions, pension paradox", "Revolving door, narrative control", "Blocks reform across party lines"], "narration": "The definition. PE's political influence operates through five interlocking mechanisms — direct lobbying by the industry's trade association and individual firm political committees; campaign-contribution networks reaching members of both parties; the pension-fund paradox, which neutralises progressive opposition through beneficiary interests; the revolving door of former regulators and legislators taking PE roles; and narrative control, framing PE as the enabler of pension returns and small-business capital. Together they produce a political actor that can simultaneously block regulatory action and generate favourable legislation across partisan lines. Five mechanisms, one outcome — reform that can't assemble a majority.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Genuinely bipartisan", "on_screen_bullets": ["Republicans: free markets, low tax", "Democrats: pension returns", "Blocks reform from either side"], "narration": "Plain English. PE is unusual as a political actor because it is genuinely bipartisan, where most industries align primarily with one party. PE straddles both. It appeals to the Republican coalition through free markets, capital formation, limited regulation, and the carried-interest tax preference, framed as not penalising investment risk-taking. And it appeals to the Democratic coalition through pension-fund beneficiaries — the teachers, firefighters, and public servants whose retirement funds depend on PE returns. This bipartisan coverage is what lets PE block reform from either direction: conservative Republicans oppose business regulation on principle, while moderate Democrats resist anything framed as harming pension returns. And here's the asymmetry that makes it so effective — the industry doesn't need to win every vote. It only needs to prevent the reform coalition from assembling a majority, and straddling both parties means there's always a wing it can peel off. Blocking is far easier than passing, and PE is positioned to block from both flanks.", "est_sec": 48}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "The Five Political Mechanisms", "on_screen_title": "The five mechanisms", "on_screen_bullets": ["Lobbying + contributions", "Pension paradox is structural key", "Revolving door + narrative"], "narration": "Now the five mechanisms in detail. One, direct lobbying: the American Investment Council is the industry's primary trade association, spending roughly four-to-seven million a year, staffed with former Congressional and regulatory people, and the largest firms run their own Washington operations on top, targeting the banking, finance, and tax-writing committees. Two, campaign-contribution networks: contributions span both parties and chambers — individual partner gifts, affiliated committees, bundling to maximise influence per recipient — concentrated on the members who handle financial regulation and tax. Three, and the most structurally important, the pension-fund paradox, which operates inside the reform coalition rather than against it: public pension funds are the largest investor class in US PE, they represent the core Democratic constituency of teachers and firefighters, their trustees are often appointed by Democratic politicians, and PE returns affect pension solvency — so progressive politicians who want to regulate PE face their own appointees credibly arguing that regulation would hurt the beneficiaries' pensions, which neutralises PE reform's most natural political ally. Four, the revolving door: regulators move to PE firms and law firms after government service, bringing institutional knowledge of agency vulnerabilities, while the prospect of future PE employment subtly shapes how sitting regulators write rules. And five, narrative control: the industry frames PE as funding teachers' retirements, investing in small business and creating jobs, and proving free markets outperform government, while delegitimising critics as anti-business academics — most effective in hearings and media, less so in technical analysis, but the political process runs on narrative.", "est_sec": 66}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "The Five Political Mechanisms", "on_screen_title": "The weaponised beneficiary", "on_screen_bullets": ["Trustees say reform hurts pensions", "Argument is empirically weak", "Neutralises the natural ally"], "narration": "The pension-fund paradox deserves a closer look, because it's the linchpin and it's more fragile than it appears. The mechanism: the industry mobilises pension-fund representatives to testify against reform, and those trustees can say, with apparent credibility, that regulating PE would hurt their beneficiaries. This isn't corruption — the trustees may genuinely believe it, because their legal duty runs to beneficiaries strictly as investors, not as consumers or workers. But the argument is empirically weak when examined. Most public pension funds allocate only five-to-fifteen percent of assets to PE, so even a one-percent reduction in PE net returns from, say, carry reform would move total pension returns by a tiny fraction of a percent — hardly a crisis for beneficiaries. And the same beneficiaries whose pensions supposedly need high PE returns are frequently also the workers and patients in PE-owned essential services: a firefighter whose pension earns from PE may also be a patient in a PE-owned nursing home where carry incentives drove staffing cuts. The argument serves the industry's interest while claiming to serve pensioners, and it goes structurally unchallenged precisely because the pension constituency cannot formally weigh its own divided interests — investor versus consumer-and-worker. That structural blindness is what makes the paradox so durable, and identifying it is the first step to breaking it.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "When PE Political Power Fails", "on_screen_title": "When the power fails", "on_screen_bullets": ["FIRREA: crisis overrode lobbying", "NSA: industry split broke coalition", "Lobbying isn't absolute"], "narration": "Crucially, PE's political power is not absolute, and history shows exactly when it fails — which tells you where reform is possible. Three cases. First, FIRREA in nineteen-eighty-nine: the junk-bond and PE-adjacent industry could not stop it because the savings-and-loan crisis created roughly a hundred-thirty-two billion dollars of public cost, and that public harm was visible, direct, and bipartisan — lobbying cannot survive concentrated public harm at that scale. Second, the No Surprises Act in twenty-twenty-one: the hospital industry's support split the healthcare lobby, and hospital systems are more politically powerful than physician-staffing PE, so the PE-backed staffing companies couldn't prevent the reform because they lacked a unified industry coalition — the lesson being that PE's power depends on unified industry positioning, and when an industry split occurs, PE loses its coalition protection. And third, the ERISA clarification of nineteen-seventy-nine, which enabled pension capital to flow into PE: it faced no significant opposing interest, showing that PE's power is most effective at blocking harmful reforms and at enabling beneficial regulatory clarity, but is contingent, not omnipotent. The pattern across all three: PE wins when harm is diffuse and the industry is unified, and loses when harm is concentrated and visible or when the industry fractures.", "est_sec": 58}, {"n": 7, "beat": "mechanics", "visual": "slide", "source_section": "Reform Leverage Points", "on_screen_title": "Three leverage points", "on_screen_bullets": ["Crisis event", "Industry split", "Pension fund conversion"], "narration": "From those failure cases, the analysis extracts three precise leverage points where reform becomes achievable. One, a crisis event: a PE-caused financial crisis with visible public harm — a major default wave from the wall of maturities hitting pension solvency, or a galvanising case like the Toys R Us severance fight — could break the lobbying protection just as the savings-and-loan crisis broke it for FIRREA. Two, an industry split: a PE-adjacent industry actively supporting reform, as hospital systems did against physician staffing in the No Surprises Act, neutralises the unified-industry lobby and creates a powerful ally. And three, pension-fund conversion: if major pension funds were to conclude that short-term PE returns are outweighed by long-term governance risk, they could shift from opposing reform to supporting it, which would break the pension-fund paradox from the inside — the single most powerful move available, because it disarms the linchpin mechanism. The sober assessment is that none of these three leverage points is currently operational, which is precisely why comprehensive PE reform remains blocked today. But naming them turns reform from wishful thinking into a strategy of waiting for, or actively engineering, the conditions under which the lock opens.", "est_sec": 52}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Reform isn't impossible", "Lobbying is legal, ordinary tools", "Public listing didn't reduce power"], "narration": "Three corrections to close. First, the belief that PE's political influence means reform can never happen — false; FIRREA and the No Surprises Act prove reform is achievable when conditions align, so PE's power is significant but not absolute, and crisis events and industry splits have overcome it before. Second, the belief that PE lobbying is illegal or exceptional — false; it runs through entirely standard legal channels, registered lobbyists, disclosed contributions, legal revolving-door moves, the same ordinary political tools used by pharmaceutical, financial-services, and real-estate interests; it's exceptionally effective, not exceptionally improper. And third, the belief that taking firms public reduced PE's political power — unproven; public listings added public shareholders and some transparency, but the public firms continue robust lobbying, so whether listing changed the political calculus is unclear. To recap: PE's political effectiveness rests on five interlocking mechanisms, with the pension-fund paradox the most structurally important, producing an actor that blocks reform across party lines — and it fails only at three leverage points, crisis, industry split, and pension conversion, none currently operational. The next lesson goes one level deeper, from political blocking to the capture of the regulatory apparatus itself.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "PE only needs to BLOCK reform, not pass it — explain how its bipartisan position makes blocking from either flank possible. Then: the 'pension fund paradox' neutralises PE reform's most natural ally. Name that ally and explain the mechanism.", "narration": "Before the next lesson, reason it through. PE only needs to block reform, not pass it — explain how its genuinely bipartisan position lets it peel off a blocking wing from either flank. And the pension-fund paradox neutralises PE reform's most natural political ally — name that ally, and explain the mechanism by which the paradox disarms them. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE as a Political Actor\n\n[hook] Why reform stalls\nThe toolkit lesson ended on a puzzle: the most powerful regulatory tools remain unenacted. This lesson explains why, by examining PE as a political actor. The central finding is that comprehensive PE reform faces obstacles that are not random but structural, sustained, and well-funded — and the industry's political strategy is the primary proximate cause of the gap between what good PE governance would require and what has actually been enacted, which amounts to little more than registration plus a few sector-specific exceptions. But this lesson is not a counsel of despair: by identifying exactly which political mechanisms do the blocking, it also identifies the precise conditions under which reform becomes achievable — the leverage points where, historically, PE's political power has failed.\n\n[definition] Five interlocking mechanisms\nThe definition. PE's political influence operates through five interlocking mechanisms — direct lobbying by the industry's trade association and individual firm political committees; campaign-contribution networks reaching members of both parties; the pension-fund paradox, which neutralises progressive opposition through beneficiary interests; the revolving door of former regulators and legislators taking PE roles; and narrative control, framing PE as the enabler of pension returns and small-business capital. Together they produce a political actor that can simultaneously block regulatory action and generate favourable legislation across partisan lines. Five mechanisms, one outcome — reform that can't assemble a majority.\n\n[intuition] Genuinely bipartisan\nPlain English. PE is unusual as a political actor because it is genuinely bipartisan, where most industries align primarily with one party. PE straddles both. It appeals to the Republican coalition through free markets, capital formation, limited regulation, and the carried-interest tax preference, framed as not penalising investment risk-taking. And it appeals to the Democratic coalition through pension-fund beneficiaries — the teachers, firefighters, and public servants whose retirement funds depend on PE returns. This bipartisan coverage is what lets PE block reform from either direction: conservative Republicans oppose business regulation on principle, while moderate Democrats resist anything framed as harming pension returns. And here's the asymmetry that makes it so effective — the industry doesn't need to win every vote. It only needs to prevent the reform coalition from assembling a majority, and straddling both parties means there's always a wing it can peel off. Blocking is far easier than passing, and PE is positioned to block from both flanks.\n\n[mechanics] The five mechanisms\nNow the five mechanisms in detail. One, direct lobbying: the American Investment Council is the industry's primary trade association, spending roughly four-to-seven million a year, staffed with former Congressional and regulatory people, and the largest firms run their own Washington operations on top, targeting the banking, finance, and tax-writing committees. Two, campaign-contribution networks: contributions span both parties and chambers — individual partner gifts, affiliated committees, bundling to maximise influence per recipient — concentrated on the members who handle financial regulation and tax. Three, and the most structurally important, the pension-fund paradox, which operates inside the reform coalition rather than against it: public pension funds are the largest investor class in US PE, they represent the core Democratic constituency of teachers and firefighters, their trustees are often appointed by Democratic politicians, and PE returns affect pension solvency — so progressive politicians who want to regulate PE face their own appointees credibly arguing that regulation would hurt the beneficiaries' pensions, which neutralises PE reform's most natural political ally. Four, the revolving door: regulators move to PE firms and law firms after government service, bringing institutional knowledge of agency vulnerabilities, while the prospect of future PE employment subtly shapes how sitting regulators write rules. And five, narrative control: the industry frames PE as funding teachers' retirements, investing in small business and creating jobs, and proving free markets outperform government, while delegitimising critics as anti-business academics — most effective in hearings and media, less so in technical analysis, but the political process runs on narrative.\n\n[mechanics] The weaponised beneficiary\nThe pension-fund paradox deserves a closer look, because it's the linchpin and it's more fragile than it appears. The mechanism: the industry mobilises pension-fund representatives to testify against reform, and those trustees can say, with apparent credibility, that regulating PE would hurt their beneficiaries. This isn't corruption — the trustees may genuinely believe it, because their legal duty runs to beneficiaries strictly as investors, not as consumers or workers. But the argument is empirically weak when examined. Most public pension funds allocate only five-to-fifteen percent of assets to PE, so even a one-percent reduction in PE net returns from, say, carry reform would move total pension returns by a tiny fraction of a percent — hardly a crisis for beneficiaries. And the same beneficiaries whose pensions supposedly need high PE returns are frequently also the workers and patients in PE-owned essential services: a firefighter whose pension earns from PE may also be a patient in a PE-owned nursing home where carry incentives drove staffing cuts. The argument serves the industry's interest while claiming to serve pensioners, and it goes structurally unchallenged precisely because the pension constituency cannot formally weigh its own divided interests — investor versus consumer-and-worker. That structural blindness is what makes the paradox so durable, and identifying it is the first step to breaking it.\n\n[mechanics] When the power fails\nCrucially, PE's political power is not absolute, and history shows exactly when it fails — which tells you where reform is possible. Three cases. First, FIRREA in nineteen-eighty-nine: the junk-bond and PE-adjacent industry could not stop it because the savings-and-loan crisis created roughly a hundred-thirty-two billion dollars of public cost, and that public harm was visible, direct, and bipartisan — lobbying cannot survive concentrated public harm at that scale. Second, the No Surprises Act in twenty-twenty-one: the hospital industry's support split the healthcare lobby, and hospital systems are more politically powerful than physician-staffing PE, so the PE-backed staffing companies couldn't prevent the reform because they lacked a unified industry coalition — the lesson being that PE's power depends on unified industry positioning, and when an industry split occurs, PE loses its coalition protection. And third, the ERISA clarification of nineteen-seventy-nine, which enabled pension capital to flow into PE: it faced no significant opposing interest, showing that PE's power is most effective at blocking harmful reforms and at enabling beneficial regulatory clarity, but is contingent, not omnipotent. The pattern across all three: PE wins when harm is diffuse and the industry is unified, and loses when harm is concentrated and visible or when the industry fractures.\n\n[mechanics] Three leverage points\nFrom those failure cases, the analysis extracts three precise leverage points where reform becomes achievable. One, a crisis event: a PE-caused financial crisis with visible public harm — a major default wave from the wall of maturities hitting pension solvency, or a galvanising case like the Toys R Us severance fight — could break the lobbying protection just as the savings-and-loan crisis broke it for FIRREA. Two, an industry split: a PE-adjacent industry actively supporting reform, as hospital systems did against physician staffing in the No Surprises Act, neutralises the unified-industry lobby and creates a powerful ally. And three, pension-fund conversion: if major pension funds were to conclude that short-term PE returns are outweighed by long-term governance risk, they could shift from opposing reform to supporting it, which would break the pension-fund paradox from the inside — the single most powerful move available, because it disarms the linchpin mechanism. The sober assessment is that none of these three leverage points is currently operational, which is precisely why comprehensive PE reform remains blocked today. But naming them turns reform from wishful thinking into a strategy of waiting for, or actively engineering, the conditions under which the lock opens.\n\n[pitfalls] What people get wrong\nThree corrections to close. First, the belief that PE's political influence means reform can never happen — false; FIRREA and the No Surprises Act prove reform is achievable when conditions align, so PE's power is significant but not absolute, and crisis events and industry splits have overcome it before. Second, the belief that PE lobbying is illegal or exceptional — false; it runs through entirely standard legal channels, registered lobbyists, disclosed contributions, legal revolving-door moves, the same ordinary political tools used by pharmaceutical, financial-services, and real-estate interests; it's exceptionally effective, not exceptionally improper. And third, the belief that taking firms public reduced PE's political power — unproven; public listings added public shareholders and some transparency, but the public firms continue robust lobbying, so whether listing changed the political calculus is unclear. To recap: PE's political effectiveness rests on five interlocking mechanisms, with the pension-fund paradox the most structurally important, producing an actor that blocks reform across party lines — and it fails only at three leverage points, crisis, industry split, and pension conversion, none currently operational. The next lesson goes one level deeper, from political blocking to the capture of the regulatory apparatus itself.\n\nEnd-card question: PE only needs to BLOCK reform, not pass it — explain how its bipartisan position makes blocking from either flank possible. Then: the 'pension fund paradox' neutralises PE reform's most natural ally. Name that ally and explain the mechanism.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Understanding PE as a political actor explains why the IAA Legislative Path analysis's political economy section concludes what it does: comprehensive PE reform faces political obstacles that are not random but structural, sustained, and well-funded. The PE industry's political strategy is the primary proximate cause of the gap between what comprehensive PE governance would require (the three-track reform blueprint) and what has been enacted (Dodd-Frank registration + NSA as a sector-specific exception).</p><p>This note also explains the conditions under which reform becomes achievable — by identifying which of the five political mechanisms fails, and under what circumstances, when successful reforms (NSA, S&amp;L/FIRREA) have occurred.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE's political influence operates through five interlocking mechanisms — direct lobbying by the American Investment Council and individual firm PACs, campaign contribution networks to members of both parties, the pension fund LP paradox (neutralising progressive opposition through beneficiary interests), the revolving door (former regulators and legislators in PE roles), and narrative control (framing PE as the enabler of pension returns and small business capital) — producing a political actor that can simultaneously constrain regulatory action and generate positive legislative outcomes across partisan lines.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>PE is unusual as a political actor because it is genuinely bipartisan. Most industries align primarily with one party. PE straddles both:</p><ul class='notelist'><li><strong>Republican coalition:</strong> Free markets, capital formation, limited regulation, carried interest tax preference (\"don't penalise investment risk-taking\")</li><li><strong>Democratic coalition:</strong> Pension fund beneficiaries (teachers, firefighters, public servants whose retirement funds depend on PE returns)</li></ul><p>This bipartisan coverage means PE can effectively block reform proposals from either direction: conservative Republicans oppose \"business regulation\" on principle; moderate Democrats resist \"anything that harms pension returns.\" The industry doesn't need to win every vote — it needs to prevent the reform coalition from assembling a majority.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>\"PE's political influence means reform can never happen.\"</strong> False — FIRREA (1989) and NSA (2021) demonstrate that reform is achievable when political conditions align. PE's political power is significant but not absolute; crisis events and industry splits have overcome it historically.</p><p><strong>\"PE lobbying is illegal or exceptional.\"</strong> False — PE lobbying is conducted through standard legal channels (registered lobbyists, disclosed PAC contributions, legal revolving door movements). It is exceptionally effective but uses ordinary political tools. The same tools used by other well-organised industries (pharmaceutical, financial services, real estate).</p><p><strong>\"Public PE (KKR, Blackstone, Apollo stock listings) reduced PE's political power.\"</strong> Unproven — public listings gave PE firms public shareholders (including retail investors) and increased transparency. Whether this changed PE's political calculus is unclear; public firms continue robust lobbying activity.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

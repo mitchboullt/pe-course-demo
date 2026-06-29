@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-the-financing-lifecycle-in-pe", "title": "Synthesis: The Financing Lifecycle in PE", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "Five chapters, one story", "on_screen_bullets": ["Leverage is never static", "Each stage constrains the next", "Failures are systemic cascades"], "narration": "These five concepts aren't independent financing instruments — they're five chapters of a single continuous story that runs from the moment a fund raises capital to the last distribution or distressed exit. What they share is this: PE is a business built on leverage, and leverage is never static. It's structured at entry, timed against LP capital, actively managed during the hold, bridged at the fund level in the tail, and resolved under stress when the structure fails. The core connection is sequential dependency: debt capacity determines what leverage is achievable at entry, the initial conditions of the whole system; subscription credit lines shape how and when LP capital is timed against that debt; refinancing actively manages the company's capital structure through the hold, either locking in value or drifting into a maturity cliff; NAV lending provides a fund-level instrument when company-level solutions fall short; and distressed workout resolves the structure when it can't be managed. No one instrument can be fully understood without its relationship to the others — and the financing lifecycle's failures are almost always systemic, cascades from one chapter to the next, not single-instrument failures.", "est_sec": 54}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "Read the whole narrative", "on_screen_bullets": ["IRR unreliable in early years", "Refinance when you don't need to", "Cov-lite removes the early warning"], "narration": "Studying these five separately produces five correct but incomplete mental models. Together they let you read a fund's financing behaviour as a coherent narrative, identify what stage it's in, and predict what it'll do next. You can then explain things that were invisible before. Why IRR is unreliable in the early fund years — not because GPs are dishonest, but because subscription credit lines systematically compress the measurement period at exactly the stage when debt capacity has been most aggressively deployed; the two instruments interact to produce metrics that are neither fraudulent nor accurate. Why the best time to refinance is when you least feel you need to — because debt-capacity analysis uses the same credit metrics at refinancing as at entry, so a company at three-and-a-half-times leverage and strong coverage in a good market can refinance to cov-lite terms that buy two years of operational freedom, while a company at five-and-a-half times and weak coverage in a tightening market simply can't refinance at all. Why NAV lending is the fund-level analogue of the company refinancing decision — legitimate when used proactively on a healthy portfolio, compounding distress when used to bridge genuinely impaired companies. And why the distress trigger in a cov-lite structure is later, worse, and less controllable than in a covenanted one — because cov-lite removes the early warning that would otherwise have prompted proactive refinancing.", "est_sec": 56}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "Virtuous and vicious loops", "on_screen_bullets": ["Entry → sub line → refinance", "Stress → workout; tail → NAV", "Two feedback loops decide it"], "narration": "The concept map runs the lifecycle stage by stage and exposes two feedback loops. At fund formation, debt capacity analysis sets the maximum leverage at entry — the coverage, debt-service, and free-cash-flow constraints that define the safe structure. In the investment period, subscription credit lines bridge capital calls against LP commitments, inflating reported IRR by compressing timing without changing the underlying debt capacity. In the active hold, refinancing re-applies those same credit metrics to capture spread compression as the company de-risks and to extend maturities before a cliff develops — but only while the company stays creditworthy. When refinancing is unavailable, distressed workout triggers, on a covenant breach in a covenanted structure or a payment default in a cov-lite one. And in the fund tail, NAV lending provides fund-level financing against portfolio equity. Now the two loops. The virtuous loop: strong debt capacity at entry, successful refinancing as the company grows, better debt capacity at the next refinancing, lower cost of capital, higher free cash flow, more equity value at exit — improving creditworthiness cascading into compounding returns. The vicious loop: aggressive entry leverage on optimistic EBITDA, the company underperforms, coverage deteriorates, refinancing becomes unavailable, maturity approaches, an amend-and-extend buys time, the company keeps deteriorating, and it reaches workout with the equity wiped out — and NAV lending used in the tail of that loop just adds fund-level debt to an already-broken company.", "est_sec": 60}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Meridian Fund III, two paths", "on_screen_bullets": ["Lender cuts Nexus to £135m, price down £18m", "Nexus refinances cov-lite at SOFR+250", "Cascade didn't — ICR 2.15x → 1.67x breach"], "narration": "Trace one fund through the lifecycle — Meridian Capital Partners Fund Three, a one-point-two-billion-pound 2019 vintage, figures a realistic composite. Chapter one, debt capacity: the team underwrites Nexus Logistics at eight times thirty-million EBITDA, and the leveraged-finance desk proposes a hundred sixty-five million of term loan. But the lender's own credit committee strips three million of weak add-backs to a twenty-seven-million adjusted EBITDA, caps leverage at five times — a hundred thirty-five million, not a hundred sixty-five — so Meridian cuts the price eighteen million and adds twelve of equity; the deal closes on a structure the lender's analysis genuinely supports. Chapter two, subscription lines: Fund Three runs a hundred-fifty-million facility, calling capital only at the nine-month mark, so the reported IRR at month eighteen is twenty-three percent against an investment-date IRR of about nineteen — and the Fund Four deck quotes the twenty-three. Chapter three, refinancing: by late 2021 Nexus has grown EBITDA to thirty-six million, leverage has fallen to three-point-seven-five times, and the loan market is at peak liquidity, so Meridian refinances the hundred thirty-five million from SOFR-plus-three-seventy-five into a hundred fifty million of cov-lite at SOFR-plus-two-fifty — the lower spread is nice, but the cov-lite package is the real prize, freeing the buy-and-build. Chapter four, the SOFR shock: rates jump from near-zero to five-point-three percent, and Nexus, now cov-lite at two-fifty, pays seven-and-a-half percent, manageable at thirty-six-million EBITDA with coverage of three-point-two. But a sister company, Cascade Manufacturing, never refinanced — it still carries ninety million at SOFR-plus-four-hundred, nine-point-three percent all-in; its cyclical EBITDA fell to eighteen million for coverage of two-point-one-five, then to fourteen million for one-point-six-seven, a covenant breach. The same fund, same era — one company refinanced in time, one didn't, and that single decision separated comfort from crisis.", "est_sec": 70}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Workout, then NAV bridge", "on_screen_bullets": ["Cascade amend-extend, £6m cure → £40m back", "NAV facility 17% LTV, £65m", "Bridge £50m: DPI 1.1x → 1.37x"], "narration": "Continue the story into the failure and tail stages. Chapter five, distressed workout: Cascade's lenders form a steering committee and agree a four-month standstill; the independent business review concludes the impairment is cyclical, not structural — automotive end-markets are recovering — so they amend-and-extend, raising the spread from four hundred to four hundred seventy-five basis points, resetting the coverage covenant from two times to one-and-a-half, and extending maturity two-and-a-half years, with Meridian injecting a six-million equity cure. The business stabilises, EBITDA recovers to twenty-one million, and Cascade eventually exits at six-and-a-half times — a hundred thirty-six-and-a-half-million enterprise value against ninety-six million of debt — returning about forty million of equity on sixty-two invested. Poor, but not zero, precisely because the impairment was correctly diagnosed as cyclical. Chapter six, NAV lending: Fund Three is now in year six, four companies exited at a DPI of one-point-one, four remain, and LPs are restive. Meridian secures a NAV facility at seventeen percent loan-to-value, sixty-five million, to bridge fifty million of distributions, lifting DPI to one-point-three-seven, and to fund a final ten-million follow-on in Nexus before exit — disclosed to the LPAC under notification rights negotiated into the 2019 agreement. The NAV question is always the same: is the sixty-five million bridging genuine exits six to twelve months away, or manufacturing DPI optics for the next fundraise? Here, the LPAC disclosure and a credible exit timeline make the former plausible, and the LP receiving the bridge knows it's debt-funded and will be repaid from the Nexus exit. Four of the five chapters went well; the one friction — the subscription-line IRR optics — is exactly what sophisticated LPs caught, and it shaped Fund Four, where they required dual IRR reporting as a standard side-letter term.", "est_sec": 70}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Debt capacity is a trajectory", "Sub lines + NAV are bookends", "Distress traces to earlier choices"], "narration": "Five mistakes the synthesis fixes. First, treating debt capacity as a static entry-only decision — the same metrics are re-applied at every refinancing, so a creditworthy company gets progressively better terms while a deteriorating one loses the ability to refinance at all; debt capacity is a trajectory, not a point. Second, studying subscription lines as pure fund mechanics separate from portfolio performance — they feed the IRR and PME metrics LPs use to judge GPs, so a weak portfolio with aggressive line use can look like it's beating a strong portfolio with conservative use. Third, viewing NAV lending and subscription lines as different things rather than the same thing at different stages — both are fund-level credit borrowing against the fund's assets to manage the timing of LP cash flows, both create GP incentive conflicts, IRR inflation at the start and DPI inflation at the end; they're bookends of the same behaviour, and a GP aggressive with both has managed return optics across the entire fund life. Fourth, treating distressed workout as bad luck independent of earlier decisions — distress is almost always traceable to aggressive entry leverage, missed refinancing windows, inflating metrics, and NAV lending piled onto an already-troubled portfolio; it's the system's failure mode, a predictable consequence of identifiable choices. And fifth, seeing refinancing and workout as opposites — they're sequential stages of the same capital-structure imperative, refinancing being the healthy version and workout the unhealthy one, with the distance between them measured by coverage and leverage at each point in time.", "est_sec": 62}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Practical Example", "on_screen_title": "KKR / Alliance Boots", "on_screen_bullets": ["2007 ~£12bn, ~£9bn debt, ~7.5–8x", "Pharmacy core kept ICR above ~1.5x", "Serial refinancing → ~2.5x MOIC"], "narration": "The real complete lifecycle — KKR's 2007 acquisition of Alliance Boots for about twelve billion pounds, the first ten-billion-plus PE deal in Europe, figures from public information. At the height of the credit boom, KKR took on roughly nine billion of acquisition debt, leverage of about seven-and-a-half to eight times, when lender standards were at their most permissive and the regulated UK pharmacy core was treated as predominantly defensive. The credit-analysis error: the retail cosmetics division had cyclical exposure the boom-era analysis underweighted, and when the financial crisis hit eighteen months later, retail volumes contracted and that leverage proved too high for the stressed scenario. But here's why it survived: the pharmacy core is non-discretionary enough that coverage never fell below about one-and-a-half times — above the payment-default floor — so the company could service its debt even though it couldn't refinance attractively until 2011 or 2012. When credit markets recovered, KKR executed serial refinancings, replacing expensive 2007-vintage debt at post-crisis spreads, extending maturities, and installing cov-lite terms as conditions improved. The exit came not as a forced sale but as a strategic combination with Walgreens, on a mature, unpressured timeline. KKR reported roughly a two-and-a-half-times MOIC across 2007 to 2016 — despite entering at the peak and holding through the worst credit crisis in decades. The lesson: a company can survive aggressive initial leverage if the underlying EBITDA is genuinely resilient and proactive refinancing is executed as markets improve. The financing lifecycle isn't determined at entry — it's determined by each decision made along the way.", "est_sec": 66}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The lifecycle is the unit", "on_screen_bullets": ["Five stages, one system", "Cascade is what students miss", "GP behaviour reveals discipline"], "narration": "To recap. The financing lifecycle of a PE fund is not five separate instruments but a single continuous system. Debt capacity sets the entry conditions; subscription credit lines shape how LP capital is timed and how performance is reported; refinancing actively manages the company's capital structure, the single most controllable value-creation lever in the hold; NAV lending provides fund-level management in the tail; and distressed workout resolves the system when it fails. The cascade from one chapter to the next is what students miss: aggressive entry leverage shrinks the margin for error in refinancing, subscription-line use inflates the metrics that obscure whether companies are healthy enough to refinance, missed refinancing windows let coverage drift to the edge of the lender's criteria, and NAV lending used to bridge a genuinely distressed portfolio compounds losses rather than resolving them. For a GP, these five decisions interact across the whole hold and must be managed as one. For an LP, a fund's financing behaviour across these chapters reveals the GP's discipline more clearly than any single metric — conservative lines, proactive refinancing, NAV lending only with LPAC consent, and quick distress resolution mark a GP managing the lifecycle systematically. Next we turn to the discipline that holds all of deal-making together under pressure — deal execution quality.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why are subscription credit lines and NAV lending called the 'bookends' of the same fund-level behaviour, and what GP incentive do they share? When does NAV lending cross from legitimate bridging into compounding distress?", "narration": "Before the next lesson, answer both. Why are subscription credit lines and NAV lending described as the bookends of the same fund-level financing behaviour, and what GP incentive do the two share? And at what point does NAV lending cross from legitimate bridging into compounding a portfolio's distress? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: The Financing Lifecycle in PE\n\n[hook] Five chapters, one story\nThese five concepts aren't independent financing instruments — they're five chapters of a single continuous story that runs from the moment a fund raises capital to the last distribution or distressed exit. What they share is this: PE is a business built on leverage, and leverage is never static. It's structured at entry, timed against LP capital, actively managed during the hold, bridged at the fund level in the tail, and resolved under stress when the structure fails. The core connection is sequential dependency: debt capacity determines what leverage is achievable at entry, the initial conditions of the whole system; subscription credit lines shape how and when LP capital is timed against that debt; refinancing actively manages the company's capital structure through the hold, either locking in value or drifting into a maturity cliff; NAV lending provides a fund-level instrument when company-level solutions fall short; and distressed workout resolves the structure when it can't be managed. No one instrument can be fully understood without its relationship to the others — and the financing lifecycle's failures are almost always systemic, cascades from one chapter to the next, not single-instrument failures.\n\n[intuition] Read the whole narrative\nStudying these five separately produces five correct but incomplete mental models. Together they let you read a fund's financing behaviour as a coherent narrative, identify what stage it's in, and predict what it'll do next. You can then explain things that were invisible before. Why IRR is unreliable in the early fund years — not because GPs are dishonest, but because subscription credit lines systematically compress the measurement period at exactly the stage when debt capacity has been most aggressively deployed; the two instruments interact to produce metrics that are neither fraudulent nor accurate. Why the best time to refinance is when you least feel you need to — because debt-capacity analysis uses the same credit metrics at refinancing as at entry, so a company at three-and-a-half-times leverage and strong coverage in a good market can refinance to cov-lite terms that buy two years of operational freedom, while a company at five-and-a-half times and weak coverage in a tightening market simply can't refinance at all. Why NAV lending is the fund-level analogue of the company refinancing decision — legitimate when used proactively on a healthy portfolio, compounding distress when used to bridge genuinely impaired companies. And why the distress trigger in a cov-lite structure is later, worse, and less controllable than in a covenanted one — because cov-lite removes the early warning that would otherwise have prompted proactive refinancing.\n\n[mechanics] Virtuous and vicious loops\nThe concept map runs the lifecycle stage by stage and exposes two feedback loops. At fund formation, debt capacity analysis sets the maximum leverage at entry — the coverage, debt-service, and free-cash-flow constraints that define the safe structure. In the investment period, subscription credit lines bridge capital calls against LP commitments, inflating reported IRR by compressing timing without changing the underlying debt capacity. In the active hold, refinancing re-applies those same credit metrics to capture spread compression as the company de-risks and to extend maturities before a cliff develops — but only while the company stays creditworthy. When refinancing is unavailable, distressed workout triggers, on a covenant breach in a covenanted structure or a payment default in a cov-lite one. And in the fund tail, NAV lending provides fund-level financing against portfolio equity. Now the two loops. The virtuous loop: strong debt capacity at entry, successful refinancing as the company grows, better debt capacity at the next refinancing, lower cost of capital, higher free cash flow, more equity value at exit — improving creditworthiness cascading into compounding returns. The vicious loop: aggressive entry leverage on optimistic EBITDA, the company underperforms, coverage deteriorates, refinancing becomes unavailable, maturity approaches, an amend-and-extend buys time, the company keeps deteriorating, and it reaches workout with the equity wiped out — and NAV lending used in the tail of that loop just adds fund-level debt to an already-broken company.\n\n[worked-example] Meridian Fund III, two paths\nTrace one fund through the lifecycle — Meridian Capital Partners Fund Three, a one-point-two-billion-pound 2019 vintage, figures a realistic composite. Chapter one, debt capacity: the team underwrites Nexus Logistics at eight times thirty-million EBITDA, and the leveraged-finance desk proposes a hundred sixty-five million of term loan. But the lender's own credit committee strips three million of weak add-backs to a twenty-seven-million adjusted EBITDA, caps leverage at five times — a hundred thirty-five million, not a hundred sixty-five — so Meridian cuts the price eighteen million and adds twelve of equity; the deal closes on a structure the lender's analysis genuinely supports. Chapter two, subscription lines: Fund Three runs a hundred-fifty-million facility, calling capital only at the nine-month mark, so the reported IRR at month eighteen is twenty-three percent against an investment-date IRR of about nineteen — and the Fund Four deck quotes the twenty-three. Chapter three, refinancing: by late 2021 Nexus has grown EBITDA to thirty-six million, leverage has fallen to three-point-seven-five times, and the loan market is at peak liquidity, so Meridian refinances the hundred thirty-five million from SOFR-plus-three-seventy-five into a hundred fifty million of cov-lite at SOFR-plus-two-fifty — the lower spread is nice, but the cov-lite package is the real prize, freeing the buy-and-build. Chapter four, the SOFR shock: rates jump from near-zero to five-point-three percent, and Nexus, now cov-lite at two-fifty, pays seven-and-a-half percent, manageable at thirty-six-million EBITDA with coverage of three-point-two. But a sister company, Cascade Manufacturing, never refinanced — it still carries ninety million at SOFR-plus-four-hundred, nine-point-three percent all-in; its cyclical EBITDA fell to eighteen million for coverage of two-point-one-five, then to fourteen million for one-point-six-seven, a covenant breach. The same fund, same era — one company refinanced in time, one didn't, and that single decision separated comfort from crisis.\n\n[worked-example] Workout, then NAV bridge\nContinue the story into the failure and tail stages. Chapter five, distressed workout: Cascade's lenders form a steering committee and agree a four-month standstill; the independent business review concludes the impairment is cyclical, not structural — automotive end-markets are recovering — so they amend-and-extend, raising the spread from four hundred to four hundred seventy-five basis points, resetting the coverage covenant from two times to one-and-a-half, and extending maturity two-and-a-half years, with Meridian injecting a six-million equity cure. The business stabilises, EBITDA recovers to twenty-one million, and Cascade eventually exits at six-and-a-half times — a hundred thirty-six-and-a-half-million enterprise value against ninety-six million of debt — returning about forty million of equity on sixty-two invested. Poor, but not zero, precisely because the impairment was correctly diagnosed as cyclical. Chapter six, NAV lending: Fund Three is now in year six, four companies exited at a DPI of one-point-one, four remain, and LPs are restive. Meridian secures a NAV facility at seventeen percent loan-to-value, sixty-five million, to bridge fifty million of distributions, lifting DPI to one-point-three-seven, and to fund a final ten-million follow-on in Nexus before exit — disclosed to the LPAC under notification rights negotiated into the 2019 agreement. The NAV question is always the same: is the sixty-five million bridging genuine exits six to twelve months away, or manufacturing DPI optics for the next fundraise? Here, the LPAC disclosure and a credible exit timeline make the former plausible, and the LP receiving the bridge knows it's debt-funded and will be repaid from the Nexus exit. Four of the five chapters went well; the one friction — the subscription-line IRR optics — is exactly what sophisticated LPs caught, and it shaped Fund Four, where they required dual IRR reporting as a standard side-letter term.\n\n[pitfalls] What siloed study misses\nFive mistakes the synthesis fixes. First, treating debt capacity as a static entry-only decision — the same metrics are re-applied at every refinancing, so a creditworthy company gets progressively better terms while a deteriorating one loses the ability to refinance at all; debt capacity is a trajectory, not a point. Second, studying subscription lines as pure fund mechanics separate from portfolio performance — they feed the IRR and PME metrics LPs use to judge GPs, so a weak portfolio with aggressive line use can look like it's beating a strong portfolio with conservative use. Third, viewing NAV lending and subscription lines as different things rather than the same thing at different stages — both are fund-level credit borrowing against the fund's assets to manage the timing of LP cash flows, both create GP incentive conflicts, IRR inflation at the start and DPI inflation at the end; they're bookends of the same behaviour, and a GP aggressive with both has managed return optics across the entire fund life. Fourth, treating distressed workout as bad luck independent of earlier decisions — distress is almost always traceable to aggressive entry leverage, missed refinancing windows, inflating metrics, and NAV lending piled onto an already-troubled portfolio; it's the system's failure mode, a predictable consequence of identifiable choices. And fifth, seeing refinancing and workout as opposites — they're sequential stages of the same capital-structure imperative, refinancing being the healthy version and workout the unhealthy one, with the distance between them measured by coverage and leverage at each point in time.\n\n[worked-example] KKR / Alliance Boots\nThe real complete lifecycle — KKR's 2007 acquisition of Alliance Boots for about twelve billion pounds, the first ten-billion-plus PE deal in Europe, figures from public information. At the height of the credit boom, KKR took on roughly nine billion of acquisition debt, leverage of about seven-and-a-half to eight times, when lender standards were at their most permissive and the regulated UK pharmacy core was treated as predominantly defensive. The credit-analysis error: the retail cosmetics division had cyclical exposure the boom-era analysis underweighted, and when the financial crisis hit eighteen months later, retail volumes contracted and that leverage proved too high for the stressed scenario. But here's why it survived: the pharmacy core is non-discretionary enough that coverage never fell below about one-and-a-half times — above the payment-default floor — so the company could service its debt even though it couldn't refinance attractively until 2011 or 2012. When credit markets recovered, KKR executed serial refinancings, replacing expensive 2007-vintage debt at post-crisis spreads, extending maturities, and installing cov-lite terms as conditions improved. The exit came not as a forced sale but as a strategic combination with Walgreens, on a mature, unpressured timeline. KKR reported roughly a two-and-a-half-times MOIC across 2007 to 2016 — despite entering at the peak and holding through the worst credit crisis in decades. The lesson: a company can survive aggressive initial leverage if the underlying EBITDA is genuinely resilient and proactive refinancing is executed as markets improve. The financing lifecycle isn't determined at entry — it's determined by each decision made along the way.\n\n[recap] The lifecycle is the unit\nTo recap. The financing lifecycle of a PE fund is not five separate instruments but a single continuous system. Debt capacity sets the entry conditions; subscription credit lines shape how LP capital is timed and how performance is reported; refinancing actively manages the company's capital structure, the single most controllable value-creation lever in the hold; NAV lending provides fund-level management in the tail; and distressed workout resolves the system when it fails. The cascade from one chapter to the next is what students miss: aggressive entry leverage shrinks the margin for error in refinancing, subscription-line use inflates the metrics that obscure whether companies are healthy enough to refinance, missed refinancing windows let coverage drift to the edge of the lender's criteria, and NAV lending used to bridge a genuinely distressed portfolio compounds losses rather than resolving them. For a GP, these five decisions interact across the whole hold and must be managed as one. For an LP, a fund's financing behaviour across these chapters reveals the GP's discipline more clearly than any single metric — conservative lines, proactive refinancing, NAV lending only with LPAC consent, and quick distress resolution mark a GP managing the lifecycle systematically. Next we turn to the discipline that holds all of deal-making together under pressure — deal execution quality.\n\nEnd-card question: Why are subscription credit lines and NAV lending called the 'bookends' of the same fund-level behaviour, and what GP incentive do they share? When does NAV lending cross from legitimate bridging into compounding distress?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>The five concepts in this synthesis are not independent financing instruments — they are <strong>five chapters of a single continuous story</strong> that runs from the moment a PE fund raises capital through to the last distribution or distressed exit.</p><p>What they share is this: <strong>PE is a business built on leverage, and leverage is never static.</strong> It is structured at entry, timed against LP capital, actively managed during the hold, bridged at the fund level during the tail, and resolved under stress when the structure fails. Most students learn each instrument in isolation — how subscription lines work, how refinancing creates value, what NAV lending is. What they do not learn is how decisions in each chapter create the conditions, constraints, and crises that the next chapter must resolve.</p><p>The core connection is <strong>sequential dependency</strong>:</p><ul class='notelist'><li><strong>Debt Capacity and Credit Analysis in PE</strong> determines what leverage is achievable at entry — the initial conditions of the entire system</li><li><strong>Subscription Credit Lines</strong> shapes how and when LP capital is timed against that debt — changing the IRR optics but not the underlying capital structure</li><li><strong>Refinancing in PE</strong> actively manages the portfolio company capital structure through the hold — either locking in value or drifting into maturity cliffs</li><li><strong>NAV Lending</strong> provides a fund-level financing instrument when company-level solutions are insufficient — and creates new risks if used to paper over problems</li><li><strong>Distressed PE and Workout Mechanics</strong> resolves the capital structure when it cannot be managed — the terminus of every financing lifecycle where things go wrong</li></ul><p>No one instrument can be fully understood without understanding its relationship to the others. A GP who builds an optimal entry capital structure but neglects refinancing timing will drift into a maturity wall. One who uses NAV lending to bridge distributions from companies that should have been restructured two years earlier is compounding distress. One who uses subscription credit lines to inflate IRR on a fund whose portfolio companies are actually weak is creating a time bomb for the NAV lending market to eventually expose.</p><p>The financing lifecycle is a system. Its failures are almost always systemic — not single-instrument failures, but cascades from one chapter to the next.</p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying these five concepts separately produces five correct but incomplete mental models. Studying them together produces something qualitatively different: the ability to read a fund's financing behaviour as a coherent narrative, identify what stage the fund is in, and predict what decisions it will make next.</p><p><strong>What you can explain that you couldn't explain before:</strong></p><ol><li><strong>Why IRR is a unreliable performance metric in the early fund years</strong> — not because GPs are dishonest, but because subscription credit lines systematically compress the measurement period at exactly the stage when debt capacity has been most aggressively deployed. The two instruments interact to produce performance metrics that are neither fraudulent nor accurate.</li></ol><ol><li><strong>Why the best time to refinance is when you least feel you need to</strong> — because debt capacity analysis uses the same credit metrics at refinancing as at entry. A company at 3.5× leverage and 3.5× ICR in a strong credit market can refinance to cov-lite terms that give it 2 years of operational freedom. A company at 5.5× leverage and 1.9× ICR in a tightening market cannot refinance at all — it can only negotiate an amend-and-extend or enter workout proceedings.</li></ol><ol><li><strong>Why NAV lending is the fund-level analogue of the portfolio company refinancing decision</strong> — and why the same logic applies: used proactively when the portfolio is healthy, it is a legitimate tool; used reactively to bridge genuinely impaired companies, it is compounding distress at the fund level.</li></ol><ol><li><strong>Why the distress trigger in a cov-lite structure is later, worse, and less controllable than in a covenanted structure</strong> — because the entire intervening period (maintenance covenant trigger to payment default) is when proactive refinancing would normally have occurred. Cov-lite removes the early warning that would have prompted action.</li></ol><ol><li><strong>Why the complete financing lifecycle, from initial debt sizing to workout resolution, is the true unit of analysis for PE credit risk</strong> — not any single instrument within it.</li></ol><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p><strong>The two critical feedback loops this diagram shows:</strong></p><p><strong>Loop 1 (Virtuous):</strong> Strong debt capacity at entry → successful refinancing as company grows → improved debt capacity at next refinancing → lower cost of capital → higher FCF → more equity value at exit. The company's improving creditworthiness cascades through successive refinancings into compounding return improvement.</p><p><strong>Loop 2 (Vicious):</strong> Aggressive debt capacity at entry (maximum leverage, optimistic EBITDA) → company underperforms → ICR deteriorates → refinancing becomes unavailable → maturity approaches → amend-and-extend buys time → company continues to deteriorate → eventually reaches workout → equity wiped out. NAV lending, if used in the tail of this loop, adds fund-level debt to an already broken company, compounding losses.</p><p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p>Consider Meridian Capital Partners Fund III (a realistic composite), a £1.2bn fund vintage 2019, with eight portfolio companies.</p><p><strong>Chapter 1 — Debt Capacity (2019–2020):</strong> Meridian's investment team underwrites Nexus Logistics, a UK third-party logistics company, at 8× EBITDA (£240m EV on £30m EBITDA). The leveraged finance team proposes £165m of senior TLB (5.5× EBITDA) plus £15m RCF. The lender's credit committee runs its own analysis: - Lender-adjusted EBITDA: £27m (rejecting £3m of management fee and \"run-rate synergy\" add-backs) - Maximum leverage at lender-EBITDA: 5.0× = £135m (not £165m) - ICR at £135m, SOFR 0.1% + 375bps: £135m × 3.85% = £5.2m interest; ICR = 27/5.2 = 5.2× — comfortable - Decision: lend £135m, not £165m. Meridian must find an additional £30m of equity or reduce the entry price</p><p>Meridian reduces the entry price by £18m (from £240m to £222m) and contributes £12m more equity. The deal closes with £135m of debt — a capital structure that is genuinely supportable by the lender's credit analysis, not just the sponsor's optimistic EBITDA.</p><p><strong>Chapter 2 — Subscription Credit Lines (2019–2020):</strong> Meridian's Fund III establishes a £150m subscription credit facility at close. Over the first 12 months, Meridian closes four investments (including Nexus) using the credit line, issuing capital calls only at the 9-month mark. LPs report: - Reported IRR at month 18: 23% (including credit line timing effect) - Investment-date IRR: approximately 19%</p><p>The GP's fundraising deck for Fund IV (beginning 2021) quotes the 23% figure. Sophisticated LPs request dual IRR reporting; others benchmark against peers who also use lines, not realising the comparison is systematically upward-biased.</p><p><strong>Chapter 3 — Refinancing (2021):</strong> By late 2021, Nexus has grown EBITDA from £27m (lender-adjusted) to £36m. Leverage has fallen from 5.0× to 3.75×. The leveraged loan market is at peak liquidity (SOFR at 0.1%, CLO issuance at record levels).</p><p>Meridian's portfolio management team identifies the window: Nexus refinances £135m of TLB at SOFR + 375bps to £150m of cov-lite TLB at SOFR + 250bps (capturing lower spread and modest upsize to fund an add-on acquisition). Pricing grid in the new facility automatically reduces spread by 25bps for each 0.5× fall in leverage below 4.0× — generating further automatic savings as EBITDA grows.</p><p>Annual interest saving (pre-SOFR rise): £135m × (3.75% − 2.5%) = £1.69m — modest, but the cov-lite covenant package is the real prize, allowing Meridian to pursue its buy-and-build thesis without lender consent for each bolt-on.</p><p><strong>The critical mistake not made:</strong> Meridian refinanced in 2021 when the market was strong. Some peers did not — assuming the low rate environment would persist. By 2023, those peers' companies were paying SOFR 5.3% + 375bps = 8.65% on the same debt, with ICR collapsing.</p><p><strong>Chapter 4 — The SOFR Shock and Divergent Paths (2022–2023):</strong> SOFR rises from 0.1% to 5.3% in 18 months. Nexus, now cov-lite with a 250bps spread, pays 7.55% all-in — manageable at £36m EBITDA (ICR = 3.2×). But Meridian's fourth portfolio company, Cascade Manufacturing, did not refinance: it still carries £90m of 2019 debt at SOFR + 400bps = 9.3% all-in.</p><p>Cascade's EBITDA: £18m (cyclical manufacturing, demand fell in 2022). Cascade's ICR: £18m / (£90m × 9.3%) = £18m / £8.37m = <strong>2.15×</strong>. Above the 2.0× maintenance covenant — but only just.</p><p>By Q1 2023, Cascade's EBITDA falls further to £14m (ICR = 1.67× — covenant breach). Meridian engages restructuring advisers. The debt maturity is 22 months away.</p><p><strong>Chapter 5 — Distressed Workout (2023–2024):</strong> Cascade's lenders form a steering committee. Standstill agreed for 4 months. Independent Business Review conclusion: cyclical (not structural) impairment — automotive end markets recovering, Q4 2023 order book improving.</p><p>Restructuring: amend-and-extend executed. Spread increased from 400bps to 475bps. ICR covenant reset from 2.0× to 1.5×. Maturity extended 2.5 years. Meridian injects £6m of equity cure. The business stabilises; EBITDA recovers to £21m by end-2024. Cascade eventually exits at 6.5× EBITDA = £136.5m EV — above total debt of £96m (including accrued PIK from one quarter where interest was rolled). Equity recovery: approximately £40m on £62m invested. Poor, but not zero.</p><p><strong>Chapter 6 — NAV Lending (2025):</strong> Meridian Fund III is now in year 6. Four companies have exited (DPI = 1.1×). Four remain in the portfolio: Nexus (performing), Cascade (recovered), and two others. Portfolio NAV: £380m. LPs are restive — they expected more distributions by now.</p><p>Meridian secures a NAV facility at 17% LTV (£65m) from a specialist NAV lender. Purpose: bridge distributions of £50m to LPs (DPI rises to 1.37×) and fund a £10m follow-on investment in Nexus for one final acquisition before exit. The facility is disclosed to the LPAC (Meridian negotiated LPAC notification rights in 2019 LPA updates following ILPA guidance).</p><p>The NAV lending question: is the £65m being used to bridge genuine exits that are 6–12 months away, or to create DPI optics for Fund V fundraising? In Meridian's case, the LPAC disclosure and planned exit timeline make the former plausible. The LP who receives the £50m bridge distribution knows it is debt-funded — and knows it will be repaid from Nexus's exit in the next 12 months.</p><p><strong>The system as a whole:</strong> Meridian's financing lifecycle produced: - A better deal at entry (debt capacity discipline forced equity contribution and price reduction) - IRR optics that oversold Fund III performance vs. genuine underlying returns (subscription credit line) - Material value creation from proactive refinancing (Nexus cov-lite) - A distressed situation resolved through amend-and-extend because the impairment was correctly identified as cyclical - A NAV facility used for legitimate bridging with LPAC consent and full transparency</p><p>Four of those five chapters went well. One (subscription credit line optics) created a governance issue that sophisticated LPs identified. That single friction shaped Fund IV negotiations — LPs required dual IRR reporting as a standard side letter provision in Fund IV.</p><p>---</p>"}, "4": {"section": "How They Interact in Practice", "html": "<p>Consider Meridian Capital Partners Fund III (a realistic composite), a £1.2bn fund vintage 2019, with eight portfolio companies.</p><p><strong>Chapter 1 — Debt Capacity (2019–2020):</strong> Meridian's investment team underwrites Nexus Logistics, a UK third-party logistics company, at 8× EBITDA (£240m EV on £30m EBITDA). The leveraged finance team proposes £165m of senior TLB (5.5× EBITDA) plus £15m RCF. The lender's credit committee runs its own analysis: - Lender-adjusted EBITDA: £27m (rejecting £3m of management fee and \"run-rate synergy\" add-backs) - Maximum leverage at lender-EBITDA: 5.0× = £135m (not £165m) - ICR at £135m, SOFR 0.1% + 375bps: £135m × 3.85% = £5.2m interest; ICR = 27/5.2 = 5.2× — comfortable - Decision: lend £135m, not £165m. Meridian must find an additional £30m of equity or reduce the entry price</p><p>Meridian reduces the entry price by £18m (from £240m to £222m) and contributes £12m more equity. The deal closes with £135m of debt — a capital structure that is genuinely supportable by the lender's credit analysis, not just the sponsor's optimistic EBITDA.</p><p><strong>Chapter 2 — Subscription Credit Lines (2019–2020):</strong> Meridian's Fund III establishes a £150m subscription credit facility at close. Over the first 12 months, Meridian closes four investments (including Nexus) using the credit line, issuing capital calls only at the 9-month mark. LPs report: - Reported IRR at month 18: 23% (including credit line timing effect) - Investment-date IRR: approximately 19%</p><p>The GP's fundraising deck for Fund IV (beginning 2021) quotes the 23% figure. Sophisticated LPs request dual IRR reporting; others benchmark against peers who also use lines, not realising the comparison is systematically upward-biased.</p><p><strong>Chapter 3 — Refinancing (2021):</strong> By late 2021, Nexus has grown EBITDA from £27m (lender-adjusted) to £36m. Leverage has fallen from 5.0× to 3.75×. The leveraged loan market is at peak liquidity (SOFR at 0.1%, CLO issuance at record levels).</p><p>Meridian's portfolio management team identifies the window: Nexus refinances £135m of TLB at SOFR + 375bps to £150m of cov-lite TLB at SOFR + 250bps (capturing lower spread and modest upsize to fund an add-on acquisition). Pricing grid in the new facility automatically reduces spread by 25bps for each 0.5× fall in leverage below 4.0× — generating further automatic savings as EBITDA grows.</p><p>Annual interest saving (pre-SOFR rise): £135m × (3.75% − 2.5%) = £1.69m — modest, but the cov-lite covenant package is the real prize, allowing Meridian to pursue its buy-and-build thesis without lender consent for each bolt-on.</p><p><strong>The critical mistake not made:</strong> Meridian refinanced in 2021 when the market was strong. Some peers did not — assuming the low rate environment would persist. By 2023, those peers' companies were paying SOFR 5.3% + 375bps = 8.65% on the same debt, with ICR collapsing.</p><p><strong>Chapter 4 — The SOFR Shock and Divergent Paths (2022–2023):</strong> SOFR rises from 0.1% to 5.3% in 18 months. Nexus, now cov-lite with a 250bps spread, pays 7.55% all-in — manageable at £36m EBITDA (ICR = 3.2×). But Meridian's fourth portfolio company, Cascade Manufacturing, did not refinance: it still carries £90m of 2019 debt at SOFR + 400bps = 9.3% all-in.</p><p>Cascade's EBITDA: £18m (cyclical manufacturing, demand fell in 2022). Cascade's ICR: £18m / (£90m × 9.3%) = £18m / £8.37m = <strong>2.15×</strong>. Above the 2.0× maintenance covenant — but only just.</p><p>By Q1 2023, Cascade's EBITDA falls further to £14m (ICR = 1.67× — covenant breach). Meridian engages restructuring advisers. The debt maturity is 22 months away.</p><p><strong>Chapter 5 — Distressed Workout (2023–2024):</strong> Cascade's lenders form a steering committee. Standstill agreed for 4 months. Independent Business Review conclusion: cyclical (not structural) impairment — automotive end markets recovering, Q4 2023 order book improving.</p><p>Restructuring: amend-and-extend executed. Spread increased from 400bps to 475bps. ICR covenant reset from 2.0× to 1.5×. Maturity extended 2.5 years. Meridian injects £6m of equity cure. The business stabilises; EBITDA recovers to £21m by end-2024. Cascade eventually exits at 6.5× EBITDA = £136.5m EV — above total debt of £96m (including accrued PIK from one quarter where interest was rolled). Equity recovery: approximately £40m on £62m invested. Poor, but not zero.</p><p><strong>Chapter 6 — NAV Lending (2025):</strong> Meridian Fund III is now in year 6. Four companies have exited (DPI = 1.1×). Four remain in the portfolio: Nexus (performing), Cascade (recovered), and two others. Portfolio NAV: £380m. LPs are restive — they expected more distributions by now.</p><p>Meridian secures a NAV facility at 17% LTV (£65m) from a specialist NAV lender. Purpose: bridge distributions of £50m to LPs (DPI rises to 1.37×) and fund a £10m follow-on investment in Nexus for one final acquisition before exit. The facility is disclosed to the LPAC (Meridian negotiated LPAC notification rights in 2019 LPA updates following ILPA guidance).</p><p>The NAV lending question: is the £65m being used to bridge genuine exits that are 6–12 months away, or to create DPI optics for Fund V fundraising? In Meridian's case, the LPAC disclosure and planned exit timeline make the former plausible. The LP who receives the £50m bridge distribution knows it is debt-funded — and knows it will be repaid from Nexus's exit in the next 12 months.</p><p><strong>The system as a whole:</strong> Meridian's financing lifecycle produced: - A better deal at entry (debt capacity discipline forced equity contribution and price reduction) - IRR optics that oversold Fund III performance vs. genuine underlying returns (subscription credit line) - Material value creation from proactive refinancing (Nexus cov-lite) - A distressed situation resolved through amend-and-extend because the impairment was correctly identified as cyclical - A NAV facility used for legitimate bridging with LPAC consent and full transparency</p><p>Four of those five chapters went well. One (subscription credit line optics) created a governance issue that sophisticated LPs identified. That single friction shaped Fund IV negotiations — LPs required dual IRR reporting as a standard side letter provision in Fund IV.</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p><strong>Mistake 1: Treating debt capacity as a static, entry-only decision</strong> Most students learn debt capacity as the maximum leverage the lender will advance at close. They do not learn that the same credit metrics (ICR, leverage ratio, DSCR, FCF yield) are re-applied at every refinancing event throughout the hold — and that a company that stays creditworthy (growing EBITDA, falling leverage) can access progressively better terms, while one that deteriorates loses the ability to refinance at all. Debt capacity is not a point-in-time number; it is a trajectory.</p><p><strong>Mistake 2: Studying subscription credit lines as a fund mechanics topic, separate from portfolio company performance</strong> Subscription credit lines seem like an administrative instrument — a way to manage the timing of capital calls. But they interact with the IRR metrics that LPs use to evaluate portfolio company performance and GP track records. A fund with a weak underlying portfolio but aggressive credit line use can appear to outperform a fund with a strong portfolio and conservative credit line use — because the latter's IRR is diluted by earlier capital call timing. The instruments sit in different domains (fund mechanics vs. deal performance) but produce the same metrics (IRR, PME benchmarks) that flow into LP manager selection.</p><p><strong>Mistake 3: Viewing NAV lending and subscription credit lines as different things rather than the same thing at different stages</strong> Both are fund-level credit instruments. Both use collateral that reflects the fund's assets (LP commitments for subscription lines; portfolio equity for NAV lending). Both affect the timing of LP cash flows without changing the underlying value of the portfolio. Both create GP incentive conflicts (IRR inflation at the beginning, DPI inflation at the end). Studying them separately misses that they are bookends of the same fund-level financing behaviour — and that a GP who uses subscription lines aggressively at the start and NAV lending aggressively at the end has systematically managed return optics throughout the fund's entire life.</p><p><strong>Mistake 4: Viewing distressed workout as something that happens because of bad luck, independent of the other decisions</strong> Distress is almost always traceable to earlier decisions: aggressive debt capacity assumptions, failure to refinance before maturity cliffs, subscription credit lines that inflated performance metrics and delayed intervention, NAV lending that added fund-level debt to an already troubled portfolio. The financing lifecycle is a system — distress is the system's failure mode. Understanding how the upstream decisions create the conditions for downstream distress transforms distress from an unexplained catastrophe into a predictable consequence of identifiable choices.</p><p><strong>Mistake 5: Separating refinancing and distressed workout as opposites</strong> They are not opposites — they are sequential stages of the same capital structure management imperative. Refinancing is the healthy version: the company is creditworthy, lenders compete for the loan, terms improve. Distressed workout is the unhealthy version: the company has lost creditworthiness, lenders are enforcing rights, terms are imposed not negotiated. The distance between refinancing and distress is measured by ICR and leverage ratio at each point in time — and both metrics are directly shaped by the quality of the original debt capacity analysis and the success of operational value creation during the hold.</p><p>---</p>"}, "6": {"section": "Practical Example", "html": "<p><strong>KKR / Alliance Boots — A Complete Financing Lifecycle</strong></p><p>The 2007 KKR acquisition of Alliance Boots for approximately £12bn (the first £10bn+ PE deal in Europe at that time) provides a real-world case where all five financing instruments were relevant across the holding period (2007–2016).</p><p><strong>Debt Capacity at Entry (2007):</strong> At the height of the credit boom, KKR acquired Alliance Boots with approximately £9bn of acquisition debt — leverage of approximately 7.5–8× EBITDA at a time when lender credit standards were at their most permissive. CLO issuance was at record levels; leveraged loan demand was extraordinary; lenders accepted aggressive projections and high leverage. In the lender's credit analysis at the time: the company's combination of regulated UK pharmacy (non-discretionary demand) and cosmetics retail (discretionary) was treated as predominantly defensive. [needs-verification on precise debt quantum and leverage at close]</p><p><strong>The Credit Analysis Error:</strong> Alliance Boots's retail cosmetics division had significant cyclical exposure that the boom-era credit analysis underweighted. When the GFC arrived 18 months later, retail volumes contracted and the maximum leverage that lenders had advanced proved too high for the stressed scenario.</p><p><strong>Subscription Credit Lines and IRR Management (2007–2008):</strong> The scale of the Alliance Boots deal required full LP capital calls — subscription credit lines were less prominent in 2007-era deals of this size. KKR's reported returns in the early years were negative (the J-curve effect was severe — large capital deployed into a deal that quickly marked down as the GFC hit).</p><p><strong>Refinancing and Maturity Management (2008–2012):</strong> The Alliance Boots capital structure included multiple maturities across high-yield bonds and bank debt that fell due in 2013–2015. The GFC made refinancing impossible in 2008–2010. KKR's portfolio management team focused on operational improvement (EBITDA growth, cost reduction) to keep the company creditworthy while waiting for credit markets to recover.</p><p>The critical insight: Alliance Boots survived because it had enough EBITDA (pharmacy is non-discretionary) to service its debt even in the stressed scenario. ICR never fell below approximately 1.5× — above the payment default threshold. The company could not refinance at attractive terms until 2011–2012, but it could service its debt throughout.</p><p>When credit markets recovered, KKR executed serial refinancings — replacing expensive 2007-vintage debt with new debt at post-crisis spreads, extending maturities from 2013 to 2018, and installing cov-lite terms as market conditions improved. [needs-verification on specific refinancing timeline]</p><p><strong>The Walgreens Partnership (2012–2015):</strong> KKR brought in Walgreens as a strategic partner (eventually becoming Walgreens Boots Alliance), which fundamentally changed the exit structure — no longer a traditional PE exit but a strategic combination. The NAV lending and subscription credit line dynamics are less prominent in this case because of the strategic buyer involvement. But the refinancing activity was central to keeping the company in optimal shape for the eventual combination.</p><p><strong>The Complete Return:</strong> KKR reported approximately a 2.5× MOIC on Alliance Boots across the 2007–2016 period — despite entering at the peak of the market and holding through the worst credit crisis in decades. [needs-verification on final return figures] The key factors:</p><ol><li><strong>Debt capacity discipline kept ICR above the workout trigger</strong> — even at aggressive 2007 leverage, the pharmacy core was non-discretionary enough to generate EBITDA coverage</li><li><strong>Proactive refinancing captured post-crisis spread compression</strong> — turning a dangerous 2007 capital structure into an extended, lower-cost structure by 2012</li><li><strong>The exit (Walgreens combination) was not time-pressured</strong> — the mature fund timeline and extended hold (nearly a decade) allowed the strategic exit at the right moment</li><li><strong>No workout was required</strong> — because the ICR never fell below the payment default floor and the company's core EBITDA was fundamentally resilient</li></ol><p>The lesson: a company can survive aggressive initial debt capacity assumptions if the underlying EBITDA is truly resilient AND proactive refinancing is executed as market conditions improve. The financing lifecycle is not determined at entry — it is determined by each decision made along the way.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The financing lifecycle of a PE fund is not five separate instruments but a single continuous system. Debt capacity sets the entry conditions. Subscription credit lines shape how LP capital is timed and how performance is reported. Refinancing actively manages the portfolio company capital structure — the single most controllable value creation lever available during the hold. NAV lending provides fund-level capital management in the tail. Distressed workout resolves the system when it fails.</p><p>The cascade from one chapter to the next is what students miss: aggressive debt capacity at entry reduces the margin for error in refinancing. Subscription credit line use inflates the IRR metrics that obscure whether portfolio companies are performing well enough to make refinancing viable. Failure to refinance proactively during a credit market window allows leverage ratios and ICRs to drift to the edge of the lender's credit criteria — leaving no buffer when markets tighten. NAV lending used to bridge a genuinely distressed portfolio compounds losses rather than resolving them.</p><p>The practical implication for a GP: these five financing decisions are not made in isolation. They interact across the entire holding period. The GP who understands all five — and who treats debt capacity, refinancing, and NAV lending as stages of the same capital structure management problem — will structure better deals, manage portfolio companies more proactively, and avoid the compounding failures that characterise the worst PE distress situations.</p><p>The practical implication for an LP: a fund's financing behaviour across these five chapters tells you more about the GP's discipline than any single metric. A GP who uses subscription lines conservatively, refinances proactively, avoids NAV lending without LPAC consent, and resolves distress quickly is managing the financing lifecycle systematically. A GP who uses all five instruments opportunistically — maximising IRR optics at each stage without regard for the system effects — is creating the conditions for future problems.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

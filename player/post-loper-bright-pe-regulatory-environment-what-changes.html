@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "post-loper-bright-pe-regulatory-environment-what-changes", "title": "Post-Loper Bright PE Regulatory Environment — What Changes", "draft_watermark": false, "estimated_runtime_sec": 415, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The courts join the blockade", "on_screen_bullets": ["Doctrine applied to PE specifically", "Which rules are now vulnerable", "Rules vacated in under a year"], "narration": "The major-questions lesson covered the Loper Bright decision at the level of Supreme Court doctrine. This lesson applies it specifically to the PE regulatory landscape, asking three concrete questions: which existing rules are now vulnerable, which regulatory authorities that reformers might use without new legislation are now constrained, and what a Loper-Bright-proof PE regulatory architecture would actually look like. The proof of concept already exists: the Fifth Circuit's twenty-twenty-four vacatur of the SEC's Private Fund Adviser Rules, where comprehensive PE disclosure rules built on broad statutory authority lasted less than twelve months before being eliminated through judicial review. Understanding exactly why that happened, and which other PE rules face the same vulnerability, is essential for anyone working on PE regulation or advocacy — because after Loper Bright, the courts have effectively joined the Senate as a second veto point on PE reform.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Deference ends", "on_screen_bullets": ["Courts interpret statutes, not agencies", "Broad-authority rules now vulnerable", "Future rules need explicit precision"], "narration": "The definition. The Loper Bright decision of twenty-twenty-four eliminated Chevron deference — courts now independently interpret statutory scope rather than deferring to agencies — which means every existing PE-adjacent regulation relying on broad statutory authority is newly vulnerable to judicial challenge, and all future PE regulation requires explicit Congressional precision to survive a now-hostile judicial backstop. The agency no longer gets the benefit of the doubt on what its own statute permits; the court decides, independently, and often more narrowly.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Who reads the unclear law", "on_screen_bullets": ["Chevron: agency interpreted ambiguity", "Loper Bright: courts interpret it", "Power shifts agency to court"], "narration": "Plain English. Under the old Chevron rule, in force from nineteen-eighty-four to twenty-twenty-four, courts would defer to an agency's reasonable interpretation of an ambiguous statute. If the SEC said the investor-protection mandate authorises us to require quarterly portfolio-company reporting, courts would accept that interpretation as long as it was reasonable; industry could still challenge a rule on procedural grounds but had limited ability to challenge the agency's reading of its own authority. Loper Bright changed this: courts now substitute their own interpretation of what the statute means, so the agency's reasonable interpretation is no longer entitled to deference, and the court decides independently what investor protection authorises. That shifts power from agencies to courts. For PE specifically, the consequence is sharp: every PE-adjacent regulation based on broad language in the post-crisis financial statutes or the investment-adviser law is now subject to independent judicial interpretation of whether that language actually authorises the specific rule. And PE's strategy follows obviously — litigate every rule, and argue that the statute simply doesn't say what the agency claims it says. The question used to be is the agency's reading reasonable; now it's does the court agree with it, which is a far harder bar for any ambitious rule to clear.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Who decides the unclear zoning", "on_screen_bullets": ["Chevron: permit office decided", "Loper Bright: the court decides", "Rewrite the law to expand it"], "narration": "The mental model. Chevron was like a zoning ordinance that said if the law is unclear about a building's permitted use, the building-permit office gets to decide. Loper Bright rewrote that ordinance to say if the law is unclear, the court decides. For PE regulation, the financial statutes' investor-protection language is the unclear zoning ordinance. Under Chevron, the SEC, as the permit office, could interpret it broadly to cover PE fund mechanics. Under Loper Bright, the court decides what investor protection means — and the Fifth Circuit has demonstrated it reads such language narrowly. So the permit office, the SEC, can no longer issue permits that the court hasn't already decided are covered by the ordinance, and to expand what's permitted, you now need the legislature to rewrite the ordinance with explicit new language. That's the whole shift in one image: the agency used to fill the gaps in an unclear law, and now the court fills them, usually more conservatively, leaving the agency able to act only where the statute is already explicit. Expanding the agency's reach is no longer an interpretive move it can make on its own; it's a legislative act that requires Congress.", "est_sec": 46}, {"n": 5, "beat": "example", "visual": "table", "source_section": "The SEC Private Fund Adviser Rules — The Definitive Case Study", "on_screen_title": "The 2023 rules, vacated", "on_screen_bullets": ["Issued Aug 2023, vacated Aug 2024", "Extended beyond pre-2010 IAA scope", "Court read 'investor protection' narrowly"], "narration": "The definitive case study is the SEC's Private Fund Adviser Rules, and the timeline alone tells the story. The SEC issued them in August twenty-twenty-three, requiring quarterly statements, annual audits, fairness opinions for manager-led secondaries, and prohibitions on certain preferential side-letter terms. The Fifth Circuit vacated them in August twenty-twenty-four — less than twelve months later. The court held that the SEC's authority under the investment-adviser law's investor-protection provisions and the post-crisis investor-protection mandate did not authorise rules regulating private funds' relationships with their own clients, the limited partners, who were already sophisticated investors not subject to standard retail-investor protection. The statutory-interpretation analysis was the crux: the investment-adviser law historically regulated advisers' relationships with their advisory clients in the public interest, and the twenty-twenty-three rules extended that to regulate the internal mechanics of private funds — carried-interest structures, advisory-committee procedures, side-letter terms — which the court found beyond the statute's scope. The decisive point for everything that follows: under Chevron, the SEC's reasonable interpretation would likely have survived, but under Loper Bright's independent review, the court applied its own narrower reading and the rules fell. And the general principle this establishes is broad — any SEC rule that extends regulatory authority beyond the pre-crisis scope of the investment-adviser law, meaning any rule addressing PE fund mechanics rather than adviser conduct, is now judicially vulnerable. The twenty-twenty-three rules were the first to test this proposition, and they were the first to fall.", "est_sec": 58}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "PE-Adjacent Regulations Now Vulnerable to Loper Bright Challenge", "on_screen_title": "What else is vulnerable", "on_screen_bullets": ["FSOC systemic-risk designation: high", "DOL fiduciary rule: high", "Form PF / examination: lower"], "narration": "So which other PE-adjacent regulations now face the same vulnerability? Run down the exposure, because it maps the limits of what reformers can achieve without new legislation. Highest vulnerability: the Financial Stability Oversight Council's systemic-risk designation authority, which rests on a statutory power to designate a significant nonbank financial company that poses a threat to financial stability — language courts can now read far more narrowly than the council has applied it, which directly matters because if that designation authority is constrained, the option of addressing PE systemic risk without new legislation largely disappears. Also high: the labour department's fiduciary rule for retirement accounts, whose fiduciary definition has been litigated repeatedly, with a Fifth Circuit striking down a prior version and the current version facing the same challenge. Medium vulnerability: the systemic-risk reporting form for large PE funds, where reporting for risk monitoring sits more clearly within agency authority, though specific disclosure items could still be challenged; and derivatives oversight of PE credit funds, where the scope of authority over non-bank entities is contestable. Lower vulnerability: examination access to the records of registered advisers, because record-keeping authority for registered advisers is clearly within the statute, though the scope of examination, which records and which entities, still creates some challenge opportunity. The pattern across the whole table is consistent: the more a rule depends on a broad or implied grant of authority, the more vulnerable it now is, and the systemic-risk designation power — the single most important tool for addressing PE as a stability threat — sits right at the top of the danger list.", "est_sec": 60}, {"n": 7, "beat": "mechanics", "visual": "table", "source_section": "Post-Loper Bright-Proof PE Regulatory Architecture", "on_screen_title": "Drafting to survive", "on_screen_bullets": ["Enumerate every provision", "Name every entity explicitly", "Private right of action"], "narration": "Given all that, what does a Loper-Bright-proof PE regulation actually require? Four drafting rules, each closing a vulnerability the courts now exploit. Rule one, enumerate every operative provision explicitly: a statute saying the SEC shall require each adviser to a fund above a threshold to file, within ninety days of quarter-end, a report disclosing the following specific items, is defensible, while the SEC shall require disclosure as necessary to protect investors is vulnerable. Rule two, grant authority explicitly for each enforcement mechanism: the SEC may issue an order prohibiting an adviser from acting as such on the following specific grounds is defensible, while the SEC may take such action as it deems appropriate is not. Rule three, name every entity within scope explicitly: if a statute intends to cover continuation vehicles, NAV facilities, or fund-of-funds structures, each must be named, because courts will no longer extend a statute's scope to unnamed entities by analogy. And rule four, include a private right of action: if investors can sue for disclosure violations directly, the Loper Bright vulnerability of agency rules matters far less, because a private right of action is a Congressional decision rather than an agency interpretation, so it can't be challenged on Loper Bright grounds at all. That last point is the most strategically important, because it routes enforcement around the captured and now-constrained agency entirely. And the deeper structure is a compound, two-axis constraint: a horizontal axis where agencies can no longer extend their authority, and a vertical axis where existing rules can be challenged in friendly courts — together producing an environment in which PE regulation can only be advanced through explicit, precisely drafted new legislation. Precision isn't a nicety; it's the entire game.", "est_sec": 62}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Existing rules are vulnerable too", "Holding was statutory, not 'Loper Bright'", "Core registration survives"], "narration": "Three corrections to close. First, the belief that Loper Bright only applies to new rules — existing rules can also be challenged, because Loper Bright eliminates the deference that previously protected established agency interpretations, though in practice challenges concentrate on newer rules where the litigation cost-benefit favours industry. Second, the belief that the Fifth Circuit vacated the twenty-twenty-three rules on Loper Bright grounds specifically — the court actually vacated on statutory-authority grounds, finding the SEC's authority didn't cover the rules, with Loper Bright providing the interpretive standard, independent review rather than deference, rather than being directly cited; the effect is identical, the agency's broad reading rejected by independent review, but the holding was statutory. And third, the belief that Loper Bright eliminates all PE regulation — the core investment-adviser registration requirements, the standard disclosure forms, and examination access for registered advisers all rest on unambiguous statutory authority and are not vulnerable, so Loper Bright primarily constrains extensions of authority beyond the pre-existing scope, not the foundational framework. To recap: Loper Bright replaced deference with independent judicial interpretation, turning the federal courts into an effective second veto point on any PE regulation relying on broad authority; the twenty-twenty-three rules' vacatur proved it in under a year; the systemic-risk designation power is the highest-vulnerability major path; and a durable architecture requires explicit enumeration of every provision and entity, with a private right of action as the strongest defence because it routes around the agency entirely. The compound horizontal-and-vertical capture means agencies can't extend authority and existing authority can be challenged at the same time. That completes the institutional-and-legal infrastructure of capture; the section now turns to the remaining sector and tax material.", "est_sec": 60}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Loper Bright created a 'horizontal' and a 'vertical' capture axis simultaneously. Explain both and why together they mean PE regulation now requires explicit new legislation. Then: why does a 'private right of action' provision survive Loper Bright challenge when agency rules don't?", "narration": "Before the next lesson, reason it through. Loper Bright created a compound constraint with a horizontal axis and a vertical axis at once — explain both, and why together they mean PE regulation can now only be advanced through explicit new legislation. And why does a private right of action, letting investors sue directly, survive a Loper Bright challenge when agency rules built on broad authority do not? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Post-Loper Bright PE Regulatory Environment — What Changes\n\n[hook] The courts join the blockade\nThe major-questions lesson covered the Loper Bright decision at the level of Supreme Court doctrine. This lesson applies it specifically to the PE regulatory landscape, asking three concrete questions: which existing rules are now vulnerable, which regulatory authorities that reformers might use without new legislation are now constrained, and what a Loper-Bright-proof PE regulatory architecture would actually look like. The proof of concept already exists: the Fifth Circuit's twenty-twenty-four vacatur of the SEC's Private Fund Adviser Rules, where comprehensive PE disclosure rules built on broad statutory authority lasted less than twelve months before being eliminated through judicial review. Understanding exactly why that happened, and which other PE rules face the same vulnerability, is essential for anyone working on PE regulation or advocacy — because after Loper Bright, the courts have effectively joined the Senate as a second veto point on PE reform.\n\n[definition] Deference ends\nThe definition. The Loper Bright decision of twenty-twenty-four eliminated Chevron deference — courts now independently interpret statutory scope rather than deferring to agencies — which means every existing PE-adjacent regulation relying on broad statutory authority is newly vulnerable to judicial challenge, and all future PE regulation requires explicit Congressional precision to survive a now-hostile judicial backstop. The agency no longer gets the benefit of the doubt on what its own statute permits; the court decides, independently, and often more narrowly.\n\n[intuition] Who reads the unclear law\nPlain English. Under the old Chevron rule, in force from nineteen-eighty-four to twenty-twenty-four, courts would defer to an agency's reasonable interpretation of an ambiguous statute. If the SEC said the investor-protection mandate authorises us to require quarterly portfolio-company reporting, courts would accept that interpretation as long as it was reasonable; industry could still challenge a rule on procedural grounds but had limited ability to challenge the agency's reading of its own authority. Loper Bright changed this: courts now substitute their own interpretation of what the statute means, so the agency's reasonable interpretation is no longer entitled to deference, and the court decides independently what investor protection authorises. That shifts power from agencies to courts. For PE specifically, the consequence is sharp: every PE-adjacent regulation based on broad language in the post-crisis financial statutes or the investment-adviser law is now subject to independent judicial interpretation of whether that language actually authorises the specific rule. And PE's strategy follows obviously — litigate every rule, and argue that the statute simply doesn't say what the agency claims it says. The question used to be is the agency's reading reasonable; now it's does the court agree with it, which is a far harder bar for any ambitious rule to clear.\n\n[intuition] Who decides the unclear zoning\nThe mental model. Chevron was like a zoning ordinance that said if the law is unclear about a building's permitted use, the building-permit office gets to decide. Loper Bright rewrote that ordinance to say if the law is unclear, the court decides. For PE regulation, the financial statutes' investor-protection language is the unclear zoning ordinance. Under Chevron, the SEC, as the permit office, could interpret it broadly to cover PE fund mechanics. Under Loper Bright, the court decides what investor protection means — and the Fifth Circuit has demonstrated it reads such language narrowly. So the permit office, the SEC, can no longer issue permits that the court hasn't already decided are covered by the ordinance, and to expand what's permitted, you now need the legislature to rewrite the ordinance with explicit new language. That's the whole shift in one image: the agency used to fill the gaps in an unclear law, and now the court fills them, usually more conservatively, leaving the agency able to act only where the statute is already explicit. Expanding the agency's reach is no longer an interpretive move it can make on its own; it's a legislative act that requires Congress.\n\n[example] The 2023 rules, vacated\nThe definitive case study is the SEC's Private Fund Adviser Rules, and the timeline alone tells the story. The SEC issued them in August twenty-twenty-three, requiring quarterly statements, annual audits, fairness opinions for manager-led secondaries, and prohibitions on certain preferential side-letter terms. The Fifth Circuit vacated them in August twenty-twenty-four — less than twelve months later. The court held that the SEC's authority under the investment-adviser law's investor-protection provisions and the post-crisis investor-protection mandate did not authorise rules regulating private funds' relationships with their own clients, the limited partners, who were already sophisticated investors not subject to standard retail-investor protection. The statutory-interpretation analysis was the crux: the investment-adviser law historically regulated advisers' relationships with their advisory clients in the public interest, and the twenty-twenty-three rules extended that to regulate the internal mechanics of private funds — carried-interest structures, advisory-committee procedures, side-letter terms — which the court found beyond the statute's scope. The decisive point for everything that follows: under Chevron, the SEC's reasonable interpretation would likely have survived, but under Loper Bright's independent review, the court applied its own narrower reading and the rules fell. And the general principle this establishes is broad — any SEC rule that extends regulatory authority beyond the pre-crisis scope of the investment-adviser law, meaning any rule addressing PE fund mechanics rather than adviser conduct, is now judicially vulnerable. The twenty-twenty-three rules were the first to test this proposition, and they were the first to fall.\n\n[mechanics] What else is vulnerable\nSo which other PE-adjacent regulations now face the same vulnerability? Run down the exposure, because it maps the limits of what reformers can achieve without new legislation. Highest vulnerability: the Financial Stability Oversight Council's systemic-risk designation authority, which rests on a statutory power to designate a significant nonbank financial company that poses a threat to financial stability — language courts can now read far more narrowly than the council has applied it, which directly matters because if that designation authority is constrained, the option of addressing PE systemic risk without new legislation largely disappears. Also high: the labour department's fiduciary rule for retirement accounts, whose fiduciary definition has been litigated repeatedly, with a Fifth Circuit striking down a prior version and the current version facing the same challenge. Medium vulnerability: the systemic-risk reporting form for large PE funds, where reporting for risk monitoring sits more clearly within agency authority, though specific disclosure items could still be challenged; and derivatives oversight of PE credit funds, where the scope of authority over non-bank entities is contestable. Lower vulnerability: examination access to the records of registered advisers, because record-keeping authority for registered advisers is clearly within the statute, though the scope of examination, which records and which entities, still creates some challenge opportunity. The pattern across the whole table is consistent: the more a rule depends on a broad or implied grant of authority, the more vulnerable it now is, and the systemic-risk designation power — the single most important tool for addressing PE as a stability threat — sits right at the top of the danger list.\n\n[mechanics] Drafting to survive\nGiven all that, what does a Loper-Bright-proof PE regulation actually require? Four drafting rules, each closing a vulnerability the courts now exploit. Rule one, enumerate every operative provision explicitly: a statute saying the SEC shall require each adviser to a fund above a threshold to file, within ninety days of quarter-end, a report disclosing the following specific items, is defensible, while the SEC shall require disclosure as necessary to protect investors is vulnerable. Rule two, grant authority explicitly for each enforcement mechanism: the SEC may issue an order prohibiting an adviser from acting as such on the following specific grounds is defensible, while the SEC may take such action as it deems appropriate is not. Rule three, name every entity within scope explicitly: if a statute intends to cover continuation vehicles, NAV facilities, or fund-of-funds structures, each must be named, because courts will no longer extend a statute's scope to unnamed entities by analogy. And rule four, include a private right of action: if investors can sue for disclosure violations directly, the Loper Bright vulnerability of agency rules matters far less, because a private right of action is a Congressional decision rather than an agency interpretation, so it can't be challenged on Loper Bright grounds at all. That last point is the most strategically important, because it routes enforcement around the captured and now-constrained agency entirely. And the deeper structure is a compound, two-axis constraint: a horizontal axis where agencies can no longer extend their authority, and a vertical axis where existing rules can be challenged in friendly courts — together producing an environment in which PE regulation can only be advanced through explicit, precisely drafted new legislation. Precision isn't a nicety; it's the entire game.\n\n[pitfalls] What people get wrong\nThree corrections to close. First, the belief that Loper Bright only applies to new rules — existing rules can also be challenged, because Loper Bright eliminates the deference that previously protected established agency interpretations, though in practice challenges concentrate on newer rules where the litigation cost-benefit favours industry. Second, the belief that the Fifth Circuit vacated the twenty-twenty-three rules on Loper Bright grounds specifically — the court actually vacated on statutory-authority grounds, finding the SEC's authority didn't cover the rules, with Loper Bright providing the interpretive standard, independent review rather than deference, rather than being directly cited; the effect is identical, the agency's broad reading rejected by independent review, but the holding was statutory. And third, the belief that Loper Bright eliminates all PE regulation — the core investment-adviser registration requirements, the standard disclosure forms, and examination access for registered advisers all rest on unambiguous statutory authority and are not vulnerable, so Loper Bright primarily constrains extensions of authority beyond the pre-existing scope, not the foundational framework. To recap: Loper Bright replaced deference with independent judicial interpretation, turning the federal courts into an effective second veto point on any PE regulation relying on broad authority; the twenty-twenty-three rules' vacatur proved it in under a year; the systemic-risk designation power is the highest-vulnerability major path; and a durable architecture requires explicit enumeration of every provision and entity, with a private right of action as the strongest defence because it routes around the agency entirely. The compound horizontal-and-vertical capture means agencies can't extend authority and existing authority can be challenged at the same time. That completes the institutional-and-legal infrastructure of capture; the section now turns to the remaining sector and tax material.\n\nEnd-card question: Loper Bright created a 'horizontal' and a 'vertical' capture axis simultaneously. Explain both and why together they mean PE regulation now requires explicit new legislation. Then: why does a 'private right of action' provision survive Loper Bright challenge when agency rules don't?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The Major Questions Doctrine and Financial Regulation note covers Loper Bright at the level of the Supreme Court doctrine. This note applies the doctrine specifically to the PE regulatory landscape: which existing rules are now vulnerable, which regulatory authorities that reformers might use without new legislation are now constrained, and what a \"Loper Bright-proof\" PE regulatory architecture would look like.</p><p>The Fifth Circuit's August 2024 vacatur of the SEC Private Fund Adviser Rules is the proof-of-concept: comprehensive PE disclosure rules, built on broad Dodd-Frank authority, lasted less than 12 months post-enactment before being eliminated through judicial review. Understanding exactly why this happened — and which other PE rules face the same vulnerability — is essential for anyone working on PE regulation or PE advocacy.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Loper Bright (2024) eliminated Chevron deference — courts now independently interpret statutory scope rather than deferring to agencies — which means every existing PE-adjacent regulation relying on broad statutory authority is newly vulnerable to judicial challenge, and all future PE regulation requires explicit Congressional precision to survive the now-hostile judicial backstop.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Under the old Chevron rule (1984-2024), courts would defer to agencies' reasonable interpretations of ambiguous statutes. If the SEC said \"Dodd-Frank's investor protection mandate authorises us to require quarterly portfolio company reporting,\" courts would accept that interpretation as long as it was reasonable. Industry could still challenge rules on procedural grounds, but had limited ability to challenge the SEC's interpretation of its own authority.</p><p>Loper Bright (2024) changed this: courts now substitute their own interpretation of what the statute means. The SEC's reasonable interpretation is no longer entitled to deference — the court decides independently what \"investor protection\" authorises. This shifts power from agencies to courts.</p><p><strong>For PE specifically:</strong> Every PE-adjacent regulation that is based on broad language in Dodd-Frank, the Investment Advisers Act, or other financial statutes is now subject to independent judicial interpretation of whether that statutory language actually authorises the specific rule. PE's strategy is obvious: litigate every rule and argue that the statute doesn't say what the SEC claims it says.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Chevron was like a zoning ordinance that said \"if the law is unclear about a building's permitted use, the building permit office gets to decide.\" Loper Bright rewrote the ordinance to say \"if the law is unclear, the court decides.\"</p><p>For PE regulation: Dodd-Frank's \"investor protection\" language is the unclear zoning ordinance. Under Chevron, the SEC (building permit office) could interpret it broadly to cover PE fund mechanics. Under Loper Bright, the Fifth Circuit (the court) decides what \"investor protection\" means — and the Fifth Circuit has demonstrated it reads it narrowly.</p><p>The building permit office (SEC) can no longer issue permits that the court hasn't already decided are covered by the ordinance. To expand what's permitted, you need the legislature to rewrite the ordinance with explicit new language.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Loper Bright only applies to new rules.\"</strong> Existing rules can also be challenged — Loper Bright eliminates the deference that previously protected existing agency interpretations from statutory challenge. However, practical challenges focus on new rules (higher litigation cost-benefit for industry on challenging well-established rules than recent rules with uncertain compliance benefit).</li></ol><ol><li><strong>\"The Fifth Circuit vacated the 2023 rules on Loper Bright grounds.\"</strong> The Fifth Circuit vacated on statutory authority grounds — finding that the SEC's Dodd-Frank authority did not cover the specific rules. Loper Bright provided the interpretive standard (independent court review rather than Chevron deference) but the holding was statutory, not directly citing Loper Bright. The effect is the same: agency's broad interpretation of authority was rejected by independent court review.</li></ol><ol><li><strong>\"Loper Bright eliminates all PE regulation.\"</strong> Existing core IAA registration requirements, Form ADV disclosures, and examination access for registered advisers are based on unambiguous statutory authority and are not vulnerable to Loper Bright challenge. Loper Bright primarily constrains extensions of authority beyond the pre-Dodd-Frank IAA scope.</li></ol><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

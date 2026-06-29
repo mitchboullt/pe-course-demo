@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "eci-and-firpta-withholding-for-non-us-pe-fund-investors", "title": "ECI and FIRPTA Withholding for Non-US PE Fund Investors", "draft_watermark": false, "estimated_runtime_sec": 366, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Why the W-8 forms exist", "on_screen_bullets": ["Fund is the withholding agent", "US taxes some foreign income", "Forms answer: who, where, treaty?"], "narration": "Every foreign-investor certification form a fund collects — the W-8 series — exists for one reason: the United States taxes foreign persons on certain types of US-source income, and it makes the fund itself the withholding agent responsible for collecting and remitting that tax before the money leaves. So this lesson is really about understanding why those forms exist, what question each one answers, and what goes wrong when one is missing or stale. Two tax regimes drive almost all of it, and they are constantly confused with each other. Get them straight and the whole withholding workflow — the forms, the quarterly payments, the closing-table deductions — stops being rote compliance and becomes something you can reason about.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Two regimes, two triggers", "on_screen_bullets": ["Business income: ongoing withholding", "Real-property gains: at closing", "Both make the fund withhold"], "narration": "Here is the definition. There are two distinct US tax regimes that force a fund to withhold and remit tax on behalf of its non-US investors. The first applies to effectively-connected income — income from a US trade or business — and it triggers ongoing, quarterly withholding on the foreign partner's share. The second is the foreign-investment-in-real-property regime, which applies specifically to gains from US real property interests, and it triggers withholding at the closing table when such property is sold. Two regimes, two different triggers — ongoing business income versus a real-estate sale — but the same underlying logic: the US wants its tax on certain foreign income, and it deputises the fund to collect it. Keep the two straight, because they live in different parts of the code and operate at different moments.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Two tollgates", "on_screen_bullets": ["Running a US business?", "Selling US land?", "W-8 is your ticket"], "narration": "Picture two tollgates on foreign investment into the US. The first tollgate asks: are you running a US business through this fund? If yes, you owe US tax on your share of that business income, and the fund collects it for the government on a quarterly basis. The second tollgate asks: are you selling US land, or something that is effectively US land wrapped in a company? If yes, a slice is withheld right at the closing table before the proceeds go home. And the W-8 forms are your ticket through the tolls. They state who you are, whether you are foreign, what country you are from, and whether a tax treaty lowers your toll. No valid ticket, and the fund has to assume the worst and withhold at the maximum rate. That is the entire emotional logic of the system: the forms reduce the toll; the absence of forms maximises it.", "est_sec": 50}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Business-income withholding", "on_screen_bullets": ["Quarterly, on allocated income", "Top individual or corporate rate", "Owed even with no cash out"], "narration": "Take the first regime in detail: withholding on effectively-connected income. When a fund has income from a US trade or business and allocates a share of it to a foreign partner, the fund must withhold and remit — quarterly — at the top individual rate for foreign individuals or the corporate rate for foreign corporations. Two features catch people out. First, the withholding is based on income allocated, not cash distributed. A fund must remit even if it has distributed no cash at all, which creates a genuine cash-flow squeeze for the foreign investor, who can owe withholding on income they have not yet received. Second — and this is the reassuring part for buyout funds — most private equity income does not actually generate this kind of income. Capital gains from selling portfolio-company stock are passive investment income, not business income, so they generally fall outside the regime entirely. The exposure arises only where the fund crosses from passive investing into something that operates as a US trade or business — certain operating income, direct lending, or US real estate.", "est_sec": 56}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The real-property regime", "on_screen_bullets": ["Gain on US real property", "Buyer withholds at closing", "Buyout low, real-estate high"], "narration": "Now the second regime, for US real property. Historically a foreign person could sell US real estate and pay no US tax on the gain; this regime closed that gap by treating such gain as taxable and creating a withholding mechanism: the buyer holds back a fixed percentage of the gross sale price at closing and remits it. The crucial question is what counts as a US real property interest. Direct land and buildings, yes. But also stock in a US company whose value is mostly US real estate — the rule looks through the corporate wrapper. What does not count is ordinary portfolio-company stock in a normal buyout, where the company is an operating business, not a real-estate holding vehicle. So the exposure is wildly different by strategy. A standard buyout fund selling operating-company stock has low exposure. A real-estate fund, whose entire business is US property, has this regime as a dominant, everyday concern. And infrastructure sits in between, since physical assets like pipelines and utilities can themselves be US real property.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Sovereigns, treaties, transfers", "on_screen_bullets": ["Sovereign exemption: investment only", "Treaties can cut the rate", "Secondary sales: buyer withholds"], "narration": "Three refinements complete the picture. First, sovereign investors — foreign governments and their funds — enjoy a special exemption, but only on genuine investment income; if a sovereign fund steps into active commercial operation of a business, that income loses the exemption. Second, tax treaties between the US and many countries can reduce or eliminate withholding on various income types, but a foreign investor must affirmatively claim the treaty on the right certification form, and modern treaties include anti-abuse clauses that require real substance in the treaty country — you cannot just incorporate a shell there. Third, and critically for the secondary market: when a non-US investor sells their fund interest in a fund that has US-business income, the buyer must withhold a slice of the purchase price. That makes this a live diligence item for any secondary purchase from a foreign seller — the buyer has to assess whether the underlying fund generates US-business income and, if so, withhold at closing unless the fund certifies that it does not.", "est_sec": 56}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four costly errors", "on_screen_bullets": ["Most foreign capital gains: no withholding", "Withhold on income, not cash", "Offshore address doesn't shield"], "narration": "Four misconceptions cause real money to be mis-withheld. First, that all gains from US investments are withheld — false; the US generally does not tax foreign persons on capital gains from passive US investments, which is exactly why a large capital-gain allocation to a foreign investor usually triggers no withholding at all. Second, that withholding tracks distributions — no, business-income withholding tracks income allocated, so a fund can owe it with no cash going out the door. Third, that an offshore address means no US tax — false; what matters is the character of the income, not where the investor sits, and the blocker structure works by converting income character, not by hiding behind a jurisdiction. And fourth, that a sovereign exemption covers everything — it covers investment income, not active commercial activity, and it does not by itself cover US real-property gains. Each of these errors either over-withholds and annoys investors, or under-withholds and exposes the fund as the responsible agent.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "What to carry forward", "on_screen_bullets": ["Business income vs real-property gain", "Buyout low, real-estate high", "Blocker solves both"], "narration": "So to summarise the two regimes: business-income withholding is quarterly, based on allocated income from a US trade or business, at top individual or corporate rates. The real-property regime withholds a slice of the sale price at closing when US real property is disposed of. Most standard buyout income — capital gain from selling operating-company stock — falls outside both, which is why buyout funds have low exposure and real-estate funds have high exposure. The certification forms document each foreign investor's identity, entity type, treaty position, and compliance status, and a stale or missing form forces default maximum withholding. Sovereign investors get an investment-income exemption, and the secondary-transfer rule makes withholding a diligence item when buying from a foreign seller. And the same blocker corporation that solves the tax-exempt investor's problem also solves the foreign investor's — by converting income into clean dividends. Hold the core distinction: ongoing business income versus a real-estate sale.", "est_sec": 52}, {"n": 9, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What triggers each regime?", "Why no withholding on most gains?", "Why does the secondary rule matter?"], "narration": "Before you finish, answer these from memory. What triggers the business-income withholding regime versus the real-property regime, and at what moments do they each apply? Why does a large capital-gain allocation to a foreign investor usually carry no withholding? And why does the secondary-transfer withholding rule make this a diligence item when buying a fund interest from a foreign seller? Work through your own answers first, then check the flashcards.", "est_sec": 32}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: ECI and FIRPTA Withholding for Non-US PE Fund Investors\n\n[hook] Why the W-8 forms exist\nEvery foreign-investor certification form a fund collects — the W-8 series — exists for one reason: the United States taxes foreign persons on certain types of US-source income, and it makes the fund itself the withholding agent responsible for collecting and remitting that tax before the money leaves. So this lesson is really about understanding why those forms exist, what question each one answers, and what goes wrong when one is missing or stale. Two tax regimes drive almost all of it, and they are constantly confused with each other. Get them straight and the whole withholding workflow — the forms, the quarterly payments, the closing-table deductions — stops being rote compliance and becomes something you can reason about.\n\n[definition] Two regimes, two triggers\nHere is the definition. There are two distinct US tax regimes that force a fund to withhold and remit tax on behalf of its non-US investors. The first applies to effectively-connected income — income from a US trade or business — and it triggers ongoing, quarterly withholding on the foreign partner's share. The second is the foreign-investment-in-real-property regime, which applies specifically to gains from US real property interests, and it triggers withholding at the closing table when such property is sold. Two regimes, two different triggers — ongoing business income versus a real-estate sale — but the same underlying logic: the US wants its tax on certain foreign income, and it deputises the fund to collect it. Keep the two straight, because they live in different parts of the code and operate at different moments.\n\n[intuition] Two tollgates\nPicture two tollgates on foreign investment into the US. The first tollgate asks: are you running a US business through this fund? If yes, you owe US tax on your share of that business income, and the fund collects it for the government on a quarterly basis. The second tollgate asks: are you selling US land, or something that is effectively US land wrapped in a company? If yes, a slice is withheld right at the closing table before the proceeds go home. And the W-8 forms are your ticket through the tolls. They state who you are, whether you are foreign, what country you are from, and whether a tax treaty lowers your toll. No valid ticket, and the fund has to assume the worst and withhold at the maximum rate. That is the entire emotional logic of the system: the forms reduce the toll; the absence of forms maximises it.\n\n[mechanics] Business-income withholding\nTake the first regime in detail: withholding on effectively-connected income. When a fund has income from a US trade or business and allocates a share of it to a foreign partner, the fund must withhold and remit — quarterly — at the top individual rate for foreign individuals or the corporate rate for foreign corporations. Two features catch people out. First, the withholding is based on income allocated, not cash distributed. A fund must remit even if it has distributed no cash at all, which creates a genuine cash-flow squeeze for the foreign investor, who can owe withholding on income they have not yet received. Second — and this is the reassuring part for buyout funds — most private equity income does not actually generate this kind of income. Capital gains from selling portfolio-company stock are passive investment income, not business income, so they generally fall outside the regime entirely. The exposure arises only where the fund crosses from passive investing into something that operates as a US trade or business — certain operating income, direct lending, or US real estate.\n\n[mechanics] The real-property regime\nNow the second regime, for US real property. Historically a foreign person could sell US real estate and pay no US tax on the gain; this regime closed that gap by treating such gain as taxable and creating a withholding mechanism: the buyer holds back a fixed percentage of the gross sale price at closing and remits it. The crucial question is what counts as a US real property interest. Direct land and buildings, yes. But also stock in a US company whose value is mostly US real estate — the rule looks through the corporate wrapper. What does not count is ordinary portfolio-company stock in a normal buyout, where the company is an operating business, not a real-estate holding vehicle. So the exposure is wildly different by strategy. A standard buyout fund selling operating-company stock has low exposure. A real-estate fund, whose entire business is US property, has this regime as a dominant, everyday concern. And infrastructure sits in between, since physical assets like pipelines and utilities can themselves be US real property.\n\n[mechanics] Sovereigns, treaties, transfers\nThree refinements complete the picture. First, sovereign investors — foreign governments and their funds — enjoy a special exemption, but only on genuine investment income; if a sovereign fund steps into active commercial operation of a business, that income loses the exemption. Second, tax treaties between the US and many countries can reduce or eliminate withholding on various income types, but a foreign investor must affirmatively claim the treaty on the right certification form, and modern treaties include anti-abuse clauses that require real substance in the treaty country — you cannot just incorporate a shell there. Third, and critically for the secondary market: when a non-US investor sells their fund interest in a fund that has US-business income, the buyer must withhold a slice of the purchase price. That makes this a live diligence item for any secondary purchase from a foreign seller — the buyer has to assess whether the underlying fund generates US-business income and, if so, withhold at closing unless the fund certifies that it does not.\n\n[application] Four costly errors\nFour misconceptions cause real money to be mis-withheld. First, that all gains from US investments are withheld — false; the US generally does not tax foreign persons on capital gains from passive US investments, which is exactly why a large capital-gain allocation to a foreign investor usually triggers no withholding at all. Second, that withholding tracks distributions — no, business-income withholding tracks income allocated, so a fund can owe it with no cash going out the door. Third, that an offshore address means no US tax — false; what matters is the character of the income, not where the investor sits, and the blocker structure works by converting income character, not by hiding behind a jurisdiction. And fourth, that a sovereign exemption covers everything — it covers investment income, not active commercial activity, and it does not by itself cover US real-property gains. Each of these errors either over-withholds and annoys investors, or under-withholds and exposes the fund as the responsible agent.\n\n[recap] What to carry forward\nSo to summarise the two regimes: business-income withholding is quarterly, based on allocated income from a US trade or business, at top individual or corporate rates. The real-property regime withholds a slice of the sale price at closing when US real property is disposed of. Most standard buyout income — capital gain from selling operating-company stock — falls outside both, which is why buyout funds have low exposure and real-estate funds have high exposure. The certification forms document each foreign investor's identity, entity type, treaty position, and compliance status, and a stale or missing form forces default maximum withholding. Sovereign investors get an investment-income exemption, and the secondary-transfer rule makes withholding a diligence item when buying from a foreign seller. And the same blocker corporation that solves the tax-exempt investor's problem also solves the foreign investor's — by converting income into clean dividends. Hold the core distinction: ongoing business income versus a real-estate sale.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What triggers the business-income withholding regime versus the real-property regime, and at what moments do they each apply? Why does a large capital-gain allocation to a foreign investor usually carry no withholding? And why does the secondary-transfer withholding rule make this a diligence item when buying a fund interest from a foreign seller? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Every W-8 form you process is a non-US investor asserting their identity and tax status so the fund can apply the correct withholding treatment. The forms exist because the US imposes tax on foreign persons who earn certain types of US-source income — and the fund is the withholding agent responsible for collecting and remitting that tax. Understanding ECI and FIRPTA means understanding <em>why</em> the W-8 forms exist, what question each one is answering, and what happens if a form is missing or wrong.</p><p>For a fund administrator at CVC Secondary Partners processing withholding packages from Apollo, KKR, and Blackstone: this framework explains what the primary funds' tax teams are doing when they instruct CVC on withholding obligations, and what CVC must do for its own LP base.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>ECI and FIRPTA withholding are two distinct US tax regimes that require PE funds to withhold and remit US tax on behalf of non-US limited partners — ECI (§1446) on income from a US trade or business, and FIRPTA (§1445/§897) on gains from US real property interests.</p><p>---</p>"}, "2": {"section": "Mental Model / Analogy", "html": "<p>Think of ECI and FIRPTA as the US government's two tollgates on foreign investment:</p><p><strong>Tollgate 1 (ECI/§1446):</strong> \"Are you running a US business through this fund?\" If yes, you pay US income tax on your share of the business income, and the fund collects it for us quarterly.</p><p><strong>Tollgate 2 (FIRPTA/§1445/§897):</strong> \"Are you selling US land or US land-equivalent?\" If yes, we take 15% at the closing table before you take the money home.</p><p>The W-8 forms are your ticket through the toll: they say who you are, whether you're foreign, what country you're from, and whether any treaty reduces your toll. No valid W-8 means the fund assumes the worst and withholds at the maximum rate.</p><p><strong>ECI vs. UBIT — the parallel regimes:</strong></p><p>| | ECI | UBIT | |---|---|---| | <strong>Applies to</strong> | Non-US investors | US tax-exempt investors | | <strong>Concern</strong> | Earning US business income as foreigner | Earning unrelated business income as exempt org | | <strong>Mechanism</strong> | Fund withholds §1446 quarterly | LP files Form 990-T annually | | <strong>Real estate</strong> | FIRPTA/§897 | §514 debt-financed income | | <strong>Blocker solution</strong> | Cayman blocker converts income to dividends | Same Cayman blocker structure works for both | | <strong>Key form</strong> | W-8BEN-E | N/A (LP-side filing) |</p><p>Both regimes are often solved with the same structural solution: a Cayman blocker corporation between the foreign/tax-exempt LP and the PE fund.</p><p>---</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### §1446 — ECI Withholding at the Fund Level</p><p><strong>Statutory framework:</strong> IRC §1446 requires any partnership with ECI to withhold tax on its foreign partners' allocable share of effectively connected taxable income (ECTI).</p><p><strong>Rates:</strong> - Foreign individuals: 37% (top individual rate) - Foreign corporations: 21% (corporate rate) - Applies to ECTI, not gross distributions</p><p><strong>Quarterly obligation:</strong> Funds must pay §1446 withholding quarterly (IRS Form 8813), even if no distribution has been made. A foreign LP can receive a withholding credit equal to amounts remitted on their behalf (reported on Schedule K-1, Box 6).</p><p><strong>What generates ECI for a PE fund?</strong></p><p>Most PE fund income does NOT generate ECI: - Capital gains from selling portfolio company stock → generally NOT ECI (passive investment income) - Interest, dividends, rents from portfolio companies → generally NOT ECI (passive FDAP income) - <strong>BUT:</strong> Income from a portfolio company that constitutes a \"US trade or business\" can flow through the fund to foreign LPs as ECI</p><p>The critical question is whether the fund's activities cross the threshold from passive investing to conducting a trade or business. Most buyout funds are careful to structure activities to remain on the passive side. However: - Certain real estate income (rental activities, gains on USRPI) → ECI via §897 - Operating company income distributed as ordinary income → potential ECI if portfolio company operations are the fund's trade or business - PE funds with direct lending operations → potentially ECI on interest income</p><p><strong>§1446(f) — Transfer Withholding (TCJA Addition):</strong> When a non-US person sells their partnership interest in a fund that has ECI, the buyer (or the fund itself) must withhold 10% of the purchase price. This is highly relevant to secondary transactions: CVC Secondary Partners, as a buyer of LP interests, must potentially withhold under §1446(f) when acquiring interests from non-US sellers in funds with ECI-generating assets.</p><p>---</p><p>### §897 / §1445 — FIRPTA</p><p><strong>§897 — The taxability provision:</strong> Gain from the disposition of a US real property interest (USRPI) by a foreign person is treated as ECI — taxable in the US at full rates.</p><p><strong>§1445 — The withholding mechanism:</strong> On any USRPI disposition, the buyer must withhold 15% of the gross purchase price and remit to the IRS (reduced to 10% if the sale price is $300,000–$1m and buyer intends to use as a residence, and 0% under $300,000 residential exception — these residential exceptions are irrelevant to PE).</p><p><strong>What is a USRPI?</strong> - Direct US real property (land, buildings, leaseholds) - Interests in US real property holding companies (USRPHCs) — a US corporation whose assets are 50%+ USRPIs - Interests in US partnerships whose assets are 50%+ USRPIs (at the time of disposition)</p><p><strong>What is NOT a USRPI?</strong> - Stock of a domestically-controlled REIT (where US persons own 50%+) - Stock of a publicly traded corporation that is not a USRPHC - Portfolio company stock in a standard buyout PE fund (usually)</p><p><strong>FIRPTA and PE — the critical analysis:</strong></p><p>| PE Fund Type | FIRPTA Exposure | |---|---| | <strong>Standard buyout (KKR, Blackstone BCP)</strong> | Low — sells portfolio company stock; C-corp stock is NOT a USRPI unless 50%+ of value is US real property | | <strong>Real estate PE (Blackstone BREP, Starwood)</strong> | High — core business is USRPIs; FIRPTA is a dominant concern | | <strong>Infrastructure PE</strong> | Moderate — physical infrastructure (pipelines, utilities) may be US real property | | <strong>Credit/direct lending</strong> | Low — loans are not USRPIs |</p><p><strong>The \"domestically controlled\" exception:</strong> A REIT is not a USRPHC if US persons own 50%+ of its shares. PE real estate funds use this to create structures where foreign investors can participate without FIRPTA, by ensuring the entity remains \"domestically controlled.\" [needs-verification — specific structuring mechanics vary]</p><p>---</p><p>### §892 — Sovereign Wealth Fund Exemption</p><p>Foreign governments and their controlled entities are exempt from US taxation on: - Investment income (dividends, interest, capital gains from passive investments) - Income from banking, financing, or insurance activities</p><p><strong>BUT §892 does NOT exempt:</strong> Income from commercial activities. A sovereign wealth fund investing in a PE buyout fund is generally within the §892 exemption for its fund income — but if it co-invests directly into an operating business and takes an active management role, that income may lose the exemption.</p><p><strong>Practical implications:</strong> Sovereign wealth funds (GIC Singapore, Temasek, ADIA Abu Dhabi, CPPIB Canada) investing in US PE funds typically: 1. Claim §892 exemption on LP investments 2. File Form W-8EXP to assert this status 3. May use treaty positions for additional protection</p><p>---</p><p>### Treaty Benefits</p><p>The US has tax treaties with ~65 countries that may: - Reduce withholding rates on dividends, interest, or royalties - Provide exemption from capital gains tax in certain circumstances - Provide reduced ECI withholding rates</p><p><strong>Claiming treaty benefits:</strong> A foreign LP must provide a W-8BEN-E with: - Box 14: treaty country certification - Box 14a: treaty article providing the benefit - Box 14b/c: rate claimed</p><p><strong>\"Limitation on Benefits\" clauses:</strong> Most US tax treaties now include LOB provisions that restrict treaty shopping. A foreign entity cannot simply be incorporated in a treaty country — it must have sufficient substance and connection to that country.</p><p>---</p><p>### The W-8 Form Series — What Each Form Does</p><p>| Form | Who Files It | What It Certifies | |---|---|---| | <strong>W-8BEN</strong> | Foreign individuals | Foreign status, treaty positions | | <strong>W-8BEN-E</strong> | Foreign entities | Foreign status, entity type, treaty positions, FATCA status | | <strong>W-8EXP</strong> | Foreign governments, international orgs, foreign tax-exempt orgs | §892 or §501(c) equivalent exemption | | <strong>W-8IMY</strong> | Foreign intermediaries, flow-through entities | Acting as intermediary; includes withholding statement allocating among beneficial owners | | <strong>W-9</strong> | US persons | US taxpayer status (SSN/EIN) — confirms no withholding required |</p><p><strong>CVC Secondary Partners' workflow:</strong> When CVC processes a withholding package from KKR, the package will include withholding instructions that depend on the LP classification. CVC's role is to: 1. Collect W-8 or W-9 from each of its own LPs 2. Classify each LP (US taxable, US tax-exempt, foreign, sovereign, etc.) 3. Match the withholding instruction from the primary fund to the correct LP class 4. Determine what, if anything, CVC must withhold at the CVC-to-LP level 5. File required withholding returns (Form 1042, Form 8813)</p><p>---</p><p>### FATCA — The Compliance Layer Above Withholding</p><p>The Foreign Account Tax Compliance Act (2010) created a separate 30% withholding regime on \"withholdable payments\" to foreign financial institutions (FFIs) that do not comply with FATCA reporting requirements. A PE fund making distributions to a foreign LP that is an FFI (like a foreign fund-of-funds) must either: - Receive confirmation that the foreign LP is FATCA-compliant, OR - Withhold 30% under FATCA</p><p>W-8BEN-E forms include FATCA compliance certification — chapters 3 and 4 in IRS terminology. Most institutional foreign LPs in PE funds are \"participating FFIs\" under FATCA. [needs-verification — practical enforcement varies by jurisdiction]</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### §1446 — ECI Withholding at the Fund Level</p><p><strong>Statutory framework:</strong> IRC §1446 requires any partnership with ECI to withhold tax on its foreign partners' allocable share of effectively connected taxable income (ECTI).</p><p><strong>Rates:</strong> - Foreign individuals: 37% (top individual rate) - Foreign corporations: 21% (corporate rate) - Applies to ECTI, not gross distributions</p><p><strong>Quarterly obligation:</strong> Funds must pay §1446 withholding quarterly (IRS Form 8813), even if no distribution has been made. A foreign LP can receive a withholding credit equal to amounts remitted on their behalf (reported on Schedule K-1, Box 6).</p><p><strong>What generates ECI for a PE fund?</strong></p><p>Most PE fund income does NOT generate ECI: - Capital gains from selling portfolio company stock → generally NOT ECI (passive investment income) - Interest, dividends, rents from portfolio companies → generally NOT ECI (passive FDAP income) - <strong>BUT:</strong> Income from a portfolio company that constitutes a \"US trade or business\" can flow through the fund to foreign LPs as ECI</p><p>The critical question is whether the fund's activities cross the threshold from passive investing to conducting a trade or business. Most buyout funds are careful to structure activities to remain on the passive side. However: - Certain real estate income (rental activities, gains on USRPI) → ECI via §897 - Operating company income distributed as ordinary income → potential ECI if portfolio company operations are the fund's trade or business - PE funds with direct lending operations → potentially ECI on interest income</p><p><strong>§1446(f) — Transfer Withholding (TCJA Addition):</strong> When a non-US person sells their partnership interest in a fund that has ECI, the buyer (or the fund itself) must withhold 10% of the purchase price. This is highly relevant to secondary transactions: CVC Secondary Partners, as a buyer of LP interests, must potentially withhold under §1446(f) when acquiring interests from non-US sellers in funds with ECI-generating assets.</p><p>---</p><p>### §897 / §1445 — FIRPTA</p><p><strong>§897 — The taxability provision:</strong> Gain from the disposition of a US real property interest (USRPI) by a foreign person is treated as ECI — taxable in the US at full rates.</p><p><strong>§1445 — The withholding mechanism:</strong> On any USRPI disposition, the buyer must withhold 15% of the gross purchase price and remit to the IRS (reduced to 10% if the sale price is $300,000–$1m and buyer intends to use as a residence, and 0% under $300,000 residential exception — these residential exceptions are irrelevant to PE).</p><p><strong>What is a USRPI?</strong> - Direct US real property (land, buildings, leaseholds) - Interests in US real property holding companies (USRPHCs) — a US corporation whose assets are 50%+ USRPIs - Interests in US partnerships whose assets are 50%+ USRPIs (at the time of disposition)</p><p><strong>What is NOT a USRPI?</strong> - Stock of a domestically-controlled REIT (where US persons own 50%+) - Stock of a publicly traded corporation that is not a USRPHC - Portfolio company stock in a standard buyout PE fund (usually)</p><p><strong>FIRPTA and PE — the critical analysis:</strong></p><p>| PE Fund Type | FIRPTA Exposure | |---|---| | <strong>Standard buyout (KKR, Blackstone BCP)</strong> | Low — sells portfolio company stock; C-corp stock is NOT a USRPI unless 50%+ of value is US real property | | <strong>Real estate PE (Blackstone BREP, Starwood)</strong> | High — core business is USRPIs; FIRPTA is a dominant concern | | <strong>Infrastructure PE</strong> | Moderate — physical infrastructure (pipelines, utilities) may be US real property | | <strong>Credit/direct lending</strong> | Low — loans are not USRPIs |</p><p><strong>The \"domestically controlled\" exception:</strong> A REIT is not a USRPHC if US persons own 50%+ of its shares. PE real estate funds use this to create structures where foreign investors can participate without FIRPTA, by ensuring the entity remains \"domestically controlled.\" [needs-verification — specific structuring mechanics vary]</p><p>---</p><p>### §892 — Sovereign Wealth Fund Exemption</p><p>Foreign governments and their controlled entities are exempt from US taxation on: - Investment income (dividends, interest, capital gains from passive investments) - Income from banking, financing, or insurance activities</p><p><strong>BUT §892 does NOT exempt:</strong> Income from commercial activities. A sovereign wealth fund investing in a PE buyout fund is generally within the §892 exemption for its fund income — but if it co-invests directly into an operating business and takes an active management role, that income may lose the exemption.</p><p><strong>Practical implications:</strong> Sovereign wealth funds (GIC Singapore, Temasek, ADIA Abu Dhabi, CPPIB Canada) investing in US PE funds typically: 1. Claim §892 exemption on LP investments 2. File Form W-8EXP to assert this status 3. May use treaty positions for additional protection</p><p>---</p><p>### Treaty Benefits</p><p>The US has tax treaties with ~65 countries that may: - Reduce withholding rates on dividends, interest, or royalties - Provide exemption from capital gains tax in certain circumstances - Provide reduced ECI withholding rates</p><p><strong>Claiming treaty benefits:</strong> A foreign LP must provide a W-8BEN-E with: - Box 14: treaty country certification - Box 14a: treaty article providing the benefit - Box 14b/c: rate claimed</p><p><strong>\"Limitation on Benefits\" clauses:</strong> Most US tax treaties now include LOB provisions that restrict treaty shopping. A foreign entity cannot simply be incorporated in a treaty country — it must have sufficient substance and connection to that country.</p><p>---</p><p>### The W-8 Form Series — What Each Form Does</p><p>| Form | Who Files It | What It Certifies | |---|---|---| | <strong>W-8BEN</strong> | Foreign individuals | Foreign status, treaty positions | | <strong>W-8BEN-E</strong> | Foreign entities | Foreign status, entity type, treaty positions, FATCA status | | <strong>W-8EXP</strong> | Foreign governments, international orgs, foreign tax-exempt orgs | §892 or §501(c) equivalent exemption | | <strong>W-8IMY</strong> | Foreign intermediaries, flow-through entities | Acting as intermediary; includes withholding statement allocating among beneficial owners | | <strong>W-9</strong> | US persons | US taxpayer status (SSN/EIN) — confirms no withholding required |</p><p><strong>CVC Secondary Partners' workflow:</strong> When CVC processes a withholding package from KKR, the package will include withholding instructions that depend on the LP classification. CVC's role is to: 1. Collect W-8 or W-9 from each of its own LPs 2. Classify each LP (US taxable, US tax-exempt, foreign, sovereign, etc.) 3. Match the withholding instruction from the primary fund to the correct LP class 4. Determine what, if anything, CVC must withhold at the CVC-to-LP level 5. File required withholding returns (Form 1042, Form 8813)</p><p>---</p><p>### FATCA — The Compliance Layer Above Withholding</p><p>The Foreign Account Tax Compliance Act (2010) created a separate 30% withholding regime on \"withholdable payments\" to foreign financial institutions (FFIs) that do not comply with FATCA reporting requirements. A PE fund making distributions to a foreign LP that is an FFI (like a foreign fund-of-funds) must either: - Receive confirmation that the foreign LP is FATCA-compliant, OR - Withhold 30% under FATCA</p><p>W-8BEN-E forms include FATCA compliance certification — chapters 3 and 4 in IRS terminology. Most institutional foreign LPs in PE funds are \"participating FFIs\" under FATCA. [needs-verification — practical enforcement varies by jurisdiction]</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### §1446 — ECI Withholding at the Fund Level</p><p><strong>Statutory framework:</strong> IRC §1446 requires any partnership with ECI to withhold tax on its foreign partners' allocable share of effectively connected taxable income (ECTI).</p><p><strong>Rates:</strong> - Foreign individuals: 37% (top individual rate) - Foreign corporations: 21% (corporate rate) - Applies to ECTI, not gross distributions</p><p><strong>Quarterly obligation:</strong> Funds must pay §1446 withholding quarterly (IRS Form 8813), even if no distribution has been made. A foreign LP can receive a withholding credit equal to amounts remitted on their behalf (reported on Schedule K-1, Box 6).</p><p><strong>What generates ECI for a PE fund?</strong></p><p>Most PE fund income does NOT generate ECI: - Capital gains from selling portfolio company stock → generally NOT ECI (passive investment income) - Interest, dividends, rents from portfolio companies → generally NOT ECI (passive FDAP income) - <strong>BUT:</strong> Income from a portfolio company that constitutes a \"US trade or business\" can flow through the fund to foreign LPs as ECI</p><p>The critical question is whether the fund's activities cross the threshold from passive investing to conducting a trade or business. Most buyout funds are careful to structure activities to remain on the passive side. However: - Certain real estate income (rental activities, gains on USRPI) → ECI via §897 - Operating company income distributed as ordinary income → potential ECI if portfolio company operations are the fund's trade or business - PE funds with direct lending operations → potentially ECI on interest income</p><p><strong>§1446(f) — Transfer Withholding (TCJA Addition):</strong> When a non-US person sells their partnership interest in a fund that has ECI, the buyer (or the fund itself) must withhold 10% of the purchase price. This is highly relevant to secondary transactions: CVC Secondary Partners, as a buyer of LP interests, must potentially withhold under §1446(f) when acquiring interests from non-US sellers in funds with ECI-generating assets.</p><p>---</p><p>### §897 / §1445 — FIRPTA</p><p><strong>§897 — The taxability provision:</strong> Gain from the disposition of a US real property interest (USRPI) by a foreign person is treated as ECI — taxable in the US at full rates.</p><p><strong>§1445 — The withholding mechanism:</strong> On any USRPI disposition, the buyer must withhold 15% of the gross purchase price and remit to the IRS (reduced to 10% if the sale price is $300,000–$1m and buyer intends to use as a residence, and 0% under $300,000 residential exception — these residential exceptions are irrelevant to PE).</p><p><strong>What is a USRPI?</strong> - Direct US real property (land, buildings, leaseholds) - Interests in US real property holding companies (USRPHCs) — a US corporation whose assets are 50%+ USRPIs - Interests in US partnerships whose assets are 50%+ USRPIs (at the time of disposition)</p><p><strong>What is NOT a USRPI?</strong> - Stock of a domestically-controlled REIT (where US persons own 50%+) - Stock of a publicly traded corporation that is not a USRPHC - Portfolio company stock in a standard buyout PE fund (usually)</p><p><strong>FIRPTA and PE — the critical analysis:</strong></p><p>| PE Fund Type | FIRPTA Exposure | |---|---| | <strong>Standard buyout (KKR, Blackstone BCP)</strong> | Low — sells portfolio company stock; C-corp stock is NOT a USRPI unless 50%+ of value is US real property | | <strong>Real estate PE (Blackstone BREP, Starwood)</strong> | High — core business is USRPIs; FIRPTA is a dominant concern | | <strong>Infrastructure PE</strong> | Moderate — physical infrastructure (pipelines, utilities) may be US real property | | <strong>Credit/direct lending</strong> | Low — loans are not USRPIs |</p><p><strong>The \"domestically controlled\" exception:</strong> A REIT is not a USRPHC if US persons own 50%+ of its shares. PE real estate funds use this to create structures where foreign investors can participate without FIRPTA, by ensuring the entity remains \"domestically controlled.\" [needs-verification — specific structuring mechanics vary]</p><p>---</p><p>### §892 — Sovereign Wealth Fund Exemption</p><p>Foreign governments and their controlled entities are exempt from US taxation on: - Investment income (dividends, interest, capital gains from passive investments) - Income from banking, financing, or insurance activities</p><p><strong>BUT §892 does NOT exempt:</strong> Income from commercial activities. A sovereign wealth fund investing in a PE buyout fund is generally within the §892 exemption for its fund income — but if it co-invests directly into an operating business and takes an active management role, that income may lose the exemption.</p><p><strong>Practical implications:</strong> Sovereign wealth funds (GIC Singapore, Temasek, ADIA Abu Dhabi, CPPIB Canada) investing in US PE funds typically: 1. Claim §892 exemption on LP investments 2. File Form W-8EXP to assert this status 3. May use treaty positions for additional protection</p><p>---</p><p>### Treaty Benefits</p><p>The US has tax treaties with ~65 countries that may: - Reduce withholding rates on dividends, interest, or royalties - Provide exemption from capital gains tax in certain circumstances - Provide reduced ECI withholding rates</p><p><strong>Claiming treaty benefits:</strong> A foreign LP must provide a W-8BEN-E with: - Box 14: treaty country certification - Box 14a: treaty article providing the benefit - Box 14b/c: rate claimed</p><p><strong>\"Limitation on Benefits\" clauses:</strong> Most US tax treaties now include LOB provisions that restrict treaty shopping. A foreign entity cannot simply be incorporated in a treaty country — it must have sufficient substance and connection to that country.</p><p>---</p><p>### The W-8 Form Series — What Each Form Does</p><p>| Form | Who Files It | What It Certifies | |---|---|---| | <strong>W-8BEN</strong> | Foreign individuals | Foreign status, treaty positions | | <strong>W-8BEN-E</strong> | Foreign entities | Foreign status, entity type, treaty positions, FATCA status | | <strong>W-8EXP</strong> | Foreign governments, international orgs, foreign tax-exempt orgs | §892 or §501(c) equivalent exemption | | <strong>W-8IMY</strong> | Foreign intermediaries, flow-through entities | Acting as intermediary; includes withholding statement allocating among beneficial owners | | <strong>W-9</strong> | US persons | US taxpayer status (SSN/EIN) — confirms no withholding required |</p><p><strong>CVC Secondary Partners' workflow:</strong> When CVC processes a withholding package from KKR, the package will include withholding instructions that depend on the LP classification. CVC's role is to: 1. Collect W-8 or W-9 from each of its own LPs 2. Classify each LP (US taxable, US tax-exempt, foreign, sovereign, etc.) 3. Match the withholding instruction from the primary fund to the correct LP class 4. Determine what, if anything, CVC must withhold at the CVC-to-LP level 5. File required withholding returns (Form 1042, Form 8813)</p><p>---</p><p>### FATCA — The Compliance Layer Above Withholding</p><p>The Foreign Account Tax Compliance Act (2010) created a separate 30% withholding regime on \"withholdable payments\" to foreign financial institutions (FFIs) that do not comply with FATCA reporting requirements. A PE fund making distributions to a foreign LP that is an FFI (like a foreign fund-of-funds) must either: - Receive confirmation that the foreign LP is FATCA-compliant, OR - Withhold 30% under FATCA</p><p>W-8BEN-E forms include FATCA compliance certification — chapters 3 and 4 in IRS terminology. Most institutional foreign LPs in PE funds are \"participating FFIs\" under FATCA. [needs-verification — practical enforcement varies by jurisdiction]</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"ECI and FIRPTA are the same thing.\"</strong> They are distinct. ECI is about business income from a US trade or business — §1446 taxes the income. FIRPTA is specifically about real property gains — §1445 creates a buyer-side withholding mechanism. The same transaction (selling a real property held by a US operating company) could potentially trigger both, but they operate through different provisions and at different levels.</p><p><strong>Misconception 2: \"All capital gains from US investments are subject to withholding.\"</strong> False. The US does NOT generally tax foreign persons on capital gains from passive US investments (stock, bonds, non-USRPI assets). §871(a)(2) and §882 exempt capital gains from the standard FDAP withholding regime. The only capital gains subject to US withholding are: (a) USRPI gains under FIRPTA, and (b) gains from assets used in a US trade or business (ECI gains). This is why KKR's $45m capital gain allocation to a foreign LP triggers no withholding.</p><p><strong>Misconception 3: \"The fund withholds based on distributions made.\"</strong> §1446 withholding is based on allocable ECTI — income allocated on the K-1 — not cash distributed. A fund must withhold even if no cash is distributed but ECI is allocated. This is a cash flow problem for foreign LPs: they may owe more withholding than they received in distributions.</p><p><strong>Misconception 4: \"A Cayman address means no US tax.\"</strong> Foreign domicile does not eliminate US tax obligations. What matters is the character of the income (ECI? FIRPTA?), not where the investor is located. A Cayman fund can still owe US ECI and FIRPTA tax. The Cayman blocker structure works because the corporate entity converts the income character — not because Cayman is a tax haven that shields investors from US law.</p><p><strong>Misconception 5: \"§892 exempts sovereign wealth funds from all US tax.\"</strong> §892 exempts investment income — it does NOT exempt income from commercial activities. A sovereign wealth fund that becomes an active participant in US business operations loses the §892 exemption on that income. The exemption also does not extend to gains from USRPIs (FIRPTA still applies) unless the sovereign fund is investing through a REIT structure.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>ECI and FIRPTA are the two main US tax regimes that create withholding obligations for PE funds with foreign investors. §1446 requires quarterly withholding on foreign partners' allocable share of ECI at 37% (individuals) or 21% (corps); §1445 requires 15% buyer-side withholding on US real property dispositions. Most standard buyout PE fund income — capital gains from selling C-corp stock — falls outside both regimes. Real estate PE funds face significant FIRPTA exposure. The W-8 form series documents foreign LP identity, entity type, treaty positions, and FATCA compliance. §892 provides exemptions for sovereign wealth funds on investment income. The TCJA 2017 addition of §1446(f) created a 10% withholding obligation on secondary transfers of ECI-generating fund interests, directly affecting secondary fund acquisitions like those CVC Secondary Partners undertakes. Both ECI and UBIT can be structurally resolved through Cayman blocker corporations.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>ECI and FIRPTA are the two main US tax regimes that create withholding obligations for PE funds with foreign investors. §1446 requires quarterly withholding on foreign partners' allocable share of ECI at 37% (individuals) or 21% (corps); §1445 requires 15% buyer-side withholding on US real property dispositions. Most standard buyout PE fund income — capital gains from selling C-corp stock — falls outside both regimes. Real estate PE funds face significant FIRPTA exposure. The W-8 form series documents foreign LP identity, entity type, treaty positions, and FATCA compliance. §892 provides exemptions for sovereign wealth funds on investment income. The TCJA 2017 addition of §1446(f) created a 10% withholding obligation on secondary transfers of ECI-generating fund interests, directly affecting secondary fund acquisitions like those CVC Secondary Partners undertakes. Both ECI and UBIT can be structurally resolved through Cayman blocker corporations.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

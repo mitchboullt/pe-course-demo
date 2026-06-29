@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lp-concentrated-position-governance", "title": "LP Concentrated Position Governance", "draft_watermark": false, "estimated_runtime_sec": 336, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The limit that doesn't protect you", "on_screen_bullets": ["Concentration caps measure commitment", "But exposure is NAV", "The gap is structural"], "narration": "Most investors believe their concentration limits protect them from getting dangerously overexposed to a single manager. They do not — and the gap is structural, not accidental. The limits are almost always written as a percentage of total committed capital: no single manager shall represent more than some share of total commitments. But commitment is not value. A commitment made five years ago can be worth twice as much today at current value. The policy document still records a modest concentration based on the original commitment, while the actual economic exposure to that manager has quietly doubled — and no alarm sounds, because no new commitment was ever made. This lesson is about that invisible trap: how to detect it before it closes, how to extract value while you are in it, and how to rewrite your policy so it cannot re-form.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Managing the appreciation trap", "on_screen_bullets": ["Detect NAV-based concentration", "Manage the leverage dynamics", "Exploit the window before it closes"], "narration": "Here is the definition. Concentrated position governance is the set of operational, contractual, and policy mechanisms an investor uses to detect, manage, and exploit the leverage dynamics that arise when its exposure to a single manager — measured by current value, not original commitment — approaches or exceeds its programme's stated concentration limits. The three verbs matter: detect, manage, exploit. Detect, because the standard monitoring is blind to appreciation. Manage, because once you are concentrated you face real constraints. And exploit, because concentration, caught early, is actually a source of negotiating leverage before that leverage inverts. The whole discipline turns on the difference between what you committed and what that commitment is now worth.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Trapped by success", "on_screen_bullets": ["Great manager appreciates fast", "Value share climbs unseen", "Can't exit without a discount"], "narration": "Walk through how the trap forms. An investor backs an excellent manager, committing an amount that, at the time, sits comfortably within its concentration limit. Years pass, the positions appreciate strongly, and they compound faster than the rest of the programme. Now that manager represents a fifth of the programme by current value — but the policy document still reads the original, modest commitment percentage. No flag, no review, no board discussion. Then a market shock hits: public assets fall sharply, private values mark down slowly, and the total pool shrinks, so the private-equity allocation balloons above target. The investor cannot fix this quickly. Selling in the secondary market at a steep discount locks in a real loss. Declining the manager's next fund risks damaging a long relationship and creating a gap in vintage exposure. It is trapped — and the manager's next-fund negotiations happen against a backdrop where the manager knows exactly how trapped the investor is.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Balance limit on deposits only", "on_screen_bullets": ["Limit checks at deposit only", "Compounding blows past it", "Set a balance alert instead"], "narration": "The cleanest analogy is a savings account with a maximum-balance limit that is only checked at the moment of each deposit, never in between. You deposit an amount within the limit. Over five years it grows to several times that. You have blown far past the limit — but because no new deposit was made, no limit check ever fired. And the bank knows you are now deeply committed, with a large switching cost to move elsewhere, so it quietly starts offering you slightly worse terms on your next product. You cannot easily leave, so you accept. The fix is not to deposit less. It is to set up an alert that triggers on the balance itself, however it got there. Translated to investing, that is value-based concentration monitoring — watching what the position is worth, not just what you put in — and it is precisely the alert that most investors have never built.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three gaps to manage", "on_screen_bullets": ["Commitment versus current value", "Legal rights versus exposure", "Fund-level versus manager-level"], "narration": "Concentrated governance means managing three distinct gaps at once. The first is commitment versus current value: the policy tracks what you committed, which ignores appreciation, so a successful position grows above the limit silently — only value-based monitoring captures true exposure. The second is legal rights versus economic exposure: your votes and governance rights do not scale with ownership, so holding a large share of a fund gives you the same single vote as a small share, meaning your influence lags your money. You compensate for that only through enhanced contractual rights negotiated before concentration peaks. And the third is fund-level versus manager-level monitoring: limits are usually checked one fund at a time, but your real exposure is to the manager across all their funds and vintages combined. Aggregating across vintages is operationally harder but economically essential, because the risk lives at the manager level, not the individual fund level.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Leverage inversion", "on_screen_bullets": ["Small position: manager needs you", "Large position: you need the manager", "Success breeds vulnerability"], "narration": "The deepest dynamic here is leverage inversion. When your position in a fund is small, the manager needs you more than you need the manager — losing your commitment at the next fundraise is a real shortfall they have to fill. But when your position has grown large, the relationship reverses. The manager knows you cannot sell without absorbing a discount, that you are unlikely to skip the next fund entirely because of vintage-gap risk, and that your re-up decision is driven by the appreciation of prior funds rather than a fresh, independent allocation. At that point the manager can offer reduced co-investment, push back on enhanced reporting, decline to renew favourable terms — and your negotiating position is weak. Here is the paradox to carry away: the better a manager performs for you, the more concentrated you become, and the less bargaining power you hold at the next fund. Success breeds governance vulnerability.", "est_sec": 54}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The window before inversion", "on_screen_bullets": ["Negotiate at commitment, not after", "Seats, reporting, better economics", "Once trapped, the window closes"], "narration": "The practical lesson is about timing. There is a window to extract governance value from concentration, and it is before the leverage inverts — ideally at the next-fund terms disclosure or the commitment-letter stage. A large, committed investor can secure real concessions then: an advisory-committee seat, enhanced reporting, co-investment first-look rights, sometimes a reduced carry rate or a higher hurdle, and preferential access to manager-led continuation vehicles at fair value rather than a secondary discount. But the critical rule is that all of these must be negotiated at commitment, not afterward. Once you are concentrated and the manager knows it, the leverage window has closed and the manager has no reason to grant any of it. So the discipline is to plan for concentration before it happens — to negotiate the protections you will need while you still hold the leverage to get them, rather than discovering you need them once you are already trapped.", "est_sec": 54}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Limits don't catch appreciation", "Large isn't always powerful", "Secondaries aggregate quietly"], "narration": "Four misconceptions to clear. First, that concentration limits protect against concentration risk — they do not, if written in commitment terms, because an appreciated position is invisible to them; only value-based monitoring works. Second, that large investors always have more bargaining power — not at high concentration; an investor whose scale is trapped in one relationship may have less effective leverage than a smaller, more mobile investor who can credibly walk away. Third, that the recent allocation shock was just a public-market arithmetic problem — it was a genuine governance failure, leaving investors over-target and unable to reduce, while simultaneously concentrated in individual managers with weakened negotiating positions. And fourth — important for secondary funds — that buying diversified portfolios means low concentration risk; a secondary fund can accumulate heavy exposure to a single manager through multiple separate purchases of that manager's different funds, each individually below the limit, so the aggregate overweight emerges over years without any single purchase ever triggering a review.", "est_sec": 56}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Detect, aggregate, negotiate early", "on_screen_bullets": ["Add value-based monitoring", "Aggregate by manager family", "Lock in terms before inversion"], "narration": "So to summarise: concentrated position governance is the discipline of detecting and managing the failure that emerges when exposure to a single manager — driven by appreciation, not new commitments — exceeds limits that a commitment-based policy was never designed to catch. The standard policy is structurally blind to this, monitoring what you committed rather than what it is now worth, so investors quietly become concentrated in their best performers with no trigger firing. The consequence is leverage inversion, where the manager gains the negotiating advantage precisely because exiting or skipping the next fund has become costly. The solution has three parts: add value-based concentration monitoring alongside the commitment limits; aggregate exposure by manager family rather than by fund; and negotiate enhanced governance terms before concentration reaches the inversion threshold — at the next-fund commitment stage, not after.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Why do commitment limits miss it?", "What is leverage inversion?", "When does the window close?"], "narration": "Before you move on, answer these from memory. Why does a commitment-based concentration limit fail to catch appreciation-driven overweight? What is leverage inversion, and why does a manager's strong performance create governance vulnerability for the investor? And when exactly does the window to negotiate enhanced terms close? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LP Concentrated Position Governance\n\n[hook] The limit that doesn't protect you\nMost investors believe their concentration limits protect them from getting dangerously overexposed to a single manager. They do not — and the gap is structural, not accidental. The limits are almost always written as a percentage of total committed capital: no single manager shall represent more than some share of total commitments. But commitment is not value. A commitment made five years ago can be worth twice as much today at current value. The policy document still records a modest concentration based on the original commitment, while the actual economic exposure to that manager has quietly doubled — and no alarm sounds, because no new commitment was ever made. This lesson is about that invisible trap: how to detect it before it closes, how to extract value while you are in it, and how to rewrite your policy so it cannot re-form.\n\n[definition] Managing the appreciation trap\nHere is the definition. Concentrated position governance is the set of operational, contractual, and policy mechanisms an investor uses to detect, manage, and exploit the leverage dynamics that arise when its exposure to a single manager — measured by current value, not original commitment — approaches or exceeds its programme's stated concentration limits. The three verbs matter: detect, manage, exploit. Detect, because the standard monitoring is blind to appreciation. Manage, because once you are concentrated you face real constraints. And exploit, because concentration, caught early, is actually a source of negotiating leverage before that leverage inverts. The whole discipline turns on the difference between what you committed and what that commitment is now worth.\n\n[intuition] Trapped by success\nWalk through how the trap forms. An investor backs an excellent manager, committing an amount that, at the time, sits comfortably within its concentration limit. Years pass, the positions appreciate strongly, and they compound faster than the rest of the programme. Now that manager represents a fifth of the programme by current value — but the policy document still reads the original, modest commitment percentage. No flag, no review, no board discussion. Then a market shock hits: public assets fall sharply, private values mark down slowly, and the total pool shrinks, so the private-equity allocation balloons above target. The investor cannot fix this quickly. Selling in the secondary market at a steep discount locks in a real loss. Declining the manager's next fund risks damaging a long relationship and creating a gap in vintage exposure. It is trapped — and the manager's next-fund negotiations happen against a backdrop where the manager knows exactly how trapped the investor is.\n\n[intuition] Balance limit on deposits only\nThe cleanest analogy is a savings account with a maximum-balance limit that is only checked at the moment of each deposit, never in between. You deposit an amount within the limit. Over five years it grows to several times that. You have blown far past the limit — but because no new deposit was made, no limit check ever fired. And the bank knows you are now deeply committed, with a large switching cost to move elsewhere, so it quietly starts offering you slightly worse terms on your next product. You cannot easily leave, so you accept. The fix is not to deposit less. It is to set up an alert that triggers on the balance itself, however it got there. Translated to investing, that is value-based concentration monitoring — watching what the position is worth, not just what you put in — and it is precisely the alert that most investors have never built.\n\n[mechanics] Three gaps to manage\nConcentrated governance means managing three distinct gaps at once. The first is commitment versus current value: the policy tracks what you committed, which ignores appreciation, so a successful position grows above the limit silently — only value-based monitoring captures true exposure. The second is legal rights versus economic exposure: your votes and governance rights do not scale with ownership, so holding a large share of a fund gives you the same single vote as a small share, meaning your influence lags your money. You compensate for that only through enhanced contractual rights negotiated before concentration peaks. And the third is fund-level versus manager-level monitoring: limits are usually checked one fund at a time, but your real exposure is to the manager across all their funds and vintages combined. Aggregating across vintages is operationally harder but economically essential, because the risk lives at the manager level, not the individual fund level.\n\n[mechanics] Leverage inversion\nThe deepest dynamic here is leverage inversion. When your position in a fund is small, the manager needs you more than you need the manager — losing your commitment at the next fundraise is a real shortfall they have to fill. But when your position has grown large, the relationship reverses. The manager knows you cannot sell without absorbing a discount, that you are unlikely to skip the next fund entirely because of vintage-gap risk, and that your re-up decision is driven by the appreciation of prior funds rather than a fresh, independent allocation. At that point the manager can offer reduced co-investment, push back on enhanced reporting, decline to renew favourable terms — and your negotiating position is weak. Here is the paradox to carry away: the better a manager performs for you, the more concentrated you become, and the less bargaining power you hold at the next fund. Success breeds governance vulnerability.\n\n[application] The window before inversion\nThe practical lesson is about timing. There is a window to extract governance value from concentration, and it is before the leverage inverts — ideally at the next-fund terms disclosure or the commitment-letter stage. A large, committed investor can secure real concessions then: an advisory-committee seat, enhanced reporting, co-investment first-look rights, sometimes a reduced carry rate or a higher hurdle, and preferential access to manager-led continuation vehicles at fair value rather than a secondary discount. But the critical rule is that all of these must be negotiated at commitment, not afterward. Once you are concentrated and the manager knows it, the leverage window has closed and the manager has no reason to grant any of it. So the discipline is to plan for concentration before it happens — to negotiate the protections you will need while you still hold the leverage to get them, rather than discovering you need them once you are already trapped.\n\n[application] Four myths\nFour misconceptions to clear. First, that concentration limits protect against concentration risk — they do not, if written in commitment terms, because an appreciated position is invisible to them; only value-based monitoring works. Second, that large investors always have more bargaining power — not at high concentration; an investor whose scale is trapped in one relationship may have less effective leverage than a smaller, more mobile investor who can credibly walk away. Third, that the recent allocation shock was just a public-market arithmetic problem — it was a genuine governance failure, leaving investors over-target and unable to reduce, while simultaneously concentrated in individual managers with weakened negotiating positions. And fourth — important for secondary funds — that buying diversified portfolios means low concentration risk; a secondary fund can accumulate heavy exposure to a single manager through multiple separate purchases of that manager's different funds, each individually below the limit, so the aggregate overweight emerges over years without any single purchase ever triggering a review.\n\n[recap] Detect, aggregate, negotiate early\nSo to summarise: concentrated position governance is the discipline of detecting and managing the failure that emerges when exposure to a single manager — driven by appreciation, not new commitments — exceeds limits that a commitment-based policy was never designed to catch. The standard policy is structurally blind to this, monitoring what you committed rather than what it is now worth, so investors quietly become concentrated in their best performers with no trigger firing. The consequence is leverage inversion, where the manager gains the negotiating advantage precisely because exiting or skipping the next fund has become costly. The solution has three parts: add value-based concentration monitoring alongside the commitment limits; aggregate exposure by manager family rather than by fund; and negotiate enhanced governance terms before concentration reaches the inversion threshold — at the next-fund commitment stage, not after.\n\n[end_card] Test yourself\nBefore you move on, answer these from memory. Why does a commitment-based concentration limit fail to catch appreciation-driven overweight? What is leverage inversion, and why does a manager's strong performance create governance vulnerability for the investor? And when exactly does the window to negotiate enhanced terms close? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Most LPs believe their Investment Policy Statement concentration limits protect them against overexposure to a single GP. They do not — and the gap is structural, not accidental.</p><p>IPS limits are almost universally written as a percentage of <em>total committed capital</em>: \"No single GP shall represent more than 15% of total PE commitments.\" But NAV is not commitment. A commitment made five years ago at $100m may now be worth $200m at current NAV. The LP's IPS records a 10% concentration; the LP's actual economic exposure to that GP is 20% of total PE programme value. No alarm sounds.</p><p>This matters for three interconnected reasons:</p><ol><li><strong>Exit constraint.</strong> A concentrated LP cannot easily exit its position. Selling in the secondary market crystallises a discount. The LP is effectively trapped in the relationship until fund wind-down — which gives the GP leverage it would not otherwise have.</li></ol><ol><li><strong>GP negotiating inversion.</strong> The GP knows the LP is trapped. At next-fund terms disclosure or commitment decision, the GP can offer unattractive economics knowing the LP has limited alternatives without accepting a large realised loss. The leverage relationship inverts.</li></ol><ol><li><strong>Secondary fund endogeneity.</strong> For secondary funds like CVC Secondary Partners, concentration is path-dependent on deal flow, not programme design. CVC may accumulate positions across KKR Fund XI, XII, and XIII from three separate sellers at three separate times, each purchase individually below IPS thresholds — yet in aggregate represent a structural overweight to KKR's performance.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>LP concentrated position governance is the set of operational, contractual, and policy mechanisms an LP uses to detect, manage, and exploit the leverage dynamics that arise when its exposure to a single GP — measured by current NAV, not original commitment — approaches or exceeds its programme's stated concentration limits.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of a pension fund that decided to invest in a great PE manager — say KKR — back in 2015. It committed $200m across Fund XI and XII. At the time, that was 12% of its total PE commitment of $1.7bn, safely within its 15% IPS limit.</p><p>By 2022, the same KKR positions had appreciated to $480m at current NAV. The rest of its PE portfolio had also grown, but the KKR positions had compounded faster. Now KKR represents $480m of a $2.4bn PE programme — 20% of NAV. The IPS still reads 12% of commitments. No flag. No review. No board discussion.</p><p>Then rates rise sharply in 2022. Public equities fall 25%. Private PE NAVs are slow to mark down (lagged valuations). The pension fund's total AUM falls from $20bn to $15bn. Suddenly PE is 16% of total AUM vs. its 12% target — the \"denominator effect.\" And within PE, KKR is now 20% of a programme that's already over-target.</p><p>The pension fund cannot fix this quickly. Selling in the secondary market at 2022-23 secondary discounts (70-80 cents on the dollar) locks in a 20-30% loss. Declining the next KKR capital call risks relationship damage and missing vintage year exposure. It is trapped — and KKR's next-fund terms negotiations happen against a backdrop where KKR knows exactly how trapped the LP is.</p><p>This is LP concentrated position governance: the discipline to detect this trap before it closes, the contractual tools to extract value when you're in it, and the IPS revision to prevent it re-forming.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of LP concentration like a bank account where interest compounds faster than you can withdraw.</p><p>A savings account with a \"maximum balance limit\" only checks the balance at the time of each <em>deposit</em>, not in between. You deposit $10,000 (within the limit). The account appreciates to $40,000 over five years. You've exceeded the limit by four times — but because no new deposit was made, no limit check ever triggered.</p><p>The bank (the GP) knows you're now deeply committed. The switching cost to move to a different bank is large (the secondary discount). The bank starts offering you slightly worse terms on your next product. You can't easily leave, so you accept.</p><p>The solution isn't to deposit less — it's to set up an alert: \"If my balance exceeds $25,000, regardless of how it got there, call me.\" This is the NAV-based concentration monitoring that most LPs have not yet built.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Three-Gap Structure</p><p>Concentrated LP governance must manage three distinct gaps simultaneously:</p><p><strong>Gap 1: Commitment vs. NAV Concentration</strong></p><p>| Measure | What it tracks | Why it misleads | |---|---|---| | Commitment-based concentration | % of total PE commitments to one GP | Ignores value appreciation; a successful GP's position grows above IPS limits silently | | NAV-based concentration | % of current PE programme NAV to one GP | Captures true economic exposure; requires quarterly NAV updates from GPs | | Total AUM concentration | PE programme as % of total investible assets | Tracks the denominator effect; must be updated as public markets move |</p><p><strong>Gap 2: Legal Rights vs. Economic Exposure</strong></p><p>At high concentration, the LP's economic exposure to a GP exceeds its legal governance rights in that GP's funds. An LP holding 15% of a fund has one vote; an LP holding 25% of a fund also has one vote. Governance rights do not scale with ownership. The concentrated LP must compensate for this through enhanced contractual rights (side letters, LPAC seats) negotiated before the concentration reaches the point where the GP can resist them.</p><p><strong>Gap 3: Commitment-Level vs. Programme-Level Monitoring</strong></p><p>IPS limits are typically monitored fund by fund: \"We hold $100m in KKR Fund XIII, which is 8% of our PE programme.\" The actual exposure to <em>KKR as a GP</em> is Fund XI + Fund XII + Fund XIII = $350m = 22% of the programme. Programme-level GP monitoring requires aggregation across vintages — operationally harder but economically essential.</p><p>---</p><p>### The IPS Concentration Limit Loophole</p><p>The structural flaw in standard IPS construction:</p><p>Three amendments that close this loophole, in increasing order of sophistication:</p><ol><li><strong>Add a NAV-based parallel limit.</strong> Alongside the commitment limit, add: \"No single GP shall represent more than 20% of total PE programme NAV at any quarter-end.\" Requires GPs to provide regular NAV estimates.</li></ol><ol><li><strong>Add a total AUM concentration floor.</strong> \"The PE programme shall not exceed [X]% of total investible assets. If it does, the Investment Committee must review at the next meeting.\" Catches the denominator effect.</li></ol><ol><li><strong>Annual programme-level GP concentration review.</strong> Aggregate all positions by GP across vintages, compute current NAV exposure by GP, flag any GP where NAV concentration exceeds 15%, escalate to board. This is CalPERS-standard governance as of 2022.</li></ol><p>---</p><p>### The GP Leverage Inversion at Concentration</p><p>At low concentration (LP = 2-5% of a fund), the GP needs the LP more than the LP needs the GP. The LP's re-up decision matters; losing a $100m LP at next fundraise is a 2% shortfall the GP must fill elsewhere.</p><p>At high concentration (LP = 15-20% of a fund), the relationship reverses. The LP has more capital in the GP than it can easily move. The GP knows: - The LP cannot sell without a discount - The LP is unlikely to skip the next fund entirely (vintage year gap risk) - The LP's next-fund decision reflects prior fund appreciation, not independent allocation</p><p>This is the point at which <strong>GP leverage inversion</strong> occurs. The GP can offer reduced co-investment rights, push back on enhanced reporting, decline to renew favorable side letter terms — and the LP's negotiating position is weak.</p><p><strong>The paradox:</strong> The better a GP performs for an LP, the more concentrated the LP becomes, the less bargaining power the LP has at next-fund terms. Success breeds governance vulnerability.</p><p>---</p><p>### What Becomes Available to a Concentrated LP (Before Inversion)</p><p>The window to extract governance value from concentration is <em>before</em> the leverage inverts — ideally at next-fund terms disclosure or at commitment letter negotiation. A large, concentrated LP can secure:</p><p>| Governance Concession | Threshold LP Size | Why GPs Grant It | |---|---|---| | LPAC seat | Typically &gt;5% of fund | Fund governance requires large LP representation | | Enhanced reporting (monthly GP-level, portfolio company detail) | &gt;8-10% of fund | LP is too large to manage with standard quarterly reports | | Co-investment first-look rights | &gt;5% of fund | Compensation for commitment scale | | Reduced carry rate (e.g., 17.5% vs. 20%) | &gt;10% of fund; top-tier LP | GP values anchor LP status | | Higher hurdle rate (e.g., 9% vs. 8%) | &gt;8-10% of fund | Negotiated at commitment; hard to get from Tier 1 GPs | | Preferred continuation vehicle access (at NAV, not secondary discount) | &gt;10% of fund | LP's cooperation in GP-led secondaries required | | Successor fund governance terms lock-in | Concentrated multi-vintage LP | GP prefers to manage terms in advance |</p><p><strong>The critical timing rule:</strong> These concessions must be negotiated at commitment, not after. Once the LP is concentrated and the GP knows it, the leverage window has closed. The LP must plan for concentration before it happens.</p><p>---</p><p>### The 2022 Denominator Effect as Case Study</p><p>The 2022 rate shock created the largest stress test for LP concentrated position governance in a decade:</p><p><strong>What happened:</strong> - S&amp;P 500 fell ~19%, MSCI World fell ~18% (2022) - Private PE NAVs marked down slowly (typically 2-3 quarters lag, if at all) - Pension fund total AUM fell sharply; PE allocation ballooned from target 12-15% to actual 18-22% - Secondary market PE discounts widened to 15-25% (mid-cap buyout); some credit positions at 30%+</p><p><strong>For concentrated LPs, the crisis compounded:</strong> - Could not sell PE to reduce allocation (secondary discount too large) - Could not decline capital calls without breaching LP agreements and damaging relationship - GP performance metrics looked strong (lagged marks), which meant GPs pressed ahead with fundraising - LPs in <em>multiple</em> funds of the same GP had no ability to reduce aggregate exposure quickly</p><p><strong>CalPERS as the archetype:</strong> CalPERS reported 17.8% actual PE allocation vs. 13% target as of Q3 2022. It was simultaneously over-concentrated in PE overall and, within PE, had significant concentration in Blackstone, Apollo, and KKR. Its 2023 PE programme review added programme-level GP concentration caps and NAV-based monitoring — directly in response to the denominator event. [needs-verification: exact CalPERS figures post-2022 IPS revision]</p><p>---</p><p>### The Secondary Fund Specific Problem (CVC Context)</p><p>For primary fund LPs, concentration reflects deliberate programme construction decisions: \"We chose to commit $200m to KKR Fund XI, $150m to Fund XII, $175m to Fund XIII.\"</p><p>For secondary fund LPs like CVC Secondary Partners, concentration is <em>path-dependent on deal flow</em>:</p><p>Each individual purchase cleared CVC's 15% IPS limit at the time of each transaction. The aggregate concentration to KKR emerged over four years without any single commitment triggering a review. This is the secondary fund concentration trap: it cannot be solved fund-by-fund; it requires continuous GP-level aggregation across all purchases.</p><p>The additional risk specific to secondary funds: the original LP who sold to CVC may have had side letters and governance rights with KKR that CVC did not receive (see Secondary Transaction DD — LP Governance Rights Transfer). CVC holds the economic exposure but not the governance tools the original LP had negotiated.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### The Three-Gap Structure</p><p>Concentrated LP governance must manage three distinct gaps simultaneously:</p><p><strong>Gap 1: Commitment vs. NAV Concentration</strong></p><p>| Measure | What it tracks | Why it misleads | |---|---|---| | Commitment-based concentration | % of total PE commitments to one GP | Ignores value appreciation; a successful GP's position grows above IPS limits silently | | NAV-based concentration | % of current PE programme NAV to one GP | Captures true economic exposure; requires quarterly NAV updates from GPs | | Total AUM concentration | PE programme as % of total investible assets | Tracks the denominator effect; must be updated as public markets move |</p><p><strong>Gap 2: Legal Rights vs. Economic Exposure</strong></p><p>At high concentration, the LP's economic exposure to a GP exceeds its legal governance rights in that GP's funds. An LP holding 15% of a fund has one vote; an LP holding 25% of a fund also has one vote. Governance rights do not scale with ownership. The concentrated LP must compensate for this through enhanced contractual rights (side letters, LPAC seats) negotiated before the concentration reaches the point where the GP can resist them.</p><p><strong>Gap 3: Commitment-Level vs. Programme-Level Monitoring</strong></p><p>IPS limits are typically monitored fund by fund: \"We hold $100m in KKR Fund XIII, which is 8% of our PE programme.\" The actual exposure to <em>KKR as a GP</em> is Fund XI + Fund XII + Fund XIII = $350m = 22% of the programme. Programme-level GP monitoring requires aggregation across vintages — operationally harder but economically essential.</p><p>---</p><p>### The IPS Concentration Limit Loophole</p><p>The structural flaw in standard IPS construction:</p><p>Three amendments that close this loophole, in increasing order of sophistication:</p><ol><li><strong>Add a NAV-based parallel limit.</strong> Alongside the commitment limit, add: \"No single GP shall represent more than 20% of total PE programme NAV at any quarter-end.\" Requires GPs to provide regular NAV estimates.</li></ol><ol><li><strong>Add a total AUM concentration floor.</strong> \"The PE programme shall not exceed [X]% of total investible assets. If it does, the Investment Committee must review at the next meeting.\" Catches the denominator effect.</li></ol><ol><li><strong>Annual programme-level GP concentration review.</strong> Aggregate all positions by GP across vintages, compute current NAV exposure by GP, flag any GP where NAV concentration exceeds 15%, escalate to board. This is CalPERS-standard governance as of 2022.</li></ol><p>---</p><p>### The GP Leverage Inversion at Concentration</p><p>At low concentration (LP = 2-5% of a fund), the GP needs the LP more than the LP needs the GP. The LP's re-up decision matters; losing a $100m LP at next fundraise is a 2% shortfall the GP must fill elsewhere.</p><p>At high concentration (LP = 15-20% of a fund), the relationship reverses. The LP has more capital in the GP than it can easily move. The GP knows: - The LP cannot sell without a discount - The LP is unlikely to skip the next fund entirely (vintage year gap risk) - The LP's next-fund decision reflects prior fund appreciation, not independent allocation</p><p>This is the point at which <strong>GP leverage inversion</strong> occurs. The GP can offer reduced co-investment rights, push back on enhanced reporting, decline to renew favorable side letter terms — and the LP's negotiating position is weak.</p><p><strong>The paradox:</strong> The better a GP performs for an LP, the more concentrated the LP becomes, the less bargaining power the LP has at next-fund terms. Success breeds governance vulnerability.</p><p>---</p><p>### What Becomes Available to a Concentrated LP (Before Inversion)</p><p>The window to extract governance value from concentration is <em>before</em> the leverage inverts — ideally at next-fund terms disclosure or at commitment letter negotiation. A large, concentrated LP can secure:</p><p>| Governance Concession | Threshold LP Size | Why GPs Grant It | |---|---|---| | LPAC seat | Typically &gt;5% of fund | Fund governance requires large LP representation | | Enhanced reporting (monthly GP-level, portfolio company detail) | &gt;8-10% of fund | LP is too large to manage with standard quarterly reports | | Co-investment first-look rights | &gt;5% of fund | Compensation for commitment scale | | Reduced carry rate (e.g., 17.5% vs. 20%) | &gt;10% of fund; top-tier LP | GP values anchor LP status | | Higher hurdle rate (e.g., 9% vs. 8%) | &gt;8-10% of fund | Negotiated at commitment; hard to get from Tier 1 GPs | | Preferred continuation vehicle access (at NAV, not secondary discount) | &gt;10% of fund | LP's cooperation in GP-led secondaries required | | Successor fund governance terms lock-in | Concentrated multi-vintage LP | GP prefers to manage terms in advance |</p><p><strong>The critical timing rule:</strong> These concessions must be negotiated at commitment, not after. Once the LP is concentrated and the GP knows it, the leverage window has closed. The LP must plan for concentration before it happens.</p><p>---</p><p>### The 2022 Denominator Effect as Case Study</p><p>The 2022 rate shock created the largest stress test for LP concentrated position governance in a decade:</p><p><strong>What happened:</strong> - S&amp;P 500 fell ~19%, MSCI World fell ~18% (2022) - Private PE NAVs marked down slowly (typically 2-3 quarters lag, if at all) - Pension fund total AUM fell sharply; PE allocation ballooned from target 12-15% to actual 18-22% - Secondary market PE discounts widened to 15-25% (mid-cap buyout); some credit positions at 30%+</p><p><strong>For concentrated LPs, the crisis compounded:</strong> - Could not sell PE to reduce allocation (secondary discount too large) - Could not decline capital calls without breaching LP agreements and damaging relationship - GP performance metrics looked strong (lagged marks), which meant GPs pressed ahead with fundraising - LPs in <em>multiple</em> funds of the same GP had no ability to reduce aggregate exposure quickly</p><p><strong>CalPERS as the archetype:</strong> CalPERS reported 17.8% actual PE allocation vs. 13% target as of Q3 2022. It was simultaneously over-concentrated in PE overall and, within PE, had significant concentration in Blackstone, Apollo, and KKR. Its 2023 PE programme review added programme-level GP concentration caps and NAV-based monitoring — directly in response to the denominator event. [needs-verification: exact CalPERS figures post-2022 IPS revision]</p><p>---</p><p>### The Secondary Fund Specific Problem (CVC Context)</p><p>For primary fund LPs, concentration reflects deliberate programme construction decisions: \"We chose to commit $200m to KKR Fund XI, $150m to Fund XII, $175m to Fund XIII.\"</p><p>For secondary fund LPs like CVC Secondary Partners, concentration is <em>path-dependent on deal flow</em>:</p><p>Each individual purchase cleared CVC's 15% IPS limit at the time of each transaction. The aggregate concentration to KKR emerged over four years without any single commitment triggering a review. This is the secondary fund concentration trap: it cannot be solved fund-by-fund; it requires continuous GP-level aggregation across all purchases.</p><p>The additional risk specific to secondary funds: the original LP who sold to CVC may have had side letters and governance rights with KKR that CVC did not receive (see Secondary Transaction DD — LP Governance Rights Transfer). CVC holds the economic exposure but not the governance tools the original LP had negotiated.</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### The Three-Gap Structure</p><p>Concentrated LP governance must manage three distinct gaps simultaneously:</p><p><strong>Gap 1: Commitment vs. NAV Concentration</strong></p><p>| Measure | What it tracks | Why it misleads | |---|---|---| | Commitment-based concentration | % of total PE commitments to one GP | Ignores value appreciation; a successful GP's position grows above IPS limits silently | | NAV-based concentration | % of current PE programme NAV to one GP | Captures true economic exposure; requires quarterly NAV updates from GPs | | Total AUM concentration | PE programme as % of total investible assets | Tracks the denominator effect; must be updated as public markets move |</p><p><strong>Gap 2: Legal Rights vs. Economic Exposure</strong></p><p>At high concentration, the LP's economic exposure to a GP exceeds its legal governance rights in that GP's funds. An LP holding 15% of a fund has one vote; an LP holding 25% of a fund also has one vote. Governance rights do not scale with ownership. The concentrated LP must compensate for this through enhanced contractual rights (side letters, LPAC seats) negotiated before the concentration reaches the point where the GP can resist them.</p><p><strong>Gap 3: Commitment-Level vs. Programme-Level Monitoring</strong></p><p>IPS limits are typically monitored fund by fund: \"We hold $100m in KKR Fund XIII, which is 8% of our PE programme.\" The actual exposure to <em>KKR as a GP</em> is Fund XI + Fund XII + Fund XIII = $350m = 22% of the programme. Programme-level GP monitoring requires aggregation across vintages — operationally harder but economically essential.</p><p>---</p><p>### The IPS Concentration Limit Loophole</p><p>The structural flaw in standard IPS construction:</p><p>Three amendments that close this loophole, in increasing order of sophistication:</p><ol><li><strong>Add a NAV-based parallel limit.</strong> Alongside the commitment limit, add: \"No single GP shall represent more than 20% of total PE programme NAV at any quarter-end.\" Requires GPs to provide regular NAV estimates.</li></ol><ol><li><strong>Add a total AUM concentration floor.</strong> \"The PE programme shall not exceed [X]% of total investible assets. If it does, the Investment Committee must review at the next meeting.\" Catches the denominator effect.</li></ol><ol><li><strong>Annual programme-level GP concentration review.</strong> Aggregate all positions by GP across vintages, compute current NAV exposure by GP, flag any GP where NAV concentration exceeds 15%, escalate to board. This is CalPERS-standard governance as of 2022.</li></ol><p>---</p><p>### The GP Leverage Inversion at Concentration</p><p>At low concentration (LP = 2-5% of a fund), the GP needs the LP more than the LP needs the GP. The LP's re-up decision matters; losing a $100m LP at next fundraise is a 2% shortfall the GP must fill elsewhere.</p><p>At high concentration (LP = 15-20% of a fund), the relationship reverses. The LP has more capital in the GP than it can easily move. The GP knows: - The LP cannot sell without a discount - The LP is unlikely to skip the next fund entirely (vintage year gap risk) - The LP's next-fund decision reflects prior fund appreciation, not independent allocation</p><p>This is the point at which <strong>GP leverage inversion</strong> occurs. The GP can offer reduced co-investment rights, push back on enhanced reporting, decline to renew favorable side letter terms — and the LP's negotiating position is weak.</p><p><strong>The paradox:</strong> The better a GP performs for an LP, the more concentrated the LP becomes, the less bargaining power the LP has at next-fund terms. Success breeds governance vulnerability.</p><p>---</p><p>### What Becomes Available to a Concentrated LP (Before Inversion)</p><p>The window to extract governance value from concentration is <em>before</em> the leverage inverts — ideally at next-fund terms disclosure or at commitment letter negotiation. A large, concentrated LP can secure:</p><p>| Governance Concession | Threshold LP Size | Why GPs Grant It | |---|---|---| | LPAC seat | Typically &gt;5% of fund | Fund governance requires large LP representation | | Enhanced reporting (monthly GP-level, portfolio company detail) | &gt;8-10% of fund | LP is too large to manage with standard quarterly reports | | Co-investment first-look rights | &gt;5% of fund | Compensation for commitment scale | | Reduced carry rate (e.g., 17.5% vs. 20%) | &gt;10% of fund; top-tier LP | GP values anchor LP status | | Higher hurdle rate (e.g., 9% vs. 8%) | &gt;8-10% of fund | Negotiated at commitment; hard to get from Tier 1 GPs | | Preferred continuation vehicle access (at NAV, not secondary discount) | &gt;10% of fund | LP's cooperation in GP-led secondaries required | | Successor fund governance terms lock-in | Concentrated multi-vintage LP | GP prefers to manage terms in advance |</p><p><strong>The critical timing rule:</strong> These concessions must be negotiated at commitment, not after. Once the LP is concentrated and the GP knows it, the leverage window has closed. The LP must plan for concentration before it happens.</p><p>---</p><p>### The 2022 Denominator Effect as Case Study</p><p>The 2022 rate shock created the largest stress test for LP concentrated position governance in a decade:</p><p><strong>What happened:</strong> - S&amp;P 500 fell ~19%, MSCI World fell ~18% (2022) - Private PE NAVs marked down slowly (typically 2-3 quarters lag, if at all) - Pension fund total AUM fell sharply; PE allocation ballooned from target 12-15% to actual 18-22% - Secondary market PE discounts widened to 15-25% (mid-cap buyout); some credit positions at 30%+</p><p><strong>For concentrated LPs, the crisis compounded:</strong> - Could not sell PE to reduce allocation (secondary discount too large) - Could not decline capital calls without breaching LP agreements and damaging relationship - GP performance metrics looked strong (lagged marks), which meant GPs pressed ahead with fundraising - LPs in <em>multiple</em> funds of the same GP had no ability to reduce aggregate exposure quickly</p><p><strong>CalPERS as the archetype:</strong> CalPERS reported 17.8% actual PE allocation vs. 13% target as of Q3 2022. It was simultaneously over-concentrated in PE overall and, within PE, had significant concentration in Blackstone, Apollo, and KKR. Its 2023 PE programme review added programme-level GP concentration caps and NAV-based monitoring — directly in response to the denominator event. [needs-verification: exact CalPERS figures post-2022 IPS revision]</p><p>---</p><p>### The Secondary Fund Specific Problem (CVC Context)</p><p>For primary fund LPs, concentration reflects deliberate programme construction decisions: \"We chose to commit $200m to KKR Fund XI, $150m to Fund XII, $175m to Fund XIII.\"</p><p>For secondary fund LPs like CVC Secondary Partners, concentration is <em>path-dependent on deal flow</em>:</p><p>Each individual purchase cleared CVC's 15% IPS limit at the time of each transaction. The aggregate concentration to KKR emerged over four years without any single commitment triggering a review. This is the secondary fund concentration trap: it cannot be solved fund-by-fund; it requires continuous GP-level aggregation across all purchases.</p><p>The additional risk specific to secondary funds: the original LP who sold to CVC may have had side letters and governance rights with KKR that CVC did not receive (see Secondary Transaction DD — LP Governance Rights Transfer). CVC holds the economic exposure but not the governance tools the original LP had negotiated.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"IPS concentration limits protect against concentration risk.\"</strong> They don't, if written in commitment terms. An appreciated position is invisible to a commitment-based limit. The protection requires NAV-based monitoring.</p><p><strong>Misconception 2: \"Large LPs always have more bargaining power with GPs.\"</strong> Not at high concentration. Large LPs with diversified programmes have power. Concentrated LPs — particularly those whose scale is trapped in one relationship — may have <em>less</em> effective leverage than a smaller, more mobile LP who can credibly walk away.</p><p><strong>Misconception 3: \"The 2022 denominator effect was a public market problem that didn't affect PE.\"</strong> It dramatically affected PE governance. LPs were over-target in PE, unable to reduce quickly, and simultaneously concentrated in individual GPs with degraded negotiating positions. The denomination effect was a PE governance failure, not just an allocation arithmetic problem.</p><p><strong>Misconception 4: \"Secondary funds have inherently lower concentration risk because they buy diversified portfolios.\"</strong> Secondary funds can accumulate concentration to a single GP through multiple purchases of that GP's different funds. The diversification within each fund does not protect against concentration across funds of the same GP.</p><p><strong>Misconception 5: \"Co-investment rights compensate for all governance gaps.\"</strong> Co-investment rights give the LP more access to a GP's deal flow; they do not reduce the LP's dependence on that GP or improve its leverage in LPA terms negotiations. They may actually deepen the dependency.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>LP concentrated position governance is the discipline of detecting and managing the governance failure that emerges when an LP's exposure to a single GP — driven by appreciation, not new commitments — exceeds the limits an IPS written in commitment terms was designed to catch.</p><p>The standard LP IPS is structurally blind to this type of concentration. It monitors the amount an LP committed to each GP, not the amount that commitment is now worth. As successful positions appreciate, LPs become increasingly concentrated in their best-performing GPs without any monitoring trigger firing. The consequence is GP leverage inversion: the GP gains negotiating advantage precisely because the LP's position has grown large enough that exiting or skipping the successor fund is costly.</p><p>For secondary funds like CVC, the problem is compounded: concentration is path-dependent on deal flow, can aggregate across multiple secondary purchases of different vintages from the same GP, and combines with the governance rights deficit described in Secondary Transaction DD — LP Governance Rights Transfer to create a position with large economic exposure and limited governance leverage.</p><p>The solution has three components: add NAV-based concentration monitoring to the IPS alongside commitment-based limits; aggregate exposure by GP family (not by fund); and negotiate enhanced governance terms before concentration reaches the inversion threshold — at the next-fund commitment stage, not after.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>LP concentrated position governance is the discipline of detecting and managing the governance failure that emerges when an LP's exposure to a single GP — driven by appreciation, not new commitments — exceeds the limits an IPS written in commitment terms was designed to catch.</p><p>The standard LP IPS is structurally blind to this type of concentration. It monitors the amount an LP committed to each GP, not the amount that commitment is now worth. As successful positions appreciate, LPs become increasingly concentrated in their best-performing GPs without any monitoring trigger firing. The consequence is GP leverage inversion: the GP gains negotiating advantage precisely because the LP's position has grown large enough that exiting or skipping the successor fund is costly.</p><p>For secondary funds like CVC, the problem is compounded: concentration is path-dependent on deal flow, can aggregate across multiple secondary purchases of different vintages from the same GP, and combines with the governance rights deficit described in Secondary Transaction DD — LP Governance Rights Transfer to create a position with large economic exposure and limited governance leverage.</p><p>The solution has three components: add NAV-based concentration monitoring to the IPS alongside commitment-based limits; aggregate exposure by GP family (not by fund); and negotiate enhanced governance terms before concentration reaches the inversion threshold — at the next-fund commitment stage, not after.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

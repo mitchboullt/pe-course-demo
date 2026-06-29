@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lp-performance-attribution", "title": "LP Performance Attribution", "draft_watermark": false, "estimated_runtime_sec": 336, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "What really drove the return?", "on_screen_bullets": ["Fifteen percent looks great", "But what produced it?", "The answer changes everything"], "narration": "Suppose a private equity programme returns fifteen percent. That looks excellent — but on its own it tells you almost nothing about what to do next. Fifteen percent could be entirely explained by luck with vintage-year timing, having happened to commit heavily just before a great cycle. Or it could come mostly from fee savings on co-investment rather than any skill in picking managers. Or it could be genuine manager-selection skill. Each of those explanations points to a completely different decision: whether to re-up with the same managers, whether to expand co-investment, whether to invest more in sourcing or in monitoring. Performance attribution is the discipline that decomposes that single blended number into its real drivers — converting one return figure into actionable intelligence about where the value actually came from, and therefore where to point capital and people in the future.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Decompose the return", "on_screen_bullets": ["Split total into sources", "Benchmark, selection, vintage, fees, mix", "See what's actually driving it"], "narration": "Here is the definition. Performance attribution is the decomposition of an investor's total private equity programme return into its constituent sources — the benchmark return versus public markets, manager-selection skill, vintage-year timing, fee reduction from co-investment, and programme-construction choices — enabling the investor to understand what is actually driving performance and where to direct future decisions. The crucial idea is that a single headline return is a blend of several distinct forces, some of which are repeatable skill and some of which are pure luck. Attribution pulls them apart. And the reason that matters is forward-looking: some of those forces you can deliberately do more of, and some you simply cannot reproduce.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Reading the blood test", "on_screen_bullets": ["One health score hides detail", "Decompose into components", "Good masks bad otherwise"], "narration": "A clean way to picture this is a doctor reading a blood test. The overall health score is a single blended measurement, but the analysis breaks it into separate markers — each telling a different story about what is actually happening inside the body and what needs to change. A doctor who looks only at the overall score can miss that excellent heart health is masking serious kidney trouble. The investor is in exactly the same position. Looking only at the total programme return, you can completely miss that exceptional vintage-year luck is masking poor manager selection — or the reverse, that genuinely skilful selection is being dragged down by unlucky timing. The single number averages those stories together and hides them. Attribution is the panel of markers that lets you see each one separately, which is the only way to know what to actually fix.", "est_sec": 50}, {"n": 4, "beat": "mechanics", "visual": "mermaid", "source_section": "Technical Explanation", "on_screen_title": "The five components", "on_screen_bullets": ["Benchmark alpha is the total", "Then selection, vintage, fees, mix", "Each a separate lever"], "narration": "There are five components, and the diagram shows how they relate. The first is benchmark alpha: did private equity, as actually invested, beat an equivalent public-market exposure over the same period? This is computed by asking what the programme's actual cash flows would have returned in a public index at the same moments, and comparing. This benchmark alpha is the total outperformance number — and the other four components decompose it. The second is manager-selection skill: did the investor back above-median managers within each vintage and strategy? The third is vintage-year timing: did the commitments happen to concentrate in good or bad cycle years? The fourth is fee reduction: how much net return came from co-investment at low or zero fees and from fee negotiations? And the fifth is programme construction: did the allocation mix across strategies and geographies add or subtract value versus a neutral blend? Trace the diagram and you see one total splitting into four explanatory drivers — that split is the whole exercise.", "mermaid": "flowchart TD\n  T[Total programme outperformance<br/>versus public markets] --> A[Manager-selection skill]\n  T --> B[Vintage-year timing]\n  T --> C[Fee reduction from co-investment]\n  T --> D[Programme-construction mix]", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Selection is the durable one", "on_screen_bullets": ["Compare to same-vintage median", "Manager quality persists", "But access is unequal"], "narration": "Look closer at manager-selection skill, because it is the most important component for the future. You measure it by comparing each fund's performance against the median fund of the same vintage, geography, and strategy, then weighting by how much was committed to each. Positive selection skill means the investor consistently backed above-median managers — and this matters most because manager quality is persistent: strong managers tend to stay strong across funds, so a track record of good selection genuinely predicts future selection. But there is a catch that keeps selection skill from being purely analytical. The best managers are oversubscribed, so not everyone who wants in can get in. Investors with existing relationships, advisory-committee seats, and co-investment track records get better access. That makes selection skill partly a function of size and relationship capital, not just the quality of the analysis — which is why protecting access to top managers is itself a strategic priority.", "est_sec": 54}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Vintage luck and fee savings", "on_screen_bullets": ["Vintage timing isn't a skill", "Fees are underrated alpha", "Co-invest can top selection"], "narration": "Now two components that are constantly misjudged in opposite directions. Vintage-year timing is the excess or deficit from concentrating commitments in good or bad cycle years — and the critical thing to understand is that it is not a reproducible skill, because you cannot choose when market cycles occur. Strong vintage performance is luck dressed up as genius, and weak performance can hide real skill. The discipline of steady pacing across years is what reduces this risk, but you cannot bank on timing as a strategy. Fee reduction runs the other way: it is badly underrated. For a large, active co-investor putting a meaningful share of the programme into low- or zero-fee co-investments, the fee saving can run to a couple of hundred basis points of net return a year — frequently larger than the manager-selection skill itself. Compounded over a fund's life on a large programme, that is an enormous sum, which is exactly why building serious co-investment capability is worth heavy investment.", "est_sec": 54}, {"n": 7, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Skill sabotaged by timing", "on_screen_bullets": ["Strong selection, bad vintages", "Net result: roughly flat", "Fix pacing, not managers"], "narration": "Consider a representative case that shows why decomposition matters so much. A large pension fund finds its private equity programme has roughly matched, or slightly lagged, its benchmark over a long stretch — disappointing on the surface. But the attribution tells a richer story. Manager selection was strongly positive: it consistently backed above-median, top-tier managers. Vintage timing, however, was sharply negative: its biggest commitments landed right at a peak in the cycle, in the worst vintage years of the era. And fee reduction was modestly positive but smaller than ideal for an investor of that scale. Add them up and the strong selection and the bad timing roughly cancel, leaving the programme near flat. The correct strategic response follows directly from the decomposition: the problem was not the managers — those were excellent — it was the concentration of commitments in peak years. So the fix is better pacing and vintage diversification, not replacing managers. Without the attribution, the fund might have fired its best managers for a problem they did not cause.", "est_sec": 54}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four traps", "on_screen_bullets": ["High return isn't always skill", "Fee savings aren't small", "Attribution explains the past"], "narration": "Four misconceptions to clear. First, that high programme returns imply good manager selection — not necessarily; a programme concentrated in great vintage years would have produced strong returns from almost any manager, so vintage luck can completely swamp selection skill. Second, that attribution needs fund-by-fund internal rates of return — actually the multiple-based and public-market-equivalent measures are usually more appropriate, because they avoid the timing distortions of the rate-of-return metric. Third, that fee reduction from co-investment is a small effect — for large active co-investors it can be a couple of hundred basis points a year, often exceeding the selection skill itself. And fourth, the subtle one: that attribution tells you what to do going forward. It explains the past. Manager selection is the most forward-looking component because skill persists; vintage timing is purely backward-looking because it cannot be replicated. Do not mistake a historical attribution for a forecast.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Diagnostic, not indulgence", "on_screen_bullets": ["Five components decompose the total", "Selection persists, timing doesn't", "Directs capital and people"], "narration": "So to summarise: performance attribution decomposes a programme's total return into five components — the benchmark return versus public markets, manager-selection skill, vintage-year timing, fee reduction from co-investment, and programme-construction mix. The most forward-looking finding is selection skill, because manager quality persists, so a positive history justifies prioritising relationships with the best managers. The most dangerous misread is confusing vintage luck with selection skill — the case we walked through is exactly that error, and the cure was pacing, not firing managers. The most underappreciated source of alpha is fee reduction from co-investment, which for big active investors can quietly exceed selection skill. And the overall point: attribution is not retrospective indulgence — it is the diagnostic tool that determines where to allocate capital, staff, and relationship resources going forward.", "est_sec": 50}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Name the five components", "Which is reproducible?", "Why can fees beat selection?"], "narration": "Before you finish, answer these from memory. What are the five components of performance attribution? Which component is a reproducible skill and which is essentially luck that cannot be repeated? And why can fee reduction from co-investment end up larger than manager-selection skill for a big, active investor? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LP Performance Attribution\n\n[hook] What really drove the return?\nSuppose a private equity programme returns fifteen percent. That looks excellent — but on its own it tells you almost nothing about what to do next. Fifteen percent could be entirely explained by luck with vintage-year timing, having happened to commit heavily just before a great cycle. Or it could come mostly from fee savings on co-investment rather than any skill in picking managers. Or it could be genuine manager-selection skill. Each of those explanations points to a completely different decision: whether to re-up with the same managers, whether to expand co-investment, whether to invest more in sourcing or in monitoring. Performance attribution is the discipline that decomposes that single blended number into its real drivers — converting one return figure into actionable intelligence about where the value actually came from, and therefore where to point capital and people in the future.\n\n[definition] Decompose the return\nHere is the definition. Performance attribution is the decomposition of an investor's total private equity programme return into its constituent sources — the benchmark return versus public markets, manager-selection skill, vintage-year timing, fee reduction from co-investment, and programme-construction choices — enabling the investor to understand what is actually driving performance and where to direct future decisions. The crucial idea is that a single headline return is a blend of several distinct forces, some of which are repeatable skill and some of which are pure luck. Attribution pulls them apart. And the reason that matters is forward-looking: some of those forces you can deliberately do more of, and some you simply cannot reproduce.\n\n[intuition] Reading the blood test\nA clean way to picture this is a doctor reading a blood test. The overall health score is a single blended measurement, but the analysis breaks it into separate markers — each telling a different story about what is actually happening inside the body and what needs to change. A doctor who looks only at the overall score can miss that excellent heart health is masking serious kidney trouble. The investor is in exactly the same position. Looking only at the total programme return, you can completely miss that exceptional vintage-year luck is masking poor manager selection — or the reverse, that genuinely skilful selection is being dragged down by unlucky timing. The single number averages those stories together and hides them. Attribution is the panel of markers that lets you see each one separately, which is the only way to know what to actually fix.\n\n[mechanics] The five components\nThere are five components, and the diagram shows how they relate. The first is benchmark alpha: did private equity, as actually invested, beat an equivalent public-market exposure over the same period? This is computed by asking what the programme's actual cash flows would have returned in a public index at the same moments, and comparing. This benchmark alpha is the total outperformance number — and the other four components decompose it. The second is manager-selection skill: did the investor back above-median managers within each vintage and strategy? The third is vintage-year timing: did the commitments happen to concentrate in good or bad cycle years? The fourth is fee reduction: how much net return came from co-investment at low or zero fees and from fee negotiations? And the fifth is programme construction: did the allocation mix across strategies and geographies add or subtract value versus a neutral blend? Trace the diagram and you see one total splitting into four explanatory drivers — that split is the whole exercise.\n\n[mechanics] Selection is the durable one\nLook closer at manager-selection skill, because it is the most important component for the future. You measure it by comparing each fund's performance against the median fund of the same vintage, geography, and strategy, then weighting by how much was committed to each. Positive selection skill means the investor consistently backed above-median managers — and this matters most because manager quality is persistent: strong managers tend to stay strong across funds, so a track record of good selection genuinely predicts future selection. But there is a catch that keeps selection skill from being purely analytical. The best managers are oversubscribed, so not everyone who wants in can get in. Investors with existing relationships, advisory-committee seats, and co-investment track records get better access. That makes selection skill partly a function of size and relationship capital, not just the quality of the analysis — which is why protecting access to top managers is itself a strategic priority.\n\n[mechanics] Vintage luck and fee savings\nNow two components that are constantly misjudged in opposite directions. Vintage-year timing is the excess or deficit from concentrating commitments in good or bad cycle years — and the critical thing to understand is that it is not a reproducible skill, because you cannot choose when market cycles occur. Strong vintage performance is luck dressed up as genius, and weak performance can hide real skill. The discipline of steady pacing across years is what reduces this risk, but you cannot bank on timing as a strategy. Fee reduction runs the other way: it is badly underrated. For a large, active co-investor putting a meaningful share of the programme into low- or zero-fee co-investments, the fee saving can run to a couple of hundred basis points of net return a year — frequently larger than the manager-selection skill itself. Compounded over a fund's life on a large programme, that is an enormous sum, which is exactly why building serious co-investment capability is worth heavy investment.\n\n[example] Skill sabotaged by timing\nConsider a representative case that shows why decomposition matters so much. A large pension fund finds its private equity programme has roughly matched, or slightly lagged, its benchmark over a long stretch — disappointing on the surface. But the attribution tells a richer story. Manager selection was strongly positive: it consistently backed above-median, top-tier managers. Vintage timing, however, was sharply negative: its biggest commitments landed right at a peak in the cycle, in the worst vintage years of the era. And fee reduction was modestly positive but smaller than ideal for an investor of that scale. Add them up and the strong selection and the bad timing roughly cancel, leaving the programme near flat. The correct strategic response follows directly from the decomposition: the problem was not the managers — those were excellent — it was the concentration of commitments in peak years. So the fix is better pacing and vintage diversification, not replacing managers. Without the attribution, the fund might have fired its best managers for a problem they did not cause.\n\n[application] Four traps\nFour misconceptions to clear. First, that high programme returns imply good manager selection — not necessarily; a programme concentrated in great vintage years would have produced strong returns from almost any manager, so vintage luck can completely swamp selection skill. Second, that attribution needs fund-by-fund internal rates of return — actually the multiple-based and public-market-equivalent measures are usually more appropriate, because they avoid the timing distortions of the rate-of-return metric. Third, that fee reduction from co-investment is a small effect — for large active co-investors it can be a couple of hundred basis points a year, often exceeding the selection skill itself. And fourth, the subtle one: that attribution tells you what to do going forward. It explains the past. Manager selection is the most forward-looking component because skill persists; vintage timing is purely backward-looking because it cannot be replicated. Do not mistake a historical attribution for a forecast.\n\n[recap] Diagnostic, not indulgence\nSo to summarise: performance attribution decomposes a programme's total return into five components — the benchmark return versus public markets, manager-selection skill, vintage-year timing, fee reduction from co-investment, and programme-construction mix. The most forward-looking finding is selection skill, because manager quality persists, so a positive history justifies prioritising relationships with the best managers. The most dangerous misread is confusing vintage luck with selection skill — the case we walked through is exactly that error, and the cure was pacing, not firing managers. The most underappreciated source of alpha is fee reduction from co-investment, which for big active investors can quietly exceed selection skill. And the overall point: attribution is not retrospective indulgence — it is the diagnostic tool that determines where to allocate capital, staff, and relationship resources going forward.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What are the five components of performance attribution? Which component is a reproducible skill and which is essentially luck that cannot be repeated? And why can fee reduction from co-investment end up larger than manager-selection skill for a big, active investor? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>A PE programme that returns 15% net IRR looks excellent — but 15% could be explained entirely by being lucky with vintage year timing (e.g., 2009 entry), rather than skill in GP selection. Alternatively, it could be driven primarily by fee savings from co-investment rather than superior GP access. Without decomposing what drove the 15%, the LP cannot make informed decisions about: whether to re-up with the same GPs, whether to expand or contract the co-investment programme, whether to invest more in GP sourcing vs. portfolio monitoring. Performance attribution converts a single blended return into actionable intelligence. This note was identified by S11 (LP Programme Construction) as the analytical complement to the IPS framework.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>LP performance attribution is the decomposition of a pension fund or institutional investor's total PE programme return into its constituent sources — benchmark alpha, GP selection alpha, vintage year bias, fee reduction from co-investment, and programme construction contribution — enabling the LP to understand what is actually driving performance and where to direct future investment decisions.</p>"}, "2": {"section": "Mental Model / Analogy", "html": "<p>LP performance attribution is like a doctor analysing a patient's blood test results — the overall health number (total PE programme return) is a single blended measurement, but the attribution analysis breaks it into white blood cells, red blood cells, cholesterol, glucose — each telling a different story about what is actually happening and what should change. A doctor who only looks at the overall \"health score\" without decomposing it misses that the patient's good heart health is masking serious kidney problems. An LP who only looks at total PE programme returns misses that excellent vintage year luck is masking poor GP selection.</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### The Five Attribution Components</p><p>#### Component 1: Benchmark Alpha (PE vs. Public Market) <strong>What it measures:</strong> Whether PE as an asset class outperformed an equivalent public market exposure over the LP's measurement period.</p><p><strong>Methodology:</strong> PME (Public Market Equivalent) analysis — see PME Analysis for full mechanics. - Calculate what the LP's actual PE cash flows would have returned if invested in a public index (e.g., MSCI World, S&amp;P 500 + 300bps) at the same times - Compare this PME return to the actual PE programme return - Difference = the LP's total PE programme alpha vs. the public market benchmark</p><p><strong>Interpretation:</strong> - Positive benchmark alpha: PE as actually invested outperformed the public equivalent — validates the asset class decision - Negative benchmark alpha: the LP would have done better investing in public markets at the same times — the PE programme destroyed value vs. passive alternatives - Typical finding (Harris, Jenkinson &amp; Kaplan 2014): US buyout funds from 1984–2008 vintage averaged ~3% annual PME alpha vs. S&amp;P 500. Post-2006 vintages show declining alpha. [needs-verification on current PME alpha]</p><p><strong>Limitation:</strong> The benchmark alpha includes all sources of PE alpha — GP skill, vintage timing, fee effects. Component 1 is the \"total alpha\" number that components 2–5 then decompose.</p><p>#### Component 2: GP Selection Alpha <strong>What it measures:</strong> Whether the LP selected GPs that outperformed the PE benchmark (median PE fund), irrespective of when they were invested.</p><p><strong>Methodology:</strong> - For each fund in the LP's portfolio, calculate relative performance vs. median PE fund of the same vintage year, geography, and strategy - Weight by LP's committed capital to each fund - Sum across the portfolio = GP selection alpha</p><p><strong>Formula:</strong> `GP Selection Alpha = Σ (Fund TVPI - Vintage/Strategy Median TVPI) × (Fund Commitment / Total Commitments)`</p><p><strong>Interpretation:</strong> - Positive GP selection alpha: the LP consistently backed above-median managers — genuine selection skill - Zero GP selection alpha: the LP's GP selection produced average managers — no incremental value from the selection process - Negative GP selection alpha: the LP selected below-median managers — capital would have been better deployed in a PE index (if one existed)</p><p><strong>Evidence from Robinson &amp; Sensoy (2013):</strong> GP selection generates persistent alpha for LPs who maintain consistent GP relationships — the top-quartile GP's top-quartile persistence means LP access to top managers is the primary source of LP alpha.</p><p><strong>The access problem:</strong> GP selection alpha is not equally available to all LPs. Top-quartile GPs (KKR, Blackstone, Apollo, Carlyle) are oversubscribed — not all LPs who want to invest can. LPs who have existing fund relationships, LPAC seats, and co-investment track records have better access to top-quartile managers. This makes GP selection alpha partly a function of LP size and relationship capital, not purely analytical skill.</p><p>#### Component 3: Vintage Year Alpha / Drag <strong>What it measures:</strong> Whether the LP's timing of commitments (intentional or accidental) concentrated capital in above- or below-average vintage years.</p><p><strong>Methodology:</strong> - Calculate the actual vintage year distribution of the LP's committed capital (e.g., 40% in 2006-2008, 30% in 2009-2012, 30% in 2013-2018) - Calculate the return of a \"neutral\" portfolio with equal vintage year exposure - The difference = vintage year alpha (if concentrated in good vintages) or vintage year drag (if concentrated in bad vintages)</p><p><strong>The vintage year problem:</strong> - 2005–2007 vintage: predominantly poor returns (peak valuations + GFC); most LPs who ramped up PE commitments 2005–2008 suffered significant vintage year drag - 2009–2012 vintage: exceptional returns (distressed entry valuations + long bull market recovery) - 2019–2021 vintage: emerging as poor vintages due to peak entry multiples + SOFR shock</p><p><strong>CalPERS example:</strong> CalPERS's 2020 internal performance review found that its below-programme-average PE returns from 2006–2015 were driven primarily by vintage year concentration in 2006–2008 (peak cycle) rather than poor GP selection. The LPs backed top-quartile managers who happened to have their worst vintage years coincide with the LP's peak commitment phase. This finding redirected CalPERS's PE strategy toward more consistent pacing (smoother vintage year distribution) rather than manager replacement.</p><p>#### Component 4: Fee Reduction Contribution <strong>What it measures:</strong> The incremental net return generated by the LP's fee-reducing activities (co-investment at zero/reduced carry, management fee offsets, separate accounts with lower fees).</p><p><strong>Methodology:</strong> - Calculate net return of the fee-paying portfolio (standard fund economics) - Add back the fee savings from: (a) co-investment at zero carry (saves 20% of co-invest profits), (b) management fee offsets (reduces base drag), (c) negotiated MFN terms that reduced fees vs. standard economics - The sum of fee savings ÷ total portfolio AUM = fee reduction contribution in bps/annum</p><p><strong>Typical magnitude:</strong> - For a large LP with 20% of PE allocation in zero-carry co-investments (generating average 2× MOIC): fee saving = 20% × 20% × (2× - 1) / years held ≈ 100–150bps annually - Management fee offsets and reduced carry negotiations: additional 25–50bps - Total potential: 125–200bps annual fee reduction contribution for an active co-investor</p><p><strong>Why this matters more than it sounds:</strong> 150bps annual fee saving compounded over a 10-year fund life is a significant drag avoided. For a £10bn PE programme, 150bps = £150m per year in additional net return — a massive figure that justifies significant investment in co-investment capabilities.</p><p>#### Component 5: Programme Construction Contribution <strong>What it measures:</strong> The excess return (or drag) attributable to the LP's allocation decisions within PE — strategy mix, geographic exposure, concentration — over and above what an equally-weighted PE programme would have produced.</p><p><strong>Methodology:</strong> - Define a \"benchmark PE programme\" (e.g., equal weights to buyout, growth, VC, distressed, secondaries in proportion to market) - Calculate what the benchmark programme would have returned - Subtract from the LP's actual programme return - The difference = programme construction contribution</p><p><strong>Sources of positive construction contribution:</strong> - Overweight to buyout when buyout outperforms (but this is often vintage-correlated — hard to attribute to skill) - Overweight to secondaries when secondary discounts are high (post-GFC, denominator effect periods) — a genuine timing skill - Overweight to co-investment when market pricing is attractive — fee-saving plus entry timing - Underweight to specific strategies that underperformed (e.g., early-stage VC for a typical pension fund)</p><p>### Attribution Methodology Challenges</p><p>#### Challenge 1: Realised vs. Unrealised Decomposition - TVPI includes unrealised NAV (RVPI) based on mark-to-model valuations - Attribution based on TVPI may include illusory value that is subsequently written down - <strong>Hamilton Lane approach:</strong> Separate attribution of realised (DPI-based) from unrealised (RVPI-based) — realised attribution is reliable; unrealised attribution is provisional - <strong>Implication:</strong> GP selection alpha that is primarily unrealised should be treated with more scepticism than realised alpha</p><p>#### Challenge 2: Benchmark Comparability - No two PE funds are identical in strategy, geography, and vintage — comparing a fund's return to the \"median PE fund\" requires defining the relevant peer group precisely - Commercial databases (Preqin, Cambridge Associates, PitchBook) have selection bias: GPs that consistently underperform stop reporting to databases, creating survivorship bias in the median - <strong>Best practice:</strong> Use multiple benchmark sources and triangulate; explicitly note if benchmark comparisons rely on potentially biased databases</p><p>#### Challenge 3: J-Curve Distortion - Early in a fund's life, TVPI is dominated by fees paid (management fees reduce NAV) and unrealised early investments — the J-curve means attribution analysis on funds &lt;3 years old is unreliable - Attribution should focus primarily on funds that are substantially invested (&gt;70% of committed capital deployed) and at least 3 years from final close</p><p>#### Challenge 4: Time-Weighted vs. Dollar-Weighted Returns - LP-level attribution requires a consistent return metric - IRR (dollar-weighted) is affected by the timing of capital calls and distributions, which the LP does not control - TVPI/DPI are amount-weighted but time-insensitive - PME is the most appropriate comparison because it holds timing constant and compares to an achievable public market alternative</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Five Attribution Components</p><p>#### Component 1: Benchmark Alpha (PE vs. Public Market) <strong>What it measures:</strong> Whether PE as an asset class outperformed an equivalent public market exposure over the LP's measurement period.</p><p><strong>Methodology:</strong> PME (Public Market Equivalent) analysis — see PME Analysis for full mechanics. - Calculate what the LP's actual PE cash flows would have returned if invested in a public index (e.g., MSCI World, S&amp;P 500 + 300bps) at the same times - Compare this PME return to the actual PE programme return - Difference = the LP's total PE programme alpha vs. the public market benchmark</p><p><strong>Interpretation:</strong> - Positive benchmark alpha: PE as actually invested outperformed the public equivalent — validates the asset class decision - Negative benchmark alpha: the LP would have done better investing in public markets at the same times — the PE programme destroyed value vs. passive alternatives - Typical finding (Harris, Jenkinson &amp; Kaplan 2014): US buyout funds from 1984–2008 vintage averaged ~3% annual PME alpha vs. S&amp;P 500. Post-2006 vintages show declining alpha. [needs-verification on current PME alpha]</p><p><strong>Limitation:</strong> The benchmark alpha includes all sources of PE alpha — GP skill, vintage timing, fee effects. Component 1 is the \"total alpha\" number that components 2–5 then decompose.</p><p>#### Component 2: GP Selection Alpha <strong>What it measures:</strong> Whether the LP selected GPs that outperformed the PE benchmark (median PE fund), irrespective of when they were invested.</p><p><strong>Methodology:</strong> - For each fund in the LP's portfolio, calculate relative performance vs. median PE fund of the same vintage year, geography, and strategy - Weight by LP's committed capital to each fund - Sum across the portfolio = GP selection alpha</p><p><strong>Formula:</strong> `GP Selection Alpha = Σ (Fund TVPI - Vintage/Strategy Median TVPI) × (Fund Commitment / Total Commitments)`</p><p><strong>Interpretation:</strong> - Positive GP selection alpha: the LP consistently backed above-median managers — genuine selection skill - Zero GP selection alpha: the LP's GP selection produced average managers — no incremental value from the selection process - Negative GP selection alpha: the LP selected below-median managers — capital would have been better deployed in a PE index (if one existed)</p><p><strong>Evidence from Robinson &amp; Sensoy (2013):</strong> GP selection generates persistent alpha for LPs who maintain consistent GP relationships — the top-quartile GP's top-quartile persistence means LP access to top managers is the primary source of LP alpha.</p><p><strong>The access problem:</strong> GP selection alpha is not equally available to all LPs. Top-quartile GPs (KKR, Blackstone, Apollo, Carlyle) are oversubscribed — not all LPs who want to invest can. LPs who have existing fund relationships, LPAC seats, and co-investment track records have better access to top-quartile managers. This makes GP selection alpha partly a function of LP size and relationship capital, not purely analytical skill.</p><p>#### Component 3: Vintage Year Alpha / Drag <strong>What it measures:</strong> Whether the LP's timing of commitments (intentional or accidental) concentrated capital in above- or below-average vintage years.</p><p><strong>Methodology:</strong> - Calculate the actual vintage year distribution of the LP's committed capital (e.g., 40% in 2006-2008, 30% in 2009-2012, 30% in 2013-2018) - Calculate the return of a \"neutral\" portfolio with equal vintage year exposure - The difference = vintage year alpha (if concentrated in good vintages) or vintage year drag (if concentrated in bad vintages)</p><p><strong>The vintage year problem:</strong> - 2005–2007 vintage: predominantly poor returns (peak valuations + GFC); most LPs who ramped up PE commitments 2005–2008 suffered significant vintage year drag - 2009–2012 vintage: exceptional returns (distressed entry valuations + long bull market recovery) - 2019–2021 vintage: emerging as poor vintages due to peak entry multiples + SOFR shock</p><p><strong>CalPERS example:</strong> CalPERS's 2020 internal performance review found that its below-programme-average PE returns from 2006–2015 were driven primarily by vintage year concentration in 2006–2008 (peak cycle) rather than poor GP selection. The LPs backed top-quartile managers who happened to have their worst vintage years coincide with the LP's peak commitment phase. This finding redirected CalPERS's PE strategy toward more consistent pacing (smoother vintage year distribution) rather than manager replacement.</p><p>#### Component 4: Fee Reduction Contribution <strong>What it measures:</strong> The incremental net return generated by the LP's fee-reducing activities (co-investment at zero/reduced carry, management fee offsets, separate accounts with lower fees).</p><p><strong>Methodology:</strong> - Calculate net return of the fee-paying portfolio (standard fund economics) - Add back the fee savings from: (a) co-investment at zero carry (saves 20% of co-invest profits), (b) management fee offsets (reduces base drag), (c) negotiated MFN terms that reduced fees vs. standard economics - The sum of fee savings ÷ total portfolio AUM = fee reduction contribution in bps/annum</p><p><strong>Typical magnitude:</strong> - For a large LP with 20% of PE allocation in zero-carry co-investments (generating average 2× MOIC): fee saving = 20% × 20% × (2× - 1) / years held ≈ 100–150bps annually - Management fee offsets and reduced carry negotiations: additional 25–50bps - Total potential: 125–200bps annual fee reduction contribution for an active co-investor</p><p><strong>Why this matters more than it sounds:</strong> 150bps annual fee saving compounded over a 10-year fund life is a significant drag avoided. For a £10bn PE programme, 150bps = £150m per year in additional net return — a massive figure that justifies significant investment in co-investment capabilities.</p><p>#### Component 5: Programme Construction Contribution <strong>What it measures:</strong> The excess return (or drag) attributable to the LP's allocation decisions within PE — strategy mix, geographic exposure, concentration — over and above what an equally-weighted PE programme would have produced.</p><p><strong>Methodology:</strong> - Define a \"benchmark PE programme\" (e.g., equal weights to buyout, growth, VC, distressed, secondaries in proportion to market) - Calculate what the benchmark programme would have returned - Subtract from the LP's actual programme return - The difference = programme construction contribution</p><p><strong>Sources of positive construction contribution:</strong> - Overweight to buyout when buyout outperforms (but this is often vintage-correlated — hard to attribute to skill) - Overweight to secondaries when secondary discounts are high (post-GFC, denominator effect periods) — a genuine timing skill - Overweight to co-investment when market pricing is attractive — fee-saving plus entry timing - Underweight to specific strategies that underperformed (e.g., early-stage VC for a typical pension fund)</p><p>### Attribution Methodology Challenges</p><p>#### Challenge 1: Realised vs. Unrealised Decomposition - TVPI includes unrealised NAV (RVPI) based on mark-to-model valuations - Attribution based on TVPI may include illusory value that is subsequently written down - <strong>Hamilton Lane approach:</strong> Separate attribution of realised (DPI-based) from unrealised (RVPI-based) — realised attribution is reliable; unrealised attribution is provisional - <strong>Implication:</strong> GP selection alpha that is primarily unrealised should be treated with more scepticism than realised alpha</p><p>#### Challenge 2: Benchmark Comparability - No two PE funds are identical in strategy, geography, and vintage — comparing a fund's return to the \"median PE fund\" requires defining the relevant peer group precisely - Commercial databases (Preqin, Cambridge Associates, PitchBook) have selection bias: GPs that consistently underperform stop reporting to databases, creating survivorship bias in the median - <strong>Best practice:</strong> Use multiple benchmark sources and triangulate; explicitly note if benchmark comparisons rely on potentially biased databases</p><p>#### Challenge 3: J-Curve Distortion - Early in a fund's life, TVPI is dominated by fees paid (management fees reduce NAV) and unrealised early investments — the J-curve means attribution analysis on funds &lt;3 years old is unreliable - Attribution should focus primarily on funds that are substantially invested (&gt;70% of committed capital deployed) and at least 3 years from final close</p><p>#### Challenge 4: Time-Weighted vs. Dollar-Weighted Returns - LP-level attribution requires a consistent return metric - IRR (dollar-weighted) is affected by the timing of capital calls and distributions, which the LP does not control - TVPI/DPI are amount-weighted but time-insensitive - PME is the most appropriate comparison because it holds timing constant and compares to an achievable public market alternative</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### The Five Attribution Components</p><p>#### Component 1: Benchmark Alpha (PE vs. Public Market) <strong>What it measures:</strong> Whether PE as an asset class outperformed an equivalent public market exposure over the LP's measurement period.</p><p><strong>Methodology:</strong> PME (Public Market Equivalent) analysis — see PME Analysis for full mechanics. - Calculate what the LP's actual PE cash flows would have returned if invested in a public index (e.g., MSCI World, S&amp;P 500 + 300bps) at the same times - Compare this PME return to the actual PE programme return - Difference = the LP's total PE programme alpha vs. the public market benchmark</p><p><strong>Interpretation:</strong> - Positive benchmark alpha: PE as actually invested outperformed the public equivalent — validates the asset class decision - Negative benchmark alpha: the LP would have done better investing in public markets at the same times — the PE programme destroyed value vs. passive alternatives - Typical finding (Harris, Jenkinson &amp; Kaplan 2014): US buyout funds from 1984–2008 vintage averaged ~3% annual PME alpha vs. S&amp;P 500. Post-2006 vintages show declining alpha. [needs-verification on current PME alpha]</p><p><strong>Limitation:</strong> The benchmark alpha includes all sources of PE alpha — GP skill, vintage timing, fee effects. Component 1 is the \"total alpha\" number that components 2–5 then decompose.</p><p>#### Component 2: GP Selection Alpha <strong>What it measures:</strong> Whether the LP selected GPs that outperformed the PE benchmark (median PE fund), irrespective of when they were invested.</p><p><strong>Methodology:</strong> - For each fund in the LP's portfolio, calculate relative performance vs. median PE fund of the same vintage year, geography, and strategy - Weight by LP's committed capital to each fund - Sum across the portfolio = GP selection alpha</p><p><strong>Formula:</strong> `GP Selection Alpha = Σ (Fund TVPI - Vintage/Strategy Median TVPI) × (Fund Commitment / Total Commitments)`</p><p><strong>Interpretation:</strong> - Positive GP selection alpha: the LP consistently backed above-median managers — genuine selection skill - Zero GP selection alpha: the LP's GP selection produced average managers — no incremental value from the selection process - Negative GP selection alpha: the LP selected below-median managers — capital would have been better deployed in a PE index (if one existed)</p><p><strong>Evidence from Robinson &amp; Sensoy (2013):</strong> GP selection generates persistent alpha for LPs who maintain consistent GP relationships — the top-quartile GP's top-quartile persistence means LP access to top managers is the primary source of LP alpha.</p><p><strong>The access problem:</strong> GP selection alpha is not equally available to all LPs. Top-quartile GPs (KKR, Blackstone, Apollo, Carlyle) are oversubscribed — not all LPs who want to invest can. LPs who have existing fund relationships, LPAC seats, and co-investment track records have better access to top-quartile managers. This makes GP selection alpha partly a function of LP size and relationship capital, not purely analytical skill.</p><p>#### Component 3: Vintage Year Alpha / Drag <strong>What it measures:</strong> Whether the LP's timing of commitments (intentional or accidental) concentrated capital in above- or below-average vintage years.</p><p><strong>Methodology:</strong> - Calculate the actual vintage year distribution of the LP's committed capital (e.g., 40% in 2006-2008, 30% in 2009-2012, 30% in 2013-2018) - Calculate the return of a \"neutral\" portfolio with equal vintage year exposure - The difference = vintage year alpha (if concentrated in good vintages) or vintage year drag (if concentrated in bad vintages)</p><p><strong>The vintage year problem:</strong> - 2005–2007 vintage: predominantly poor returns (peak valuations + GFC); most LPs who ramped up PE commitments 2005–2008 suffered significant vintage year drag - 2009–2012 vintage: exceptional returns (distressed entry valuations + long bull market recovery) - 2019–2021 vintage: emerging as poor vintages due to peak entry multiples + SOFR shock</p><p><strong>CalPERS example:</strong> CalPERS's 2020 internal performance review found that its below-programme-average PE returns from 2006–2015 were driven primarily by vintage year concentration in 2006–2008 (peak cycle) rather than poor GP selection. The LPs backed top-quartile managers who happened to have their worst vintage years coincide with the LP's peak commitment phase. This finding redirected CalPERS's PE strategy toward more consistent pacing (smoother vintage year distribution) rather than manager replacement.</p><p>#### Component 4: Fee Reduction Contribution <strong>What it measures:</strong> The incremental net return generated by the LP's fee-reducing activities (co-investment at zero/reduced carry, management fee offsets, separate accounts with lower fees).</p><p><strong>Methodology:</strong> - Calculate net return of the fee-paying portfolio (standard fund economics) - Add back the fee savings from: (a) co-investment at zero carry (saves 20% of co-invest profits), (b) management fee offsets (reduces base drag), (c) negotiated MFN terms that reduced fees vs. standard economics - The sum of fee savings ÷ total portfolio AUM = fee reduction contribution in bps/annum</p><p><strong>Typical magnitude:</strong> - For a large LP with 20% of PE allocation in zero-carry co-investments (generating average 2× MOIC): fee saving = 20% × 20% × (2× - 1) / years held ≈ 100–150bps annually - Management fee offsets and reduced carry negotiations: additional 25–50bps - Total potential: 125–200bps annual fee reduction contribution for an active co-investor</p><p><strong>Why this matters more than it sounds:</strong> 150bps annual fee saving compounded over a 10-year fund life is a significant drag avoided. For a £10bn PE programme, 150bps = £150m per year in additional net return — a massive figure that justifies significant investment in co-investment capabilities.</p><p>#### Component 5: Programme Construction Contribution <strong>What it measures:</strong> The excess return (or drag) attributable to the LP's allocation decisions within PE — strategy mix, geographic exposure, concentration — over and above what an equally-weighted PE programme would have produced.</p><p><strong>Methodology:</strong> - Define a \"benchmark PE programme\" (e.g., equal weights to buyout, growth, VC, distressed, secondaries in proportion to market) - Calculate what the benchmark programme would have returned - Subtract from the LP's actual programme return - The difference = programme construction contribution</p><p><strong>Sources of positive construction contribution:</strong> - Overweight to buyout when buyout outperforms (but this is often vintage-correlated — hard to attribute to skill) - Overweight to secondaries when secondary discounts are high (post-GFC, denominator effect periods) — a genuine timing skill - Overweight to co-investment when market pricing is attractive — fee-saving plus entry timing - Underweight to specific strategies that underperformed (e.g., early-stage VC for a typical pension fund)</p><p>### Attribution Methodology Challenges</p><p>#### Challenge 1: Realised vs. Unrealised Decomposition - TVPI includes unrealised NAV (RVPI) based on mark-to-model valuations - Attribution based on TVPI may include illusory value that is subsequently written down - <strong>Hamilton Lane approach:</strong> Separate attribution of realised (DPI-based) from unrealised (RVPI-based) — realised attribution is reliable; unrealised attribution is provisional - <strong>Implication:</strong> GP selection alpha that is primarily unrealised should be treated with more scepticism than realised alpha</p><p>#### Challenge 2: Benchmark Comparability - No two PE funds are identical in strategy, geography, and vintage — comparing a fund's return to the \"median PE fund\" requires defining the relevant peer group precisely - Commercial databases (Preqin, Cambridge Associates, PitchBook) have selection bias: GPs that consistently underperform stop reporting to databases, creating survivorship bias in the median - <strong>Best practice:</strong> Use multiple benchmark sources and triangulate; explicitly note if benchmark comparisons rely on potentially biased databases</p><p>#### Challenge 3: J-Curve Distortion - Early in a fund's life, TVPI is dominated by fees paid (management fees reduce NAV) and unrealised early investments — the J-curve means attribution analysis on funds &lt;3 years old is unreliable - Attribution should focus primarily on funds that are substantially invested (&gt;70% of committed capital deployed) and at least 3 years from final close</p><p>#### Challenge 4: Time-Weighted vs. Dollar-Weighted Returns - LP-level attribution requires a consistent return metric - IRR (dollar-weighted) is affected by the timing of capital calls and distributions, which the LP does not control - TVPI/DPI are amount-weighted but time-insensitive - PME is the most appropriate comparison because it holds timing constant and compares to an achievable public market alternative</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>CalPERS PE Attribution (2020 Review — simplified illustration):</strong> CalPERS found that its PE programme underperformed its benchmark by approximately 100bps annually over the 2006–2015 period [needs-verification on exact figures]. Attribution analysis found: - <strong>GP selection alpha:</strong> +150bps (CalPERS backed consistently above-median managers, including top-quartile relationships with KKR, Carlyle, and Apollo) - <strong>Vintage year drag:</strong> -200bps (CalPERS made its largest commitments in 2006–2008 — the worst PE vintage years in the modern era) - <strong>Fee reduction contribution:</strong> +50bps (co-investment programme active but smaller than optimal for a pension fund of this size) - <strong>Total:</strong> +150 - 200 + 50 = -0bps (approximately flat vs. benchmark, with benchmark alpha of -100bps implying some residual unexplained drag)</p><p><strong>Lesson:</strong> CalPERS had excellent GP selection but was sabotaged by vintage year concentration in the peak cycle. The correct strategic response: better pacing (vintage year diversification via IPS discipline), not manager replacement.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"High PE programme returns imply good GP selection.\"</strong> Not necessarily — a programme concentrated in 2009–2013 vintage years would have generated exceptional returns from any manager, including below-median ones. Vintage year luck can swamp GP selection skill in total return.</li><li><strong>\"Attribution analysis requires fund-by-fund IRRs.\"</strong> TVPI and DPI are typically more appropriate for attribution because they avoid the timing distortions of IRR. PME analysis at the total programme level is the most methodologically sound starting point.</li><li><strong>\"Fee reduction from co-investment is a small effect.\"</strong> For large LPs with active co-investment programmes (20%+ of PE in zero-carry co-investments), fee reduction can be 100–200bps annually — often larger than GP selection alpha.</li><li><strong>\"Attribution analysis tells you what to do going forward.\"</strong> Attribution explains the past. GP selection alpha is the most forward-looking component (skill is persistent); vintage year alpha is backward-looking (timing cannot be replicated by skill). Don't confuse historical attribution with forward projections.</li></ol>"}, "8": {"section": "Summary", "html": "<p>LP performance attribution decomposes a PE programme's total return into five components: benchmark alpha (total PE vs. public markets via PME), GP selection alpha (manager skill), vintage year alpha/drag (commitment timing effects), fee reduction contribution (co-investment and fee negotiations), and programme construction contribution (allocation mix). The most forward-looking finding is GP selection alpha — because GP quality is persistent across vintage years (Robinson &amp; Sensoy), positive historical GP selection alpha justifies prioritising relationship maintenance with top-quartile managers. The most dangerous misread is confusing vintage year luck (concentrated in 2009–2013) with GP selection skill — the CalPERS case illustrates exactly this error. Fee reduction contribution from co-investment is typically the most underappreciated alpha source: 100–200bps annually for large, active co-investors, often exceeding the GP selection alpha itself. Attribution analysis is not retrospective indulgence — it is the diagnostic tool that determines where to allocate LP capital, staff, and relationship resources going forward.</p>"}, "9": {"section": "Summary", "html": "<p>LP performance attribution decomposes a PE programme's total return into five components: benchmark alpha (total PE vs. public markets via PME), GP selection alpha (manager skill), vintage year alpha/drag (commitment timing effects), fee reduction contribution (co-investment and fee negotiations), and programme construction contribution (allocation mix). The most forward-looking finding is GP selection alpha — because GP quality is persistent across vintage years (Robinson &amp; Sensoy), positive historical GP selection alpha justifies prioritising relationship maintenance with top-quartile managers. The most dangerous misread is confusing vintage year luck (concentrated in 2009–2013) with GP selection skill — the CalPERS case illustrates exactly this error. Fee reduction contribution from co-investment is typically the most underappreciated alpha source: 100–200bps annually for large, active co-investors, often exceeding the GP selection alpha itself. Attribution analysis is not retrospective indulgence — it is the diagnostic tool that determines where to allocate LP capital, staff, and relationship resources going forward.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

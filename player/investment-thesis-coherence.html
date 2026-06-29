@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "investment-thesis-coherence", "title": "Investment Thesis Coherence", "draft_watermark": false, "estimated_runtime_sec": 332, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Why good deals still fail", "on_screen_bullets": ["Company performs as expected", "Yet the deal disappoints", "Thesis was never coherent"], "narration": "Here is a pattern that surprises people new to private equity. Most value-creation failures cannot be blamed on the business deteriorating. Very often the company performs roughly as expected — and the deal still disappoints. Why? Because the thesis was incoherent from the start. The operational plan was never actually connected to the reason for buying, or the exit story was never stated and turned out to be unrealistic at the multiples available. So this lesson is about distinguishing genuine conviction from the generic good-business, good-management memo that could describe almost any company. A coherent thesis with measurable milestones is far more predictable than a vague one — which is also why, for anyone valuing a fund position, the coherence of the underlying theses is a real signal of how reliable the marks are.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "One connected argument", "on_screen_bullets": ["Entry, operations, exit", "Internally consistent", "Each tests the others"], "narration": "Here is the definition. Investment thesis coherence is the degree to which a deal's entry rationale, operational plan, and exit hypothesis form a single, internally consistent argument — with each element testing and reinforcing the others, rather than sitting as three independent assertions. That word single is the crux. A coherent thesis is one argument with three connected parts. An incoherent thesis is three separate claims stapled together that happen to be about the same company. The test, throughout, is whether the parts depend on each other — whether the reason you bought drives what you will do, and what you will do produces the outcome that lets you sell. Hold that idea of a connected chain, because the whole lesson is about whether the links actually hold.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "mermaid", "source_section": "Plain-English Explanation", "on_screen_title": "The three connected parts", "on_screen_bullets": ["Entry drives the plan", "Plan produces the outcome", "Outcome validates the exit"], "narration": "Spell out the three parts. The entry story: why is this company attractive, and why now? The operational plan: what specifically will you do to create value? And the exit story: who will buy this at the end, why, and at what multiple? A coherent thesis connects all three, as the diagram shows. The entry rationale determines the operational plan — if you bought it because pricing power is being left on the table, the plan must be about extracting that pricing. The operational plan then produces the very outcome that validates the exit story — the improved margins that a strategic buyer will pay a premium for. Trace the arrows and they form a chain, each link justifying the next. An incoherent thesis, by contrast, is just a list of disconnected bullet points: growing sector, strong management, acquisitions available. Those three assertions do not constitute an argument. They are a list, and a list does not tell you how the money gets made.", "mermaid": "flowchart LR\n  A[Entry rationale<br/>why this, why now] --> B[Operational plan<br/>specific value levers]\n  B --> C[Outcome<br/>margin, growth, scale]\n  C --> D[Exit hypothesis<br/>who buys, what multiple]", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Two coherence tests", "on_screen_bullets": ["Does it survive due diligence?", "Is it in the hundred-day plan?", "Falsifiable beats vague"], "narration": "There are several tests for coherence; start with the two most powerful. First: does the thesis survive due diligence? A coherent thesis makes specific, falsifiable claims that diligence can either validate or refute. Management is strong is not falsifiable. Management has delivered consistent double-digit earnings growth for four straight years, has a retention plan, and has been through a prior ownership cycle — that is falsifiable. Diligence is the stress test; if the thesis survives it intact, it is real, and if the key claims cannot be verified, the thesis is just speculation. Second: is the thesis operationalised in the first hundred days? A coherent thesis maps directly onto the early operational priorities. If the entry rationale is pricing power, the hundred-day plan must contain a concrete pricing workstream with owners, timelines, and revenue targets. If instead the plan is generic — stabilise operations, build rapport, review options — that reveals the thesis was a financial-engineering story with no operational path underneath it.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three more tests", "on_screen_bullets": ["Stated exit, independent assumptions", "One key variable named", "Aware of the sector cycle"], "narration": "Three further tests sharpen the picture. The exit hypothesis must be stated at entry — naming who buys, why, at what multiple, in what timeframe — because market conditions will determine exit is not a hypothesis, it is an evasion, and a stated exit creates accountability. Next, the key assumptions should be independent rather than correlated. A thesis that assumes strong earnings growth, a high exit multiple, and heavy leverage all at once is fragile, because if the growth misses, the debt coverage weakens and the exit multiple compresses and the return collapses, all together. A coherent thesis names the single most important assumption and explains what happens if it fails. And finally, the thesis must be sector-cycle aware: buying at the peak of a cycle on a thesis that depends on multiple expansion is structurally incoherent no matter how well the individual business performs. It should state where in the cycle you are buying and why that gives a margin of safety or a mitigated risk.", "est_sec": 54}, {"n": 6, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The classic failure modes", "on_screen_bullets": ["Good-business and single-lever", "Circular and exit-unvalidated", "Specificity reveals conviction"], "narration": "Learn to recognise the recurring failure modes. The good-business thesis: strong position, experienced management, fragmented market — bullets so generic they could describe almost any company at almost any price, and that very lack of specificity reveals the absence of conviction. The single-lever thesis: the whole return rides on one assumption, usually revenue growth, with no secondary lever and no floor case if it disappoints. The management-dependency thesis, which is fine as long as it addresses retention, succession, and what the business looks like without the key person. The exit-unvalidated thesis: an operational turnaround story that nonetheless assumes a buyer will pay a premium multiple for a business still visibly in recovery — internally inconsistent, because the buyer will apply a recovery discount. And the circular thesis: we will create value by improving earnings, which improves the multiple, which improves returns — which just restates the outcome as if it were the mechanism, explaining nothing about how earnings actually improve.", "est_sec": 56}, {"n": 7, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Coherent versus blind", "on_screen_bullets": ["Retailer: inefficiency drove the plan", "Plan produced the margin", "Sector-blind buyouts ignored disruption"], "narration": "Contrast two patterns. In a coherent case, a buyer acquires a large discount retailer whose entry rationale is specific operational inefficiency relative to peers. That rationale drives the operational plan — modernise the systems, rationalise the product range, renegotiate with suppliers, open new stores at pace. The plan produces the outcome — meaningful margin expansion. And the outcome validates the exit — a premium multiple for what is now a best-in-class operator, realised in a public listing. Every link holds. Now the incoherent pattern: a wave of retail buyouts whose theses ran strong brand, loyal customers, acquisition-led growth — and which ignored the structural disruption reshaping their sector. The businesses might even execute operationally, but the exit hypothesis, a strategic buyer at a healthy multiple, was untenable from the start because the whole category was being disrupted. The thesis was sector-cycle blind: entering at peak valuations without acknowledging the structural headwind that would make exit impossible.", "est_sec": 54}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Longer isn't stronger", "The model isn't the thesis", "Revision isn't failure"], "narration": "Four misconceptions to correct. First, that a longer memo means a stronger thesis — no; the best theses are concise and specific, the worst are long and vague, and volume of evidence never substitutes for a clear argument. Second, that the thesis is the financial model — no; the model quantifies the thesis, but a model can perfectly project the outcomes of a completely incoherent thesis, because the coherence problem exists before any model is built. Third, that good businesses do not need coherent theses — they need them most, because paying a premium for an already-high-quality business is only justified if you can articulate specifically how you will still generate outsized returns from it. And fourth, that revising a thesis is the same as the thesis failing — not necessarily; markets change, and an honest revision with a viable new plan is far healthier than maintaining the fiction that the original thesis is intact.", "est_sec": 52}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Coherence is the test", "on_screen_bullets": ["Five tests for one argument", "Incoherence leaves no playbook", "Specifics over generic comfort"], "narration": "So to summarise: investment thesis coherence is the degree to which entry rationale, operational plan, and exit hypothesis form a single consistent argument. The five tests — surviving diligence, being operationalised in the first hundred days, stating the exit upfront, keeping the key assumptions independent, and being aware of the sector cycle — separate genuine conviction from generic good-business assertions. The common failure modes are the good-business thesis, the single-lever thesis, unaddressed management dependency, sector-cycle blindness, and the circular thesis reasoned backward from a model. And the deepest point: coherence does not prevent a business from deteriorating, but an incoherent thesis produces worse outcomes regardless, because when things get hard there is no operational plan to execute and no exit hypothesis to test against a changed market. Coherence is what gives you a playbook when reality diverges.", "est_sec": 50}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What are the three parts?", "What signals incoherence fastest?", "Why is a floor thesis needed?"], "narration": "Before you move on, answer these from memory. What are the three connected parts of a coherent thesis, and how does each test the next? What is the fastest tell that a thesis is incoherent — what would you look at first? And why does every coherent thesis need a floor case beneath its primary assumption? Work through your own answers first, then check the flashcards.", "est_sec": 28}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Investment Thesis Coherence\n\n[hook] Why good deals still fail\nHere is a pattern that surprises people new to private equity. Most value-creation failures cannot be blamed on the business deteriorating. Very often the company performs roughly as expected — and the deal still disappoints. Why? Because the thesis was incoherent from the start. The operational plan was never actually connected to the reason for buying, or the exit story was never stated and turned out to be unrealistic at the multiples available. So this lesson is about distinguishing genuine conviction from the generic good-business, good-management memo that could describe almost any company. A coherent thesis with measurable milestones is far more predictable than a vague one — which is also why, for anyone valuing a fund position, the coherence of the underlying theses is a real signal of how reliable the marks are.\n\n[definition] One connected argument\nHere is the definition. Investment thesis coherence is the degree to which a deal's entry rationale, operational plan, and exit hypothesis form a single, internally consistent argument — with each element testing and reinforcing the others, rather than sitting as three independent assertions. That word single is the crux. A coherent thesis is one argument with three connected parts. An incoherent thesis is three separate claims stapled together that happen to be about the same company. The test, throughout, is whether the parts depend on each other — whether the reason you bought drives what you will do, and what you will do produces the outcome that lets you sell. Hold that idea of a connected chain, because the whole lesson is about whether the links actually hold.\n\n[intuition] The three connected parts\nSpell out the three parts. The entry story: why is this company attractive, and why now? The operational plan: what specifically will you do to create value? And the exit story: who will buy this at the end, why, and at what multiple? A coherent thesis connects all three, as the diagram shows. The entry rationale determines the operational plan — if you bought it because pricing power is being left on the table, the plan must be about extracting that pricing. The operational plan then produces the very outcome that validates the exit story — the improved margins that a strategic buyer will pay a premium for. Trace the arrows and they form a chain, each link justifying the next. An incoherent thesis, by contrast, is just a list of disconnected bullet points: growing sector, strong management, acquisitions available. Those three assertions do not constitute an argument. They are a list, and a list does not tell you how the money gets made.\n\n[mechanics] Two coherence tests\nThere are several tests for coherence; start with the two most powerful. First: does the thesis survive due diligence? A coherent thesis makes specific, falsifiable claims that diligence can either validate or refute. Management is strong is not falsifiable. Management has delivered consistent double-digit earnings growth for four straight years, has a retention plan, and has been through a prior ownership cycle — that is falsifiable. Diligence is the stress test; if the thesis survives it intact, it is real, and if the key claims cannot be verified, the thesis is just speculation. Second: is the thesis operationalised in the first hundred days? A coherent thesis maps directly onto the early operational priorities. If the entry rationale is pricing power, the hundred-day plan must contain a concrete pricing workstream with owners, timelines, and revenue targets. If instead the plan is generic — stabilise operations, build rapport, review options — that reveals the thesis was a financial-engineering story with no operational path underneath it.\n\n[mechanics] Three more tests\nThree further tests sharpen the picture. The exit hypothesis must be stated at entry — naming who buys, why, at what multiple, in what timeframe — because market conditions will determine exit is not a hypothesis, it is an evasion, and a stated exit creates accountability. Next, the key assumptions should be independent rather than correlated. A thesis that assumes strong earnings growth, a high exit multiple, and heavy leverage all at once is fragile, because if the growth misses, the debt coverage weakens and the exit multiple compresses and the return collapses, all together. A coherent thesis names the single most important assumption and explains what happens if it fails. And finally, the thesis must be sector-cycle aware: buying at the peak of a cycle on a thesis that depends on multiple expansion is structurally incoherent no matter how well the individual business performs. It should state where in the cycle you are buying and why that gives a margin of safety or a mitigated risk.\n\n[application] The classic failure modes\nLearn to recognise the recurring failure modes. The good-business thesis: strong position, experienced management, fragmented market — bullets so generic they could describe almost any company at almost any price, and that very lack of specificity reveals the absence of conviction. The single-lever thesis: the whole return rides on one assumption, usually revenue growth, with no secondary lever and no floor case if it disappoints. The management-dependency thesis, which is fine as long as it addresses retention, succession, and what the business looks like without the key person. The exit-unvalidated thesis: an operational turnaround story that nonetheless assumes a buyer will pay a premium multiple for a business still visibly in recovery — internally inconsistent, because the buyer will apply a recovery discount. And the circular thesis: we will create value by improving earnings, which improves the multiple, which improves returns — which just restates the outcome as if it were the mechanism, explaining nothing about how earnings actually improve.\n\n[example] Coherent versus blind\nContrast two patterns. In a coherent case, a buyer acquires a large discount retailer whose entry rationale is specific operational inefficiency relative to peers. That rationale drives the operational plan — modernise the systems, rationalise the product range, renegotiate with suppliers, open new stores at pace. The plan produces the outcome — meaningful margin expansion. And the outcome validates the exit — a premium multiple for what is now a best-in-class operator, realised in a public listing. Every link holds. Now the incoherent pattern: a wave of retail buyouts whose theses ran strong brand, loyal customers, acquisition-led growth — and which ignored the structural disruption reshaping their sector. The businesses might even execute operationally, but the exit hypothesis, a strategic buyer at a healthy multiple, was untenable from the start because the whole category was being disrupted. The thesis was sector-cycle blind: entering at peak valuations without acknowledging the structural headwind that would make exit impossible.\n\n[application] Four myths\nFour misconceptions to correct. First, that a longer memo means a stronger thesis — no; the best theses are concise and specific, the worst are long and vague, and volume of evidence never substitutes for a clear argument. Second, that the thesis is the financial model — no; the model quantifies the thesis, but a model can perfectly project the outcomes of a completely incoherent thesis, because the coherence problem exists before any model is built. Third, that good businesses do not need coherent theses — they need them most, because paying a premium for an already-high-quality business is only justified if you can articulate specifically how you will still generate outsized returns from it. And fourth, that revising a thesis is the same as the thesis failing — not necessarily; markets change, and an honest revision with a viable new plan is far healthier than maintaining the fiction that the original thesis is intact.\n\n[recap] Coherence is the test\nSo to summarise: investment thesis coherence is the degree to which entry rationale, operational plan, and exit hypothesis form a single consistent argument. The five tests — surviving diligence, being operationalised in the first hundred days, stating the exit upfront, keeping the key assumptions independent, and being aware of the sector cycle — separate genuine conviction from generic good-business assertions. The common failure modes are the good-business thesis, the single-lever thesis, unaddressed management dependency, sector-cycle blindness, and the circular thesis reasoned backward from a model. And the deepest point: coherence does not prevent a business from deteriorating, but an incoherent thesis produces worse outcomes regardless, because when things get hard there is no operational plan to execute and no exit hypothesis to test against a changed market. Coherence is what gives you a playbook when reality diverges.\n\n[end_card] Test yourself\nBefore you move on, answer these from memory. What are the three connected parts of a coherent thesis, and how does each test the next? What is the fastest tell that a thesis is incoherent — what would you look at first? And why does every coherent thesis need a floor case beneath its primary assumption? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The majority of PE value creation failures can be traced to thesis incoherence rather than business deterioration: the company performs as expected, but the GP's operational plan was not connected to the entry rationale, or the exit hypothesis was never stated and turned out to be unrealistic at closing multiples. Understanding thesis coherence is how practitioners distinguish genuine conviction from \"good business, good management\" generic investment memos. For CVC Secondary Partners, secondary pricing depends on the quality of the underlying GP's thesis — a coherent thesis with measurable milestones is more predictable than a vague one, and NAV marks for coherent-thesis companies are more reliable.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Investment thesis coherence is the degree to which a PE deal's entry rationale, operational plan, and exit hypothesis form a single internally consistent argument — with each element testing and reinforcing the others rather than existing as independent assertions.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>An investment thesis is a structured argument for why a company will generate PE-level returns. A coherent thesis has three parts that must connect:</p><ol><li><strong>Entry story</strong>: why is this company attractive, and why now? (e.g., \"undervalued business in a growing sector with untapped geographic expansion opportunity\")</li><li><strong>Operational plan</strong>: what specifically will the GP do to create value? (e.g., \"hire a US CEO, open 3 new markets, implement pricing discipline that competitors can't match\")</li><li><strong>Exit story</strong>: who will buy this at exit, why, and at what multiple? (e.g., \"US strategic buyers will pay 12x for pan-European geographic reach they can't build organically\")</li></ol><p>A coherent thesis connects all three: the entry rationale determines the operational plan, and the operational plan produces the outcome that validates the exit story. An incoherent thesis has independent bullet points: \"Growing sector. Strong management. Acquisition targets available.\" These three assertions don't constitute an argument — they're a list.</p>"}, "3": {"section": "Technical Explanation", "html": "<p><strong>The Five Coherence Tests:</strong></p><p><strong>Test 1: Does the thesis survive due diligence?</strong> A coherent thesis makes specific, falsifiable claims that DD either validates or refutes. \"Management is strong\" is not falsifiable. \"Management has delivered &gt;15% EBITDA CAGR in each of the last 4 years, has a retention plan, and has been through one PE cycle\" is falsifiable. The FDD, CDD, and management DD are the thesis's stress tests — if the thesis survives intact, it is coherent. If key assertions cannot be verified, the thesis is speculation.</p><p><strong>Test 2: Is the thesis operationalised in the 100-day plan?</strong> A coherent thesis maps directly to operational priorities. If the entry rationale is \"pricing power we can extract,\" the 100-day plan must include a specific pricing review workstream with responsible owners, timelines, and revenue targets. If the 100-day plan is generic (\"stabilise operations, build rapport with management, review strategic options\"), it demonstrates the thesis was a financial engineering story — the operational plan is disconnected.</p><p><strong>Test 3: Is the exit hypothesis stated at entry?</strong> A coherent thesis names the exit scenario at entry: who will buy, why, at what multiple, in what timeframe. \"Strategic buyers in the US will pay 11-12x EV/EBITDA for European distribution capabilities they cannot build organically — target exit in Year 4-5\" is a stated exit hypothesis. \"Market conditions will determine exit\" is not. The exit hypothesis creates accountability: if conditions for the exit don't materialise, the GP either changes their plan or acknowledges the thesis is at risk.</p><p><strong>Test 4: Are the key assumptions independent?</strong> A coherent thesis does not have correlated assumptions. \"We will grow EBITDA 20% annually, achieve a 12x exit multiple, and leverage the business at 6x Debt/EBITDA\" are not independent: if EBITDA growth misses, the debt coverage ratio falls AND exit multiples compress AND IRR suffers simultaneously. A coherent thesis identifies the single most important assumption (the \"key man variable\") and explains what happens if it fails.</p><p><strong>Test 5: Is the thesis sector-cycle aware?</strong> A coherent thesis explicitly addresses where in the sector cycle the entry is being made. Buying at cycle peak with a thesis dependent on multiple expansion is structurally incoherent regardless of how well the individual business performs. The thesis should state: \"we are buying at [X]x, which is [below/at/above] sector median, because [specific reason] — this gives us [margin of safety / upside / risk that we have mitigated by...]\"</p><p><strong>Common Thesis Failure Modes:</strong></p><ol><li><strong>The \"good business\" thesis</strong>: \"Strong market position. Experienced management. Fragmented market with consolidation opportunity.\" These three bullets could apply to almost any business in almost any sector at almost any price. The absence of specificity reveals the absence of genuine conviction.</li></ol><ol><li><strong>The single-lever thesis</strong>: the entire return depends on one assumption (e.g., \"revenue grows 20% per year\"), with no secondary levers and no floor thesis if growth disappoints. Coherent theses have a primary thesis and a viable secondary thesis (\"if organic growth misses, FCF generation still supports 2.5x at 5x exit multiple\").</li></ol><ol><li><strong>The management dependency</strong>: \"Execution of the thesis depends on [founder/CEO] remaining and performing.\" This is fine — management risk is manageable. But the thesis should address retention, succession, and what the business looks like without the key person.</li></ol><ol><li><strong>The thesis that can't be exit-validated</strong>: the entry rationale is \"operational turnaround\" but the exit hypothesis requires paying an 11x multiple for a business still in recovery. The exit buyer (strategic or SBO) will apply a recovery discount. The thesis is internally inconsistent.</li></ol><ol><li><strong>The circular thesis</strong>: \"We will create value by improving EBITDA, which will improve our exit multiple, which will improve our returns.\" This restates the outcome as the mechanism — it explains nothing about how EBITDA will improve or why the exit multiple will be higher.</li></ol><p><strong>The Thesis Document:</strong> A coherent PE investment thesis typically fits on one page (not the investment committee memo, which is longer). The page contains: 1. Business description (2 sentences) 2. Entry rationale: why this business, why now, why us (3-5 bullets, each specific and falsifiable) 3. Value creation plan: the three to five operational levers with responsible owners and timelines 4. Key risks and mitigants: the two or three thesis-breaking risks and how the GP manages each 5. Exit hypothesis: buyer universe, exit multiple range, target timeline</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>The Five Coherence Tests:</strong></p><p><strong>Test 1: Does the thesis survive due diligence?</strong> A coherent thesis makes specific, falsifiable claims that DD either validates or refutes. \"Management is strong\" is not falsifiable. \"Management has delivered &gt;15% EBITDA CAGR in each of the last 4 years, has a retention plan, and has been through one PE cycle\" is falsifiable. The FDD, CDD, and management DD are the thesis's stress tests — if the thesis survives intact, it is coherent. If key assertions cannot be verified, the thesis is speculation.</p><p><strong>Test 2: Is the thesis operationalised in the 100-day plan?</strong> A coherent thesis maps directly to operational priorities. If the entry rationale is \"pricing power we can extract,\" the 100-day plan must include a specific pricing review workstream with responsible owners, timelines, and revenue targets. If the 100-day plan is generic (\"stabilise operations, build rapport with management, review strategic options\"), it demonstrates the thesis was a financial engineering story — the operational plan is disconnected.</p><p><strong>Test 3: Is the exit hypothesis stated at entry?</strong> A coherent thesis names the exit scenario at entry: who will buy, why, at what multiple, in what timeframe. \"Strategic buyers in the US will pay 11-12x EV/EBITDA for European distribution capabilities they cannot build organically — target exit in Year 4-5\" is a stated exit hypothesis. \"Market conditions will determine exit\" is not. The exit hypothesis creates accountability: if conditions for the exit don't materialise, the GP either changes their plan or acknowledges the thesis is at risk.</p><p><strong>Test 4: Are the key assumptions independent?</strong> A coherent thesis does not have correlated assumptions. \"We will grow EBITDA 20% annually, achieve a 12x exit multiple, and leverage the business at 6x Debt/EBITDA\" are not independent: if EBITDA growth misses, the debt coverage ratio falls AND exit multiples compress AND IRR suffers simultaneously. A coherent thesis identifies the single most important assumption (the \"key man variable\") and explains what happens if it fails.</p><p><strong>Test 5: Is the thesis sector-cycle aware?</strong> A coherent thesis explicitly addresses where in the sector cycle the entry is being made. Buying at cycle peak with a thesis dependent on multiple expansion is structurally incoherent regardless of how well the individual business performs. The thesis should state: \"we are buying at [X]x, which is [below/at/above] sector median, because [specific reason] — this gives us [margin of safety / upside / risk that we have mitigated by...]\"</p><p><strong>Common Thesis Failure Modes:</strong></p><ol><li><strong>The \"good business\" thesis</strong>: \"Strong market position. Experienced management. Fragmented market with consolidation opportunity.\" These three bullets could apply to almost any business in almost any sector at almost any price. The absence of specificity reveals the absence of genuine conviction.</li></ol><ol><li><strong>The single-lever thesis</strong>: the entire return depends on one assumption (e.g., \"revenue grows 20% per year\"), with no secondary levers and no floor thesis if growth disappoints. Coherent theses have a primary thesis and a viable secondary thesis (\"if organic growth misses, FCF generation still supports 2.5x at 5x exit multiple\").</li></ol><ol><li><strong>The management dependency</strong>: \"Execution of the thesis depends on [founder/CEO] remaining and performing.\" This is fine — management risk is manageable. But the thesis should address retention, succession, and what the business looks like without the key person.</li></ol><ol><li><strong>The thesis that can't be exit-validated</strong>: the entry rationale is \"operational turnaround\" but the exit hypothesis requires paying an 11x multiple for a business still in recovery. The exit buyer (strategic or SBO) will apply a recovery discount. The thesis is internally inconsistent.</li></ol><ol><li><strong>The circular thesis</strong>: \"We will create value by improving EBITDA, which will improve our exit multiple, which will improve our returns.\" This restates the outcome as the mechanism — it explains nothing about how EBITDA will improve or why the exit multiple will be higher.</li></ol><p><strong>The Thesis Document:</strong> A coherent PE investment thesis typically fits on one page (not the investment committee memo, which is longer). The page contains: 1. Business description (2 sentences) 2. Entry rationale: why this business, why now, why us (3-5 bullets, each specific and falsifiable) 3. Value creation plan: the three to five operational levers with responsible owners and timelines 4. Key risks and mitigants: the two or three thesis-breaking risks and how the GP manages each 5. Exit hypothesis: buyer universe, exit multiple range, target timeline</p>"}, "5": {"section": "Technical Explanation", "html": "<p><strong>The Five Coherence Tests:</strong></p><p><strong>Test 1: Does the thesis survive due diligence?</strong> A coherent thesis makes specific, falsifiable claims that DD either validates or refutes. \"Management is strong\" is not falsifiable. \"Management has delivered &gt;15% EBITDA CAGR in each of the last 4 years, has a retention plan, and has been through one PE cycle\" is falsifiable. The FDD, CDD, and management DD are the thesis's stress tests — if the thesis survives intact, it is coherent. If key assertions cannot be verified, the thesis is speculation.</p><p><strong>Test 2: Is the thesis operationalised in the 100-day plan?</strong> A coherent thesis maps directly to operational priorities. If the entry rationale is \"pricing power we can extract,\" the 100-day plan must include a specific pricing review workstream with responsible owners, timelines, and revenue targets. If the 100-day plan is generic (\"stabilise operations, build rapport with management, review strategic options\"), it demonstrates the thesis was a financial engineering story — the operational plan is disconnected.</p><p><strong>Test 3: Is the exit hypothesis stated at entry?</strong> A coherent thesis names the exit scenario at entry: who will buy, why, at what multiple, in what timeframe. \"Strategic buyers in the US will pay 11-12x EV/EBITDA for European distribution capabilities they cannot build organically — target exit in Year 4-5\" is a stated exit hypothesis. \"Market conditions will determine exit\" is not. The exit hypothesis creates accountability: if conditions for the exit don't materialise, the GP either changes their plan or acknowledges the thesis is at risk.</p><p><strong>Test 4: Are the key assumptions independent?</strong> A coherent thesis does not have correlated assumptions. \"We will grow EBITDA 20% annually, achieve a 12x exit multiple, and leverage the business at 6x Debt/EBITDA\" are not independent: if EBITDA growth misses, the debt coverage ratio falls AND exit multiples compress AND IRR suffers simultaneously. A coherent thesis identifies the single most important assumption (the \"key man variable\") and explains what happens if it fails.</p><p><strong>Test 5: Is the thesis sector-cycle aware?</strong> A coherent thesis explicitly addresses where in the sector cycle the entry is being made. Buying at cycle peak with a thesis dependent on multiple expansion is structurally incoherent regardless of how well the individual business performs. The thesis should state: \"we are buying at [X]x, which is [below/at/above] sector median, because [specific reason] — this gives us [margin of safety / upside / risk that we have mitigated by...]\"</p><p><strong>Common Thesis Failure Modes:</strong></p><ol><li><strong>The \"good business\" thesis</strong>: \"Strong market position. Experienced management. Fragmented market with consolidation opportunity.\" These three bullets could apply to almost any business in almost any sector at almost any price. The absence of specificity reveals the absence of genuine conviction.</li></ol><ol><li><strong>The single-lever thesis</strong>: the entire return depends on one assumption (e.g., \"revenue grows 20% per year\"), with no secondary levers and no floor thesis if growth disappoints. Coherent theses have a primary thesis and a viable secondary thesis (\"if organic growth misses, FCF generation still supports 2.5x at 5x exit multiple\").</li></ol><ol><li><strong>The management dependency</strong>: \"Execution of the thesis depends on [founder/CEO] remaining and performing.\" This is fine — management risk is manageable. But the thesis should address retention, succession, and what the business looks like without the key person.</li></ol><ol><li><strong>The thesis that can't be exit-validated</strong>: the entry rationale is \"operational turnaround\" but the exit hypothesis requires paying an 11x multiple for a business still in recovery. The exit buyer (strategic or SBO) will apply a recovery discount. The thesis is internally inconsistent.</li></ol><ol><li><strong>The circular thesis</strong>: \"We will create value by improving EBITDA, which will improve our exit multiple, which will improve our returns.\" This restates the outcome as the mechanism — it explains nothing about how EBITDA will improve or why the exit multiple will be higher.</li></ol><p><strong>The Thesis Document:</strong> A coherent PE investment thesis typically fits on one page (not the investment committee memo, which is longer). The page contains: 1. Business description (2 sentences) 2. Entry rationale: why this business, why now, why us (3-5 bullets, each specific and falsifiable) 3. Value creation plan: the three to five operational levers with responsible owners and timelines 4. Key risks and mitigants: the two or three thesis-breaking risks and how the GP manages each 5. Exit hypothesis: buyer universe, exit multiple range, target timeline</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>KKR / Dollar General (2007-2009): Coherent Thesis</strong> KKR's thesis for Dollar General was specific and coherent: (1) entry rationale — discount retail is recession-resistant; Dollar General's footprint underserved low-income consumers; operational efficiency was poor relative to Family Dollar; (2) operational plan — implement SAP inventory system, optimise SKU count, renegotiate supplier terms, open 400 stores per year; (3) exit hypothesis — IPO at 10-11x EV/EBITDA as a best-in-class discount retailer. Each element connected: the entry rationale (operational inefficiency) drove the operational plan (SAP, SKU rationalisation), which produced the outcome (margin expansion) that validated the exit hypothesis (premium multiple for operational leader). Dollar General IPO'd in 2009 — thesis achieved.</p><p><strong>PE-backed retail buyouts of 2012-2018: Incoherent thesis</strong> Many PE-backed retail buyouts of this period had theses like: \"Strong brand. Loyal customer base. Acquisition-led growth opportunity.\" These missed the structural thesis test: the e-commerce disruption made the exit hypothesis (strategic or SBO buyer at 8-10x) untenable regardless of operational execution. The thesis was sector-cycle unaware — entering at peak brick-and-mortar retail valuations without acknowledging the structural headwind.</p><p><strong>CVC Secondary Partners context:</strong> When CVC evaluates a secondary LP position, GP thesis coherence is a key qualitative assessment in the pricing model. A fund with coherent, milestone-trackable theses in its underlying portfolio is more predictable and commands a smaller discount to NAV than a fund with vague theses and missed milestones. Reading GP quarterly reports for thesis coherence (are milestones still on track? has the thesis been revised?) is standard secondary buyer practice.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"A longer investment memo means a stronger thesis\"</strong> — Volume of evidence does not substitute for a clear argument. The best theses are concise and specific; the worst theses are long and vague.</li><li><strong>\"The thesis is the financial model\"</strong> — The model is the quantification of the thesis, not the thesis itself. A model can perfectly project the outcomes of an incoherent thesis — the coherence problem exists before the model is built.</li><li><strong>\"Good businesses don't need coherent theses\"</strong> — They need them most. Paying a premium for a quality business is only justified if the GP can articulate specifically how they will generate PE-level returns from a business that is already valued for its quality.</li><li><strong>\"Thesis revision is thesis failure\"</strong> — Not necessarily. Markets change, and honest thesis revision with a viable revised plan is better than maintaining a fiction that the original thesis is intact.</li></ol>"}, "8": {"section": "Summary", "html": "<p>Investment thesis coherence is the degree to which a PE deal's entry rationale, operational plan, and exit hypothesis form a single internally consistent argument. The five coherence tests — DD survivability, 100-day plan operationalisation, stated exit hypothesis, independent assumptions, and sector cycle awareness — distinguish genuine conviction from generic \"good business\" assertions. The most common failure modes are: the \"good business\" thesis with no specifics, the single-lever thesis with no floor, management dependency unaddressed, sector cycle blindness, and the circular thesis derived backward from a model. Thesis coherence does not prevent business deterioration, but incoherent theses produce worse outcomes — because there is no operational plan to execute when things get hard, and no exit hypothesis to test when markets change.</p>"}, "9": {"section": "Summary", "html": "<p>Investment thesis coherence is the degree to which a PE deal's entry rationale, operational plan, and exit hypothesis form a single internally consistent argument. The five coherence tests — DD survivability, 100-day plan operationalisation, stated exit hypothesis, independent assumptions, and sector cycle awareness — distinguish genuine conviction from generic \"good business\" assertions. The most common failure modes are: the \"good business\" thesis with no specifics, the single-lever thesis with no floor, management dependency unaddressed, sector cycle blindness, and the circular thesis derived backward from a model. Thesis coherence does not prevent business deterioration, but incoherent theses produce worse outcomes — because there is no operational plan to execute when things get hard, and no exit hypothesis to test when markets change.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "sovereign-wealth-funds-as-pe-lps", "title": "Sovereign Wealth Funds as PE LPs", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The world's permanent capital", "on_screen_bullets": ["Largest pools of permanent capital", "Anchor LP = fundraising catalyst", "Now competing with GPs directly"], "narration": "Sovereign wealth funds represent some of the largest pools of permanent capital in the world. Their behaviour as PE LPs shapes fund sizes, deal structures, and even the competitive landscape — because the largest SWFs have built their own PE teams capable of acquiring companies without a GP intermediary. For a GP, landing a major SWF as an anchor LP is a fundraising catalyst. And for the broader industry, the direct-investing shift of large SWFs is a structural change in how PE capital is deployed. Having just met the most constrained large LP, the pension fund, we now meet the least constrained.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "State-owned, permanent, huge", "on_screen_bullets": ["Funded by surpluses or commodities", "Permanent capital, huge balance sheets", "Growing appetite for direct deals"], "narration": "The definition. Sovereign wealth funds are state-owned investment vehicles funded by government surpluses or commodity revenues that are among the world's most important PE limited partners — distinguished by their permanent capital, very large balance sheets, and growing appetite for direct investment alongside or instead of fund commitments. Permanent capital is the defining feature, and it changes everything about how they invest.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "A nation's investment fund", "on_screen_bullets": ["Oil, surpluses, reserves → a fund", "Norway owns >1% of global stocks", "No fixed payouts → maximum patience"], "narration": "Imagine a country like Norway or Singapore accumulates enormous wealth — from oil revenues, trade surpluses, or central bank reserves. It doesn't leave the money in a bank account; it creates a sovereign wealth fund, a professionally managed vehicle to grow and preserve that wealth for future generations. These funds are massive — Norway's owns over one percent of all publicly listed stocks in the world, and Singapore's GIC manages over seven hundred billion. When they invest in PE, they want the same thing as any LP: better returns than public markets. But they have one big advantage over pensions or endowments — no fixed obligations to pay. There are no retirees waiting for monthly cheques, no professors' salaries depending on quarterly distributions, so an SWF can lock money up for ten, fifteen, even twenty years without pressure. That makes them ideal PE investors — and increasingly, ideal buyers of companies directly, without a GP in the middle charging fees.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "A national family office", "on_screen_bullets": ["Norway: oil trust for grandchildren", "Never forced to sell", "Gulf SWFs: strategic, not just returns"], "narration": "The mental model: think of an SWF as a country's sovereign investment portfolio — analogous to a very wealthy family office, but at national scale and with a political mandate. A Norwegian oil-funded SWF is like a family that struck oil in the backyard and put the profits into a trust for their grandchildren: they don't need to touch the principal, they can invest patiently in illiquid assets, and they'll never be forced to sell — the only real constraint is not doing something embarrassing. A Gulf SWF is more strategic still — it's building economic relationships with global companies as part of a national development agenda, not just maximising financial return. That distinction, pure return versus strategic mandate, separates the major players from one another.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Players + the four tiers", "on_screen_bullets": ["GIC, ADIA, Norway GPFG, KIA, PIF, Mubadala", "No fixed liabilities = max horizon", "Fund LP → co-invest → direct → own platform"], "narration": "Technically, what sets SWFs apart from other LPs is the absence of fixed liabilities — no benefit payments or salaries on a schedule — giving them maximum flexibility to hold illiquid assets indefinitely. The key players range from three hundred billion to over a trillion: GIC, Singapore, over seven hundred billion, with an estimated fifteen-to-twenty-percent-plus in alternatives and one of the most active co-investors; ADIA, Abu Dhabi, around eight hundred billion, ten to fifteen percent in PE; Norway's GPFG, about one-point-four trillion and the largest of all — but, despite its name, essentially absent from unlisted PE, having historically invested only in public equities and bonds; Kuwait's KIA, one of the oldest, established 1953; Saudi Arabia's PIF, over seven hundred billion, investing aggressively as part of Vision 2030, the anchor of SoftBank's Vision Fund; and Mubadala, Abu Dhabi, a very active direct investor with a diversification mandate. They invest across four tiers. Tier one, standard fund-LP commitments — the baseline, diversified PE access without heavy internal infrastructure. Tier two, co-investments at zero or reduced carry, where GIC, ADIA, and Mubadala are among the most active, and twenty-to-forty percent of a large deal's equity may come from SWF co-invest. Tier three, direct PE deals executed entirely without a GP — GIC, Mubadala, and PIF all do this. And tier four, the most aggressive, owning a PE platform outright, as Mubadala has in some contexts. As anchor investors they're strategically critical to fundraising, committing big at first close — two hundred million to two billion-plus — providing a legitimacy signal, and negotiating fee discounts and co-invest priority in exchange. But the most significant structural development is that large SWFs are no longer just LP capital — they increasingly compete directly with PE firms for the same targets, and because they have no management fee or carry to earn back, their cost of capital is lower, so they can bid higher and win on deal certainty.", "est_sec": 80}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "GIC/Hilton and PIF/Vision Fund", "on_screen_bullets": ["GIC co-invested in Blackstone's $26bn Hilton", "PIF: $45bn into a $100bn Vision Fund", "Largest single LP commitment ever"], "narration": "Two illustrations. First, GIC and Hilton: in 2007, Blackstone acquired Hilton Hotels for twenty-six billion dollars, one of the largest LBOs in history, and GIC was a co-investor — committing alongside Blackstone and gaining equity exposure to Hilton without paying full fund fees; when Hilton went public in 2013 and Blackstone eventually exited, GIC realised substantial gains on its co-investment, the classic SWF co-invest in action. Second, Saudi PIF and the SoftBank Vision Fund: Saudi Arabia's Public Investment Fund committed forty-five billion dollars to SoftBank's Vision Fund One, a total of a hundred billion. That is both the largest single LP commitment in PE history and a real departure from normal fund dynamics — the Vision Fund invested in late-stage growth companies like Uber and WeWork rather than buyouts, and the commitment illustrated how geopolitically-motivated SWF investing can reshape fund structures and strategies, even though the Vision Fund ultimately had mixed performance. Together they capture the spectrum: GIC as the disciplined commercial co-investor, PIF as the strategic, mandate-driven mega-allocator.", "est_sec": 60}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["SWFs aren't passive followers", "Not all purely political", "Norway GPFG ≠ big PE LP"], "narration": "Three corrections. First, SWFs are not passive, patient capital that just follows GPs — the largest, GIC, ADIA, and Mubadala, are sophisticated investment organisations with large PE teams capable of independent deal analysis, co-investment execution, and increasingly direct deal sourcing; they're active, not passive. Second, SWF capital is not simply politically motivated rather than commercially rational — while some funds carry geopolitical mandates, most operate on primarily commercial principles, especially GIC, which manages Singapore's reserves on a strict fiduciary basis, and the Santiago Principles require commercial behaviour from member funds. And third, Norway's GPFG is not a major PE investor despite being the world's largest SWF by assets — it has historically avoided unlisted PE, investing mainly in listed equities and bonds, so unlike GIC or ADIA it is not a significant PE LP, a useful reminder that size and PE activity don't always go together.", "est_sec": 52}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Patient, strategic, disintermediating", "on_screen_bullets": ["Permanent capital, no fixed liabilities", "Fund LP → co-invest → direct", "Anchor legitimacy; now GP competitors"], "narration": "To recap. Sovereign wealth funds are state-owned vehicles managing government surpluses, commodity revenues, or reserves for future generations — GIC, ADIA, GPFG, KIA, PIF, and Mubadala, ranging from three hundred billion to one-and-a-half trillion. Their defining feature as PE LPs is permanent capital with no fixed liabilities, giving maximum time-horizon flexibility, and they invest for the return premium, access to private dealflow, and geopolitical diversification. They operate across a spectrum from standard fund-LP commitments through co-investments to aggressive direct-investing programmes that now compete with GPs for targets. As anchor investors they provide critical first-close legitimacy in exchange for fee discounts and co-invest priority, and their shift toward direct investing is one of the most significant structural developments in the industry. That closes the LP-type pair; next we turn to the document at the centre of every fundraise — the Private Placement Memorandum.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "What single feature most distinguishes an SWF from a pension fund as a PE LP, and how does it change their behaviour? Why can a direct-investing SWF outbid a PE firm for the same company?", "narration": "Before the next lesson, answer both. What single feature most distinguishes a sovereign wealth fund from a pension fund as a PE LP, and how does it change their behaviour? And why can a direct-investing SWF outbid a traditional PE firm for the same acquisition target? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Sovereign Wealth Funds as PE LPs\n\n[hook] The world's permanent capital\nSovereign wealth funds represent some of the largest pools of permanent capital in the world. Their behaviour as PE LPs shapes fund sizes, deal structures, and even the competitive landscape — because the largest SWFs have built their own PE teams capable of acquiring companies without a GP intermediary. For a GP, landing a major SWF as an anchor LP is a fundraising catalyst. And for the broader industry, the direct-investing shift of large SWFs is a structural change in how PE capital is deployed. Having just met the most constrained large LP, the pension fund, we now meet the least constrained.\n\n[definition] State-owned, permanent, huge\nThe definition. Sovereign wealth funds are state-owned investment vehicles funded by government surpluses or commodity revenues that are among the world's most important PE limited partners — distinguished by their permanent capital, very large balance sheets, and growing appetite for direct investment alongside or instead of fund commitments. Permanent capital is the defining feature, and it changes everything about how they invest.\n\n[intuition] A nation's investment fund\nImagine a country like Norway or Singapore accumulates enormous wealth — from oil revenues, trade surpluses, or central bank reserves. It doesn't leave the money in a bank account; it creates a sovereign wealth fund, a professionally managed vehicle to grow and preserve that wealth for future generations. These funds are massive — Norway's owns over one percent of all publicly listed stocks in the world, and Singapore's GIC manages over seven hundred billion. When they invest in PE, they want the same thing as any LP: better returns than public markets. But they have one big advantage over pensions or endowments — no fixed obligations to pay. There are no retirees waiting for monthly cheques, no professors' salaries depending on quarterly distributions, so an SWF can lock money up for ten, fifteen, even twenty years without pressure. That makes them ideal PE investors — and increasingly, ideal buyers of companies directly, without a GP in the middle charging fees.\n\n[intuition] A national family office\nThe mental model: think of an SWF as a country's sovereign investment portfolio — analogous to a very wealthy family office, but at national scale and with a political mandate. A Norwegian oil-funded SWF is like a family that struck oil in the backyard and put the profits into a trust for their grandchildren: they don't need to touch the principal, they can invest patiently in illiquid assets, and they'll never be forced to sell — the only real constraint is not doing something embarrassing. A Gulf SWF is more strategic still — it's building economic relationships with global companies as part of a national development agenda, not just maximising financial return. That distinction, pure return versus strategic mandate, separates the major players from one another.\n\n[mechanics] Players + the four tiers\nTechnically, what sets SWFs apart from other LPs is the absence of fixed liabilities — no benefit payments or salaries on a schedule — giving them maximum flexibility to hold illiquid assets indefinitely. The key players range from three hundred billion to over a trillion: GIC, Singapore, over seven hundred billion, with an estimated fifteen-to-twenty-percent-plus in alternatives and one of the most active co-investors; ADIA, Abu Dhabi, around eight hundred billion, ten to fifteen percent in PE; Norway's GPFG, about one-point-four trillion and the largest of all — but, despite its name, essentially absent from unlisted PE, having historically invested only in public equities and bonds; Kuwait's KIA, one of the oldest, established 1953; Saudi Arabia's PIF, over seven hundred billion, investing aggressively as part of Vision 2030, the anchor of SoftBank's Vision Fund; and Mubadala, Abu Dhabi, a very active direct investor with a diversification mandate. They invest across four tiers. Tier one, standard fund-LP commitments — the baseline, diversified PE access without heavy internal infrastructure. Tier two, co-investments at zero or reduced carry, where GIC, ADIA, and Mubadala are among the most active, and twenty-to-forty percent of a large deal's equity may come from SWF co-invest. Tier three, direct PE deals executed entirely without a GP — GIC, Mubadala, and PIF all do this. And tier four, the most aggressive, owning a PE platform outright, as Mubadala has in some contexts. As anchor investors they're strategically critical to fundraising, committing big at first close — two hundred million to two billion-plus — providing a legitimacy signal, and negotiating fee discounts and co-invest priority in exchange. But the most significant structural development is that large SWFs are no longer just LP capital — they increasingly compete directly with PE firms for the same targets, and because they have no management fee or carry to earn back, their cost of capital is lower, so they can bid higher and win on deal certainty.\n\n[worked-example] GIC/Hilton and PIF/Vision Fund\nTwo illustrations. First, GIC and Hilton: in 2007, Blackstone acquired Hilton Hotels for twenty-six billion dollars, one of the largest LBOs in history, and GIC was a co-investor — committing alongside Blackstone and gaining equity exposure to Hilton without paying full fund fees; when Hilton went public in 2013 and Blackstone eventually exited, GIC realised substantial gains on its co-investment, the classic SWF co-invest in action. Second, Saudi PIF and the SoftBank Vision Fund: Saudi Arabia's Public Investment Fund committed forty-five billion dollars to SoftBank's Vision Fund One, a total of a hundred billion. That is both the largest single LP commitment in PE history and a real departure from normal fund dynamics — the Vision Fund invested in late-stage growth companies like Uber and WeWork rather than buyouts, and the commitment illustrated how geopolitically-motivated SWF investing can reshape fund structures and strategies, even though the Vision Fund ultimately had mixed performance. Together they capture the spectrum: GIC as the disciplined commercial co-investor, PIF as the strategic, mandate-driven mega-allocator.\n\n[pitfalls] What people get wrong\nThree corrections. First, SWFs are not passive, patient capital that just follows GPs — the largest, GIC, ADIA, and Mubadala, are sophisticated investment organisations with large PE teams capable of independent deal analysis, co-investment execution, and increasingly direct deal sourcing; they're active, not passive. Second, SWF capital is not simply politically motivated rather than commercially rational — while some funds carry geopolitical mandates, most operate on primarily commercial principles, especially GIC, which manages Singapore's reserves on a strict fiduciary basis, and the Santiago Principles require commercial behaviour from member funds. And third, Norway's GPFG is not a major PE investor despite being the world's largest SWF by assets — it has historically avoided unlisted PE, investing mainly in listed equities and bonds, so unlike GIC or ADIA it is not a significant PE LP, a useful reminder that size and PE activity don't always go together.\n\n[recap] Patient, strategic, disintermediating\nTo recap. Sovereign wealth funds are state-owned vehicles managing government surpluses, commodity revenues, or reserves for future generations — GIC, ADIA, GPFG, KIA, PIF, and Mubadala, ranging from three hundred billion to one-and-a-half trillion. Their defining feature as PE LPs is permanent capital with no fixed liabilities, giving maximum time-horizon flexibility, and they invest for the return premium, access to private dealflow, and geopolitical diversification. They operate across a spectrum from standard fund-LP commitments through co-investments to aggressive direct-investing programmes that now compete with GPs for targets. As anchor investors they provide critical first-close legitimacy in exchange for fee discounts and co-invest priority, and their shift toward direct investing is one of the most significant structural developments in the industry. That closes the LP-type pair; next we turn to the document at the centre of every fundraise — the Private Placement Memorandum.\n\nEnd-card question: What single feature most distinguishes an SWF from a pension fund as a PE LP, and how does it change their behaviour? Why can a direct-investing SWF outbid a PE firm for the same company?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>SWFs represent some of the largest pools of permanent capital in the world. Their behaviour as PE LPs shapes fund sizes, deal structures, and even the competitive landscape — as the largest SWFs have built their own PE teams capable of acquiring companies without a GP intermediary. For a GP, landing a major SWF as an anchor LP is a fundraising catalyst. For the broader PE industry, the direct investing shift of large SWFs represents a structural change in how PE capital is deployed.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Sovereign wealth funds (SWFs) are state-owned investment vehicles funded by government surpluses or commodity revenues that are among the world's most important PE limited partners, distinguished by their permanent capital, very large balance sheets, and growing appetite for direct investment alongside or instead of fund commitments.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a country like Norway or Singapore accumulates enormous wealth — from oil revenues, trade surpluses, or central bank reserves. That country doesn't just leave the money sitting in a bank account. It creates a sovereign wealth fund: a professionally managed investment vehicle to grow and preserve that wealth for future generations.</p><p>These funds are massive. Norway's sovereign wealth fund owns over 1% of all publicly listed stocks in the world. Singapore's GIC manages over $700B.</p><p>When SWFs invest in PE, they're looking for the same thing as any other LP: better returns than public markets. But they have one big advantage over pension funds or endowments: <strong>they have no fixed obligations to pay</strong>. There are no retirees waiting for monthly cheques, no university professors whose salaries depend on quarterly distributions. An SWF can lock money up for 10, 15, even 20 years without pressure.</p><p>This makes them ideal PE investors — and increasingly, ideal buyers of companies directly, without a GP in the middle charging fees.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of an SWF as a country's sovereign investment portfolio — analogous to a very wealthy individual's family office, but at national scale and with political mandate.</p><p>A Norwegian oil-funded SWF is like a family that struck oil in their backyard and put the profits into a trust fund for their grandchildren. They don't need to touch the principal. They can invest patiently in illiquid assets. They'll never be forced to sell. The only constraint is not doing something embarrassing.</p><p>A Gulf SWF is more strategic — it's building economic relationships with global companies as part of a national development agenda, not just maximising financial return.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### What Makes SWFs Different from Other LPs</p><p>| Feature | Pension Fund | Endowment | SWF | |---|---|---|---| | Funding source | Employer/employee contributions | Donations, investment income | Government surpluses, commodity revenue | | Fixed liabilities | Yes (benefit payments) | Partial (spending policy) | No (or minimal) | | Time horizon | 30-50 years | Perpetual | Multigenerational / permanent | | Regulatory constraint | High (actuarial, solvency) | Low | Minimal (state-owned) | | Political scrutiny | High (public pensions) | Low-medium | Varies by country | | Typical size | $10B-$500B | $1B-$50B | $100B-$1.4T |</p><p><strong>The key difference: no fixed liabilities.</strong> SWFs don't face the constraint of having to pay pensions or salaries on a schedule. This gives them maximum flexibility to hold illiquid assets indefinitely without creating portfolio stress.</p><p>### Key SWF Players in PE</p><p><strong>GIC (Government Investment Corporation of Singapore)</strong> - AUM: ~$700B+ - PE/alternative allocation: estimated 15-20%+ - Approach: Fund LP + co-investments + direct deals - PE teams in Singapore and globally; one of the most active co-investors</p><p><strong>ADIA (Abu Dhabi Investment Authority)</strong> - AUM: ~$800B+ - PE allocation: ~10-15% of total - Approach: Major LP in global PE funds; selective co-investing; growing direct program - Known for committing to multiple large-cap funds simultaneously</p><p><strong>Norway GPFG (Government Pension Fund Global)</strong> - AUM: ~$1.4T - Note: Despite its name, this is a sovereign wealth fund, not a pension fund - PE allocation: Essentially zero until recent debate; primarily public equities and bonds; has debated unlisted PE allocation - Different from GIC/ADIA in that its mandate historically excluded unlisted PE (being reconsidered)</p><p><strong>Kuwait Investment Authority (KIA)</strong> - AUM: ~$700B - One of the world's oldest SWFs (established 1953) - PE allocation: significant but less transparent than GIC or ADIA</p><p><strong>Saudi Arabia PIF (Public Investment Fund)</strong> - AUM: ~$700B+ - Recent aggressive PE investing as part of Vision 2030 economic diversification - Anchor investor in SoftBank Vision Fund I ($45B commitment from PIF) - Direct investments in global companies (Uber, Lucid Motors, sports franchises) - Evolving from passive LP toward direct deal execution</p><p><strong>Mubadala Investment Company (Abu Dhabi)</strong> - AUM: ~$300B+ - Very active direct PE investor; co-invests heavily; strategic mandate (economic diversification for UAE)</p><p>### Why SWFs Invest in PE</p><p><strong>1. Return premium over public equities</strong> PE's net return premium of ~3-5% over public markets, compounded over permanent capital, represents enormous long-term wealth creation. For a $700B fund with 15% PE allocation ($105B), a 3% annual premium = $3.15B additional annual return.</p><p><strong>2. Permanent time horizon</strong> No liability constraints means SWFs can hold PE investments indefinitely without forced selling, making them ideal providers of patient capital for long-duration strategies.</p><p><strong>3. Access to private dealflow</strong> SWFs with PE relationships gain exposure to private company growth that is unavailable in public markets — particularly in technology, healthcare, and infrastructure.</p><p><strong>4. Geopolitical and economic diversification</strong> For commodity-dependent countries (Saudi Arabia, Gulf states), PE investing in global private companies diversifies their wealth base away from resource dependency — as explicitly stated in Saudi Arabia's Vision 2030 strategy.</p><p><strong>5. Prestige and relationship-building</strong> Being LP in global PE funds provides SWFs access to global business networks, deal flow, and economic relationships that have strategic value beyond pure financial return.</p><p>### SWF Investment Approaches in PE</p><p><strong>Tier 1: Fund LP Commitments (standard)</strong> All SWFs commit as standard LPs to major PE funds. This is the baseline — access to diversified PE returns without requiring extensive internal infrastructure.</p><p><strong>Tier 2: Co-Investments</strong> Active co-investing alongside GP deals at zero or reduced carry. GIC, ADIA, and Mubadala are among the world's most active co-investors. For a large deal ($5B+ enterprise value), 20-40% of equity may come from SWF co-investment. This substantially improves SWF net returns.</p><p><strong>Tier 3: Direct PE Deals</strong> Largest SWFs execute deals entirely without a GP: - GIC directly acquired stakes in global companies (e.g., financial services, real estate, infrastructure) - Mubadala executes direct PE buyouts globally - Saudi PIF has made substantial direct investments in global companies</p><p><strong>Tier 4: Own a PE Platform</strong> Most aggressive: some SWFs have effectively built or acquired PE businesses. Mubadala has acquired stakes in management companies and operates as a GP in some contexts.</p><p>### SWFs as Anchor Investors in Fundraising</p><p>For GPs raising a new fund, securing an SWF anchor commitment is strategically critical: - SWFs typically commit at first close at large sizes ($200M-$2B+) - First-close anchor = legitimacy signal to other LPs - SWFs often negotiate preferential terms (fee discounts, co-invest priority) in exchange for anchor commitment - GPs who successfully partner with Gulf or Asian SWFs gain diversification beyond traditional US/European LP base</p><p><strong>The \"anchor LP\" negotiation:</strong> An SWF committing $1B+ to a $5B fund may negotiate: - 15-25 basis point management fee reduction - Priority co-investment allocation on deals above $1B enterprise value - LPAC seat - Enhanced reporting (portfolio company financials quarterly, not annually)</p><p>### SWFs as Competitors to GPs</p><p>The most significant structural development: large SWFs are no longer just LP capital — they are increasingly competing directly with PE firms for the same acquisition targets.</p><p><strong>How this plays out:</strong> - A PE firm and GIC both submit bids for a company in a competitive auction - GIC can offer a higher price because it has no management fee or carry to earn back — its cost of capital is lower than the PE firm's - GIC may also win on deal certainty (no fund-raising risk, immediate capital availability)</p><p><strong>Implications for mid-market GPs:</strong> - For large-cap deals ($1B+ equity), SWFs compete directly - This compresses PE returns in the large-cap segment as SWFs drive up prices - Mid-market GPs ($100M-$500M equity) are less affected — below SWF operational threshold</p><p><strong>Implications for LP relationships:</strong> - Some GPs have responded by deepening GP-SWF partnerships (exclusive co-investment on a deal, SWF helps GP win the auction) - This creates a new deal-sourcing dynamic where GP + SWF are allied rather than competing</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>GIC and the Hilton Hotels LBO</strong> In 2007, Blackstone acquired Hilton Hotels for $26B in one of the largest LBOs in history. GIC was a co-investor in this transaction — committing alongside Blackstone and gaining equity exposure to Hilton without paying full fund fees. When Hilton went public in 2013 and Blackstone eventually exited, GIC realised substantial gains on its co-investment.</p><p><strong>Saudi PIF and SoftBank Vision Fund</strong> Saudi Arabia's Public Investment Fund committed $45B to SoftBank's Vision Fund I (total size $100B). This is both the largest single LP commitment in PE history and a departure from normal PE fund dynamics — SoftBank Vision Fund invested in late-stage growth companies (Uber, WeWork, etc.) rather than buyouts. PIF's commitment illustrated how geopolitically-motivated SWF investing can reshape fund structures and strategies. The Vision Fund ultimately had mixed performance.</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"SWFs are passive, patient capital that just follow GPs.\"</strong> The largest SWFs (GIC, ADIA, Mubadala) are sophisticated investment organisations with large PE teams capable of independent deal analysis, co-investment execution, and increasingly direct deal sourcing. They are active, not passive.</p><p><strong>Misconception 2: \"SWF capital is politically motivated, not commercially rational.\"</strong> While some SWFs have geopolitical mandates, most operate on primarily commercial investment principles (especially GIC, which manages Singapore's reserves on a strict fiduciary basis). The Santiago Principles require commercial investment behaviour from IFSWF members.</p><p><strong>Misconception 3: \"Norway GPFG is a major PE investor.\"</strong> Norway's fund has historically avoided unlisted PE, investing primarily in listed equities and bonds. Despite being the world's largest SWF by AUM, it is not a significant PE LP — unlike GIC or ADIA.</p>"}, "7": {"section": "Summary", "html": "<p>Sovereign wealth funds are state-owned investment vehicles managing government surpluses, commodity revenues, or reserves for future generations. Key players include GIC, ADIA, GPFG, KIA, and Saudi PIF — ranging from $300B to $1.4T in AUM. Their defining feature as PE LPs is permanent capital with no fixed liabilities, providing maximum time horizon flexibility. SWFs invest in PE for the return premium, access to private dealflow, and geopolitical diversification. They operate across a spectrum from standard fund LP commitments to aggressive direct investing programs that now compete with GPs for acquisition targets. As anchor investors in fundraises, SWFs provide critical first-close legitimacy in exchange for fee discounts and co-investment priority. The shift of large SWFs toward direct investing is one of the most significant structural developments in the PE industry.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

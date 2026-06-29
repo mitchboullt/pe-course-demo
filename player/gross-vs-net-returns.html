@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "gross-vs-net-returns", "title": "Gross vs Net Returns", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Whose number is it?", "on_screen_bullets": ["Gross or net changes everything", "Fees cut IRR by 3–5+ pts", "Only net matters to an LP"], "narration": "Every GP pitches its track record with a return number — and that number is meaningless, even misleading, until you know one thing: is it gross or net? The gap between the two is large and unavoidable. Management fees alone can knock three to five percentage points or more off the IRR. Carry takes twenty percent of the profits above the hurdle. Fund expenses add more drag. And from an LP's chair, only net returns matter — net is what you can actually compound, compare to other asset classes, and use to pay your beneficiaries. So whenever you see a return, the first question is always: whose number is this — the GP's, or mine?", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Before vs. after fees", "on_screen_bullets": ["Gross: raw, before fees", "Net: what LPs actually keep", "The gap is significant"], "narration": "The definition. Gross returns are the raw investment performance at the fund level, before any fees are taken out — they measure deal-level skill. Net returns are what the LPs actually receive, after management fees, carried interest, and fund expenses are removed. The gap between the two is significant, and it's non-negotiable — it's not a rounding error, it's the price of the partnership.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The manager takes a cut", "on_screen_bullets": ["$100 → $250: 2.5x, ~20% gross", "Fee: $2/yr × 5 = $10", "Plus 20% of profits → net is lower"], "narration": "In plain terms: you hire a manager to invest a hundred dollars for you. They do brilliantly — it grows to two hundred and fifty over five years, two-and-a-half times your money, roughly twenty percent a year. Impressive. But they charge you. A management fee of two dollars a year for five years — ten dollars. And when profits are made, they take twenty percent of everything above a minimum. So after all the charges, you don't pocket two hundred and fifty — you receive less. The investment earned twenty percent gross; your net IRR, what you actually walk away with, is meaningfully lower. GPs love to lead with the gross number in marketing precisely because it's the bigger one.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The restaurant bill", "on_screen_bullets": ["Headline meal: $250", "+18% service, +$10 fee", "+20% over a minimum = the real cost"], "narration": "Think of a restaurant where the headline bill — the gross return — shows a fantastic two-hundred-and-fifty-dollar meal. But then come the additions. An eighteen percent service charge — the management fee — added automatically. A ten-dollar premium membership fee for the booking platform — the fund expenses. And a mandatory twenty percent chef's tip on any meal above a set price — the carry. The food was genuinely excellent; the meal was real. But the actual cost to you — your net return — is meaningfully less than the headline two-fifty, once every charge is layered on. An LP is the customer who has to work out the real all-in cost before deciding the restaurant was worth it.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The gross-to-net bridge", "on_screen_bullets": ["Layer 1: management fees", "Layer 2: carry (20% over 8%)", "Layer 3: fund expenses"], "narration": "Net is built from gross by subtracting three layers. Layer one, management fees — typically two percent a year on committed capital in the first five years, then one and a half to two percent on invested capital or NAV during the harvest. These are drawn from LP capital, so they also reduce the money actually working in deals. Layer two, carried interest — typically twenty percent of profits above the hurdle, usually an eight percent preferred return; the GP's profit share. And layer three, fund expenses — legal, audit, administration — a smaller but real drag. Stack those three and you've bridged from the gross headline to the net number an LP keeps. Notice the fees compound against you: fee-reduced capital earns the returns, so the drag is bigger than the sticker rate suggests.", "est_sec": 54}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "24% gross → ~16–18% net", "on_screen_bullets": ["$500m fund, 2 and 20, 8% hurdle", "Gross IRR 24%, gross MOIC 3.0x", "Fee −3–4 · carry −3–4 · exp −0.5"], "narration": "Put numbers on a typical mid-market fund. Five hundred million committed, a two percent fee on commitments for the first five years, twenty percent carry over an eight percent hurdle, ten-year life. Say it achieves a gross IRR of twenty-four percent and a gross MOIC of three times on invested capital — a strong result. Now bridge to net. Management-fee drag takes off roughly three to four percentage points. Carry drag takes another three to four. Fund expenses, about half a point. Add those up and the net IRR to LPs lands at roughly sixteen to eighteen percent. So a headline twenty-four becomes a take-home sixteen-to-eighteen — and that gap, six to eight points a year compounding over a decade, is enormous in dollar terms. Even so, sixteen to eighteen percent net is a genuinely good outcome — which is exactly why LPs keep paying for it, while scrutinising every layer.", "est_sec": 62}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Gross skill ≠ best net outcome", "Net ≠ gross minus 20%", "Always ask: gross or net?"], "narration": "Two corrections. First, gross returns measure deal-level skill, but they're not the whole story — a GP doing twenty-five percent gross while charging rich fees, aggressive carry, and heavy overhead can deliver a worse net result than a GP doing twenty percent gross on LP-friendly terms. Skill and terms both decide what you keep. Second, net is not simply gross minus twenty percent carry. The gross-to-net gap is the combination of management fees — charged on committed capital, including the uninvested part — carry, which applies only to profits above the hurdle, and expenses. It's three moving layers, not one flat haircut. The practical habit is the simplest one: on every return you ever see, ask whether it's gross or net before you believe it.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Net is what you keep", "on_screen_bullets": ["Gross = skill; net = take-home", "Three layers: fees, carry, expenses", "LPs care only about net"], "narration": "To recap. Gross returns are the raw fund-level performance before fees; net returns are what LPs actually receive after management fees, carry, and expenses. The gross-to-net bridge has three layers — fees on committed capital, twenty percent carry above the hurdle, and fund expenses — and together they can turn a twenty-four percent gross IRR into roughly sixteen to eighteen percent net. Gross measures the GP's deal skill; net is what an LP can compound and pay out, so for an LP, only net matters. And remember the manipulation risk we flagged earlier — IRR especially can be dressed up — which is why the next lesson rounds out the metrics with DPI, RVPI, and TVPI: the numbers that show how much of the return is real cash versus paper.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A fund reports a 24% gross IRR. After ~2% management fees, 20% carry over an 8% hurdle, and fund expenses, roughly what net IRR does an LP receive — and why is the gap non-negotiable?", "narration": "Before the next lesson, estimate it yourself. A fund posts twenty-four percent gross — after the two-and-twenty fees, the hurdle, and expenses, roughly what does the LP actually take home, and why is that gap unavoidable? Reason it through, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "A GP reports a 25% gross IRR on their latest fund. A fund of funds manager estimates the net IRR delivered to end investors is 14%. The 11pp gap is explained by:\na) The fund only partially invested its capital\nb) Management fees, carried interest, and fund expenses deducted from returns\nc) Currency hedging costs\nd) The 8% hurdle rate", "answer": "**b)** Management fees, carried interest, and fund expenses — the three layers of the gross-to-net bridge."}, {"label": "Q2.", "question": "Why do LPs care about net returns rather than gross returns?\na) Net returns are always higher and more impressive\nb) Gross returns are not meaningful because they are estimated\nc) Net returns represent what LPs actually receive — the actual return on their committed capital after all fees\nd) Net returns are reported by regulators and therefore more reliable", "answer": "**c)** Net is what the LP can actually compound, spend, or benchmark — gross measures the GP's deal skill, not the LP's outcome."}, {"label": "Q3.", "question": "A $1B PE fund charges 2% annual management fees on committed capital during the 5-year investment period. How much in total management fees does this represent?\na) $2M\nb) $10M\nc) $100M\nd) $20M", "answer": "**c) $100M** (2% × $1B × 5 years) — charged on *committed* capital, even before it's deployed."}, {"label": "Q4.", "question": "Carried interest is typically charged:\na) On all profits from the fund\nb) Only on profits that exceed the hurdle rate (preferred return)\nc) Equally on all invested capital regardless of performance\nd) Only when gross IRR exceeds 25%", "answer": "**b)** Only on profits above the hurdle (typically 8%)."}, {"label": "Q5.", "question": "A large LP negotiates a \"1.5 and 15\" fee structure versus the standard \"2 and 20.\" All else equal, this should:\na) Reduce the GP's motivation and therefore reduce gross returns\nb) Reduce the gross-to-net gap, improving LP net returns relative to a standard-fee investor in the same fund\nc) Increase the gross-to-net gap because management fees are lower\nd) Have no effect if gross returns are high enough", "answer": "**b)** Lower fees and carry shrink the gross-to-net gap — the same gross return reaches the LP more fully."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Gross vs Net Returns\n\n[hook] Whose number is it?\nEvery GP pitches its track record with a return number — and that number is meaningless, even misleading, until you know one thing: is it gross or net? The gap between the two is large and unavoidable. Management fees alone can knock three to five percentage points or more off the IRR. Carry takes twenty percent of the profits above the hurdle. Fund expenses add more drag. And from an LP's chair, only net returns matter — net is what you can actually compound, compare to other asset classes, and use to pay your beneficiaries. So whenever you see a return, the first question is always: whose number is this — the GP's, or mine?\n\n[definition] Before vs. after fees\nThe definition. Gross returns are the raw investment performance at the fund level, before any fees are taken out — they measure deal-level skill. Net returns are what the LPs actually receive, after management fees, carried interest, and fund expenses are removed. The gap between the two is significant, and it's non-negotiable — it's not a rounding error, it's the price of the partnership.\n\n[intuition] The manager takes a cut\nIn plain terms: you hire a manager to invest a hundred dollars for you. They do brilliantly — it grows to two hundred and fifty over five years, two-and-a-half times your money, roughly twenty percent a year. Impressive. But they charge you. A management fee of two dollars a year for five years — ten dollars. And when profits are made, they take twenty percent of everything above a minimum. So after all the charges, you don't pocket two hundred and fifty — you receive less. The investment earned twenty percent gross; your net IRR, what you actually walk away with, is meaningfully lower. GPs love to lead with the gross number in marketing precisely because it's the bigger one.\n\n[intuition] The restaurant bill\nThink of a restaurant where the headline bill — the gross return — shows a fantastic two-hundred-and-fifty-dollar meal. But then come the additions. An eighteen percent service charge — the management fee — added automatically. A ten-dollar premium membership fee for the booking platform — the fund expenses. And a mandatory twenty percent chef's tip on any meal above a set price — the carry. The food was genuinely excellent; the meal was real. But the actual cost to you — your net return — is meaningfully less than the headline two-fifty, once every charge is layered on. An LP is the customer who has to work out the real all-in cost before deciding the restaurant was worth it.\n\n[mechanics] The gross-to-net bridge\nNet is built from gross by subtracting three layers. Layer one, management fees — typically two percent a year on committed capital in the first five years, then one and a half to two percent on invested capital or NAV during the harvest. These are drawn from LP capital, so they also reduce the money actually working in deals. Layer two, carried interest — typically twenty percent of profits above the hurdle, usually an eight percent preferred return; the GP's profit share. And layer three, fund expenses — legal, audit, administration — a smaller but real drag. Stack those three and you've bridged from the gross headline to the net number an LP keeps. Notice the fees compound against you: fee-reduced capital earns the returns, so the drag is bigger than the sticker rate suggests.\n\n[worked-example] 24% gross → ~16–18% net\nPut numbers on a typical mid-market fund. Five hundred million committed, a two percent fee on commitments for the first five years, twenty percent carry over an eight percent hurdle, ten-year life. Say it achieves a gross IRR of twenty-four percent and a gross MOIC of three times on invested capital — a strong result. Now bridge to net. Management-fee drag takes off roughly three to four percentage points. Carry drag takes another three to four. Fund expenses, about half a point. Add those up and the net IRR to LPs lands at roughly sixteen to eighteen percent. So a headline twenty-four becomes a take-home sixteen-to-eighteen — and that gap, six to eight points a year compounding over a decade, is enormous in dollar terms. Even so, sixteen to eighteen percent net is a genuinely good outcome — which is exactly why LPs keep paying for it, while scrutinising every layer.\n\n[pitfalls] What people get wrong\nTwo corrections. First, gross returns measure deal-level skill, but they're not the whole story — a GP doing twenty-five percent gross while charging rich fees, aggressive carry, and heavy overhead can deliver a worse net result than a GP doing twenty percent gross on LP-friendly terms. Skill and terms both decide what you keep. Second, net is not simply gross minus twenty percent carry. The gross-to-net gap is the combination of management fees — charged on committed capital, including the uninvested part — carry, which applies only to profits above the hurdle, and expenses. It's three moving layers, not one flat haircut. The practical habit is the simplest one: on every return you ever see, ask whether it's gross or net before you believe it.\n\n[recap] Net is what you keep\nTo recap. Gross returns are the raw fund-level performance before fees; net returns are what LPs actually receive after management fees, carry, and expenses. The gross-to-net bridge has three layers — fees on committed capital, twenty percent carry above the hurdle, and fund expenses — and together they can turn a twenty-four percent gross IRR into roughly sixteen to eighteen percent net. Gross measures the GP's deal skill; net is what an LP can compound and pay out, so for an LP, only net matters. And remember the manipulation risk we flagged earlier — IRR especially can be dressed up — which is why the next lesson rounds out the metrics with DPI, RVPI, and TVPI: the numbers that show how much of the return is real cash versus paper.\n\nQ: A GP reports a 25% gross IRR on their latest fund. A fund of funds manager estimates the net IRR delivered to end investors is 14%. The 11pp gap is explained by:\na) The fund only partially invested its capital\nb) Management fees, carried interest, and fund expenses deducted from returns\nc) Currency hedging costs\nd) The 8% hurdle rate\nA: **b)** Management fees, carried interest, and fund expenses — the three layers of the gross-to-net bridge.\nQ: Why do LPs care about net returns rather than gross returns?\na) Net returns are always higher and more impressive\nb) Gross returns are not meaningful because they are estimated\nc) Net returns represent what LPs actually receive — the actual return on their committed capital after all fees\nd) Net returns are reported by regulators and therefore more reliable\nA: **c)** Net is what the LP can actually compound, spend, or benchmark — gross measures the GP's deal skill, not the LP's outcome.\nQ: A $1B PE fund charges 2% annual management fees on committed capital during the 5-year investment period. How much in total management fees does this represent?\na) $2M\nb) $10M\nc) $100M\nd) $20M\nA: **c) $100M** (2% × $1B × 5 years) — charged on *committed* capital, even before it's deployed.\nQ: Carried interest is typically charged:\na) On all profits from the fund\nb) Only on profits that exceed the hurdle rate (preferred return)\nc) Equally on all invested capital regardless of performance\nd) Only when gross IRR exceeds 25%\nA: **b)** Only on profits above the hurdle (typically 8%).\nQ: A large LP negotiates a \"1.5 and 15\" fee structure versus the standard \"2 and 20.\" All else equal, this should:\na) Reduce the GP's motivation and therefore reduce gross returns\nb) Reduce the gross-to-net gap, improving LP net returns relative to a standard-fee investor in the same fund\nc) Increase the gross-to-net gap because management fees are lower\nd) Have no effect if gross returns are high enough\nA: **b)** Lower fees and carry shrink the gross-to-net gap — the same gross return reaches the LP more fully.\nEnd-card question: A fund reports a 24% gross IRR. After ~2% management fees, 20% carry over an 8% hurdle, and fund expenses, roughly what net IRR does an LP receive — and why is the gap non-negotiable?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Every GP pitches their track record using return numbers. Without understanding whether those numbers are gross or net, those figures are meaningless — and potentially misleading. The gross-to-net gap is typically substantial:</p><ul class='notelist'><li>Management fees can reduce gross IRR by 3–5+ percentage points</li><li>Carried interest takes 20% of profits above the hurdle rate</li><li>Fund expenses (legal, audit, administration) add additional drag</li></ul><p>From an LP's perspective: <strong>only net returns matter</strong>. Net returns are what an LP can compound further, compare against other asset classes, or use to pay beneficiaries. The GP's gross returns measure deal-level skill; the net returns measure whether investing in this fund is worthwhile after the cost of accessing that skill.</p><p>This distinction is also central to PE fund benchmarking, LP due diligence, and regulatory disclosure debates around fee transparency.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Gross returns are the raw investment performance at the fund level before any fees are deducted; net returns are what LPs actually receive after management fees, carried interest, and fund expenses are removed — and the gap between the two is significant and non-negotiable.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you hire a fund manager to invest $100 on your behalf. They invest brilliantly: your $100 grows to $250 over 5 years. That's a 2.5× MOIC and roughly 20% IRR. Impressive.</p><p>But the manager charges you: - An annual management fee of $2 per year for 5 years = $10 total - When profits are made, they take 20% of all profits above a certain minimum = a share of profits</p><p>After all charges, you don't receive $250. You receive less. The investment earned 20% gross IRR. Your net IRR — what you actually earned — is meaningfully lower.</p><p>This is the gross-versus-net distinction. GPs often lead with gross returns in marketing because they are higher and flatter their deal-making skill. LPs must always push for net returns because that is the actual result of the investment.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of a restaurant where the bill (gross returns) arrives showing a fantastic meal for $250. But then: - Service charge (management fee): 18%, added automatically - Premium membership fee for using the restaurant booking platform (fund expenses): $10 - Chef's tip — mandatory 20% of any meal above a set minimum price (carry)</p><p>The actual cost to you (your net return) is meaningfully less than the headline $250 meal. The restaurant was excellent — the food was real. But the \"price\" of that excellent food is not $250; it is $250 minus all the costs layered on top.</p><p>An LP is like a customer who must calculate the real all-in cost before deciding if the restaurant is worth returning to.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Gross-to-Net Bridge</p><p>Net returns are derived from gross returns by subtracting three layers of fees and costs:</p><p><strong>Layer 1: Management Fees</strong> - Typically 2% per year on committed capital during the investment period (first 5 years), then 1.5–2% on invested/NAV capital during the harvest period - These are drawn from LP capital (capital calls include management fees as well as investment capital) - Impact: Reduces the capital actually invested in deals, increasing the effective cost base</p><p><strong>Layer 2: Carried Interest (Carry)</strong> - Typically 20% of profits above the hurdle rate (preferred return, usually 8% IRR) - Carry is the GP's share of upside profits — the primary GP incentive - Impact: 20% of all profits above hurdle accrues to the GP rather than LPs</p><p><strong>Layer 3: Fund-Level Expenses</strong> - Legal fees, audit fees, administration, fund formation costs, broken deal costs - Typically 0.1–0.5% of committed capital in aggregate over fund life - Impact: Additional drag on LP returns</p><p>### The Typical Gross-to-Net Spread</p><p>The gross IRR minus net IRR spread depends on fund size, fee terms, and performance level. Common ranges:</p><p>| Fund Type | Gross IRR | Net IRR (Typical) | Spread | |-----------|----------|------------------|--------| | Mid-market buyout | 22% | 15–17% | ~5–7pp | | Large buyout | 20% | 14–16% | ~4–6pp | | Growth equity | 18% | 12–14% | ~4–6pp |</p><p>Note: These are illustrative ranges. Actual spreads depend heavily on fund performance, fee structure, and carry calculation specifics.</p><p>### Key Formula Relationship</p><p>There is no simple algebraic formula converting gross to net IRR because the timing of fees matters — management fees are charged before profits accrue, and carry is only paid if/when hurdle is exceeded. The conversion requires modelling the full cash flow waterfall.</p><p>However, as a rough approximation:</p><p>Where: - Management fee drag ≈ 3–5 percentage points on IRR - Carry drag depends on profits above hurdle and how carry is structured</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### A Typical Mid-Market PE Fund</p><p><strong>Fund parameters</strong> (illustrative, representative of mid-market PE): - Fund size: $500M committed - Management fee: 2% on committed capital, years 1–5 - Carry: 20% above 8% hurdle - Fund life: 10 years - Gross IRR achieved: 24% - Gross MOIC achieved: 3.0× (on invested capital)</p><p><strong>Gross-to-net calculation (approximate)</strong>: - Gross IRR: 24% - Management fee drag: approximately −3 to −4 percentage points - Carry drag: approximately −3 to −4 percentage points - Expense drag: approximately −0.5 percentage points - Net IRR to LPs: approximately <strong>16–18%</strong></p><p><strong>Why this still matters</strong>: Even at 16–18% net IRR, this is compelling for an LP — significantly above public equity benchmarks (~10% long-run S&amp;P 500 return). But the gap is real: nearly one-third of gross returns have been transferred to the GP via fees and carry.</p><p>### Fee Negotiation for Large LPs</p><p>A sovereign wealth fund committing $500M to a $2B fund has significant negotiating leverage. Typical concessions achieved by very large LPs: - Management fee reduction from 2.0% to 1.5% - Carry reduction from 20% to 15% - Full fee offsets on all portfolio company fees - Co-investment rights (invest alongside the fund at reduced/no fees)</p><p>Impact: these concessions can add 2–4 percentage points of net IRR compared to a standard LP paying full rack rates.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The GP's gross returns are what matter for evaluating their skill.\"</strong> While gross returns measure deal-level investment skill, they are not the only thing that matters. A GP who generates 25% gross returns but charges excessive fees, takes aggressive carry structures, and has expensive overhead may deliver worse net returns than a GP with 20% gross returns and LP-friendly terms.</p><p><strong>Misconception 2: \"Net returns are always gross returns minus 20% carry.\"</strong> No. The gross-to-net gap is driven by management fees (charged on committed capital, including uninvested capital), carry (only on profits above hurdle), and expenses. The interaction of all three — and their timing — means there is no simple percentage deduction.</p><p><strong>Misconception 3: \"Management fees are only 2% of what I invested, so they're not very impactful.\"</strong> Management fees are typically 2% of committed capital (the full fund commitment) during the investment period, not just of deployed capital. On a $500M fund where 60% is invested in deals, the management fees are still charged on $500M — creating a significant drag on effective returns.</p><p><strong>Misconception 4: \"Carry only applies to the GP's profits, not the LP's.\"</strong> Carry is paid out of the profits that would otherwise go to LPs. Carry is funded by reducing LP distributions. It is not a separate payment from the GP — it is the GP taking a share of what would otherwise be LP proceeds.</p><p><strong>Misconception 5: \"If the fund doesn't meet the hurdle, LPs still break even.\"</strong> If the fund IRR is 6% and the hurdle is 8%, LPs earn 6% — they have not \"broken even\" on a risk-adjusted basis. The hurdle rate merely determines when carry kicks in; it does not guarantee LP breakeven.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Gross returns (gross IRR and gross MOIC) measure PE fund performance before any fees or profit sharing are deducted. Net returns are what LPs actually receive after management fees (typically 2% per year on committed capital), carried interest (typically 20% of profits above an 8% hurdle), and fund expenses. The gross-to-net spread is typically 5–8 percentage points of IRR, meaning a fund with 22% gross IRR might deliver 15–17% net IRR. Only net returns matter to LPs for benchmarking and decision-making — comparing GP gross returns to a public equity index benchmark is a category error. Fee negotiation meaningfully affects net returns: large LPs can negotiate management fee reductions, carry rate reductions, and fee offsets that improve their net outcomes by 2–4 percentage points versus standard-fee investors in the same fund. ILPA reporting standards now require GPs to disclose both gross and net returns alongside a full fee transparency disclosure.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

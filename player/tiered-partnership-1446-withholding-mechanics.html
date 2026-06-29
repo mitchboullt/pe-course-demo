@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "tiered-partnership-1446-withholding-mechanics", "title": "Tiered Partnership Withholding Mechanics", "draft_watermark": false, "estimated_runtime_sec": 350, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The double-withholding trap", "on_screen_bullets": ["Fund-of-funds sits in the middle", "Same income, two withholdings", "Without a fix, taxed twice"], "narration": "Here is a problem that only appears when funds stack on top of one another. A fund-of-funds holds stakes in several underlying buyout funds. When those underlying funds earn US business income and allocate a share to the fund-of-funds, they withhold tax on it, because the fund-of-funds is itself a foreign partner to them. But the fund-of-funds then passes that very same income down to its own foreign investors — and absent a special mechanism, it would have to withhold all over again on the identical dollars. The same stream of income gets taxed twice through withholding, once at each tier, which is plainly excessive. This lesson is about the rules that prevent that double-withholding, and the operational machinery a fund-of-funds runs every quarter to make them work.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Credit the lower-tier withholding", "on_screen_bullets": ["Upper tier holds lower tier", "Look through to real investors", "Credit what was already paid"], "narration": "Here is the definition. Tiered-partnership withholding mechanics govern how an upper-tier partnership — the fund-of-funds — that holds interests in lower-tier underlying funds avoids being withheld upon twice on the same business income. The solution works in one of two ways: either the lower-tier fund looks through the fund-of-funds to its ultimate investors and withholds at each of their rates directly, or the fund-of-funds credits the withholding already paid at the lower tier against what it would otherwise owe to its own investors. Either way, the principle is the same: the income is withheld once, at the right rates, and the credit flows down so nobody pays twice. Keep that frame — look-through or credit — because everything else is the plumbing that delivers it.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "mermaid", "source_section": "Plain-English Explanation", "on_screen_title": "Three nested layers", "on_screen_bullets": ["Underlying fund earns income", "Fund-of-funds in the middle", "Ultimate investors bear the rate"], "narration": "Picture three layers of a nesting doll. Innermost is an underlying buyout fund that owns US operating companies and generates US business income. The middle layer is the fund-of-funds, which holds a stake in that underlying fund. And the outer layer is the fund-of-funds' own foreign investors — pension funds and sovereign funds. When the underlying fund earns business income and allocates a slice to the fund-of-funds' share, it must withhold and remit. It then hands the fund-of-funds a statement documenting the tax paid on its behalf. Now the same income is heading down to the ultimate investors. The naive outcome is a second withholding here. The tiered rules instead let that already-paid amount travel downstream as a credit, so the burden lands once — on the ultimate investor who actually bears the income — and not on the intermediate fund sitting in the middle.", "mermaid": "flowchart TD\n  A[Underlying buyout fund<br/>earns US business income] -->|withholds, issues statement| B[Fund-of-funds<br/>intermediate tier]\n  B -->|credit passes through| C[Ultimate foreign investors<br/>bear the final rate]", "est_sec": 54}, {"n": 4, "beat": "example", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Why it matters numerically", "on_screen_bullets": ["Default rate on the middle tier", "Stack two tiers, double the rate", "Look-through restores the right rate"], "narration": "Make it numeric to feel the stakes. Suppose an underlying fund allocates a thousand of business income to the fund-of-funds' share and withholds at the default rate — say roughly a fifth, so two hundred. The fund-of-funds receives the rest plus a statement. Now the fund-of-funds allocates that same thousand to its own foreign investors and, with no mechanism, withholds another two hundred. That is four hundred of withholding on a thousand of income — an effective rate around forty percent, obviously far too high. The look-through fix collapses this. Instead of the fund-of-funds withholding a second time, the underlying fund withholds directly at each ultimate investor's true rate. And here is the subtle, important part: many of those ultimate investors have a zero rate — treaty-exempt pension funds, qualifying sovereign investors — so withholding at their real rates can be dramatically lower than the blended default. Look-through does not just avoid double-counting; it applies the correct, often much lower, per-investor rate.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The certificate and the statement", "on_screen_bullets": ["Flow-through certificate to each fund", "Attached per-investor statement", "Lists each rate and exemption"], "narration": "So how is look-through actually delivered? Through two documents working together. The fund-of-funds, as a foreign flow-through entity, gives each underlying fund a special certificate — not the ordinary single-beneficial-owner certificate, but the one designed for partnerships and other pass-through entities that allocate income onward to their own partners. Attached to that certificate is a per-investor withholding statement that lists each of the fund-of-funds' investors, their status, their applicable rate, and any treaty or exemption claim. That statement is the operational heart of the whole thing: it is the instruction set that tells the underlying fund what rate to apply to each ultimate investor. The document hierarchy runs top-down — the ultimate investors give their certifications to the fund-of-funds, the fund-of-funds compiles them into the statement, the statement goes to each underlying fund, and each underlying fund withholds accordingly and issues back a per-partner statement documenting what it paid. Miss any link and the chain breaks.", "est_sec": 56}, {"n": 6, "beat": "application", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "The annual cascade", "on_screen_bullets": ["Collect statements from every fund", "Reconcile, then re-issue downstream", "One late fund stalls everything"], "narration": "In practice this becomes an annual cascade with real deadline pressure. A fund-of-funds holding a dozen underlying funds must collect a per-partner withholding statement from every one of them, reconcile the credits, file its own annual reconciliation return, and then issue pass-through statements down to each of its own investors — all by the filing deadline. The operational fragility is the dependency chain: the fund-of-funds cannot finalise its own filing until it has the statements from all of its underlying funds. And underlying funds routinely complete their own partnership returns late, on extension. So if even one underlying fund is slow, the fund-of-funds may have to estimate that fund's business income to file on time, then amend later when the real number arrives. The lesson for an administrator is that this is not a one-time setup — the certifications must be current at every underlying fund, and the statement collection is a recurring, time-boxed scramble each year.", "est_sec": 52}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Five things people get wrong", "on_screen_bullets": ["Lower-tier withholding isn't automatic credit", "Flow-through isn't zero-rate", "Reporting exists even at zero"], "narration": "Five misconceptions worth nailing. First, that withholding at the underlying fund automatically satisfies the fund-of-funds' own obligation — it does not; the credit only flows if the procedures are properly followed. Second, that a fund-of-funds, being a pass-through, simply gets a zero-rate certificate from the underlying funds — wrong; it is itself a foreign partner and faces the default rate unless it submits the per-investor statement. Third, that a sovereign investor's exemption flows up automatically through the tiers — it does not; the certification chain has to carry that status deliberately, and it only reaches the underlying fund if the statement certifies it correctly. Fourth, that the per-partner statement is a one-time document — no, it is an annual filing, renewed every tax year. And fifth, that a fund-of-funds whose investors are all exempt has no obligations — partly wrong; even when the tax due is zero, the reporting obligation remains: you must still collect statements from each underlying fund and issue statements showing zero downstream.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Once, at the right rate", "on_screen_bullets": ["Look-through or credit", "Statement carries the rates", "Reporting survives even at zero"], "narration": "So to summarise: tiered-partnership withholding exists to stop the same US business income being withheld twice as it passes through stacked funds. The fix is either look-through — the underlying fund withholds directly at each ultimate investor's rate — or a credit for the lower-tier withholding against the upper-tier obligation. The flow-through certificate plus the per-investor withholding statement is the machinery that carries the right rates upward, and the per-partner statements document the credit that flows back down. Operationally it is an annual cascade with brittle deadline dependencies on every underlying fund. And remember the final twist: the reporting obligation persists even when every rate is zero. The whole system exists so the income is withheld once, at each investor's correct rate, and never twice.", "est_sec": 48}, {"n": 9, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What is the double-withholding problem?", "How does look-through fix it?", "Why report at a zero rate?"], "narration": "Before you move on, answer these from memory. What exactly is the double-withholding problem in a stacked fund structure? How does the look-through approach fix it, and what two documents make it work? And why must a fund-of-funds still file and issue statements even when all of its investors are exempt at a zero rate? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Tiered Partnership Withholding Mechanics\n\n[hook] The double-withholding trap\nHere is a problem that only appears when funds stack on top of one another. A fund-of-funds holds stakes in several underlying buyout funds. When those underlying funds earn US business income and allocate a share to the fund-of-funds, they withhold tax on it, because the fund-of-funds is itself a foreign partner to them. But the fund-of-funds then passes that very same income down to its own foreign investors — and absent a special mechanism, it would have to withhold all over again on the identical dollars. The same stream of income gets taxed twice through withholding, once at each tier, which is plainly excessive. This lesson is about the rules that prevent that double-withholding, and the operational machinery a fund-of-funds runs every quarter to make them work.\n\n[definition] Credit the lower-tier withholding\nHere is the definition. Tiered-partnership withholding mechanics govern how an upper-tier partnership — the fund-of-funds — that holds interests in lower-tier underlying funds avoids being withheld upon twice on the same business income. The solution works in one of two ways: either the lower-tier fund looks through the fund-of-funds to its ultimate investors and withholds at each of their rates directly, or the fund-of-funds credits the withholding already paid at the lower tier against what it would otherwise owe to its own investors. Either way, the principle is the same: the income is withheld once, at the right rates, and the credit flows down so nobody pays twice. Keep that frame — look-through or credit — because everything else is the plumbing that delivers it.\n\n[intuition] Three nested layers\nPicture three layers of a nesting doll. Innermost is an underlying buyout fund that owns US operating companies and generates US business income. The middle layer is the fund-of-funds, which holds a stake in that underlying fund. And the outer layer is the fund-of-funds' own foreign investors — pension funds and sovereign funds. When the underlying fund earns business income and allocates a slice to the fund-of-funds' share, it must withhold and remit. It then hands the fund-of-funds a statement documenting the tax paid on its behalf. Now the same income is heading down to the ultimate investors. The naive outcome is a second withholding here. The tiered rules instead let that already-paid amount travel downstream as a credit, so the burden lands once — on the ultimate investor who actually bears the income — and not on the intermediate fund sitting in the middle.\n\n[example] Why it matters numerically\nMake it numeric to feel the stakes. Suppose an underlying fund allocates a thousand of business income to the fund-of-funds' share and withholds at the default rate — say roughly a fifth, so two hundred. The fund-of-funds receives the rest plus a statement. Now the fund-of-funds allocates that same thousand to its own foreign investors and, with no mechanism, withholds another two hundred. That is four hundred of withholding on a thousand of income — an effective rate around forty percent, obviously far too high. The look-through fix collapses this. Instead of the fund-of-funds withholding a second time, the underlying fund withholds directly at each ultimate investor's true rate. And here is the subtle, important part: many of those ultimate investors have a zero rate — treaty-exempt pension funds, qualifying sovereign investors — so withholding at their real rates can be dramatically lower than the blended default. Look-through does not just avoid double-counting; it applies the correct, often much lower, per-investor rate.\n\n[mechanics] The certificate and the statement\nSo how is look-through actually delivered? Through two documents working together. The fund-of-funds, as a foreign flow-through entity, gives each underlying fund a special certificate — not the ordinary single-beneficial-owner certificate, but the one designed for partnerships and other pass-through entities that allocate income onward to their own partners. Attached to that certificate is a per-investor withholding statement that lists each of the fund-of-funds' investors, their status, their applicable rate, and any treaty or exemption claim. That statement is the operational heart of the whole thing: it is the instruction set that tells the underlying fund what rate to apply to each ultimate investor. The document hierarchy runs top-down — the ultimate investors give their certifications to the fund-of-funds, the fund-of-funds compiles them into the statement, the statement goes to each underlying fund, and each underlying fund withholds accordingly and issues back a per-partner statement documenting what it paid. Miss any link and the chain breaks.\n\n[application] The annual cascade\nIn practice this becomes an annual cascade with real deadline pressure. A fund-of-funds holding a dozen underlying funds must collect a per-partner withholding statement from every one of them, reconcile the credits, file its own annual reconciliation return, and then issue pass-through statements down to each of its own investors — all by the filing deadline. The operational fragility is the dependency chain: the fund-of-funds cannot finalise its own filing until it has the statements from all of its underlying funds. And underlying funds routinely complete their own partnership returns late, on extension. So if even one underlying fund is slow, the fund-of-funds may have to estimate that fund's business income to file on time, then amend later when the real number arrives. The lesson for an administrator is that this is not a one-time setup — the certifications must be current at every underlying fund, and the statement collection is a recurring, time-boxed scramble each year.\n\n[application] Five things people get wrong\nFive misconceptions worth nailing. First, that withholding at the underlying fund automatically satisfies the fund-of-funds' own obligation — it does not; the credit only flows if the procedures are properly followed. Second, that a fund-of-funds, being a pass-through, simply gets a zero-rate certificate from the underlying funds — wrong; it is itself a foreign partner and faces the default rate unless it submits the per-investor statement. Third, that a sovereign investor's exemption flows up automatically through the tiers — it does not; the certification chain has to carry that status deliberately, and it only reaches the underlying fund if the statement certifies it correctly. Fourth, that the per-partner statement is a one-time document — no, it is an annual filing, renewed every tax year. And fifth, that a fund-of-funds whose investors are all exempt has no obligations — partly wrong; even when the tax due is zero, the reporting obligation remains: you must still collect statements from each underlying fund and issue statements showing zero downstream.\n\n[recap] Once, at the right rate\nSo to summarise: tiered-partnership withholding exists to stop the same US business income being withheld twice as it passes through stacked funds. The fix is either look-through — the underlying fund withholds directly at each ultimate investor's rate — or a credit for the lower-tier withholding against the upper-tier obligation. The flow-through certificate plus the per-investor withholding statement is the machinery that carries the right rates upward, and the per-partner statements document the credit that flows back down. Operationally it is an annual cascade with brittle deadline dependencies on every underlying fund. And remember the final twist: the reporting obligation persists even when every rate is zero. The whole system exists so the income is withheld once, at each investor's correct rate, and never twice.\n\n[end_card] Test yourself\nBefore you move on, answer these from memory. What exactly is the double-withholding problem in a stacked fund structure? How does the look-through approach fix it, and what two documents make it work? And why must a fund-of-funds still file and issue statements even when all of its investors are exempt at a zero rate? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>CVC Secondary Partners is structurally a fund-of-funds: it holds LP interests in Apollo, KKR, Blackstone, Carlyle, and other buyout funds. When those underlying funds generate ECTI (effectively connected taxable income from US operations), they withhold §1446 tax on foreign LP shares. CVC, as a Luxembourg-domiciled entity, is a \"foreign LP\" in each of those underlying funds — meaning those funds withhold §1446 on CVC's share of their ECTI. But CVC also has its own foreign LP base (pension funds, SWFs) who invested in CVC. Without a specific look-through mechanism, CVC would be double-withheld: once at the underlying fund level and again at the CVC fund level when CVC allocates the same income to its own LPs. Understanding Treas. Reg. §1.1446-5 — the tiered partnership regulations — is the technical foundation for how CVC manages this problem operationally every quarter.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Tiered partnership §1446 withholding mechanics govern how a fund-of-funds (upper-tier partnership, UTP) that holds LP interests in underlying buyout funds (lower-tier partnerships, LTPs) avoids double-withholding on the same ECTI stream by allowing the UTP to credit LTP-level withholding already paid against its own §1446 obligation to its foreign LPs.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine three layers of a Russian nesting doll: - <strong>Innermost:</strong> Apollo Buyout Fund IX — holds US operating companies, generates ECI - <strong>Middle:</strong> CVC Secondary Partners — holds an LP interest in Apollo Fund IX - <strong>Outer:</strong> CVC's own foreign LPs (CPPIB, ADIA, APG) — hold interests in CVC Secondary Partners</p><p>When Apollo's fund generates ECI and allocates ECTI to CVC's share, Apollo must withhold §1446 and remit to the IRS. Apollo then sends CVC a Form 8805 showing the withholding paid on CVC's behalf.</p><p>CVC now has the same ECTI flowing through to its own foreign LPs (CPPIB, ADIA, APG). Normally, CVC would have to withhold §1446 again on that same income before distributing to its LPs. But this would mean the same dollar of income is taxed twice through withholding. The tiered partnership rules under Treas. Reg. §1.1446-5 provide a mechanism: CVC can pass the Apollo withholding credit through to its own foreign LPs via the \"look-through\" approach, crediting what Apollo already withheld against what CVC would otherwise owe.</p>"}, "3": {"section": "Plain-English Explanation", "html": "<p>Imagine three layers of a Russian nesting doll: - <strong>Innermost:</strong> Apollo Buyout Fund IX — holds US operating companies, generates ECI - <strong>Middle:</strong> CVC Secondary Partners — holds an LP interest in Apollo Fund IX - <strong>Outer:</strong> CVC's own foreign LPs (CPPIB, ADIA, APG) — hold interests in CVC Secondary Partners</p><p>When Apollo's fund generates ECI and allocates ECTI to CVC's share, Apollo must withhold §1446 and remit to the IRS. Apollo then sends CVC a Form 8805 showing the withholding paid on CVC's behalf.</p><p>CVC now has the same ECTI flowing through to its own foreign LPs (CPPIB, ADIA, APG). Normally, CVC would have to withhold §1446 again on that same income before distributing to its LPs. But this would mean the same dollar of income is taxed twice through withholding. The tiered partnership rules under Treas. Reg. §1.1446-5 provide a mechanism: CVC can pass the Apollo withholding credit through to its own foreign LPs via the \"look-through\" approach, crediting what Apollo already withheld against what CVC would otherwise owe.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Basic §1446 Structure (Review) §1446(a) requires a <strong>partnership with ECI</strong> to withhold and pay to the IRS <strong>a withholding tax</strong> on each foreign partner's allocable share of effectively connected taxable income (ECTI). The withholding tax equals the foreign partner's share of ECTI multiplied by the applicable percentage: - Foreign corporations: 21% - Non-resident alien individuals: the highest individual rate (currently 37%) - Foreign partnerships (the CVC scenario): 21% (treated as corporate rate) [needs-verification: 2026 applicable percentage for foreign partnerships]</p><p><strong>Quarterly installments</strong> are paid using Form 8813 on March 15, June 15, September 15, December 15. <strong>Annual reconciliation</strong> via Form 8804 (partnership return) and Form 8805 (per-partner statement).</p><p>### The Tiered Partnership Problem</p><p><strong>Scenario without look-through:</strong> - Apollo Fund IX allocates $1,000 of ECTI to CVC Secondary Partners (CVC's proportionate share) - Apollo withholds 21% = $210 and remits to IRS; CVC receives $790 net + Form 8805 - CVC then allocates the same $1,000 ECTI to its own foreign LPs - CVC must withhold 21% = $210 from each LP's share - <strong>Result:</strong> $420 of withholding on $1,000 of income — 42% effective rate. Clearly excessive.</p><p><strong>The look-through solution (Treas. Reg. §1.1446-5):</strong> Instead of CVC withholding at the UTP level, the LTP (Apollo) can look <strong>through</strong> CVC to CVC's own underlying partners and withhold at their applicable rates directly. Alternatively, CVC can credit the LTP-level withholding against its own UTP-level obligation.</p><p>### Treas. Reg. §1.1446-5 — The Two Approaches</p><p><strong>Approach 1: Look-Through by the LTP (Direct Method)</strong> Under §1.1446-5(b), if a UTP (CVC) provides the LTP (Apollo) with information about the UTP's own partners, the LTP can compute and apply withholding as if it were dealing directly with the UTP's partners. This eliminates the UTP-level withholding obligation entirely.</p><p><strong>Requirements:</strong> - UTP must submit documentation to the LTP listing each of the UTP's partners, their status (foreign/domestic), applicable rate, and treaty exemptions - Documentation must be updated annually or when the UTP's partner composition changes - LTP withholds at each UTP-partner's applicable rate (not at a blended rate)</p><p><strong>Approach 2: Credit Method (UTP Credits LTP Withholding)</strong> Under §1.1446-5(c), if the look-through approach is not used, the UTP (CVC) can credit the §1446 withholding paid by the LTP (Apollo) against its own §1446 obligation to its foreign LPs. The LTP's Form 8805 documents the credit available.</p><p><strong>Formula:</strong> - UTP's §1446 obligation to its foreign LPs = (UTP's foreign LPs' share of ECTI × applicable rate) − Credit for LTP-level withholding already paid</p><p>### W-8IMY and the Withholding Statement When CVC (a foreign partnership) holds an interest in Apollo, CVC must submit a <strong>Form W-8IMY</strong> (Certificate of Foreign Intermediary, Foreign Flow-Through Entity, or Certain US Branches for United States Tax Withholding) to Apollo rather than a W-8BEN-E. The W-8IMY is the certificate for \"flow-through\" entities — partnerships and trusts — that pass income through to their own partners.</p><p>Attached to the W-8IMY is a <strong>withholding statement</strong> that identifies each of CVC's partners, their status, and the allocation of income to each. This withholding statement is the operational mechanism through which the LTP applies the look-through rates.</p><p><strong>Hierarchy of documents:</strong> 1. CVC's own LPs submit W-8BEN, W-8BEN-E, or W-8EXP to CVC 2. CVC compiles a withholding statement and submits W-8IMY to each underlying fund (Apollo, KKR, etc.) 3. Each underlying fund applies the rates specified in the withholding statement 4. Underlying fund remits withholding and issues Form 8805 to CVC 5. CVC allocates the 8805 credit to its own LPs via a pass-through 8805</p><p>### Anti-Double-Counting: The 8805 Credit Pass-Through The Form 8805 that Apollo issues to CVC shows the withholding tax paid on CVC's behalf. Under the regulations, CVC can: 1. Use the 8805 credit to offset its own §1446 obligation (if CVC is itself withholding at the UTP level) 2. Pass the 8805 credit through to CVC's own foreign LPs (via a \"pass-through withholding certificate\")</p><p>The pass-through credit mechanism ensures that the withholding dollar paid at the Apollo level flows downstream as a tax credit to the LP who ultimately bears the economic income — avoiding the 42% double-withholding scenario.</p><p>### Annual Reporting in the Tiered Structure A fund-of-funds creates a <strong>cascade of annual filings:</strong></p><p>| Level | Entity | Annual Form Filed | Information Issued To | |---|---|---|---| | LTP (Apollo Fund IX) | Files Form 8804 with IRS | Form 8805 → issued to CVC | | UTP (CVC Secondary Partners) | Files Form 8804 with IRS | Form 8805 → issued to each of CVC's foreign LPs | | CVC's foreign LPs | File Form 1040-NR or 1120-F | Use Form 8805 received from CVC | | LTP (Apollo) | Files Form 1042 for non-ECI withholding | Form 1042-S → issued to CVC | | UTP (CVC) | Files Form 1042 for non-ECI withholding | Form 1042-S → issued to CVC's foreign LPs |</p><p><strong>Practical note:</strong> CVC must obtain 8805s from every underlying fund by approximately February of the following year to complete its own 8804/8805 filings by March 15. The tiered deadline pressure is real: if Apollo is late issuing its 8805, CVC cannot complete its own 8804 filing on time.</p><p>### §1446(f) Interaction in the Tiered Context §1446(f) withholding on secondary LP transfers adds another layer. When a foreign LP sells its interest in CVC (an upper-tier partnership), the buyer must withhold 10% of the amount realized under §1446(f). The buyer's §1446(f) withholding obligation is based on CVC's ECTI history — but in a fund-of-funds, CVC's ECTI derives from multiple underlying funds' ECI positions. The §1446(f) \"amount subject to withholding\" must account for CVC's proportionate share of each underlying fund's ECTI, not just the top-level calculation. [needs-verification: specific §1446(f) Treas. Reg. guidance for tiered partnerships]</p>"}, "5": {"section": "Real-World Example", "html": "<p>### CVC Secondary Partners — Two-Tier §1446 in Practice</p><p>CVC Secondary Partners (Luxembourg SCSp, treated as a foreign partnership for US tax) holds: - 2.3% LP interest in Apollo Investment Fund IX (US-based PE fund, generates ECTI from portfolio operations) - 1.8% LP interest in KKR Americas XIII (US-based PE fund, generates ECTI)</p><p>CVC's own LP base includes: - CPPIB (Canadian pension — QFPF, 0% §1446 rate) - ADIA (Abu Dhabi SWF — §892 exempt from income tax; §1446 withholding still applies at 21%?) - APG (Dutch pension — US-Netherlands treaty, 0% §1446 rate) - GPFG (Norway SWF — §892 exempt; QFPF potentially applicable) - Several smaller European pension funds (mixed treaty rates)</p><p><strong>2025 tax year scenario:</strong> - Apollo Fund IX allocates $3.2mn ECTI to CVC's share (2.3% × Apollo's total ECTI) - KKR Fund XIII allocates $1.8mn ECTI to CVC's share</p><p><strong>Look-through method in use:</strong> CVC has submitted W-8IMY + withholding statement to both Apollo and KKR listing each LP's rate. Apollo and KKR withhold directly at each ultimate partner's rate.</p><p>Apollo's withholding on CVC's $3.2mn ECTI: - CPPIB's proportionate share ($640,000) — 0% = $0 - ADIA's proportionate share ($960,000) — 21% = $201,600 - APG's proportionate share ($480,000) — 0% = $0 - GPFG's share ($480,000) — 0% (§892 exempt + potential QFPF) - Other European pensions ($640,000) — blended treaty rate ~5% = $32,000</p><p>Total Apollo withholding on CVC's share: $233,600</p><p>KKR's withholding on CVC's $1.8mn ECTI (similar proportions): Total KKR withholding on CVC's share: ~$131,400</p><p><strong>CVC's §1446 obligation:</strong> Under the look-through approach, CVC's UTP-level §1446 obligation is satisfied by the LTP-level withholding. CVC files Form 8804 showing the credit; distributes 8805s to each LP documenting their withholding credit; no additional §1446 withholding at the UTP level.</p><p><strong>CVC's annual task:</strong> Obtain 8805s from Apollo (by ~February 15), KKR, and all other underlying funds. Prepare and file CVC's own 8804 by March 15. Issue 8805 to each CVC LP by March 15 — this is the 8805 the LP's own tax advisor uses to claim a credit on their home-country return and on any US filing.</p><p><strong>The operational pressure:</strong> CVC holds interests in 12 underlying funds. Each issues a separate 8805. If even one fund is late (Apollo frequently files its Form 1065 on extension, completing in September), CVC may need to estimate the relevant ECTI to file on time, then issue an amended 8804/8805.</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>\"§1446 withholding at the underlying fund level satisfies the fund-of-funds' withholding obligation automatically.\"</strong> Wrong. Without a specific look-through election or credit mechanism under Treas. Reg. §1.1446-5, the UTP has an independent §1446 obligation to its own foreign LPs. The LTP-level withholding reduces double-counting only if the procedures are properly followed — withholding statement submitted, W-8IMY current, credits properly documented.</p><p><strong>\"CVC (as a foreign partnership) gets a zero-withholding certificate from the underlying funds because it's the 'pass-through.'\"</strong> Wrong. CVC as a foreign partnership is itself a \"foreign partner\" of the underlying fund. Without the look-through election, the underlying fund must withhold at 21% on CVC's share. The look-through election only works if CVC has submitted the withholding statement.</p><p><strong>\"§892 flows through automatically in a tiered structure.\"</strong> Wrong (or uncertain). The §892 exemption applies to the SWF directly. In a tiered structure where the SWF is an LP of CVC (the UTP), and CVC is an LP of Apollo (the LTP), the §892 exemption reaches Apollo only if CVC's withholding statement properly certifies ADIA's §892 status and Apollo applies it correctly. The certification chain must work; it does not flow automatically.</p><p><strong>\"The 8805 is only needed once per fund relationship.\"</strong> Wrong. A new Form 8805 must be prepared and issued annually for each tax year. The 8804/8805 are annual filings, not one-time certifications.</p><p><strong>\"A fund-of-funds with only treaty-exempt LPs has no §1446 obligations.\"</strong> Partially wrong. If all CVC LPs are treaty-exempt (0% rate), CVC's own §1446 obligation is zero. But CVC must still obtain 8805s from each underlying fund and issue 8805s to its own LPs (showing 0% withholding) — the reporting obligation exists even when the tax amount is zero.</p>"}, "7": {"section": "Summary", "html": "<p>Tiered partnership §1446 withholding mechanics address the double-withholding problem that arises when a fund-of-funds (UTP) holds interests in underlying PE funds (LTPs) that generate ECI. Without a specific mechanism, the same ECTI would be withheld upon twice: once at the LTP level (when the underlying fund allocates ECTI to the UTP) and again at the UTP level (when the fund-of-funds allocates the same income to its own foreign LPs). Treas. Reg. §1.1446-5 provides the solution through the look-through approach: if the UTP submits Form W-8IMY with a withholding statement to each LTP, the LTP can apply each of the UTP's partners' applicable rates directly, eliminating the UTP-level withholding obligation. The Form 8805 credit chain documents this: LTPs issue 8805s to the UTP, the UTP issues pass-through 8805s to its own LPs, and the annual Form 8804 at each level reconciles the obligation against credits. For CVC Secondary Partners, this system governs every quarterly §1446 cycle across 12+ underlying fund relationships — requiring current withholding statements at each LTP, timely 8805 collection from each fund by the March 15 deadline, and coordination with the parallel 1042/1042-S system for non-ECI income from the same funds. The §892/§1446 interaction for SWF LPs (ADIA, QIA) remains an area of incomplete guidance and requires conservative treatment pending further IRS clarification.</p>"}, "8": {"section": "Summary", "html": "<p>Tiered partnership §1446 withholding mechanics address the double-withholding problem that arises when a fund-of-funds (UTP) holds interests in underlying PE funds (LTPs) that generate ECI. Without a specific mechanism, the same ECTI would be withheld upon twice: once at the LTP level (when the underlying fund allocates ECTI to the UTP) and again at the UTP level (when the fund-of-funds allocates the same income to its own foreign LPs). Treas. Reg. §1.1446-5 provides the solution through the look-through approach: if the UTP submits Form W-8IMY with a withholding statement to each LTP, the LTP can apply each of the UTP's partners' applicable rates directly, eliminating the UTP-level withholding obligation. The Form 8805 credit chain documents this: LTPs issue 8805s to the UTP, the UTP issues pass-through 8805s to its own LPs, and the annual Form 8804 at each level reconciles the obligation against credits. For CVC Secondary Partners, this system governs every quarterly §1446 cycle across 12+ underlying fund relationships — requiring current withholding statements at each LTP, timely 8805 collection from each fund by the March 15 deadline, and coordination with the parallel 1042/1042-S system for non-ECI income from the same funds. The §892/§1446 interaction for SWF LPs (ADIA, QIA) remains an area of incomplete guidance and requires conservative treatment pending further IRS clarification.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

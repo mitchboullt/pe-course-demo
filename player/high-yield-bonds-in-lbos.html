@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "high-yield-bonds-in-lbos", "title": "High Yield Bonds in LBOs", "draft_watermark": false, "estimated_runtime_sec": 415, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Mezz, but public", "on_screen_bullets": ["Junior debt via public markets", "Non-call + change-of-control put", "Default for large deals ($500m+)"], "narration": "High-yield bonds are the public market's answer to mezzanine — junior, higher-risk debt that fills the same gap between senior secured financing and equity. But they work through a completely different channel: the public capital markets rather than a private negotiation, a different investor base, and distinct structural features — particularly the non-call period and the change-of-control put — that materially shape LBO strategy. For large deals, enterprise value of five hundred million and up, high-yield bonds are often the default choice over traditional mezz. Same job in the stack; very different rules of engagement.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Public sub-investment-grade debt", "on_screen_bullets": ["Publicly traded bonds", "Fixed-rate, at scale", "Incurrence covenants + non-call"], "narration": "The definition. High-yield bonds are publicly traded, sub-investment-grade debt instruments used in large-cap LBOs as an alternative to mezzanine debt. They offer fixed-rate financing at scale, with incurrence-only covenants and a non-call period that protects investors but limits the sponsor's flexibility. Public, fixed-rate, and bound by a lockup — a very different animal from a privately negotiated loan.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Riskier borrowers, higher yield", "on_screen_bullets": ["Governments issue safe bonds", "Levered companies pay more", "'High yield' = 'junk' to critics"], "narration": "When a government borrows, it issues bonds — IOUs to thousands of investors who lend now and receive regular interest plus their principal back at a set date. Those are investment-grade because the government is considered very safe. Companies seen as riskier — because they carry lots of debt, like PE-backed companies, or have uncertain futures — also issue bonds, but at much higher interest rates to compensate investors for the extra risk. Those are high-yield bonds, called junk bonds by their critics. The higher yield is simply the price of the higher risk. A PE-backed LBO, by its very leverage, is almost always sub-investment-grade — so any bonds it issues are, by definition, high yield.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Crowd-funded debt", "on_screen_bullets": ["Thousands of investors, not one fund", "The crowd sets the rate", "Non-call = a lockup"], "narration": "Think of high-yield bonds as crowd-funded debt. Instead of borrowing from one specialist lender, like a mezz fund, the company borrows small amounts from thousands of investors through the public bond market. The crowd sets the interest rate collectively, through the book-building process, and everyone gets the same standardised terms in a single bond indenture. And the non-call period is the bond market's version of a lockup: we'll lend you this money, but you cannot repay it early — we're counting on this income stream for at least, say, four years. If you want out before then, you have to pay a penalty to call the bond. That lockup is the single biggest behavioural difference from a loan you can prepay freely.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "What makes a bond high-yield", "on_screen_bullets": ["Below BBB−/Baa3 = high yield", "Fixed rate (unlike floating TLB)", "7–10 yr, 144A, non-call + CoC put"], "narration": "Mechanically, a bond is high-yield when its credit rating is below investment grade — below BBB-minus on S&P, or Baa3 on Moody's; at BB-plus, or Ba1, and lower, you're in high-yield territory, where PE-backed LBOs almost always sit. The typical features: a fixed coupon — unlike the floating-rate term loan B, which matters enormously when rates move; a seven-to-ten-year maturity; issued in a 144A format to qualified institutional buyers; incurrence-only covenants; a non-call period protecting investors from early repayment; and a change-of-control put, which lets bondholders demand repayment, usually at a hundred and one cents on the dollar, if the company is sold — a feature that directly shapes exit strategy, because a future buyer may have to refinance the bonds. Fixed-rate, locked-up, and public: three properties that distinguish it sharply from private loans.", "est_sec": 60}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "KKR, $5bn EV", "on_screen_bullets": ["TLB $2,000m + HY $1,000m @ 8.25% fixed", "NC4, CoC put at 101", "Total leverage 4.29x; HY interest $82.5m/yr"], "narration": "Take KKR buying a five-billion-dollar enterprise-value company. The structure: a five-hundred-million revolver, undrawn, at SOFR plus two-twenty-five; a two-billion-dollar term loan B at SOFR plus four hundred, seven years, one percent amortisation; a billion dollars of high-yield bonds at eight-point-two-five percent fixed over eight years, non-callable for four years — NC4 — with a change-of-control put at a hundred and one; and two billion of equity. Against seven hundred million of EBITDA, senior leverage on the term loan B alone is two-point-eight-six times, and total leverage is three billion of debt over seven hundred — four-point-two-nine times. And here's a feature the floating-rate world doesn't have: the high-yield interest is a billion times eight-point-two-five percent — eighty-two-and-a-half million a year, fixed, and it stays exactly there even when rates rise. That fixed coupon is a genuine hedge against rising rates — the very thing that squeezed floating-rate borrowers after 2022.", "est_sec": 62}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Fixed rate cuts both ways", "Non-call limits refinancing", "CoC put shapes the exit"], "narration": "Three corrections. First, the fixed coupon cuts both ways — it protects the company when rates rise, but it locks in a high rate if rates fall, since you can't simply refinance into cheaper debt while the non-call period runs. Second, that non-call period genuinely constrains flexibility — a sponsor who wants to refinance into cheaper debt, or repay early after a strong few years, may be blocked for the non-call window or face a hefty call premium, which is a real cost the loan market doesn't impose. And third, the change-of-control put shapes the exit itself — because bondholders can demand repayment at a hundred and one when the company is sold, a buyer typically has to refinance the bonds at exit, which affects what the company is worth to that buyer and how the deal is structured. Public bonds buy scale and a rate hedge, but they trade away the freedom a private loan gives you.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Scale and a rate hedge, less freedom", "on_screen_bullets": ["Public, fixed-rate, sub-IG", "Non-call + change-of-control put", "Default for large LBOs"], "narration": "To recap. High-yield bonds are publicly traded, sub-investment-grade debt — the public-market alternative to mezzanine — offering fixed-rate financing at scale to large-cap LBOs, with incurrence-only covenants, a non-call period, and a change-of-control put. They're crowd-funded rather than privately negotiated, and their fixed coupon is a real hedge against rising rates, as KKR's eight-and-a-quarter percent example shows. But that comes at the price of flexibility — the non-call period and call premiums limit refinancing, and the change-of-control put shapes the exit. They're the default junior financing for big deals precisely because only the public market has the depth to absorb a billion-dollar tranche. Next we tackle the structural change that reshaped all of this lending — covenant-lite structures.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "How does a fixed-rate high-yield bond differ from a floating-rate TLB when interest rates rise — and what does the non-call period cost the sponsor?", "narration": "Before the next lesson, answer both. How does a fixed-rate high-yield bond behave differently from a floating-rate term loan B when rates climb — and what flexibility does the non-call period take away from the sponsor? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: High Yield Bonds in LBOs\n\n[hook] Mezz, but public\nHigh-yield bonds are the public market's answer to mezzanine — junior, higher-risk debt that fills the same gap between senior secured financing and equity. But they work through a completely different channel: the public capital markets rather than a private negotiation, a different investor base, and distinct structural features — particularly the non-call period and the change-of-control put — that materially shape LBO strategy. For large deals, enterprise value of five hundred million and up, high-yield bonds are often the default choice over traditional mezz. Same job in the stack; very different rules of engagement.\n\n[definition] Public sub-investment-grade debt\nThe definition. High-yield bonds are publicly traded, sub-investment-grade debt instruments used in large-cap LBOs as an alternative to mezzanine debt. They offer fixed-rate financing at scale, with incurrence-only covenants and a non-call period that protects investors but limits the sponsor's flexibility. Public, fixed-rate, and bound by a lockup — a very different animal from a privately negotiated loan.\n\n[intuition] Riskier borrowers, higher yield\nWhen a government borrows, it issues bonds — IOUs to thousands of investors who lend now and receive regular interest plus their principal back at a set date. Those are investment-grade because the government is considered very safe. Companies seen as riskier — because they carry lots of debt, like PE-backed companies, or have uncertain futures — also issue bonds, but at much higher interest rates to compensate investors for the extra risk. Those are high-yield bonds, called junk bonds by their critics. The higher yield is simply the price of the higher risk. A PE-backed LBO, by its very leverage, is almost always sub-investment-grade — so any bonds it issues are, by definition, high yield.\n\n[intuition] Crowd-funded debt\nThink of high-yield bonds as crowd-funded debt. Instead of borrowing from one specialist lender, like a mezz fund, the company borrows small amounts from thousands of investors through the public bond market. The crowd sets the interest rate collectively, through the book-building process, and everyone gets the same standardised terms in a single bond indenture. And the non-call period is the bond market's version of a lockup: we'll lend you this money, but you cannot repay it early — we're counting on this income stream for at least, say, four years. If you want out before then, you have to pay a penalty to call the bond. That lockup is the single biggest behavioural difference from a loan you can prepay freely.\n\n[mechanics] What makes a bond high-yield\nMechanically, a bond is high-yield when its credit rating is below investment grade — below BBB-minus on S&P, or Baa3 on Moody's; at BB-plus, or Ba1, and lower, you're in high-yield territory, where PE-backed LBOs almost always sit. The typical features: a fixed coupon — unlike the floating-rate term loan B, which matters enormously when rates move; a seven-to-ten-year maturity; issued in a 144A format to qualified institutional buyers; incurrence-only covenants; a non-call period protecting investors from early repayment; and a change-of-control put, which lets bondholders demand repayment, usually at a hundred and one cents on the dollar, if the company is sold — a feature that directly shapes exit strategy, because a future buyer may have to refinance the bonds. Fixed-rate, locked-up, and public: three properties that distinguish it sharply from private loans.\n\n[worked-example] KKR, $5bn EV\nTake KKR buying a five-billion-dollar enterprise-value company. The structure: a five-hundred-million revolver, undrawn, at SOFR plus two-twenty-five; a two-billion-dollar term loan B at SOFR plus four hundred, seven years, one percent amortisation; a billion dollars of high-yield bonds at eight-point-two-five percent fixed over eight years, non-callable for four years — NC4 — with a change-of-control put at a hundred and one; and two billion of equity. Against seven hundred million of EBITDA, senior leverage on the term loan B alone is two-point-eight-six times, and total leverage is three billion of debt over seven hundred — four-point-two-nine times. And here's a feature the floating-rate world doesn't have: the high-yield interest is a billion times eight-point-two-five percent — eighty-two-and-a-half million a year, fixed, and it stays exactly there even when rates rise. That fixed coupon is a genuine hedge against rising rates — the very thing that squeezed floating-rate borrowers after 2022.\n\n[pitfalls] What people get wrong\nThree corrections. First, the fixed coupon cuts both ways — it protects the company when rates rise, but it locks in a high rate if rates fall, since you can't simply refinance into cheaper debt while the non-call period runs. Second, that non-call period genuinely constrains flexibility — a sponsor who wants to refinance into cheaper debt, or repay early after a strong few years, may be blocked for the non-call window or face a hefty call premium, which is a real cost the loan market doesn't impose. And third, the change-of-control put shapes the exit itself — because bondholders can demand repayment at a hundred and one when the company is sold, a buyer typically has to refinance the bonds at exit, which affects what the company is worth to that buyer and how the deal is structured. Public bonds buy scale and a rate hedge, but they trade away the freedom a private loan gives you.\n\n[recap] Scale and a rate hedge, less freedom\nTo recap. High-yield bonds are publicly traded, sub-investment-grade debt — the public-market alternative to mezzanine — offering fixed-rate financing at scale to large-cap LBOs, with incurrence-only covenants, a non-call period, and a change-of-control put. They're crowd-funded rather than privately negotiated, and their fixed coupon is a real hedge against rising rates, as KKR's eight-and-a-quarter percent example shows. But that comes at the price of flexibility — the non-call period and call premiums limit refinancing, and the change-of-control put shapes the exit. They're the default junior financing for big deals precisely because only the public market has the depth to absorb a billion-dollar tranche. Next we tackle the structural change that reshaped all of this lending — covenant-lite structures.\n\nEnd-card question: How does a fixed-rate high-yield bond differ from a floating-rate TLB when interest rates rise — and what does the non-call period cost the sponsor?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>High yield bonds are the debt market's equivalent of mezzanine — junior, higher-risk debt that fills the gap between senior secured financing and equity. But they operate through a completely different market (public capital markets vs. private negotiation), attract a different investor base, and have distinct structural features — particularly the non-call period and change-of-control put — that materially affect LBO strategy. For large deals (EV $500M+), HY bonds are often the default choice over traditional mezz.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>High yield bonds are publicly traded, sub-investment-grade debt instruments used in large-cap LBOs as an alternative to mezzanine debt — offering fixed-rate financing at scale, with incurrence-only covenants and a non-call period that protects investors but limits PE sponsor flexibility.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When the government borrows money, it issues bonds — effectively IOUs to thousands of investors. Investors lend money now and receive regular interest payments plus their principal back at a set date. These are \"investment grade\" bonds because the government is considered very safe.</p><p>Companies that are considered riskier — either because they have lots of debt (like PE-backed companies) or uncertain futures — also issue bonds, but at much higher interest rates to compensate investors for the extra risk. These are \"high yield\" bonds (also called \"junk bonds\" by critics). The higher yield is the price of the higher risk.</p><p>In an LBO, after the senior secured TLB is in place, there is often a gap in the financing. Rather than finding a private mezz lender, a large PE-backed company may issue HY bonds to thousands of bond investors through a public market process. The advantage: the public market can absorb hundreds of millions of dollars at once. The disadvantage: the company must follow public market rules (SEC registration or 144A exemption, public disclosure) and accept terms set by the bond market rather than negotiated bilaterally.</p><p>The most important HY-specific feature for PE: <strong>non-call periods</strong>. HY bonds typically cannot be redeemed (repaid early) for 3-5 years without paying a penalty premium. This matters because if the PE firm wants to sell the company in Year 2, it either pays the premium or must refinance the bonds — adding cost to the exit.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of HY bonds as <strong>crowd-funded debt</strong>. Instead of borrowing from one specialised lender (mezz fund), the company is effectively borrowing small amounts from thousands of investors through the public bond market. The crowd sets the interest rate collectively (via book-building), and the terms are standardised (everyone gets the same bond indenture).</p><p>The non-call period is the bond market's equivalent of a <strong>lockup</strong>: \"We'll lend you this money, but you cannot give it back early — we are depending on receiving this income stream for at least 4 years. If you want out earlier, you have to compensate us for the income you are taking away.\"</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>What makes a bond \"high yield\"?</strong> Credit rating below investment grade: - Investment grade: BBB- or above (S&amp;P), Baa3 or above (Moody's) - High yield: BB+ and below (S&amp;P), Ba1 and below (Moody's)</p><p>PE-backed LBOs are almost always sub-investment-grade due to their high leverage — hence any bonds they issue are by definition high yield.</p><p><strong>Typical HY bond characteristics:</strong></p><p>| Feature | Typical Terms | |---|---| | Coupon | 5-10% fixed [needs-verification — rate environment dependent] | | Rate type | Fixed (unlike TLB which is floating) | | Maturity | 7-10 years | | Issue format | 144A for Qualified Institutional Buyers (QIBs) in the US; Reg S for international | | Registration | Usually initially 144A, with registration rights (exchange offer within 365 days) | | Covenants | Incurrence-only (no financial maintenance covenants) | | Non-call period | Typically 3-5 years (NC3, NC4, NC5) | | Call premium post-NC | Starts at 50% of coupon (e.g., if 8% coupon, can call at 104 in Year 4, 102 in Year 5, par in Year 6) | | Change of control put | Bondholders can require repurchase at 101 on change of control |</p><p><strong>144A vs. Reg S:</strong> - Rule 144A: Allows unregistered bonds to be sold to qualified institutional buyers (large investment funds) in the US. Faster to market than a full registration. - Reg S: For non-US investors. Issued outside the US, not subject to SEC registration. - Most LBO HY bonds are issued under 144A/Reg S simultaneously.</p><p><strong>Fixed rate vs. floating (the rate hedge):</strong> Unlike TLBs (SOFR+spread, floating rate), HY bonds pay a fixed coupon. This is significant in a rising rate environment — the borrower's interest cost is locked in regardless of base rate moves. This is why HY bonds can be attractive when TLB rates are high (the fixed coupon may ultimately be lower than SOFR+500bps if SOFR stays elevated).</p><p><strong>The non-call period mechanic:</strong> An NC4 (non-call 4 years) structure on an 8% bond means: - Years 0-4: Cannot call at any price (or can call at a \"make-whole premium\" — the NPV of all future cash flows at a reference Treasury rate, which is typically very expensive) - Year 5: Can call at 104 (i.e., pay back £104 per £100 of face value) - Year 6: Call at 102 - Year 7: Call at par (100)</p><p>This creates a direct problem for PE exits: if the company is sold in Year 3, the buyer must either: 1. Pay the make-whole premium (often economically prohibitive) 2. Keep the bonds outstanding under the new ownership 3. Negotiate a consent payment from existing bondholders to permit early redemption</p><p>The change-of-control put (at 101) means bondholders always have the right to put their bonds back at 101 in a sale — so option 2 is rarely available.</p><p><strong>When HY bonds are preferred over mezz:</strong></p><p>| Criterion | HY Bonds | Mezzanine | |---|---|---| | Deal size | $500M+ EV | Sub-$500M EV | | Issuance size | $300M+ typically | $30-150M | | Rate environment | Preferred when rates are rising (fixed rate) | Flexible (often floating) | | Speed | Slower (public market process, 6-8 weeks) | Faster (bilateral negotiation) | | Public disclosure | Required (144A) | No public disclosure | | Equity kickers | Not available | Can include warrants | | Covenant style | Incurrence only | More flexible (privately negotiated) |</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>KKR's acquisition of a $5B EV company:</strong></p><p>Capital structure: | Instrument | Amount | Terms | |---|---|---| | RCF | $500M (undrawn) | SOFR + 225bps | | Term Loan B | $2,000M | SOFR + 400bps, 7 years, 1%/year amortisation | | High Yield Bonds | $1,000M | 8.25% fixed, 8 years, NC4, CoC put at 101 | | Equity (KKR + co-investors) | $2,000M | — | | <strong>Total EV</strong> | <strong>$5,000M</strong> | |</p><p>Target EBITDA: $700M Senior leverage (TLB only): $2,000M / $700M = 2.86x Total leverage: $3,000M / $700M = <strong>4.29x</strong></p><p>HY bond annual interest: $1,000M × 8.25% = <strong>$82.5M/year</strong> (fixed — unchanged when rates rise)</p><p>TLB annual interest at SOFR 5%: $2,000M × 9% = <strong>$180M/year</strong> (floating — increases with SOFR)</p><p><strong>Exit scenario at Year 3 (within NC4 period):</strong> KKR agrees to sell the company. The HY bonds have an NC4 period — KKR cannot call the bonds without a make-whole premium.</p><p>Make-whole premium calculation (simplified): NPV of all remaining coupon payments and principal, discounted at reference Treasury + 50bps. With 5 years remaining on an 8.25% bond and Treasury rates at 4.5%, the make-whole might price at 115-120 cents on the dollar.</p><p>Make-whole cost: $1,000M × 15% premium = <strong>$150M</strong> — a direct reduction of exit equity proceeds.</p><p>KKR could instead allow the CoC put at 101 ($10M premium) — but this requires repurchasing all bonds that are put. If 80% of bondholders put at 101, cost = $1,000M × 80% × 1% = $8M in premium — far cheaper than make-whole.</p><p>Lesson: Exit timing relative to the HY NC period significantly affects deal economics.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"High yield just means high risk.\"</strong> \"High yield\" is a technical market term for sub-investment-grade bonds. The high yield reflects the higher coupon demanded to compensate for the lower credit rating — not a judgment that the bond will default. Many HY bonds perform very well over their life.</p><p><strong>Misconception 2: \"HY bonds can always be repaid early.\"</strong> Only at a cost during the non-call period. The make-whole premium (NPV of remaining cash flows) can be substantial. After the NC period, call premiums step down to par. Failing to account for this in exit modelling is a significant PE analytical error.</p><p><strong>Misconception 3: \"HY bonds are the same as mezzanine.\"</strong> They fill the same structural role (junior debt) but are completely different instruments: HY bonds are public, fixed-rate, traded, rated, registered, and subject to bond market terms. Mezz is private, often floating-rate or partial PIK, unrated, bilateral, and negotiated.</p><p><strong>Misconception 4: \"Fixed rate is always better for the borrower.\"</strong> Fixed rate is better than floating when rates rise. If rates fall (as they did 2020-2021), floating rate becomes cheaper than the locked-in fixed coupon. The right choice depends on the rate environment outlook at time of issuance.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>High yield bonds are publicly traded, sub-investment-grade debt instruments used in large-cap LBOs when deal size makes private mezzanine impractical. They offer fixed-rate financing, incurrence-only covenants, and access to a deep public investor base — but come with non-call periods that constrain early repayment, change-of-control puts that add exit costs, and public disclosure requirements. The fixed rate makes HY bonds relatively more attractive than floating-rate TLBs in rising rate environments, but creates a mismatch risk if base rates fall post-issuance. HY bonds serve the same structural role as mezzanine (filling the gap between senior capacity and equity) but through a completely different market mechanism — public, rated, registered, and tradeable.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

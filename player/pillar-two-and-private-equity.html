@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pillar-two-and-private-equity", "title": "Pillar Two and Private Equity", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The 15% floor", "on_screen_bullets": ["Biggest new tax constraint since BEPS", "Ends profit-routing to zero-tax", "Misprice it, misprice the deal"], "narration": "The country-by-country lesson ended on the data that feeds this one. Pillar Two, the fifteen-percent global minimum tax, is the most significant new tax constraint on PE portfolio-company operations since the BEPS project began. Before it, sponsors routinely structured portfolio companies to locate profits in low-tax jurisdictions — Irish holding companies at twelve-and-a-half percent, Bermuda IP vehicles at zero, Singapore headquarters at effective rates below ten. Pillar Two imposes a top-up tax that eliminates these advantages. And it's not abstract: for a sponsor doing due diligence, failing to model Pillar Two exposure overstates the target's free cash flow, understates its tax cost, and produces a wrong entry multiple. More broadly, it's the global consensus that PE portfolio companies, if large enough, must contribute to the tax base of the jurisdictions where they actually operate. This lesson is the hard floor under all the structuring we've just studied.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "15% minimum, big groups", "on_screen_bullets": ["GloBE rules, ≥€750m revenue", "Fund excluded, portfolio cos in scope", "Top-up tax to reach 15%"], "narration": "The definition. Pillar Two is the OECD's Global Anti-Base Erosion rules — known as GloBE — establishing a fifteen-percent global minimum effective tax rate on the profits of multinational groups with consolidated revenues at or above seven-hundred-fifty million euros. It excludes the PE investment funds themselves, but applies to PE-backed portfolio companies that meet the revenue threshold, with material implications for leveraged-buyout economics, due diligence, and fund-domicile planning. A minimum tax, aimed at large groups, that the fund escapes but its big portfolio companies do not.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "A global speed limit", "on_screen_bullets": ["Race to the bottom on rates", "Below 15%, someone charges the gap", "Bermuda free lunch shrinks"], "narration": "Plain English. Picture the global tax system as a race to the bottom: Ireland offers twelve-and-a-half percent, Singapore ten, Bermuda zero, and multinational companies route profits to wherever tax is lowest. Pillar Two sets a global speed limit: you can still go to a low-tax jurisdiction, but if your effective rate there is below fifteen percent, whichever high-tax country sits highest in the ownership chain will charge you the difference. Walk a PE example. A portfolio company earns fifty million of profit in Bermuda at zero percent and fifty million in Germany at thirty percent, for a blended fifteen. Before Pillar Two, total tax was just fifteen million, the German portion only. After Pillar Two, the Bermuda profit attracts a fifteen-percent top-up tax, charged say in Luxembourg where the European holding company sits, adding seven-and-a-half million. The free lunch of the Bermuda profit has been partially eliminated. And there's a deliberate exception coming: a carve-out for real payroll and physical assets, so genuine operating substance in a low-tax country is partly protected, while pure paper profit-shifting is the real target. The floor catches the profit with no people behind it.", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "mermaid", "source_section": "The Three Core Mechanisms", "on_screen_title": "Who charges the top-up", "on_screen_bullets": ["QDMTT: home country first", "IIR: parent jurisdiction", "UTPR: the backstop"], "narration": "Technically, the same fifteen-percent top-up can be collected by three different mechanisms, and the diagram shows the order they fire in. Start at the bottom: a jurisdiction where the portfolio company's effective rate is below fifteen percent. First in line is the qualified domestic minimum top-up tax — if that low-tax country has implemented its own fifteen-percent domestic minimum, it charges the top-up itself and keeps the revenue, which is why countries like the UK, France, Germany, and Ireland all adopted one. If the source country doesn't, the income inclusion rule fires next: the country of the group's ultimate parent charges the top-up on the low-taxed income of its subsidiaries — so if a Luxembourg holding company is the parent, Luxembourg collects it. And if neither of those applies — say the parent sits in a country that hasn't implemented Pillar Two, like the US — then the undertaxed-profits rule is the backstop, letting any other implementing country where the group operates collect the top-up, allocated by employee count and assets. Follow the waterfall on screen: domestic minimum first, parent-level inclusion second, undertaxed-profits backstop third — and the practical effect is that the fifteen-percent floor gets collected somewhere no matter how the structure is arranged, because there's always a country in the chain with the right to charge it. The three mechanisms are belt, braces, and a second pair of braces.", "mermaid": "graph TD\n    Low[\"Low-taxed profit<br/>(ETR below 15%)\"] --> Q{\"Source country has<br/>domestic minimum (QDMTT)?\"}\n    Q -->|yes| QD[\"QDMTT charges top-up<br/>locally, keeps revenue\"]\n    Q -->|no| I{\"Parent country applies<br/>income inclusion (IIR)?\"}\n    I -->|yes| IIR[\"Parent jurisdiction<br/>charges top-up\"]\n    I -->|no| UTPR[\"UTPR backstop:<br/>other countries charge it\"]", "est_sec": 58}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "The Investment Fund Exclusion", "on_screen_title": "Fund out, companies assessed alone", "on_screen_bullets": ["Fund is excluded entity", "Each portfolio co tested separately", "12 × €300m ≠ in scope"], "narration": "The single most important structural point for PE is how the investment-fund exclusion interacts with the threshold, because it produces a counterintuitive result. The GloBE rules explicitly exclude investment funds from being treated as group members, so a PE fund — the Cayman or Luxembourg fund vehicle — is not itself a constituent entity, and crucially it does not aggregate its portfolio companies into one big multinational group. Each portfolio company is assessed independently against the seven-hundred-fifty-million threshold, on its own consolidated revenues. That distinction changes everything. A fund owning twelve portfolio companies, each with three-hundred million in revenue, has no Pillar Two exposure at all, because no individual company meets the threshold — the fund doesn't add them together. But a fund owning a single portfolio company with a billion in revenue: that company is fully in scope. So the exposure is company-by-company, not fund-wide. The management entity that receives the fees is a separate services business, not an investment fund, and could in principle be a constituent entity, but most management companies don't reach the threshold on their own. The headline for diligence: you don't ask is the fund big enough, you ask is this specific target, with all its subsidiaries and bolt-ons, big enough — and only the large ones get caught.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Impact on LBO Economics", "on_screen_title": "The hit to LBO cash flow", "on_screen_bullets": ["Top-up reduces free cash flow", "Asset-light software hit hardest", "Substance carve-out softens asset-heavy"], "narration": "Now the impact on the deal model, with the arithmetic. Take a portfolio company with two-hundred million of GloBE income globally and a pre-Pillar-Two effective rate of ten percent, blending Irish, UK, and Bermuda profits, so it pays twenty million in covered taxes. Pillar Two imposes a top-up of the gap, five percentage points, times the two-hundred-million base, an extra ten million, bringing the effective rate up to the fifteen-percent floor. That ten million comes straight out of free cash flow — roughly a five-percent reduction in the cash available to service debt — which at the margin trims sustainable leverage by perhaps a fifth or a quarter of a turn of EBITDA. And here's the sector twist driven by the substance carve-out, which exempts a percentage of payroll and tangible assets from the GloBE base. Capital-intensive businesses — manufacturing, infrastructure, real estate, hotels — have large payrolls and physical asset bases, so the carve-out shrinks their GloBE income substantially and softens the top-up. Asset-light businesses — enterprise software, IP-heavy platforms — have minimal payroll and almost no physical assets, so the carve-out barely helps them and the full profit is exposed. The consequence is pointed: Pillar Two raises the effective tax cost of large software PE investments far more than manufacturing or infrastructure ones, because the carve-out is built around real-world substance the software model doesn't have. Asset-heavy gets a cushion; asset-light takes the full hit.", "est_sec": 60}, {"n": 7, "beat": "mechanics", "visual": "table", "source_section": "Implementation Status (as of 2026-05-23)", "on_screen_title": "Who's adopted it", "on_screen_bullets": ["EU + UK from end-2023", "US not implemented (CAMT ≠ GloBE)", "US groups face UTPR exposure"], "narration": "The implementation map matters, because the gaps in it create real exposure. The EU, across all member states, and the UK both made Pillar Two effective from the end of twenty-twenty-three, with South Korea and Japan following in twenty-twenty-four and others in progress. The crucial exception is the United States, which has not implemented a GloBE-compliant regime. Its corporate alternative minimum tax, the fifteen-percent minimum enacted in the twenty-twenty-two Inflation Reduction Act, is not the GloBE equivalent — it's a domestic minimum tax that doesn't satisfy the income-inclusion or undertaxed-profits rules. That gap has two consequences for PE. First, US portfolio companies of foreign-parented groups can face the undertaxed-profits backstop charged by EU or UK countries, which step in precisely because the US parent isn't applying the income-inclusion rule. And second, US sponsors' global structures carry an asymmetry: the top-up on a US portfolio company's low-taxed foreign profits may be collected in Europe rather than at home, because the US declined to claim it first. So the non-implementation doesn't exempt US groups from Pillar Two — it mostly just hands the revenue to other countries, which is a continuing policy tension between the world's two largest PE markets. The floor still applies; the only question the US gap changes is which treasury collects it.", "est_sec": 56}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Funds aren't in scope", "Not every portfolio co pays 15%", "Exit gains generally excluded"], "narration": "Four corrections to close. First, the belief that Pillar Two applies to PE funds — the investment-fund exclusion means the fund vehicle is not a constituent entity, so only portfolio companies above seven-hundred-fifty million in consolidated revenue are in scope. Second, the belief that all PE portfolio companies now pay fifteen percent — only those above the threshold, and only in jurisdictions where their effective rate is actually below fifteen, so the many companies below the threshold or already paying fifteen-plus are unaffected. Third, the belief that the US has implemented Pillar Two — its corporate alternative minimum tax is not GloBE-equivalent, so the US has not implemented the income-inclusion rule, the undertaxed-profits rule, or a compliant domestic minimum. And fourth, the belief that Pillar Two captures PE exit gains — the excluded-equity-gains carve-out generally takes disposal gains out of the GloBE base, so Pillar Two targets ongoing operating profits, not the capital gains a fund realises on exit. To recap: Pillar Two sets a fifteen-percent floor on the operating profits of large groups above seven-hundred-fifty million, excludes the fund but catches qualifying portfolio companies, collects the top-up through a domestic-minimum, parent-inclusion, or backstop waterfall, hits asset-light software hardest because the substance carve-out doesn't help it, and applies in the EU and UK while the US stands outside — making large-deal tax diligence materially more complex. That completes the international tax architecture; next we turn to the most comprehensive US accountability bill, the Stop Wall Street Looting Act.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A PE fund owns 12 companies each with €300m revenue. Explain why it has ZERO Pillar Two exposure, using the investment-fund exclusion. Then: why does the substance-based carve-out hit asset-light software portfolio companies harder than asset-heavy manufacturers?", "narration": "Before the next lesson, reason it through. A PE fund owns twelve portfolio companies, each with three-hundred million in revenue — explain why it has zero Pillar Two exposure, using the investment-fund exclusion and how the threshold is tested. And why does the substance-based carve-out leave asset-light software portfolio companies more exposed than asset-heavy manufacturers? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Pillar Two and Private Equity\n\n[hook] The 15% floor\nThe country-by-country lesson ended on the data that feeds this one. Pillar Two, the fifteen-percent global minimum tax, is the most significant new tax constraint on PE portfolio-company operations since the BEPS project began. Before it, sponsors routinely structured portfolio companies to locate profits in low-tax jurisdictions — Irish holding companies at twelve-and-a-half percent, Bermuda IP vehicles at zero, Singapore headquarters at effective rates below ten. Pillar Two imposes a top-up tax that eliminates these advantages. And it's not abstract: for a sponsor doing due diligence, failing to model Pillar Two exposure overstates the target's free cash flow, understates its tax cost, and produces a wrong entry multiple. More broadly, it's the global consensus that PE portfolio companies, if large enough, must contribute to the tax base of the jurisdictions where they actually operate. This lesson is the hard floor under all the structuring we've just studied.\n\n[definition] 15% minimum, big groups\nThe definition. Pillar Two is the OECD's Global Anti-Base Erosion rules — known as GloBE — establishing a fifteen-percent global minimum effective tax rate on the profits of multinational groups with consolidated revenues at or above seven-hundred-fifty million euros. It excludes the PE investment funds themselves, but applies to PE-backed portfolio companies that meet the revenue threshold, with material implications for leveraged-buyout economics, due diligence, and fund-domicile planning. A minimum tax, aimed at large groups, that the fund escapes but its big portfolio companies do not.\n\n[intuition] A global speed limit\nPlain English. Picture the global tax system as a race to the bottom: Ireland offers twelve-and-a-half percent, Singapore ten, Bermuda zero, and multinational companies route profits to wherever tax is lowest. Pillar Two sets a global speed limit: you can still go to a low-tax jurisdiction, but if your effective rate there is below fifteen percent, whichever high-tax country sits highest in the ownership chain will charge you the difference. Walk a PE example. A portfolio company earns fifty million of profit in Bermuda at zero percent and fifty million in Germany at thirty percent, for a blended fifteen. Before Pillar Two, total tax was just fifteen million, the German portion only. After Pillar Two, the Bermuda profit attracts a fifteen-percent top-up tax, charged say in Luxembourg where the European holding company sits, adding seven-and-a-half million. The free lunch of the Bermuda profit has been partially eliminated. And there's a deliberate exception coming: a carve-out for real payroll and physical assets, so genuine operating substance in a low-tax country is partly protected, while pure paper profit-shifting is the real target. The floor catches the profit with no people behind it.\n\n[mechanics] Who charges the top-up\nTechnically, the same fifteen-percent top-up can be collected by three different mechanisms, and the diagram shows the order they fire in. Start at the bottom: a jurisdiction where the portfolio company's effective rate is below fifteen percent. First in line is the qualified domestic minimum top-up tax — if that low-tax country has implemented its own fifteen-percent domestic minimum, it charges the top-up itself and keeps the revenue, which is why countries like the UK, France, Germany, and Ireland all adopted one. If the source country doesn't, the income inclusion rule fires next: the country of the group's ultimate parent charges the top-up on the low-taxed income of its subsidiaries — so if a Luxembourg holding company is the parent, Luxembourg collects it. And if neither of those applies — say the parent sits in a country that hasn't implemented Pillar Two, like the US — then the undertaxed-profits rule is the backstop, letting any other implementing country where the group operates collect the top-up, allocated by employee count and assets. Follow the waterfall on screen: domestic minimum first, parent-level inclusion second, undertaxed-profits backstop third — and the practical effect is that the fifteen-percent floor gets collected somewhere no matter how the structure is arranged, because there's always a country in the chain with the right to charge it. The three mechanisms are belt, braces, and a second pair of braces.\n\n[mechanics] Fund out, companies assessed alone\nThe single most important structural point for PE is how the investment-fund exclusion interacts with the threshold, because it produces a counterintuitive result. The GloBE rules explicitly exclude investment funds from being treated as group members, so a PE fund — the Cayman or Luxembourg fund vehicle — is not itself a constituent entity, and crucially it does not aggregate its portfolio companies into one big multinational group. Each portfolio company is assessed independently against the seven-hundred-fifty-million threshold, on its own consolidated revenues. That distinction changes everything. A fund owning twelve portfolio companies, each with three-hundred million in revenue, has no Pillar Two exposure at all, because no individual company meets the threshold — the fund doesn't add them together. But a fund owning a single portfolio company with a billion in revenue: that company is fully in scope. So the exposure is company-by-company, not fund-wide. The management entity that receives the fees is a separate services business, not an investment fund, and could in principle be a constituent entity, but most management companies don't reach the threshold on their own. The headline for diligence: you don't ask is the fund big enough, you ask is this specific target, with all its subsidiaries and bolt-ons, big enough — and only the large ones get caught.\n\n[mechanics] The hit to LBO cash flow\nNow the impact on the deal model, with the arithmetic. Take a portfolio company with two-hundred million of GloBE income globally and a pre-Pillar-Two effective rate of ten percent, blending Irish, UK, and Bermuda profits, so it pays twenty million in covered taxes. Pillar Two imposes a top-up of the gap, five percentage points, times the two-hundred-million base, an extra ten million, bringing the effective rate up to the fifteen-percent floor. That ten million comes straight out of free cash flow — roughly a five-percent reduction in the cash available to service debt — which at the margin trims sustainable leverage by perhaps a fifth or a quarter of a turn of EBITDA. And here's the sector twist driven by the substance carve-out, which exempts a percentage of payroll and tangible assets from the GloBE base. Capital-intensive businesses — manufacturing, infrastructure, real estate, hotels — have large payrolls and physical asset bases, so the carve-out shrinks their GloBE income substantially and softens the top-up. Asset-light businesses — enterprise software, IP-heavy platforms — have minimal payroll and almost no physical assets, so the carve-out barely helps them and the full profit is exposed. The consequence is pointed: Pillar Two raises the effective tax cost of large software PE investments far more than manufacturing or infrastructure ones, because the carve-out is built around real-world substance the software model doesn't have. Asset-heavy gets a cushion; asset-light takes the full hit.\n\n[mechanics] Who's adopted it\nThe implementation map matters, because the gaps in it create real exposure. The EU, across all member states, and the UK both made Pillar Two effective from the end of twenty-twenty-three, with South Korea and Japan following in twenty-twenty-four and others in progress. The crucial exception is the United States, which has not implemented a GloBE-compliant regime. Its corporate alternative minimum tax, the fifteen-percent minimum enacted in the twenty-twenty-two Inflation Reduction Act, is not the GloBE equivalent — it's a domestic minimum tax that doesn't satisfy the income-inclusion or undertaxed-profits rules. That gap has two consequences for PE. First, US portfolio companies of foreign-parented groups can face the undertaxed-profits backstop charged by EU or UK countries, which step in precisely because the US parent isn't applying the income-inclusion rule. And second, US sponsors' global structures carry an asymmetry: the top-up on a US portfolio company's low-taxed foreign profits may be collected in Europe rather than at home, because the US declined to claim it first. So the non-implementation doesn't exempt US groups from Pillar Two — it mostly just hands the revenue to other countries, which is a continuing policy tension between the world's two largest PE markets. The floor still applies; the only question the US gap changes is which treasury collects it.\n\n[pitfalls] What people get wrong\nFour corrections to close. First, the belief that Pillar Two applies to PE funds — the investment-fund exclusion means the fund vehicle is not a constituent entity, so only portfolio companies above seven-hundred-fifty million in consolidated revenue are in scope. Second, the belief that all PE portfolio companies now pay fifteen percent — only those above the threshold, and only in jurisdictions where their effective rate is actually below fifteen, so the many companies below the threshold or already paying fifteen-plus are unaffected. Third, the belief that the US has implemented Pillar Two — its corporate alternative minimum tax is not GloBE-equivalent, so the US has not implemented the income-inclusion rule, the undertaxed-profits rule, or a compliant domestic minimum. And fourth, the belief that Pillar Two captures PE exit gains — the excluded-equity-gains carve-out generally takes disposal gains out of the GloBE base, so Pillar Two targets ongoing operating profits, not the capital gains a fund realises on exit. To recap: Pillar Two sets a fifteen-percent floor on the operating profits of large groups above seven-hundred-fifty million, excludes the fund but catches qualifying portfolio companies, collects the top-up through a domestic-minimum, parent-inclusion, or backstop waterfall, hits asset-light software hardest because the substance carve-out doesn't help it, and applies in the EU and UK while the US stands outside — making large-deal tax diligence materially more complex. That completes the international tax architecture; next we turn to the most comprehensive US accountability bill, the Stop Wall Street Looting Act.\n\nEnd-card question: A PE fund owns 12 companies each with €300m revenue. Explain why it has ZERO Pillar Two exposure, using the investment-fund exclusion. Then: why does the substance-based carve-out hit asset-light software portfolio companies harder than asset-heavy manufacturers?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The 15% global minimum tax is the most significant new tax constraint on PE portfolio company operations since the BEPS project launched. Pre-Pillar Two, PE sponsors routinely structured portfolio company operations to locate profits in low-tax jurisdictions — Irish holding companies at 12.5%, Bermuda IP holding vehicles at 0%, Singapore regional headquarters at effective rates below 10%. Pillar Two imposes a top-up tax that eliminates these advantages. For PE sponsors doing due diligence on acquisition targets, failure to model Pillar Two exposure overstates free cash flow, understates tax cost, and produces an incorrect entry multiple decision. For the PE industry's relationship with regulators and policymakers, Pillar Two is the global consensus that PE portfolio companies (if large enough) must contribute to the tax base of the jurisdictions in which they operate.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Pillar Two is the OECD's Global Anti-Base Erosion (GloBE) rules establishing a 15% global minimum effective tax rate on the profits of MNE groups with consolidated revenues ≥ €750m — excluding PE investment funds themselves but applying to PE-backed portfolio companies that meet the revenue threshold, with material implications for LBO economics, due diligence, and fund domicile planning.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine the global tax system as a race to the bottom: Ireland offers 12.5%, Singapore 10%, Bermuda 0%. MNE companies route profits to wherever the tax is lowest. Pillar Two sets a global speed limit: you can go to low-tax jurisdictions, but if your effective tax rate is below 15%, whichever high-tax country is highest in the ownership chain will charge you the difference.</p><p>For PE: if a PE sponsor's portfolio company earns €50m of profit in Bermuda (0% tax) and €50m in Germany (30% tax), the blended rate is 15%. Before Pillar Two, total tax was €15m (just the Germany portion). After Pillar Two, the Bermuda profit has a 15% top-up tax imposed in (say) Luxembourg, where the PE fund's European HoldCo sits. Total additional tax: 15% × €50m = €7.5m. The \"free lunch\" of Bermuda profit has been partially eliminated.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Pillar Two applies to PE funds.\"</strong> The investment fund exclusion means the PE fund (LP vehicle) is not a Constituent Entity. Only portfolio companies with €750m+ consolidated revenues are in scope.</li><li><strong>\"Pillar Two means all PE portfolio companies pay 15% tax.\"</strong> Only those with consolidated revenues ≥ €750m, and only in jurisdictions where the ETR is below 15%. Many PE portfolio companies are below the threshold or already pay ≥15% effective rates.</li><li><strong>\"The US has implemented Pillar Two.\"</strong> The Inflation Reduction Act's CAMT is not GloBE-equivalent. The US has not implemented IIR, UTPR, or a GloBE-compliant QDMTT as of 2024.</li><li><strong>\"Pillar Two captures PE exit gains.\"</strong> Excluded equity gains carve-out generally excludes PE disposal gains from GloBE income. Pillar Two is about ongoing operating profits, not PE capital gains on exit.</li></ol>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

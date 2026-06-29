@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "management-fee-step-down-mechanics", "title": "Management Fee Step-Down Mechanics", "draft_watermark": false, "estimated_runtime_sec": 312, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Paying for the right work", "on_screen_bullets": ["Deal-sourcing versus monitoring", "Fee should match the workload", "Step-down protects investors"], "narration": "The management fee step-down is the main mechanism protecting investors' economics once the manager's active deal-sourcing work is done. The idea is simple and fair: the fee charged during the early years compensates the manager for the intensive job of deploying capital, while the fee charged later compensates only for monitoring the portfolio toward exit. Those are different jobs with different workloads, so the fee should fall when the heavy lifting ends. For a secondary buyer acquiring positions in funds at various ages, this matters daily, because where a fund sits relative to its investment period determines the current fee burden on that position — and that burden flows directly through to the expense allocations a buyer inherits. So this lesson is about a quiet but real form of investor protection: matching the fee to the work.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Rate and base both drop", "on_screen_bullets": ["Reduction at period end", "Committed capital to cost basis", "Roughly two to one-and-a-half"], "narration": "Here is the definition. A management fee step-down is the contractual reduction in the fee rate and, crucially, the fee base that happens at the end of the investment period — typically falling from around two percent of committed capital to around one-and-a-half percent of invested, cost-basis capital. Notice there are two moving parts, not one: the percentage rate may come down, but the base it applies to also changes, from the full amount investors committed to only the cost of what is still held. That shift in the base is actually the more powerful of the two effects, and it is the part people most often overlook. Keep both in view: the rate, and the base.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Two jobs, two fees", "on_screen_bullets": ["Five years to invest", "Five years to harvest", "Monitoring earns less"], "narration": "Think of the fund's life in two halves. In the first roughly five years, the investment period, the manager works intensively — sourcing deals, negotiating acquisitions, arranging the debt. After that, the job changes entirely: monitor the companies you already own and execute their exits. It would be unreasonable to charge the same rate for monitoring as for deal-sourcing, because the work is genuinely lighter. So the step-down simply reflects that reality — the fee drops when the active sourcing role ends. This was not always the norm. In the early decades of the industry, fees often ran at the full rate for the entire fund life, regardless of how little active work remained in the later years. Investors negotiated the step-down over time precisely to stop paying a deal-sourcing fee for monitoring work.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The litigation retainer", "on_screen_bullets": ["Full rate during the case", "Maintenance rate while waiting", "Lower work, lower fee"], "narration": "A clean analogy is a lawyer's retainer during and after a court case. While the litigation is active — the equivalent of the investment period — you pay the full rate, because they are working on your case constantly. Once the case is won and you are simply waiting for the payment to arrive — the harvest period — the retainer drops to a maintenance rate. The lawyer is still on call and handling the paperwork, but the intensive work is finished, so the lower rate reflects the lower workload. That is exactly the logic of the step-down: a full fee for active work, a reduced fee for the standby-and-monitor phase. The fee tracks the effort, which is precisely what a fair fee should do.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why cost basis, not value", "on_screen_bullets": ["Value invites mark-up gaming", "Cost basis is objective", "Exits shrink the base automatically"], "narration": "The most important mechanical choice is that the later fee is charged on cost basis — the original purchase price of the remaining companies — rather than on current value. This is deliberate and clever. Current value fluctuates, and worse, charging a fee on it would give the manager an incentive to mark investments up to generate more fee income. Cost basis removes that temptation entirely: it is objective and static, fixed at what was actually paid. And it has a beautiful self-correcting property. As each company is sold, its cost simply drops out of the fee calculation, so the fee base shrinks automatically as the portfolio is harvested. The fee declines naturally in step with the declining workload, with no subjective judgment required. So the choice of cost basis does two jobs at once: it blocks valuation gaming, and it builds an automatic fee taper into the harvest years.", "est_sec": 54}, {"n": 6, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Worked example", "on_screen_bullets": ["Full fee on full commitment", "Then reduced rate on what's left", "Big drop as exits accumulate"], "narration": "Put numbers on it with a representative fund. During the investment period, a two-percent fee on the full committed capital produces a large, steady annual fee. Now step into the harvest years. The rate drops, and the base is now only the cost of the companies still held. Sell off, say, half the portfolio, and the fee base has halved on top of the lower rate — so the annual fee might fall to a small fraction of the investment-period figure. Sell more, and it falls further still. Across the whole harvest period the saving versus a hypothetical no-step-down structure is substantial — commonly a reduction of roughly forty to sixty percent in the annual fee burden. And on a large fund, this is the difference between a manager continuing to collect a deal-sourcing-scale fee on a portfolio that is mostly already sold, and a fee that genuinely reflects the modest remaining work. That gap is the investor protection.", "est_sec": 52}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The offset interaction", "on_screen_bullets": ["Portfolio company fees offset", "Lower base, bigger relative offset", "Net cost falls further"], "narration": "One more interaction deepens the protection: the fee offset. Managers often collect deal fees, monitoring fees, and director fees from the portfolio companies themselves, and the modern standard is that these are credited in full against the fee investors pay. Now watch how this compounds with the step-down. In the harvest years the base fee is already lower, so any given amount of offset income from monitoring fees represents a larger proportion of that smaller fee — which means the offset wipes out a bigger share of it, pushing the net cost to investors down further still. The two mechanisms reinforce each other: the step-down shrinks the gross fee, and the offset then eats more of what remains. Together they ensure that in the back half of a fund's life, investors are paying close to a true monitoring cost rather than a management cost.", "est_sec": 52}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Not automatically half off", "Cost basis is fixed", "Step-down isn't universal timing"], "narration": "Four misconceptions to correct. First, that a step-down means fees get cut in half — not necessarily; on a portfolio that is barely realised, the impact is modest, while on a heavily realised one it is dramatic, because the effect scales with how much has been sold. Second, that cost basis declines when investments are written up — wrong; cost basis is what was paid at entry and stays fixed regardless of any revaluation, and only actual exits reduce it. Third, that all funds step down at the same point — not so; some agreements let the manager extend the investment period with investor consent, during which the original rate and base can continue. And fourth, that the step-down applies to every fee — it applies only to the management fee as defined; other manager income streams like transaction and monitoring fees are governed separately and may continue regardless of where the fund is in its life.", "est_sec": 52}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Fee that tracks the work", "on_screen_bullets": ["Rate and base both fall", "Cost basis auto-tapers", "Offset compounds the saving"], "narration": "So to summarise: a management fee step-down reduces the manager's fee at the end of the investment period — typically from around two percent of committed capital to around one-and-a-half percent of remaining cost basis. The shift to cost basis is the key design choice: it blocks valuation gaming and creates a natural, automatic taper as investments are realised, so the fee falls in step with the diminishing work. It interacts with portfolio-company fee offsets, which credit those fees against what investors pay and bite harder against the smaller late-life base, lowering the net cost further. For a secondary buyer, a position in an older fund has already stepped down, producing meaningfully lower expense allocations than the same fund at inception — which is exactly why fee stage is a real input into how secondary positions get priced. The throughline: the step-down is the mechanism that makes the fee track the work.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["What two things change?", "Why cost basis not value?", "How does the offset compound it?"], "narration": "Before you move on, answer these from memory. At the step-down, which two things about the fee change, and which has the bigger effect? Why is the later fee charged on cost basis rather than current value? And how does the portfolio-company fee offset compound the saving once the base has stepped down? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Management Fee Step-Down Mechanics\n\n[hook] Paying for the right work\nThe management fee step-down is the main mechanism protecting investors' economics once the manager's active deal-sourcing work is done. The idea is simple and fair: the fee charged during the early years compensates the manager for the intensive job of deploying capital, while the fee charged later compensates only for monitoring the portfolio toward exit. Those are different jobs with different workloads, so the fee should fall when the heavy lifting ends. For a secondary buyer acquiring positions in funds at various ages, this matters daily, because where a fund sits relative to its investment period determines the current fee burden on that position — and that burden flows directly through to the expense allocations a buyer inherits. So this lesson is about a quiet but real form of investor protection: matching the fee to the work.\n\n[definition] Rate and base both drop\nHere is the definition. A management fee step-down is the contractual reduction in the fee rate and, crucially, the fee base that happens at the end of the investment period — typically falling from around two percent of committed capital to around one-and-a-half percent of invested, cost-basis capital. Notice there are two moving parts, not one: the percentage rate may come down, but the base it applies to also changes, from the full amount investors committed to only the cost of what is still held. That shift in the base is actually the more powerful of the two effects, and it is the part people most often overlook. Keep both in view: the rate, and the base.\n\n[intuition] Two jobs, two fees\nThink of the fund's life in two halves. In the first roughly five years, the investment period, the manager works intensively — sourcing deals, negotiating acquisitions, arranging the debt. After that, the job changes entirely: monitor the companies you already own and execute their exits. It would be unreasonable to charge the same rate for monitoring as for deal-sourcing, because the work is genuinely lighter. So the step-down simply reflects that reality — the fee drops when the active sourcing role ends. This was not always the norm. In the early decades of the industry, fees often ran at the full rate for the entire fund life, regardless of how little active work remained in the later years. Investors negotiated the step-down over time precisely to stop paying a deal-sourcing fee for monitoring work.\n\n[intuition] The litigation retainer\nA clean analogy is a lawyer's retainer during and after a court case. While the litigation is active — the equivalent of the investment period — you pay the full rate, because they are working on your case constantly. Once the case is won and you are simply waiting for the payment to arrive — the harvest period — the retainer drops to a maintenance rate. The lawyer is still on call and handling the paperwork, but the intensive work is finished, so the lower rate reflects the lower workload. That is exactly the logic of the step-down: a full fee for active work, a reduced fee for the standby-and-monitor phase. The fee tracks the effort, which is precisely what a fair fee should do.\n\n[mechanics] Why cost basis, not value\nThe most important mechanical choice is that the later fee is charged on cost basis — the original purchase price of the remaining companies — rather than on current value. This is deliberate and clever. Current value fluctuates, and worse, charging a fee on it would give the manager an incentive to mark investments up to generate more fee income. Cost basis removes that temptation entirely: it is objective and static, fixed at what was actually paid. And it has a beautiful self-correcting property. As each company is sold, its cost simply drops out of the fee calculation, so the fee base shrinks automatically as the portfolio is harvested. The fee declines naturally in step with the declining workload, with no subjective judgment required. So the choice of cost basis does two jobs at once: it blocks valuation gaming, and it builds an automatic fee taper into the harvest years.\n\n[example] Worked example\nPut numbers on it with a representative fund. During the investment period, a two-percent fee on the full committed capital produces a large, steady annual fee. Now step into the harvest years. The rate drops, and the base is now only the cost of the companies still held. Sell off, say, half the portfolio, and the fee base has halved on top of the lower rate — so the annual fee might fall to a small fraction of the investment-period figure. Sell more, and it falls further still. Across the whole harvest period the saving versus a hypothetical no-step-down structure is substantial — commonly a reduction of roughly forty to sixty percent in the annual fee burden. And on a large fund, this is the difference between a manager continuing to collect a deal-sourcing-scale fee on a portfolio that is mostly already sold, and a fee that genuinely reflects the modest remaining work. That gap is the investor protection.\n\n[application] The offset interaction\nOne more interaction deepens the protection: the fee offset. Managers often collect deal fees, monitoring fees, and director fees from the portfolio companies themselves, and the modern standard is that these are credited in full against the fee investors pay. Now watch how this compounds with the step-down. In the harvest years the base fee is already lower, so any given amount of offset income from monitoring fees represents a larger proportion of that smaller fee — which means the offset wipes out a bigger share of it, pushing the net cost to investors down further still. The two mechanisms reinforce each other: the step-down shrinks the gross fee, and the offset then eats more of what remains. Together they ensure that in the back half of a fund's life, investors are paying close to a true monitoring cost rather than a management cost.\n\n[application] Four myths\nFour misconceptions to correct. First, that a step-down means fees get cut in half — not necessarily; on a portfolio that is barely realised, the impact is modest, while on a heavily realised one it is dramatic, because the effect scales with how much has been sold. Second, that cost basis declines when investments are written up — wrong; cost basis is what was paid at entry and stays fixed regardless of any revaluation, and only actual exits reduce it. Third, that all funds step down at the same point — not so; some agreements let the manager extend the investment period with investor consent, during which the original rate and base can continue. And fourth, that the step-down applies to every fee — it applies only to the management fee as defined; other manager income streams like transaction and monitoring fees are governed separately and may continue regardless of where the fund is in its life.\n\n[recap] Fee that tracks the work\nSo to summarise: a management fee step-down reduces the manager's fee at the end of the investment period — typically from around two percent of committed capital to around one-and-a-half percent of remaining cost basis. The shift to cost basis is the key design choice: it blocks valuation gaming and creates a natural, automatic taper as investments are realised, so the fee falls in step with the diminishing work. It interacts with portfolio-company fee offsets, which credit those fees against what investors pay and bite harder against the smaller late-life base, lowering the net cost further. For a secondary buyer, a position in an older fund has already stepped down, producing meaningfully lower expense allocations than the same fund at inception — which is exactly why fee stage is a real input into how secondary positions get priced. The throughline: the step-down is the mechanism that makes the fee track the work.\n\n[end_card] Test yourself\nBefore you move on, answer these from memory. At the step-down, which two things about the fee change, and which has the bigger effect? Why is the later fee charged on cost basis rather than current value? And how does the portfolio-company fee offset compound the saving once the base has stepped down? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The management fee step-down is the primary mechanism protecting LP economic interests once the GP's active deal-sourcing work is complete. The investment period fee compensates for deploying capital; the post-investment period fee compensates for portfolio monitoring only. For CVC Secondary Partners, step-down mechanics are directly relevant daily: as a secondary buyer of LP positions, CVC acquires positions in funds at various stages of their lifecycle. The age of a fund relative to its investment period determines the current management fee burden on that LP position — a fee burden that flows directly into K-1 expense allocations processed as part of normal fund administration.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A management fee step-down is the contractual reduction in PE management fee rate and/or base that occurs at the end of the investment period, typically reducing from ~2% of committed capital to ~1.5% of invested (cost basis) capital.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>A PE fund has a 10-year life: 5 years to invest capital, 5 years to exit and return capital. During the investment period, the GP works intensively — sourcing deals, negotiating acquisitions, managing leverage syndicates. After that, the job shifts: monitor existing investments and execute exits.</p><p>It would be unreasonable to charge the same fee rate for monitoring as for deal-sourcing. The step-down reflects this reality: fees fall when the active deal-sourcing role ends. LPs negotiated this protection over decades of ILPA advocacy. In the 1980s, management fees often continued at the same rate for the full 10-year fund life; step-downs on cost basis are now standard.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The management fee step-down is like a retainer for a solicitor during and after litigation. During active litigation (investment period), you pay the full hourly rate — they're constantly working on your case. Once the case is won and you're waiting for the cheque to arrive (harvest period), the retainer reduces to a maintenance rate. The solicitor is still on call and managing paperwork, but the intensive active work is done. The lower rate reflects the lower workload.</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>Typical Structure:</strong></p><p><em>Investment Period (Years 1-5):</em> - Fee base: committed capital (all LP commitments, whether or not yet called) - Fee rate: 1.5-2.0% per annum (2.0% is the historical standard; 1.5-1.75% increasingly common for large funds above €5bn)</p><p><em>Post-Investment Period (Years 6-10):</em> - Fee base: invested capital (cost basis of remaining portfolio companies) - Fee rate: same percentage as investment period OR reduced further (1.0-1.5%)</p><p>The most common market structure: 2% of committed capital during investment period → 1.5% of cost basis of remaining investments post-investment period.</p><p><strong>Why Cost Basis (Not NAV)?</strong> NAV fluctuates and creates incentives for GPs to mark investments up to generate higher fee income. Cost basis is objective and static — the purchase price paid at acquisition. As companies are realised (exited), their cost basis drops out of the fee calculation automatically. This creates a natural fee reduction as the portfolio is harvested — aligning the declining fee with the declining workload.</p><p><strong>Worked Example:</strong> A €1bn fund over its 10-year life: - Investment period: 2% × €1bn = <strong>€20m per year</strong> - Year 6 (post-step-down): assume 3 of 8 portfolio companies realised; remaining cost basis = €600m → fee = 1.5% × €600m = <strong>€9m per year</strong> (−€11m saving vs. investment period) - Year 8 (further realisations): remaining cost basis = €350m → fee = 1.5% × €350m = <strong>€5.25m per year</strong></p><p>Total fee saving over harvest period vs. a hypothetical no-step-down structure: substantial — typically 40-60% reduction in annual fee burden.</p><p><strong>Management Fee Offset Interaction:</strong> Deal fees, monitoring fees, and directors' fees received by the GP from portfolio companies are typically offset against the management fee (ILPA standard: 100% offset). The lower post-investment period fee means the offset income from monitoring fees represents a higher proportion of the total fee, reducing LP cost further.</p><p><strong>ILPA Standard (Principles 3.0):</strong> 1. Explicit step-down provision stated in the LPA 2. Fee base shifts to invested capital (cost basis) after investment period 3. 100% offset of portfolio company fees against management fee 4. Annual fee disclosure using ILPA Fee Reporting Template</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Blackstone BCP VII ($17.7bn, 2012 vintage):</strong> A large buyout fund of this vintage typically charged 1.5% of committed capital during the investment period, stepping down to 1.0% of invested capital post-investment period. With $17.7bn committed, the investment period fee was approximately $265m per year. As the portfolio was realised through 2018-2022, the post-investment period fee on remaining invested capital fell progressively. By the time two-thirds of the portfolio was realised, the annual fee was roughly $90m — a ~65% reduction. This step-down saved LPs approximately $175m per year at peak harvest, representing a substantial LP economic protection.</p><p><strong>CVC Secondary Partners context:</strong> When CVC acquires a secondary LP position in an older fund (say, a 2017-vintage fund in Year 8 of its 10-year life), the management fee step-down has already occurred and most realisations have been made. CVC's K-1 allocation for that position includes a management fee expense allocation that reflects the post-step-down rate on a reduced cost basis — substantially lower than the investment period rate applied to the same position at vintage inception. Secondary buyers price this fee differential explicitly: a fund still charging committed capital basis fees is less attractive than one that has stepped down to a fraction of that base.</p>"}, "6": {"section": "Technical Explanation", "html": "<p><strong>Typical Structure:</strong></p><p><em>Investment Period (Years 1-5):</em> - Fee base: committed capital (all LP commitments, whether or not yet called) - Fee rate: 1.5-2.0% per annum (2.0% is the historical standard; 1.5-1.75% increasingly common for large funds above €5bn)</p><p><em>Post-Investment Period (Years 6-10):</em> - Fee base: invested capital (cost basis of remaining portfolio companies) - Fee rate: same percentage as investment period OR reduced further (1.0-1.5%)</p><p>The most common market structure: 2% of committed capital during investment period → 1.5% of cost basis of remaining investments post-investment period.</p><p><strong>Why Cost Basis (Not NAV)?</strong> NAV fluctuates and creates incentives for GPs to mark investments up to generate higher fee income. Cost basis is objective and static — the purchase price paid at acquisition. As companies are realised (exited), their cost basis drops out of the fee calculation automatically. This creates a natural fee reduction as the portfolio is harvested — aligning the declining fee with the declining workload.</p><p><strong>Worked Example:</strong> A €1bn fund over its 10-year life: - Investment period: 2% × €1bn = <strong>€20m per year</strong> - Year 6 (post-step-down): assume 3 of 8 portfolio companies realised; remaining cost basis = €600m → fee = 1.5% × €600m = <strong>€9m per year</strong> (−€11m saving vs. investment period) - Year 8 (further realisations): remaining cost basis = €350m → fee = 1.5% × €350m = <strong>€5.25m per year</strong></p><p>Total fee saving over harvest period vs. a hypothetical no-step-down structure: substantial — typically 40-60% reduction in annual fee burden.</p><p><strong>Management Fee Offset Interaction:</strong> Deal fees, monitoring fees, and directors' fees received by the GP from portfolio companies are typically offset against the management fee (ILPA standard: 100% offset). The lower post-investment period fee means the offset income from monitoring fees represents a higher proportion of the total fee, reducing LP cost further.</p><p><strong>ILPA Standard (Principles 3.0):</strong> 1. Explicit step-down provision stated in the LPA 2. Fee base shifts to invested capital (cost basis) after investment period 3. 100% offset of portfolio company fees against management fee 4. Annual fee disclosure using ILPA Fee Reporting Template</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Step-down means fees get cut in half\"</strong> — Not necessarily. Both rate and base may change simultaneously, but on a portfolio that is only 20% realised, the step-down impact is modest. On an 80% realised portfolio, the impact is dramatic.</li><li><strong>\"All funds step down at the same point\"</strong> — No. Some LPAs allow the GP to call an extended investment period (with LP consent); during this extension, the original fee rate and base may continue.</li><li><strong>\"The cost basis declines as investments are written up\"</strong> — Wrong. Cost basis is what was paid at entry and stays fixed regardless of fair value revaluations. Only actual exits (realisations) reduce the fee base.</li><li><strong>\"The step-down applies automatically to all fees\"</strong> — Only to the management fee as defined in the LPA. Other GP income streams (transaction fees, monitoring fees, broken deal fees) are governed separately — and may continue regardless of investment period status.</li></ol>"}, "8": {"section": "Summary", "html": "<p>A management fee step-down reduces the GP's management fee burden at the end of the investment period — typically from 2% of committed capital to 1.5% of remaining invested cost basis. The shift to cost basis is intentional: it aligns fee income with the actual remaining portfolio and creates natural fee reduction as investments are realised. The step-down interacts with management fee offsets from portfolio company monitoring fees (typically 100% offset under ILPA standards), further reducing LP cost. For CVC Secondary Partners, secondary positions in older funds have already stepped down, producing lower K-1 management fee expense allocations than the same fund at vintage inception — a material consideration in secondary LP position pricing.</p>"}, "9": {"section": "Summary", "html": "<p>A management fee step-down reduces the GP's management fee burden at the end of the investment period — typically from 2% of committed capital to 1.5% of remaining invested cost basis. The shift to cost basis is intentional: it aligns fee income with the actual remaining portfolio and creates natural fee reduction as investments are realised. The step-down interacts with management fee offsets from portfolio company monitoring fees (typically 100% offset under ILPA standards), further reducing LP cost. For CVC Secondary Partners, secondary positions in older funds have already stepped down, producing lower K-1 management fee expense allocations than the same fund at vintage inception — a material consideration in secondary LP position pricing.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "deemed-realisation-at-death-international-comparison", "title": "Deemed Realisation at Death — US vs International Comparison", "draft_watermark": false, "estimated_runtime_sec": 400, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Is the step-up normal?", "on_screen_bullets": ["Step-up: third pillar of GP advantage", "Is it universal or exceptional?", "Comparison answers the reform question"], "narration": "We've established that the US step-up in basis at death eliminates capital gains tax on appreciated PE carry — the third component of the GP's effective lifetime tax advantage, after the carry-rate differential and deferral. But establishing how a rule works doesn't tell you whether it's normal or exceptional. And that distinction carries the entire reform argument. If every peer economy also eliminated capital gains tax at death — if Canada, the UK, and Australia all did the same — then the step-up would be an unremarkable design choice, just how developed economies handle death. They don't. Most comparable economies impose some kind of capital-gains reckoning at death. So this lesson runs the international comparison, and it demonstrates that the US step-up is an outlier — a specific policy choice that amplifies the lifetime tax advantage of PE carry well beyond what exists anywhere else. That matters because it provides independent evidence that the US treatment isn't the only viable option, which is exactly what a reform case needs.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Four countries, four answers", "on_screen_bullets": ["US: full step-up, gain erased", "Canada/Australia: deemed realisation", "UK: middle path via inheritance tax"], "narration": "The definition. On death, the US provides a full step-up in basis — eliminating all capital gains tax on appreciation accumulated during the deceased's lifetime. Canada and Australia instead apply some form of deemed realisation, where accrued gains are either taxed at death or carried over to the heir. And the UK takes a middle path: no capital gains tax at death, but an inheritance tax on the estate. Lay those four side by side and the US step-up stands out as an exceptional outlier — the one regime that permanently extinguishes the accumulated gain rather than taxing it or deferring it. That single observation is what the rest of the lesson unpacks.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "100m of carry, four outcomes", "on_screen_bullets": ["US: heirs owe zero", "Canada: ~25% taxed at death", "Australia defers; UK taxes the estate"], "narration": "Plain English. Picture a PE partner with a hundred million of accumulated carry, with a cost basis near zero because of how carry accrues, and they've never triggered capital gains tax because the carry is unrealised inside the fund. They die. What happens to the hundred million of appreciation? In the United States, the basis steps up to fair market value at death — a hundred million. If the heir sells the next day for a hundred million, they owe zero capital gains tax. The entire lifetime appreciation passes tax-free. In Canada, the deemed-disposition rule treats the deceased as having sold all capital property at fair market value immediately before death, so the hundred million is a capital gain taxed on the final return, at an effective rate of roughly twenty-five percent; the estate pays, and the heir inherits a stepped-up basis. In Australia, it depends who inherits — for the typical adult child, the heir takes the deceased's original cost base, which defers the gain but preserves the tax obligation until they eventually sell. And in the UK, death is not a disposal for capital gains tax, so assets pass at market value, but inheritance tax applies to the estate at forty percent above the threshold. Same hundred million, four genuinely different outcomes — and only one of them lets the gain disappear entirely.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The toll road", "on_screen_bullets": ["Canada: toll at the border", "Australia: son pays later", "US: waved through, meter reset"], "narration": "The mental model is a set of toll roads. Canada charges the toll when you cross the border — deemed disposition at death, pay the tax then. Australia defers the toll: you aren't charged at the border, but your son pays it when he eventually crosses, because he inherited your cost base. The UK charges a different toll altogether — inheritance tax on the estate — without charging the capital-gains toll directly. And the US waves you straight through with no toll at all, then resets the meter to zero for the next driver. Every other car pays something on the way through. The US car drives toll-free across the entire accumulation, and the next driver starts as though the road were brand new. Hold that image, because it captures precisely why the US treatment is an outlier rather than a norm.", "est_sec": 42}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "How each regime works", "on_screen_bullets": ["US: basis to FMV, gain gone", "Canada: terminal-return capital gain", "UK: no CGT but inheritance tax + reliefs"], "narration": "Technically, here's how each regime reaches PE carry. The US step-up sets the income-tax basis of inherited property at fair market value at death, so all unrealised appreciation between acquisition and death is permanently excluded from income tax. Applied to carry: the partner holds a profits interest with a basis near zero and a large fair market value, and on death the heir's basis steps up to that value, so a sale produces zero taxable gain. Estimates of the revenue lost to the step-up run into the hundreds of billions over a decade, and a prominent reform proposal would have replaced it with a deemed-realisation approach — treating death as a taxable disposition at fair market value, with a multi-million-dollar exclusion, carve-outs for family farms and small businesses, and a fifteen-year instalment option for illiquid assets. Canada's mechanism is that deemed disposition: the final return reports the gain from cost base to fair market value, and with the capital-gains inclusion rate having risen for larger gains, more of the carry appreciation is now pulled into income than before. The UK keeps capital gains tax out of death entirely — the heir takes the base cost at market value — but applies inheritance tax at forty percent above the threshold, with business-property relief potentially reducing the inheritance tax on a qualifying carry interest, though whether carry qualifies is a genuinely contested area of UK tax law. And Australia neither taxes nor steps up: the heir inherits the original cost base, deferring but preserving the gain until they sell. Four mechanisms, and only the US permanently eliminates the gain without any compensating charge.", "est_sec": 60}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The reform templates", "on_screen_bullets": ["Deemed realisation (Canada model)", "Inherited cost base (Australia model)", "Lower estate-tax threshold (UK analogue)"], "narration": "The comparison hands reformers three off-the-shelf templates, each already operating in a peer economy without economic catastrophe. Template one, deemed realisation, modelled on Canada: treat death as a taxable disposition and trigger capital gains tax at fair market value — the approach behind the leading US reform proposal. Template two, inherited cost base, the Australian model: don't tax at death, but pass the deceased's original cost base to the heir so the gain is deferred rather than extinguished, and is ultimately taxed when the heir sells. Template three, estate-tax reform, a partial analogue to UK inheritance tax: lower the estate-tax exemption so that more accumulated PE carry wealth is captured at transfer. The crucial common feature across all three is that each preserves the gain in some form rather than letting it vanish — which is precisely what the US step-up uniquely fails to do. And the existence of three working models in comparable economies is the strongest rebuttal to the claim that taxing accumulated gains at death is somehow administratively or economically impossible. Peer economies are already doing it.", "est_sec": 50}, {"n": 7, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Same career, two regimes", "on_screen_bullets": ["US founder: heirs owe zero CGT", "Canadian equivalent: ~25% at death", "On 1bn: ~250m difference"], "narration": "Make it concrete with two founders running identical careers. Take the founder of a major US buyout firm who accumulates substantial carry and investment interests over decades and dies holding them. Under the US step-up, every one of those interests receives a full basis step-up at death, so heirs who sell at the date-of-death value owe zero capital gains tax on a multi-decade accumulation — the entire lifetime PE wealth passes essentially free of capital gains taxation. Now run the same career through Canada. The identical carry appreciation generates a taxable capital gain on the terminal return, and at the current inclusion rate the effective tax is roughly a quarter of the gain. On a comparable billion-dollar carry position, that's on the order of two hundred and fifty million in tax — paid by the estate, not the heir. Same career, same wealth, and the difference between the two regimes is a quarter of a billion dollars in tax that the US simply never collects. That gap is the step-up's effect, in a single number.", "est_sec": 48}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Estate tax offsets the step-up", "UK and US are equivalent", "Deemed realisation is unworkable"], "narration": "Three corrections to close. First, the belief that the estate tax compensates for the step-up — it's a different mechanism, applying only above a high exemption and only at forty percent on the excess, and reducible through planning vehicles like GRATs and dynasty trusts, so it doesn't recover the capital gains tax that the step-up permanently eliminates and that Canada and Australia at least defer. Second, the belief that UK treatment is equivalent to the US because neither charges capital gains tax at death — the UK applies inheritance tax at forty percent above a threshold that is a small fraction of the US estate-tax exemption, so for large estates the US is a far more favourable regime at transfer, not an equivalent one. And third, the belief that deemed realisation would be administratively impossible for illiquid PE carry — the leading proposal handled this with a multi-million-dollar exclusion, a fifteen-year instalment option for illiquid assets, and a family-business carve-out, and Canada has run deemed disposition for years without administrative collapse, so illiquidity is a practical challenge, not an insurmountable one. To recap: the US step-up permanently eliminates capital gains tax at death; Canada taxes the gain via deemed disposition, Australia defers it via inherited cost base, and the UK captures wealth through inheritance tax; the US is the lone major economy to erase the gain with no compensating charge; and peer economies supply three concrete, road-tested reform templates. Next we turn from the death event to the international tax frontier: US non-adoption of the global minimum tax.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Contrast how the US, Canada, Australia, and the UK each treat a $100m unrealised carry gain at death. Then: why does the international comparison strengthen the reform case — and what are the three templates peer economies provide?", "narration": "Before the next lesson, reason it through. For a hundred-million unrealised carry gain at death, contrast what happens in the US, Canada, Australia, and the UK — which one lets the gain disappear, and how do the others preserve it? Then: why does this international comparison strengthen the reform case rather than just describe it, and what are the three reform templates peer economies have already road-tested? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Deemed Realisation at Death — US vs International Comparison\n\n[hook] Is the step-up normal?\nWe've established that the US step-up in basis at death eliminates capital gains tax on appreciated PE carry — the third component of the GP's effective lifetime tax advantage, after the carry-rate differential and deferral. But establishing how a rule works doesn't tell you whether it's normal or exceptional. And that distinction carries the entire reform argument. If every peer economy also eliminated capital gains tax at death — if Canada, the UK, and Australia all did the same — then the step-up would be an unremarkable design choice, just how developed economies handle death. They don't. Most comparable economies impose some kind of capital-gains reckoning at death. So this lesson runs the international comparison, and it demonstrates that the US step-up is an outlier — a specific policy choice that amplifies the lifetime tax advantage of PE carry well beyond what exists anywhere else. That matters because it provides independent evidence that the US treatment isn't the only viable option, which is exactly what a reform case needs.\n\n[definition] Four countries, four answers\nThe definition. On death, the US provides a full step-up in basis — eliminating all capital gains tax on appreciation accumulated during the deceased's lifetime. Canada and Australia instead apply some form of deemed realisation, where accrued gains are either taxed at death or carried over to the heir. And the UK takes a middle path: no capital gains tax at death, but an inheritance tax on the estate. Lay those four side by side and the US step-up stands out as an exceptional outlier — the one regime that permanently extinguishes the accumulated gain rather than taxing it or deferring it. That single observation is what the rest of the lesson unpacks.\n\n[intuition] 100m of carry, four outcomes\nPlain English. Picture a PE partner with a hundred million of accumulated carry, with a cost basis near zero because of how carry accrues, and they've never triggered capital gains tax because the carry is unrealised inside the fund. They die. What happens to the hundred million of appreciation? In the United States, the basis steps up to fair market value at death — a hundred million. If the heir sells the next day for a hundred million, they owe zero capital gains tax. The entire lifetime appreciation passes tax-free. In Canada, the deemed-disposition rule treats the deceased as having sold all capital property at fair market value immediately before death, so the hundred million is a capital gain taxed on the final return, at an effective rate of roughly twenty-five percent; the estate pays, and the heir inherits a stepped-up basis. In Australia, it depends who inherits — for the typical adult child, the heir takes the deceased's original cost base, which defers the gain but preserves the tax obligation until they eventually sell. And in the UK, death is not a disposal for capital gains tax, so assets pass at market value, but inheritance tax applies to the estate at forty percent above the threshold. Same hundred million, four genuinely different outcomes — and only one of them lets the gain disappear entirely.\n\n[intuition] The toll road\nThe mental model is a set of toll roads. Canada charges the toll when you cross the border — deemed disposition at death, pay the tax then. Australia defers the toll: you aren't charged at the border, but your son pays it when he eventually crosses, because he inherited your cost base. The UK charges a different toll altogether — inheritance tax on the estate — without charging the capital-gains toll directly. And the US waves you straight through with no toll at all, then resets the meter to zero for the next driver. Every other car pays something on the way through. The US car drives toll-free across the entire accumulation, and the next driver starts as though the road were brand new. Hold that image, because it captures precisely why the US treatment is an outlier rather than a norm.\n\n[mechanics] How each regime works\nTechnically, here's how each regime reaches PE carry. The US step-up sets the income-tax basis of inherited property at fair market value at death, so all unrealised appreciation between acquisition and death is permanently excluded from income tax. Applied to carry: the partner holds a profits interest with a basis near zero and a large fair market value, and on death the heir's basis steps up to that value, so a sale produces zero taxable gain. Estimates of the revenue lost to the step-up run into the hundreds of billions over a decade, and a prominent reform proposal would have replaced it with a deemed-realisation approach — treating death as a taxable disposition at fair market value, with a multi-million-dollar exclusion, carve-outs for family farms and small businesses, and a fifteen-year instalment option for illiquid assets. Canada's mechanism is that deemed disposition: the final return reports the gain from cost base to fair market value, and with the capital-gains inclusion rate having risen for larger gains, more of the carry appreciation is now pulled into income than before. The UK keeps capital gains tax out of death entirely — the heir takes the base cost at market value — but applies inheritance tax at forty percent above the threshold, with business-property relief potentially reducing the inheritance tax on a qualifying carry interest, though whether carry qualifies is a genuinely contested area of UK tax law. And Australia neither taxes nor steps up: the heir inherits the original cost base, deferring but preserving the gain until they sell. Four mechanisms, and only the US permanently eliminates the gain without any compensating charge.\n\n[mechanics] The reform templates\nThe comparison hands reformers three off-the-shelf templates, each already operating in a peer economy without economic catastrophe. Template one, deemed realisation, modelled on Canada: treat death as a taxable disposition and trigger capital gains tax at fair market value — the approach behind the leading US reform proposal. Template two, inherited cost base, the Australian model: don't tax at death, but pass the deceased's original cost base to the heir so the gain is deferred rather than extinguished, and is ultimately taxed when the heir sells. Template three, estate-tax reform, a partial analogue to UK inheritance tax: lower the estate-tax exemption so that more accumulated PE carry wealth is captured at transfer. The crucial common feature across all three is that each preserves the gain in some form rather than letting it vanish — which is precisely what the US step-up uniquely fails to do. And the existence of three working models in comparable economies is the strongest rebuttal to the claim that taxing accumulated gains at death is somehow administratively or economically impossible. Peer economies are already doing it.\n\n[example] Same career, two regimes\nMake it concrete with two founders running identical careers. Take the founder of a major US buyout firm who accumulates substantial carry and investment interests over decades and dies holding them. Under the US step-up, every one of those interests receives a full basis step-up at death, so heirs who sell at the date-of-death value owe zero capital gains tax on a multi-decade accumulation — the entire lifetime PE wealth passes essentially free of capital gains taxation. Now run the same career through Canada. The identical carry appreciation generates a taxable capital gain on the terminal return, and at the current inclusion rate the effective tax is roughly a quarter of the gain. On a comparable billion-dollar carry position, that's on the order of two hundred and fifty million in tax — paid by the estate, not the heir. Same career, same wealth, and the difference between the two regimes is a quarter of a billion dollars in tax that the US simply never collects. That gap is the step-up's effect, in a single number.\n\n[pitfalls] What people get wrong\nThree corrections to close. First, the belief that the estate tax compensates for the step-up — it's a different mechanism, applying only above a high exemption and only at forty percent on the excess, and reducible through planning vehicles like GRATs and dynasty trusts, so it doesn't recover the capital gains tax that the step-up permanently eliminates and that Canada and Australia at least defer. Second, the belief that UK treatment is equivalent to the US because neither charges capital gains tax at death — the UK applies inheritance tax at forty percent above a threshold that is a small fraction of the US estate-tax exemption, so for large estates the US is a far more favourable regime at transfer, not an equivalent one. And third, the belief that deemed realisation would be administratively impossible for illiquid PE carry — the leading proposal handled this with a multi-million-dollar exclusion, a fifteen-year instalment option for illiquid assets, and a family-business carve-out, and Canada has run deemed disposition for years without administrative collapse, so illiquidity is a practical challenge, not an insurmountable one. To recap: the US step-up permanently eliminates capital gains tax at death; Canada taxes the gain via deemed disposition, Australia defers it via inherited cost base, and the UK captures wealth through inheritance tax; the US is the lone major economy to erase the gain with no compensating charge; and peer economies supply three concrete, road-tested reform templates. Next we turn from the death event to the international tax frontier: US non-adoption of the global minimum tax.\n\nEnd-card question: Contrast how the US, Canada, Australia, and the UK each treat a $100m unrealised carry gain at death. Then: why does the international comparison strengthen the reform case — and what are the three templates peer economies provide?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The Step-Up in Basis and PE Wealth Transmission note establishes how IRC §1014 eliminates capital gains tax on appreciated PE carry at death — the third component of the effective lifetime PE tax advantage after the carry rate differential and deferral. But it does not establish whether this treatment is normal or exceptional by international standards.</p><p>If the US step-up were universal — if Canada, UK, Australia, and other peer economies all eliminated CGT at death — the step-up would be less remarkable as a policy design choice. But they don't. Most comparable economies impose some form of CGT reckoning at death. This comparison demonstrates that the US step-up is an outlier — a specific policy choice that substantially amplifies the effective lifetime tax advantage of PE carry beyond what exists in peer economies.</p><p>For the Distribution Question thread: the international comparison provides independent evidence that the US treatment is not the only viable policy option and supports the reform case.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>On death, the US provides a full step-up in basis under IRC §1014 — eliminating all capital gains tax on appreciation accumulated during a deceased's lifetime; Canada and Australia apply deemed realisation (accrued gains are taxed at death or transferred to heirs); the UK takes a middle path (CGT deemed disposal but with private residence and other reliefs); and this comparison reveals the US step-up as an exceptional outlier that constitutes a disproportionate lifetime wealth-transfer subsidy for PE carried interest holders.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a PE partner with $100m of accumulated carry (cost basis ~$0 due to how carry accrues). They've never triggered CGT — carry is unrealised in the fund. They die. What happens to the $100m of appreciation?</p><p><strong>United States:</strong> IRC §1014 steps up the basis of the carry interest to its fair market value at death ($100m). If the heir sells the carry interest the next day for $100m, they owe $0 in capital gains tax. All $100m of lifetime appreciation passes tax-free. The entire carry accumulation effectively escapes CGT.</p><p><strong>Canada:</strong> The Deemed Disposition Rule treats the deceased as having sold all capital property at fair market value immediately before death. The $100m in carry appreciation is treated as a capital gain, subject to Canadian capital gains tax at the deceased's marginal rate (approximately 25-27% on the includable 50% of the gain — so an effective rate of ~12.5-13.5% on the full gain). The estate pays tax; the heir inherits the stepped-up basis.</p><p><strong>Australia:</strong> The CGT treatment on death depends on who inherits. If a tax-dependent inherits, CGT is deferred (similar to US step-up). If the beneficiary is not tax-dependent (the typical case for adult children inheriting PE carry), the beneficiary acquires the asset at the deceased's cost base — deferring the gain but preserving the tax obligation [needs-verification: specific Australia CGT death rules and applicable exemptions].</p><p><strong>United Kingdom:</strong> Under TCGA 1992 s.62, death is not a disposal for CGT purposes. Assets pass to heirs at market value as the new cost base (similar to US §1014 step-up in this respect), but without triggering CGT. However, UK Inheritance Tax (IHT) applies to estates above the nil-rate band (currently £325,000 + residence nil-rate band up to £175,000) at 40%. IHT reduces the net estate even if CGT is not triggered — a different mechanism but achieving some redistribution of accumulated wealth [needs-verification: UK IHT rates and thresholds].</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The international comparison is like comparing toll roads. Canada charges the toll when you cross the border (deemed disposition at death — pay tax then). Australia defers the toll — you don't pay at the border, but your son pays it when he eventually crosses (inherited cost base). The UK has a different toll (IHT on the estate) but doesn't charge the CGT toll directly. The US waves you through with no toll — and then resets the meter for the next driver. Every other car pays something; the US car drives toll-free through the entire accumulation.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### US Treatment — IRC §1014 Step-Up in Full</p><p><strong>Mechanism:</strong> IRC §1014 sets the income tax basis of property acquired from a decedent at its fair market value (FMV) at the date of death (or the alternate valuation date, which is 6 months after death). All unrealised appreciation in the property between the decedent's acquisition and death is permanently excluded from income taxation.</p><p><strong>Application to PE carry:</strong> A PE partner receives carry through a profits interest — the basis is nominally $0 at grant (under Rev. Proc. 93-27 / Rev. Proc. 2001-43 treatment). As the fund appreciates and the carry interest gains value, the PE partner holds an asset with a $0 (or near-$0) adjusted basis and potentially substantial FMV.</p><p>Under §1014, if the PE partner dies holding the carry interest, the heir's basis steps up to FMV at death. If the partner held $100m of carry value at death, the heir holds a $100m basis carry interest — selling it for $100m produces $0 taxable gain.</p><p><strong>Revenue impact:</strong> JCT has estimated various revenue impacts of repealing the step-up, ranging from approximately $340bn to $500bn+ over 10 years [needs-verification: specific JCT revenue estimates for step-up repeal]. The range depends on assumed behavioural responses and scoring methodology.</p><p><strong>Biden \"deemed realisation\" proposal (2021):</strong> The Biden administration proposed replacing the §1014 step-up with a deemed realisation approach — treating death as a taxable disposition at FMV, with: $1m exclusion ($2.5m for couples); carve-out for family farms and small businesses; payment over 15 years for illiquid assets. This proposal did not pass but provides the leading template for US step-up reform. [needs-verification: specific Biden proposal parameters from FY2022 Budget]</p><p>### Canadian Treatment — Deemed Disposition</p><p><strong>Mechanism:</strong> Canadian Income Tax Act (ITA) deems a taxpayer to have disposed of all capital property at FMV immediately before death. The resulting capital gain (FMV minus adjusted cost base) is a taxable capital gain reportable on the deceased's terminal return [needs-verification: specific ITA provisions].</p><p><strong>Capital gains inclusion rate (Canada):</strong> Post-2024, Canada increased the capital gains inclusion rate from 50% to 66.67% for gains above CAD $250,000 [needs-verification: Canadian Budget 2024 changes and current status post-2025 election]. This means more of the PE carry gain at death is included in income than under the old 50% inclusion regime.</p><p><strong>Carry equivalents in Canada:</strong> Canadian PE industry uses similar carry structures. The deemed disposition at death means carry appreciation does not escape taxation at the generational transfer — it is recognised, included in income at the applicable rate, and taxed in the year of death.</p><p><strong>Practical effect for PE:</strong> For a Canadian GP partner (e.g., CPPIB's private equity team, though CPPIB is itself a sovereign wealth fund) holding carry in a Canadian fund structure, death triggers deemed disposition — approximately 24-27% effective capital gains tax on the carry appreciation. This is substantially higher than the US effective rate at death (zero under §1014).</p><p>### UK Treatment — CGT Deferral + IHT</p><p><strong>CGT on death (UK):</strong> TCGA 1992 s.62 provides that death is not a CGT disposal. The deceased's CGT base cost transfers to the heir at the FMV at death (similar to US §1014). No CGT is triggered at death. Unlike the US, the UK does not then step up the basis for IHT purposes — the two taxes operate independently.</p><p><strong>UK IHT:</strong> Estates above the nil-rate band (£325,000) plus, where applicable, the Residence Nil-Rate Band (£175,000 for a main residence passing to direct descendants) are taxed at 40% on the excess [needs-verification: current UK IHT rates and thresholds — 2024 Autumn Budget made changes to agricultural property relief and business property relief].</p><p><strong>Business Property Relief (BPR):</strong> Certain business assets (shares in unlisted trading companies, interests in trading businesses) qualify for BPR — up to 100% relief from IHT. A PE carry interest in a UK partnership may qualify for BPR, potentially reducing IHT on carry to zero [needs-verification: BPR application to PE carry interests — this is a contested area of UK tax law].</p><p><strong>UK carry taxation (summary):</strong> UK GPs face CGT at 28% (or 18% at lower rates) on carry during life under UK carried interest regulations; no CGT at death (similar to US); but IHT applies to accumulated wealth including carry (unlike the US estate tax regime, which applies at a higher threshold of $13.61m [needs-verification: 2024 US estate tax exemption]).</p><p><strong>Practical effect for UK PE (CVC):</strong> CVC partners with UK carry face: carry taxed at 28% CGT during realisation (higher than US 23.8%); no CGT at death; IHT potentially at 40% on estate above nil-rate band, subject to BPR on qualifying carry. The aggregate lifetime effective rate may be higher than the US but the step-up/IHT interaction is complex.</p><p>### Australian Treatment — CGT Deferral to Heir</p><p><strong>CGT on death (Australia):</strong> Under Australian ITAA 1997, death itself does not trigger a CGT event for the deceased. Instead: - If the beneficiary is an individual (not tax-dependent), they acquire the asset at the deceased's original cost base (not FMV) — the gain is deferred but not extinguished - The beneficiary will recognise the full gain (from original cost base to eventual sale price) when they sell the asset</p><p><strong>Practical effect:</strong> Australian treatment defers CGT on inherited PE carry but does not extinguish it. If a PE partner acquired carry at a nominal cost base and dies with $100m FMV, the heir inherits a $0 cost base carry interest worth $100m. When the heir sells for $100m, they owe CGT on $100m gain at the applicable rate (approximately 23.5% after 50% CGT discount for assets held over 12 months, on the heir's marginal rate [needs-verification: Australian CGT discount rates]).</p><p><strong>Net effect:</strong> Australia \"defers\" the tax rather than eliminating it (Canada) or stepping it up (US/UK for CGT purposes). Long-term deferral has time-value benefits, but the ultimate tax is preserved — unlike the US step-up which permanently extinguishes it.</p><p>### Comparative Summary Table</p><p>| Jurisdiction | CGT at Death | Estate/Inheritance Tax | Net Effect on PE Carry Gain | |---|---|---|---| | United States | Zero (§1014 step-up eliminates gain) | Estate tax applies above $13.61m [NV] | Gain permanently extinguished; high estate tax exemption limits IHT equivalent | | United Kingdom | Zero (CGT; death not a disposal) | IHT at 40% above nil-rate band (~£500k) | Gain deferred to heir (CGT) but estate taxed under IHT; BPR may exempt carry | | Canada | Deemed disposition — gain taxed at ~24-27% effective rate [NV] | No separate inheritance tax (gain recognised through income tax) | Gain taxed at death via deemed disposition; no second-layer inheritance levy | | Australia | Deferred — heir inherits original cost base | No separate inheritance tax | Gain deferred to heir's eventual sale; not extinguished; ultimately taxed at heir's rate |</p><p>[NV] = needs-verification</p><p>### The Reform Implication</p><p>The comparison establishes that the US step-up is an outlier. Most peer economies impose either: - An immediate CGT reckoning at death (Canada — deemed disposition), or - A CGT deferral that preserves the eventual tax obligation (Australia — inherited cost base), or - An inheritance tax that captures some of the accumulated wealth regardless of CGT treatment (UK — IHT)</p><p>The US uniquely eliminates the gain entirely, with a high estate tax exemption that means most accumulated PE carry escapes all transfer-related taxation.</p><p>For reform proposals, this comparison provides three template options that peer economies have adopted without apparent economic catastrophe: 1. <strong>Deemed realisation (Biden proposal):</strong> Modelled on Canada; triggers CGT at death 2. <strong>Inherited cost base (Australia model):</strong> Defers but preserves the gain 3. <strong>Estate tax reform:</strong> Lower the estate tax exemption to capture more PE carry wealth at transfer; UK IHT with lower threshold is a partial analogue</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### US Treatment — IRC §1014 Step-Up in Full</p><p><strong>Mechanism:</strong> IRC §1014 sets the income tax basis of property acquired from a decedent at its fair market value (FMV) at the date of death (or the alternate valuation date, which is 6 months after death). All unrealised appreciation in the property between the decedent's acquisition and death is permanently excluded from income taxation.</p><p><strong>Application to PE carry:</strong> A PE partner receives carry through a profits interest — the basis is nominally $0 at grant (under Rev. Proc. 93-27 / Rev. Proc. 2001-43 treatment). As the fund appreciates and the carry interest gains value, the PE partner holds an asset with a $0 (or near-$0) adjusted basis and potentially substantial FMV.</p><p>Under §1014, if the PE partner dies holding the carry interest, the heir's basis steps up to FMV at death. If the partner held $100m of carry value at death, the heir holds a $100m basis carry interest — selling it for $100m produces $0 taxable gain.</p><p><strong>Revenue impact:</strong> JCT has estimated various revenue impacts of repealing the step-up, ranging from approximately $340bn to $500bn+ over 10 years [needs-verification: specific JCT revenue estimates for step-up repeal]. The range depends on assumed behavioural responses and scoring methodology.</p><p><strong>Biden \"deemed realisation\" proposal (2021):</strong> The Biden administration proposed replacing the §1014 step-up with a deemed realisation approach — treating death as a taxable disposition at FMV, with: $1m exclusion ($2.5m for couples); carve-out for family farms and small businesses; payment over 15 years for illiquid assets. This proposal did not pass but provides the leading template for US step-up reform. [needs-verification: specific Biden proposal parameters from FY2022 Budget]</p><p>### Canadian Treatment — Deemed Disposition</p><p><strong>Mechanism:</strong> Canadian Income Tax Act (ITA) deems a taxpayer to have disposed of all capital property at FMV immediately before death. The resulting capital gain (FMV minus adjusted cost base) is a taxable capital gain reportable on the deceased's terminal return [needs-verification: specific ITA provisions].</p><p><strong>Capital gains inclusion rate (Canada):</strong> Post-2024, Canada increased the capital gains inclusion rate from 50% to 66.67% for gains above CAD $250,000 [needs-verification: Canadian Budget 2024 changes and current status post-2025 election]. This means more of the PE carry gain at death is included in income than under the old 50% inclusion regime.</p><p><strong>Carry equivalents in Canada:</strong> Canadian PE industry uses similar carry structures. The deemed disposition at death means carry appreciation does not escape taxation at the generational transfer — it is recognised, included in income at the applicable rate, and taxed in the year of death.</p><p><strong>Practical effect for PE:</strong> For a Canadian GP partner (e.g., CPPIB's private equity team, though CPPIB is itself a sovereign wealth fund) holding carry in a Canadian fund structure, death triggers deemed disposition — approximately 24-27% effective capital gains tax on the carry appreciation. This is substantially higher than the US effective rate at death (zero under §1014).</p><p>### UK Treatment — CGT Deferral + IHT</p><p><strong>CGT on death (UK):</strong> TCGA 1992 s.62 provides that death is not a CGT disposal. The deceased's CGT base cost transfers to the heir at the FMV at death (similar to US §1014). No CGT is triggered at death. Unlike the US, the UK does not then step up the basis for IHT purposes — the two taxes operate independently.</p><p><strong>UK IHT:</strong> Estates above the nil-rate band (£325,000) plus, where applicable, the Residence Nil-Rate Band (£175,000 for a main residence passing to direct descendants) are taxed at 40% on the excess [needs-verification: current UK IHT rates and thresholds — 2024 Autumn Budget made changes to agricultural property relief and business property relief].</p><p><strong>Business Property Relief (BPR):</strong> Certain business assets (shares in unlisted trading companies, interests in trading businesses) qualify for BPR — up to 100% relief from IHT. A PE carry interest in a UK partnership may qualify for BPR, potentially reducing IHT on carry to zero [needs-verification: BPR application to PE carry interests — this is a contested area of UK tax law].</p><p><strong>UK carry taxation (summary):</strong> UK GPs face CGT at 28% (or 18% at lower rates) on carry during life under UK carried interest regulations; no CGT at death (similar to US); but IHT applies to accumulated wealth including carry (unlike the US estate tax regime, which applies at a higher threshold of $13.61m [needs-verification: 2024 US estate tax exemption]).</p><p><strong>Practical effect for UK PE (CVC):</strong> CVC partners with UK carry face: carry taxed at 28% CGT during realisation (higher than US 23.8%); no CGT at death; IHT potentially at 40% on estate above nil-rate band, subject to BPR on qualifying carry. The aggregate lifetime effective rate may be higher than the US but the step-up/IHT interaction is complex.</p><p>### Australian Treatment — CGT Deferral to Heir</p><p><strong>CGT on death (Australia):</strong> Under Australian ITAA 1997, death itself does not trigger a CGT event for the deceased. Instead: - If the beneficiary is an individual (not tax-dependent), they acquire the asset at the deceased's original cost base (not FMV) — the gain is deferred but not extinguished - The beneficiary will recognise the full gain (from original cost base to eventual sale price) when they sell the asset</p><p><strong>Practical effect:</strong> Australian treatment defers CGT on inherited PE carry but does not extinguish it. If a PE partner acquired carry at a nominal cost base and dies with $100m FMV, the heir inherits a $0 cost base carry interest worth $100m. When the heir sells for $100m, they owe CGT on $100m gain at the applicable rate (approximately 23.5% after 50% CGT discount for assets held over 12 months, on the heir's marginal rate [needs-verification: Australian CGT discount rates]).</p><p><strong>Net effect:</strong> Australia \"defers\" the tax rather than eliminating it (Canada) or stepping it up (US/UK for CGT purposes). Long-term deferral has time-value benefits, but the ultimate tax is preserved — unlike the US step-up which permanently extinguishes it.</p><p>### Comparative Summary Table</p><p>| Jurisdiction | CGT at Death | Estate/Inheritance Tax | Net Effect on PE Carry Gain | |---|---|---|---| | United States | Zero (§1014 step-up eliminates gain) | Estate tax applies above $13.61m [NV] | Gain permanently extinguished; high estate tax exemption limits IHT equivalent | | United Kingdom | Zero (CGT; death not a disposal) | IHT at 40% above nil-rate band (~£500k) | Gain deferred to heir (CGT) but estate taxed under IHT; BPR may exempt carry | | Canada | Deemed disposition — gain taxed at ~24-27% effective rate [NV] | No separate inheritance tax (gain recognised through income tax) | Gain taxed at death via deemed disposition; no second-layer inheritance levy | | Australia | Deferred — heir inherits original cost base | No separate inheritance tax | Gain deferred to heir's eventual sale; not extinguished; ultimately taxed at heir's rate |</p><p>[NV] = needs-verification</p><p>### The Reform Implication</p><p>The comparison establishes that the US step-up is an outlier. Most peer economies impose either: - An immediate CGT reckoning at death (Canada — deemed disposition), or - A CGT deferral that preserves the eventual tax obligation (Australia — inherited cost base), or - An inheritance tax that captures some of the accumulated wealth regardless of CGT treatment (UK — IHT)</p><p>The US uniquely eliminates the gain entirely, with a high estate tax exemption that means most accumulated PE carry escapes all transfer-related taxation.</p><p>For reform proposals, this comparison provides three template options that peer economies have adopted without apparent economic catastrophe: 1. <strong>Deemed realisation (Biden proposal):</strong> Modelled on Canada; triggers CGT at death 2. <strong>Inherited cost base (Australia model):</strong> Defers but preserves the gain 3. <strong>Estate tax reform:</strong> Lower the estate tax exemption to capture more PE carry wealth at transfer; UK IHT with lower threshold is a partial analogue</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>David Bonderman (TPG founder) — US step-up application:</strong> TPG co-founder David Bonderman (died 2023) accumulated substantial PE wealth over decades [needs-verification: Bonderman carry holdings]. Under IRC §1014, any PE carry or investment interests held at death received a full step-up in basis. Heirs who sell those interests at (or below) the date-of-death FMV owe zero capital gains tax on all appreciation accumulated over Bonderman's multi-decade career. The entire lifetime PE wealth accumulation passes to heirs essentially free of capital gains taxation.</p><p><strong>Contrast with a hypothetical Canadian PE founder:</strong> Under Canadian deemed disposition, the same career worth of carry appreciation would generate a taxable capital gain in the terminal return — at the current (post-2024 budget) inclusion rate of 66.67% for gains above CAD $250,000, effective tax of approximately 24-27% of the gain. On a comparable $1bn carry position, this would generate approximately $240-270m in Canadian federal/provincial tax — paid by the estate, not the heir.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"The estate tax compensates for the step-up.\"</strong> US estate tax applies above $13.61m (2024 exemption) and is set to revert to ~$7m in 2026 absent legislation. For multi-hundred-million dollar PE carry positions, estate tax does apply — but at 40% on the amount above the exemption, not on the full carry value, and with planning mechanisms (GRATs, dynasty trusts) that substantially reduce the effective burden. The estate tax and the CGT step-up are two different mechanisms, and the step-up permanently eliminates a large tax that Canada and Australia at least defer.</li></ol><ol><li><strong>\"UK treatment is equivalent to the US because CGT doesn't apply at death in both countries.\"</strong> The UK applies IHT at 40% on estates above the nil-rate band (~£500k combined), creating a second-layer transfer tax. The US estate tax threshold is ~$13.61m — 27x higher per person than the UK equivalent. For PE partners with large estates, the US provides a much more favourable regime at transfer.</li></ol><ol><li><strong>\"Deemed realisation would be administratively impossible for illiquid PE carry.\"</strong> Biden's 2021 proposal addressed this by: (a) a $2.5m exclusion covering most non-PE cases; (b) a 15-year instalment payment option for illiquid assets; (c) a carve-out for family farm/small business transfers. Canada has operated deemed disposition without administrative collapse. Illiquidity creates practical challenges but not insurmountable ones.</li></ol><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-and-employment", "title": "PE and Employment", "draft_watermark": false, "estimated_runtime_sec": 440, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Does PE destroy jobs?", "on_screen_bullets": ["The most charged PE dispute", "Both slogans are partly true", "Depends what you measure"], "narration": "We now leave the sector deep-dives and take on the question that defines the entire public argument about private equity: does PE destroy jobs, or create them? This is the most visible, most politically charged dimension of PE's impact — it's what people mean when they say PE strips companies and harms workers, and what the industry means when it says PE creates jobs. The honest answer, which this lesson builds carefully, is that both slogans are partly true and both are partly misleading, because they measure different things. The single most rigorous study finds PE's net employment effect is roughly neutral while productivity rises sharply; the leading critical work argues that average obscures who actually bears the cost. By the end you'll be able to engage this debate credibly — neither dismissing the critique nor accepting it as universal.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A genuine evidential dispute", "on_screen_bullets": ["Neutral net jobs, big productivity gains", "Achieved through churning", "Contested data AND definitions"], "narration": "The definition. The employment effects of PE acquisition are the most empirically contested part of PE's societal impact. The most rigorous study, Davis and colleagues in twenty-fourteen, finds that PE ownership produces significant productivity gains and only modestly negative short-run employment effects that converge to industry benchmarks by year five — but achieves this through accelerated churning, meaning both job creation and job destruction run above industry rates. The critical literature counters that highly leveraged deals systematically suppress wages, cut benefits, and destroy jobs in ways aggregate studies hide. So this is a genuine dispute that reflects not just contested data, but contested definitions of what employment effects should even measure.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Two cameras, two answers", "on_screen_bullets": ["Critics film the bankruptcy", "Defenders film the turnaround", "Both ignore half the picture"], "narration": "Plain English. This looks like a simple empirical question and isn't, because it depends what you point the camera at. Point it the way critics do: a PE firm buys a retailer, loads it with debt, the company eventually goes bankrupt, and thousands lose their jobs — real, visible, harmful. Point it the way defenders do: a PE firm buys a struggling manufacturer, restructures it, cutting some jobs and investing in others, and it emerges more productive and competitive, eventually employing more people than before. Both measurements are partial. The critics' version ignores the counterfactual — what would have happened to those retail jobs anyway, which might be the same thing, just later. The defenders' version ignores distribution — who captures the productivity gains, shareholders and fund managers, or the workers whose labour produced them? The deeper truth is that whether a restructuring improves the system depends entirely on which output you measure: shareholder returns, total employment, or worker welfare — jobs plus wages plus benefits plus stability. Read different gauges, reach different conclusions.", "est_sec": 50}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Part 1: The Methodological Minefield", "on_screen_title": "Why the debate is so hard", "on_screen_bullets": ["Selection bias both directions", "Plant vs firm; time horizon", "Sectors averaged into mush"], "narration": "Before any numbers, you have to see why this debate resists resolution — four methodological traps. First, selection bias: PE doesn't buy companies at random; it picks either underperformers, where a declining trajectory might be wrongly blamed on PE when those jobs were vanishing anyway, or outperformers, where positive trajectories reflect picking winners rather than creating growth. Second, the level of measurement: PE creates and destroys jobs at the individual plant or location level, opening some and closing others, so firm-level totals can completely miss the churning underneath — which is why the best study used Census plant-level data. Third, time horizon: in the first year after acquisition restructuring usually cuts jobs, by years one to three new investment and add-on acquisitions add them, and by years three to seven employment has often stabilised or recovered — so a two-year study and a five-year study reach different verdicts. And fourth, sector heterogeneity: PE's effect ranges from short-term cuts plus long-term productivity gains in manufacturing, to accelerated decline in retail, to clearly positive in technology — and averaging across all of them produces a number that represents no actual sector. Hold those four traps in mind, because every claim in this fight is shaped by them.", "est_sec": 58}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Part 2: The Davis et al. (2014) Study — The Central Evidence", "on_screen_title": "The Davis study", "on_screen_bullets": ["3,200+ buyouts, Census plant data", "−2–3pp jobs at 2yr, neutral by 5yr", "+8pp productivity; churning both ways"], "narration": "The central evidence is Davis, Haltiwanger, Jarmin, Lerner, and Miranda, published in the American Economic Review in twenty-fourteen — the most rigorous, most cited, most balanced treatment, and you should know it cold. They studied over thirty-two hundred US buyouts from nineteen-eighty to two-thousand-five, using Census Bureau plant-level data covering the universe of private establishments, comparing PE-backed companies to controls matched on industry, age, size, and prior employment growth. Four findings. One, employment: at two years, PE-backed companies ran about two-to-three percentage points below comparable firms — a modest negative — and by five years the gap had largely closed to industry benchmarks. Two, productivity: labour productivity grew roughly eight percentage points faster over five years, a large and robust effect. Three, churning: PE-backed firms showed more job creation at new and expanding plants and more job destruction at closing and shrinking ones, with the net effect near zero. And four, the distributional sting inside that neutrality — the workers who lose jobs at closing plants are different people from those who gain jobs at new ones, so aggregate neutrality masks significant individual displacement. PE doesn't simply destroy jobs; it reshuffles them faster, and the reshuffling has real human concentration.", "est_sec": 62}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Part 3: The Appelbaum & Batt Critique — Why \"Average\" Understates Harm", "on_screen_title": "Why the average hides harm", "on_screen_bullets": ["Leverage forces labour-cost cuts", "Wages and benefits suppressed", "Productivity gains flow to capital"], "narration": "The critical counterweight is Appelbaum and Batt's Private Equity at Work, also twenty-fourteen — and crucially, their argument is not that Davis is wrong, but that an average obscures the distributional reality. PE's effects are highly heterogeneous: the neutral average is produced by blending highly leveraged deals with negative employment effects, growth-capital deals with positive ones, and distressed rescues that preserve jobs — and the average of those is roughly neutral, but the workers in the leveraged deals bear the cost while the workers in growth deals share the gain. The specific mechanism they identify is leverage itself: a buyout loaded at, say, seven times EBITDA has fixed interest that must be serviced before any wage increase, investment, or discretionary spending, and since labour is the largest controllable cost, high leverage creates systematic, almost mathematical, pressure to cut headcount, wages, or benefits. This isn't a claim that PE managers are uniquely greedy — it's a structural claim about incentive architecture. And it extends past headcount to wages: PE-owned firms are more likely to freeze pay, cut bonuses, reduce healthcare contributions, and convert defined-benefit pensions to defined-contribution, shifting risk onto workers. A company can hold employment steady while suppressing wages — producing aggregate neutrality alongside real distributional harm that no headcount statistic captures.", "est_sec": 60}, {"n": 7, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Toys R Us vs CHI Doors", "on_screen_bullets": ["Toys R Us: ~33,000 jobs, $0 severance", "CHI Doors: ~800 workers, ~$360m", "Architecture, not fate"], "narration": "Two cases bracket the range. On the harm side, Toys R Us: KKR, Bain Capital, and Vornado bought it in two-thousand-five for around six-and-a-half billion dollars with roughly five billion in debt, carrying about four hundred million a year in interest. That interest was money not invested in e-commerce while Amazon and Walmart poured in billions, so when competition intensified the company couldn't adapt, filed for bankruptcy in twenty-seventeen, and liquidated — roughly thirty-three thousand US workers lost their jobs, many with zero severance because the estate had nothing left after secured creditors, while the investors had drawn dividends and fees during the hold. The distribution of consequences — workers last, secured creditors and fees first — is the pattern the critique tracks. On the other side, CHI Overhead Doors: KKR bought this garage-door maker in twenty-fifteen, gave hourly and non-management employees equity stakes, and when it sold the company in twenty-twenty-two, about eight hundred workers shared roughly three hundred sixty million dollars — an average near a hundred seventy-five thousand each. The lesson isn't that one cancels the other; it's that PE's incentive architecture is not fixed. Equity upside can be routed to workers; usually it isn't. The distributional outcome is a design choice, not a law of nature.", "est_sec": 60}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Neither slogan survives the data", "Productivity ≠ worker benefit", "Headcount isn't worker welfare"], "narration": "Five corrections that keep you credible on this. First, PE does not definitively destroy jobs — the best evidence shows roughly neutral net employment at five years, so that framing fits highly leveraged retail and deep debt at a cyclical peak, but not PE's average. Second, PE does not definitively create jobs either — the industry's tens-of-millions-of-jobs claims count every current employee of any company that ever received PE investment, which wildly overstates PE's causal contribution. Third, productivity gains do not automatically mean PE benefits workers — the gains are real, but whether they flow to wages or are captured as investor returns is unsettled, and if captured, that's a transfer from labour to capital, not a worker benefit. Fourth, headcount is the wrong sole metric — it misses wages, benefits, stability, and equity participation, so a firm that holds headcount while cutting pay and pensions has produced a welfare loss invisible in employment counts. And fifth, Toys R Us doesn't prove PE destroys all jobs — it shows that high leverage plus disruption starves a company of adaptive capital and makes bankruptcy likelier, but the counterfactual still matters. The honest throughline: the unresolved core is whether productivity gains reach workers, and the answer determines whether PE is shared value creation or upward redistribution. Next we make that exact question precise — wage pass-through.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Davis et al. find roughly NEUTRAL net employment yet the critique of PE-and-jobs persists. Explain how 'churning' and the leverage mechanism let both be true at once. Then: why is worker welfare a better metric than headcount?", "narration": "Before the next lesson, reason it through. Davis and colleagues find roughly neutral net employment, yet the critique of PE and jobs persists — explain how churning and the leverage mechanism let both of those be true at once. And why is worker welfare — wages, benefits, stability, equity — a better metric than raw headcount? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE and Employment\n\n[hook] Does PE destroy jobs?\nWe now leave the sector deep-dives and take on the question that defines the entire public argument about private equity: does PE destroy jobs, or create them? This is the most visible, most politically charged dimension of PE's impact — it's what people mean when they say PE strips companies and harms workers, and what the industry means when it says PE creates jobs. The honest answer, which this lesson builds carefully, is that both slogans are partly true and both are partly misleading, because they measure different things. The single most rigorous study finds PE's net employment effect is roughly neutral while productivity rises sharply; the leading critical work argues that average obscures who actually bears the cost. By the end you'll be able to engage this debate credibly — neither dismissing the critique nor accepting it as universal.\n\n[definition] A genuine evidential dispute\nThe definition. The employment effects of PE acquisition are the most empirically contested part of PE's societal impact. The most rigorous study, Davis and colleagues in twenty-fourteen, finds that PE ownership produces significant productivity gains and only modestly negative short-run employment effects that converge to industry benchmarks by year five — but achieves this through accelerated churning, meaning both job creation and job destruction run above industry rates. The critical literature counters that highly leveraged deals systematically suppress wages, cut benefits, and destroy jobs in ways aggregate studies hide. So this is a genuine dispute that reflects not just contested data, but contested definitions of what employment effects should even measure.\n\n[intuition] Two cameras, two answers\nPlain English. This looks like a simple empirical question and isn't, because it depends what you point the camera at. Point it the way critics do: a PE firm buys a retailer, loads it with debt, the company eventually goes bankrupt, and thousands lose their jobs — real, visible, harmful. Point it the way defenders do: a PE firm buys a struggling manufacturer, restructures it, cutting some jobs and investing in others, and it emerges more productive and competitive, eventually employing more people than before. Both measurements are partial. The critics' version ignores the counterfactual — what would have happened to those retail jobs anyway, which might be the same thing, just later. The defenders' version ignores distribution — who captures the productivity gains, shareholders and fund managers, or the workers whose labour produced them? The deeper truth is that whether a restructuring improves the system depends entirely on which output you measure: shareholder returns, total employment, or worker welfare — jobs plus wages plus benefits plus stability. Read different gauges, reach different conclusions.\n\n[mechanics] Why the debate is so hard\nBefore any numbers, you have to see why this debate resists resolution — four methodological traps. First, selection bias: PE doesn't buy companies at random; it picks either underperformers, where a declining trajectory might be wrongly blamed on PE when those jobs were vanishing anyway, or outperformers, where positive trajectories reflect picking winners rather than creating growth. Second, the level of measurement: PE creates and destroys jobs at the individual plant or location level, opening some and closing others, so firm-level totals can completely miss the churning underneath — which is why the best study used Census plant-level data. Third, time horizon: in the first year after acquisition restructuring usually cuts jobs, by years one to three new investment and add-on acquisitions add them, and by years three to seven employment has often stabilised or recovered — so a two-year study and a five-year study reach different verdicts. And fourth, sector heterogeneity: PE's effect ranges from short-term cuts plus long-term productivity gains in manufacturing, to accelerated decline in retail, to clearly positive in technology — and averaging across all of them produces a number that represents no actual sector. Hold those four traps in mind, because every claim in this fight is shaped by them.\n\n[mechanics] The Davis study\nThe central evidence is Davis, Haltiwanger, Jarmin, Lerner, and Miranda, published in the American Economic Review in twenty-fourteen — the most rigorous, most cited, most balanced treatment, and you should know it cold. They studied over thirty-two hundred US buyouts from nineteen-eighty to two-thousand-five, using Census Bureau plant-level data covering the universe of private establishments, comparing PE-backed companies to controls matched on industry, age, size, and prior employment growth. Four findings. One, employment: at two years, PE-backed companies ran about two-to-three percentage points below comparable firms — a modest negative — and by five years the gap had largely closed to industry benchmarks. Two, productivity: labour productivity grew roughly eight percentage points faster over five years, a large and robust effect. Three, churning: PE-backed firms showed more job creation at new and expanding plants and more job destruction at closing and shrinking ones, with the net effect near zero. And four, the distributional sting inside that neutrality — the workers who lose jobs at closing plants are different people from those who gain jobs at new ones, so aggregate neutrality masks significant individual displacement. PE doesn't simply destroy jobs; it reshuffles them faster, and the reshuffling has real human concentration.\n\n[mechanics] Why the average hides harm\nThe critical counterweight is Appelbaum and Batt's Private Equity at Work, also twenty-fourteen — and crucially, their argument is not that Davis is wrong, but that an average obscures the distributional reality. PE's effects are highly heterogeneous: the neutral average is produced by blending highly leveraged deals with negative employment effects, growth-capital deals with positive ones, and distressed rescues that preserve jobs — and the average of those is roughly neutral, but the workers in the leveraged deals bear the cost while the workers in growth deals share the gain. The specific mechanism they identify is leverage itself: a buyout loaded at, say, seven times EBITDA has fixed interest that must be serviced before any wage increase, investment, or discretionary spending, and since labour is the largest controllable cost, high leverage creates systematic, almost mathematical, pressure to cut headcount, wages, or benefits. This isn't a claim that PE managers are uniquely greedy — it's a structural claim about incentive architecture. And it extends past headcount to wages: PE-owned firms are more likely to freeze pay, cut bonuses, reduce healthcare contributions, and convert defined-benefit pensions to defined-contribution, shifting risk onto workers. A company can hold employment steady while suppressing wages — producing aggregate neutrality alongside real distributional harm that no headcount statistic captures.\n\n[example] Toys R Us vs CHI Doors\nTwo cases bracket the range. On the harm side, Toys R Us: KKR, Bain Capital, and Vornado bought it in two-thousand-five for around six-and-a-half billion dollars with roughly five billion in debt, carrying about four hundred million a year in interest. That interest was money not invested in e-commerce while Amazon and Walmart poured in billions, so when competition intensified the company couldn't adapt, filed for bankruptcy in twenty-seventeen, and liquidated — roughly thirty-three thousand US workers lost their jobs, many with zero severance because the estate had nothing left after secured creditors, while the investors had drawn dividends and fees during the hold. The distribution of consequences — workers last, secured creditors and fees first — is the pattern the critique tracks. On the other side, CHI Overhead Doors: KKR bought this garage-door maker in twenty-fifteen, gave hourly and non-management employees equity stakes, and when it sold the company in twenty-twenty-two, about eight hundred workers shared roughly three hundred sixty million dollars — an average near a hundred seventy-five thousand each. The lesson isn't that one cancels the other; it's that PE's incentive architecture is not fixed. Equity upside can be routed to workers; usually it isn't. The distributional outcome is a design choice, not a law of nature.\n\n[pitfalls] What people get wrong\nFive corrections that keep you credible on this. First, PE does not definitively destroy jobs — the best evidence shows roughly neutral net employment at five years, so that framing fits highly leveraged retail and deep debt at a cyclical peak, but not PE's average. Second, PE does not definitively create jobs either — the industry's tens-of-millions-of-jobs claims count every current employee of any company that ever received PE investment, which wildly overstates PE's causal contribution. Third, productivity gains do not automatically mean PE benefits workers — the gains are real, but whether they flow to wages or are captured as investor returns is unsettled, and if captured, that's a transfer from labour to capital, not a worker benefit. Fourth, headcount is the wrong sole metric — it misses wages, benefits, stability, and equity participation, so a firm that holds headcount while cutting pay and pensions has produced a welfare loss invisible in employment counts. And fifth, Toys R Us doesn't prove PE destroys all jobs — it shows that high leverage plus disruption starves a company of adaptive capital and makes bankruptcy likelier, but the counterfactual still matters. The honest throughline: the unresolved core is whether productivity gains reach workers, and the answer determines whether PE is shared value creation or upward redistribution. Next we make that exact question precise — wage pass-through.\n\nEnd-card question: Davis et al. find roughly NEUTRAL net employment yet the critique of PE-and-jobs persists. Explain how 'churning' and the leverage mechanism let both be true at once. Then: why is worker welfare a better metric than headcount?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>This note addresses Live Dispute #1 in the thesis directly: \"Does PE create value for the economy and society, or primarily redistribute wealth upward?\" The employment dimension is the most visible and politically charged aspect of this dispute — it is what people mean when they say \"PE destroys jobs,\" and what the industry means when it says \"PE creates jobs.\"</p><p>For the learner, three specific reasons this matters:</p><p><strong>1. This is the primary counter-position requiring engagement.</strong> Counter-position #1 in Learner Context is: \"PE just strips companies and harms workers\" — Appelbaum &amp; Batt (2014), labour economists. Requires engaging the evidence on job creation/destruction and distinguishing between value creation and value extraction by sector and hold period. This note provides the evidence the learner needs to engage this argument credibly — neither dismissing the critique nor accepting it as applying universally.</p><p><strong>2. KKR — whose K-1 data the learner processes — has made the affirmative employment case more than any other major PE firm.</strong> KKR's \"Workforce and Communities\" initiative, its worker equity-sharing experiments, and its public commitments to employment growth at portfolio companies are a direct response to the \"PE strips companies\" narrative. Understanding both the critique and KKR's response equips the learner to understand what KKR's institutional self-presentation is attempting to achieve — and why.</p><p><strong>3. The Distribution Question thread resolves here.</strong> This note provides the primary missing evidence for the thread: direct measurement of worker outcomes across PE-owned companies. The finding — that PE's employment effects are genuine but heterogeneous, with workers bearing restructuring costs without sharing proportionally in productivity gains — is the factual core of the distribution question.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The employment effects of PE acquisition are the most empirically contested dimension of PE's societal impact: the most rigorous academic study (Davis et al., 2014) finds that PE ownership produces significant productivity gains and modestly negative short-run employment effects that converge to industry benchmarks by year five — but achieves this through accelerated \"churning\" (both job creation and destruction above industry rates) — while the critical academic literature finds that highly leveraged deals systematically suppress wages, cut benefits, and destroy jobs in ways that aggregate studies obscure, creating a genuine evidential dispute that reflects not just contested data but contested definitions of what \"employment effects\" should measure.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>\"Does PE destroy jobs?\" seems like it should be a simple empirical question. It is not. The difficulty starts with what we are measuring.</p><p><strong>Version 1 — What PE critics measure:</strong> When a PE firm acquires a retailer, loads it with debt, and the company eventually files for bankruptcy, thousands of workers lose their jobs. This is real and visible. Critics measure these outcomes and find them deeply harmful.</p><p><strong>Version 2 — What PE defenders measure:</strong> When a PE firm acquires a struggling manufacturer, restructures operations (cutting some jobs, investing in others), and the company emerges more productive and profitable, it may eventually employ more people than before the acquisition — and be more competitive than companies that never restructured. Defenders measure this and find net positive employment effects.</p><p><strong>The deeper problem:</strong> Both measurements are partial. The critics' measurement ignores the counterfactual (what would have happened to those retail jobs without PE acquisition — the answer may be \"the same thing, just later\"). The defenders' measurement ignores distribution (who captures the productivity gains — shareholders and GPs, or the workers whose labour produced them?).</p><p>Using the data pipeline analogy: PE functions as a \"pipeline reconfiguration\" — it changes how work is organised, which outputs are prioritised, and which inputs are retained or discarded. Whether a pipeline reconfiguration \"improves\" the system depends entirely on what you measure as output. If output = shareholder returns, PE's employment effects are largely irrelevant. If output = total employment, PE's effects are modestly neutral on average. If output = worker welfare (jobs + wages + benefits + stability), PE's effects are often negative, especially in highly leveraged deals. The data pipeline produces different conclusions depending on which output port you're reading.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p>### Toys R Us — The Retail Employment Case</p><p><strong>The acquisition (2005)</strong> KKR, Bain Capital, and Vornado Realty Trust acquired Toys R Us for approximately $7.5 billion, funded with approximately $5-6 billion in debt ($5.7bn is the commonly cited figure). The interest expense on this debt — approximately $400M+ annually — required the company to generate substantial EBITDA to service. This was 2005: e-commerce was growing but had not yet fundamentally disrupted physical toy retail.</p><p><strong>The problem: capital starvation</strong> From the acquisition through the mid-2010s, Toys R Us paid approximately $400-500M per year in interest expense — money that was not available to invest in digital capabilities, store renovations, supply chain improvements, or customer experience. Amazon was investing billions in its retail infrastructure; Walmart was doing the same. Toys R Us, paying debt service with its operating cash flow, could not make comparable investments.</p><p><strong>The bankruptcy (2017)</strong> Toys R Us filed for Chapter 11 bankruptcy in September 2017, listing approximately $5.2 billion in liabilities. After attempting to restructure, the company was unable to find a buyer or restructuring path and liquidated in 2018. Approximately 33,000 US employees lost their jobs. [needs-verification on employee count]</p><p><strong>The distributional analysis:</strong> - KKR, Bain Capital, and Vornado: significant losses on their equity investment (though reportedly recovered some capital through dividends and management fees during the hold period) [needs-verification on exact returns/losses] - Workers: 33,000 jobs lost; minimal severance in bankruptcy; some states subsequently required PE firms to contribute to worker severance funds specifically because of the Toys R Us outcome [needs-verification on specific state legislation] - Pension claims: Former Toys R Us workers who were owed pension benefits discovered that the bankrupt company had limited assets to pay them</p><p><strong>The debate:</strong> PE critics: KKR and Bain Capital bought a viable retail company, loaded it with debt, extracted dividends and management fees during the hold period, and then left workers to bear the consequences of a bankruptcy the debt load made inevitable when competition intensified. The $400M+ per year in interest expense was the capital that could have saved Toys R Us.</p><p>PE defenders: Toys R Us was in structural decline before the acquisition — toy retail was already challenged, Amazon was already growing. The counterfactual is not that Toys R Us would have survived and thrived without the LBO; it is that it might have filed for bankruptcy several years earlier (or later) but ultimately would have faced the same outcome. PE prolonged the company's life, not ended it prematurely.</p><p><strong>What the case actually teaches:</strong> Both sides have defensible points. The leverage did create a capital starvation that made adaptation harder. The competitive disruption from e-commerce was likely fatal regardless. What is not contested: 33,000 workers bore the employment consequences; the PE investors bore financial losses but had received dividends and fees during the hold; and the workers' bankruptcy claims received minimal recovery compared to senior creditors. The distribution of consequences — workers last, secured creditors and PE fees first — is the distributional pattern the thesis tracks.</p><p>---</p><p>### CHI Overhead Doors — The Worker Equity Experiment</p><p><strong>Background</strong> CHI Overhead Doors is a manufacturer of residential and commercial garage doors, acquired by KKR in 2015. When KKR sold CHI to Nucor Corporation in 2022, approximately 800 hourly and non-management employees received equity stakes that had appreciated significantly during the hold period.</p><p><strong>The outcome</strong> Each participating employee received equity appreciation that translated into an average of approximately $175,000 at exit — representing several years of additional wages for many workers. [needs-verification on exact figures] Total worker equity distributions were approximately $360 million.</p><p><strong>What it demonstrates:</strong> KKR demonstrated that PE's incentive architecture is not fixed — that deliberate design choices can route equity upside to workers rather than exclusively to management teams and investors. If PE firms chose to give workers equity stakes as part of every transaction rather than reserving equity for management teams and GPs, the distributional outcome of PE would be materially different.</p><p><strong>The limitation:</strong> CHI Overhead Doors is one example, carefully selected and publicised by KKR. It involves a manufacturing company with a stable employment base and a successful exit — the circumstances most conducive to worker equity sharing. It does not address whether worker equity sharing is practical or likely in highly leveraged retail restructurings (where workers are most harmed) or nursing home acquisitions (where the employment effects are most severe).</p><p><strong>For the learner:</strong> KKR — the firm whose K-1 data flows through CVC Secondary Partners — has built its worker equity programme as a deliberate institutional response to the reputational and regulatory pressure from the employment critique. Understanding that KKR's CHI Overhead Doors initiative is partly a response to the counter-position this note addresses helps the learner contextualise KKR's institutional self-presentation when it appears in news coverage, regulatory filings, or investor communications.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PE definitively destroys jobs.\"</strong> The Davis et al. (2014) study — the most rigorous academic treatment — finds approximately neutral net employment effects at 5 years, with significant productivity gains. PE doesn't simply destroy jobs in aggregate; it accelerates churn (both creation and destruction). The \"PE destroys jobs\" framing is accurate for specific sectors (highly leveraged retail) and specific deal types (deep debt loading at cyclical peak) but does not describe PE's average employment effect.</p><p><strong>Misconception 2: \"PE definitively creates jobs.\"</strong> The PE industry's job creation claims (American Investment Council \"tens of millions of PE jobs\") use methodologies that aggregate all current employees at all companies that have received PE investment, counting them as \"PE-created\" regardless of whether those employees were hired before, during, or after PE ownership. This dramatically overstates PE's causal contribution to employment. The actual evidence for PE as a net job creator above industry benchmarks is weak.</p><p><strong>Misconception 3: \"The productivity gains from PE mean it's net beneficial for workers.\"</strong> Productivity gains are real (Davis et al.). Whether they translate into worker wages is a separate question that the academic literature has not settled affirmatively. Productivity gains captured as investor returns rather than shared with workers represent a transfer from labour to capital, not a benefit to workers. The productivity finding does not automatically support the \"PE benefits workers\" claim.</p><p><strong>Misconception 4: \"Employment count is the right metric for measuring PE's effects on workers.\"</strong> Employment count misses wages, benefits, stability, occupational quality, and equity participation. A company that maintains headcount while suppressing wages, cutting pension contributions, and increasing production quotas has produced a worker welfare loss that employment count statistics don't capture. The full picture requires wages, benefits, stability, and occupational quality alongside headcount.</p><p><strong>Misconception 5: \"The Toys R Us bankruptcy proves PE destroys jobs.\"</strong> Toys R Us demonstrates that highly leveraged PE retail deals create capital starvation that makes competitive adaptation harder and bankruptcy more likely. It does not prove that all PE deals destroy jobs, or that Toys R Us would have survived without PE. The counterfactual matters: Toys R Us may have survived longer, or the same amount of time, or shorter, without the PE acquisition — the answer affects whether the LBO \"caused\" the job losses or merely \"accelerated\" an outcome that was coming regardless.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

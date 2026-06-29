@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pme-analysis", "title": "PME Analysis", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Did PE actually beat the alternative?", "on_screen_bullets": ["15% IRR vs 18% index?", "IRR has no opportunity-cost context", "The only honest benchmark"], "narration": "IRR alone is an inadequate benchmark for PE performance. A fund returning fifteen percent net IRR looks impressive in isolation — but if the S&P 500 returned eighteen percent over the same period with the same cash-flow timing, the LP would have been better off in a passive index fund, at far lower cost and without the illiquidity. PME answers the question IRR cannot: did PE actually beat the alternative? Without it, LP track-record analysis is optimising on an absolute number with no risk-adjusted or opportunity-cost context — and if PE systematically underperforms public markets on a PME basis after fees and illiquidity, the entire case for the asset class has to rest on something other than return superiority.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "PE cash flows vs the index", "on_screen_bullets": ["Same timing, same amounts", "Compared to a public index", "Accounts for PE's uneven cash flows"], "narration": "The definition. Public Market Equivalent — PME — analysis is a method for comparing a PE fund's actual cash flows against a hypothetical investment in a public market index using the same timing and magnitude, answering the question: did this fund outperform what the LP could have earned in public equities, not just in absolute IRR terms, but accounting for the timing and illiquidity of PE cash flows? Same money, same dates, different destination.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "2.5x that still lost", "on_screen_bullets": ["£10m → £25m, ~10%/yr", "S&P would've made ~£35m", "IRR never told you that"], "narration": "Imagine you gave a manager ten million in 2010, received distributions over ten years, and ended with twenty-five million total — a two-and-a-half times MOIC. Did you do well? The IRR says yes, around ten percent a year. But the S&P 500 returned roughly thirteen-and-a-half percent a year over that same 2010-to-2020 stretch, so the same ten million in an index fund would have grown to about thirty-five million. The PE fund returned two-and-a-half times; the alternative returned three-and-a-half. You underperformed — and the IRR alone never told you. PME gets the answer right by using the same cash flows — when the fund called capital, when it returned distributions — and asking what would have happened if you'd put those same amounts into the index at those same times. You can't just compare PE IRR to the index's compound rate, because PE cash flows are uneven: calls happen over years one to four, distributions trickle back over years five to ten. PME corrects for that by matching the timing precisely.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The taxi vs the bus", "on_screen_bullets": ["Same pickups, same drop-offs", "Where would the bus have left you?", "The route matters, not the average speed"], "narration": "The mental model: PME asks, given the same commitments at the same times, how did the taxi driver do versus the bus? You booked a taxi — the PE fund — that charged premium rates, picked you up when convenient, that's the capital calls, dropped you at various points en route, the distributions, and finally delivered you to your destination. PME asks: if instead of the taxi you'd caught the bus — the index fund — at the exact same moments the taxi picked you up, and got off whenever the taxi dropped you, where would you have ended up? If the same destination, the taxi charged you for nothing. If the bus left you further back, the premium taxi was worth it. If the bus took you further, you should have taken the bus. The key insight: you must use the same stops at the same times, because the route matters, not just the average speed.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Three PME methods", "on_screen_bullets": ["Long-Nickels (1996): replicate, can over-deplete", "KS-PME (2005): ratio, >1 outperforms", "Direct Alpha: % per year, most intuitive"], "narration": "Technically, naive comparison fails for three reasons: the capital wasn't all deployed at once, distributions came back over years not at the end, and the J-curve means PE IRR starts negative and rises. PME fixes all three by simulating the index using the same cash-flow dates and amounts. There are three methods. Long-Nickels, the 1996 original: buy index shares with each capital call, sell index shares to fund each distribution, and compare the terminal index balance to the fund's residual NAV — intuitive, but it can over-deplete, selling more index shares than you hold when PE distributes heavily early, producing an invalid result for strong outperformers. Kaplan-Schoar PME, from 2005, fixes that with a ratio: discount all PE cash flows at the public market's actual return, then divide the present value of distributions by the present value of capital calls — above one means PE outperformed, exactly one means it matched, below one means it lagged. Concretely, a fund that called a hundred million and returned two hundred fifty million might give a present value of distributions of a hundred-eighty against capital calls of a hundred-fifty — a KS-PME of one-point-two, twenty percent outperformance in aggregate; its limitation is that a ratio is harder to communicate than a rate. The third method, Direct Alpha, is the most interpretable: solve for the extra annual return that, added to the index return, reproduces the fund's actual distributions — so if the index returned twelve percent and Direct Alpha is plus three, the fund delivered the equivalent of the index plus three percent a year. Cambridge Associates also publishes a Modified PME that holds a proportional index position rather than assuming partial liquidation on each distribution, and it's the version most often seen in LP reports. One more critical choice: the benchmark index. A mid-market buyout GP should be measured against the Russell 2000, not the large-cap S&P 500 — using the S&P understates the small-cap risk taken and can flatter the PME.", "est_sec": 78}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "The contested evidence", "on_screen_bullets": ["HJK 2014: US buyout ~3–4% Direct Alpha", "Phalippou-Gottschalg: ~near zero after bias", "Working view: ~1.1–1.2x KS-PME"], "narration": "Take the central empirical debate. Harris, Jenkinson and Kaplan, in 2014, analysed a comprehensive dataset of fund cash flows from the Burgiss database — a system used by hundreds of institutional LPs, covering funds from 1984 to 2010 — and found that US buyout PE outperformed the S&P 500 by roughly three to four percent a year, net of fees, on a Direct Alpha basis, with outperformance more consistent for the 1980s and 90s vintages and weaker for the 2000s. Set against that, Phalippou and Gottschalg, using a different dataset, found that after correcting for survivorship bias, overvalued NAV marks in partially-realised funds, and voluntary-reporting selection bias, the average PE fund barely outperformed the S&P 500 — a PME around one, possibly just below. Why the gap? Burgiss data comes from actual LP records and includes the poorly-performing funds that wouldn't voluntarily report, whereas the older Venture Economics data carried heavier self-reporting bias; the academic community generally regards the Burgiss-based results as more reliable. The practical working position: average US buyout PE generates a modest positive PME, roughly one-point-one to one-point-two times on a KS basis, or two-to-four percent Direct Alpha above the S&P — positive but not enormous, and crucially not a comfortable margin over most LPs' illiquidity-premium requirement. Which is exactly why manager selection, finding the GPs who actually generate alpha, matters far more than simply allocating to the asset class.", "est_sec": 70}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["IRR ≠ comparable to CAGR", "PME > 1.0 ≠ good enough", "Benchmark + risk matter"], "narration": "Four corrections. First, PE IRR is not directly comparable to a stock-market compound rate — an LP who put in ten million in year one and got twenty million in year five has a fifteen percent IRR, but if the market rose twenty percent a year over that span they were worse off; PME captures this, a direct IRR-versus-CAGR comparison does not. Second, PME above one does not automatically mean PE is a good investment — it means PE beat the specific benchmark chosen; the benchmark choice matters, PME doesn't adjust for PE's higher leverage and lower diversification, and it must exceed one by enough to compensate for illiquidity, so a PME of one-point-zero-five may simply be insufficient. Third, a Direct Alpha of plus three doesn't mean the LP's total PE allocation grew at market-plus-three each year — the J-curve means capital isn't fully deployed from day one, and early distributions were reinvested elsewhere, not at the fund's rate. And fourth, PME isn't only a fund-level tool — it can be computed at the individual-deal level, which is more granular and reveals within-fund variance, though GPs who show deal-level PME tend to show it selectively, for their best deals.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The honest benchmark", "on_screen_bullets": ["Same cash flows vs the index", "Modest average PME, contested", "Selection beats allocation"], "narration": "To recap. PME analysis answers what IRR cannot: did this fund beat what the LP could have earned in public equities, accounting for the timing of PE cash flows? The three methods — Long-Nickels, Kaplan-Schoar, and Direct Alpha — all simulate index investment using the same cash-flow dates and amounts. The evidence is genuinely contested: Harris-Jenkinson-Kaplan found roughly three-to-four percent Direct Alpha for US buyout on high-quality Burgiss data, while Phalippou-Gottschalg found near-zero after correcting for bias — and the working position is a modest positive PME, often not a comfortable margin over the illiquidity premium, which makes manager selection far more important than the allocation decision itself. For LP practice, PME is the most rigorous performance benchmark, superior to absolute IRR because it controls for vintage and timing; any track-record analysis that omits it is optimising on a number with no opportunity-cost context. That completes the performance-measurement core of the LP module — next, co-investment economics.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why can't you simply compare a PE fund's IRR to the S&P 500's annual return? What does a KS-PME of 1.2 mean, and why does the choice of benchmark index materially change the conclusion?", "narration": "Before the next lesson, answer all three. Why can't you simply compare a PE fund's IRR to the S&P 500's annual compound return? What does a Kaplan-Schoar PME of one-point-two actually mean? And why does the choice of benchmark index — say the Russell 2000 versus the S&P 500 — materially change the conclusion? Reason it out, then check the notes below."}, "quiz": [{"label": "Q1:", "question": "A PE fund called £50m in Year 1 and £50m in Year 2. It returned £80m in Year 5 and £70m in Year 8. The S&P 500 returned 10% per year over the period. Using the KS-PME concept (without calculating precisely), would you expect KS-PME to be above or below 1.0, and what would a KS-PME of 1.15 mean?", "answer": "To estimate: the PE fund returned £150m total on £100m invested — a 1.5× MOIC. Whether that beats the S&P 500 (10% p.a.) depends on timing. £50m invested in Year 1 at 10% for 8 years = £107m; £50m in Year 2 for 7 years = £97m. Total index value at Year 8 ≈ £204m vs. PE's £150m total distributions → KS-PME < 1.0, PE underperformed. A KS-PME of 1.15 would mean the PV of PE distributions (discounted at the S&P return) is 15% greater than the PV of capital calls — i.e., PE delivered 15% more total value than the same capital in the index, adjusting for timing."}, {"label": "Q2:", "question": "Why would a GP marketing their fund resist providing Direct Alpha PME figures to LPs, even though the calculation uses publicly available index data?", "answer": "If Direct Alpha is negative, the GP would rather show absolute IRR (e.g., 14%) without context than reveal underperformance (e.g., −1.5% vs the S&P 500). They may also pick a softer benchmark (S&P 500 instead of the more appropriate Russell 2000 for a mid-market fund). Resistance to PME disclosure is itself a signal that market-adjusted performance is unflattering."}, {"label": "Q3:", "question": "A PE fund reports 19% net IRR for a 2008-vintage fund (investing through the GFC). The S&P 500 CAGR for the same period (2008–2018) was approximately 13%. A colleague says \"the PE fund clearly outperformed.\" What's wrong with this conclusion and what would you need to calculate a proper comparison?", "answer": "The 19% IRR vs 13% CAGR comparison is flawed: (1) PE capital was staggered over 2008–2012, so the LP had uncalled capital earning other returns during the crash; (2) IRR implicitly reinvests interim distributions at 19%; (3) a 2008 vintage buying at post-crisis lows shows strong absolute returns even with modest skill. The proper comparison is a PME: model the *same* call and distribution dates against the S&P 500 to see whether the fund generated alpha above passive index investment with identical timing."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PME Analysis\n\n[hook] Did PE actually beat the alternative?\nIRR alone is an inadequate benchmark for PE performance. A fund returning fifteen percent net IRR looks impressive in isolation — but if the S&P 500 returned eighteen percent over the same period with the same cash-flow timing, the LP would have been better off in a passive index fund, at far lower cost and without the illiquidity. PME answers the question IRR cannot: did PE actually beat the alternative? Without it, LP track-record analysis is optimising on an absolute number with no risk-adjusted or opportunity-cost context — and if PE systematically underperforms public markets on a PME basis after fees and illiquidity, the entire case for the asset class has to rest on something other than return superiority.\n\n[definition] PE cash flows vs the index\nThe definition. Public Market Equivalent — PME — analysis is a method for comparing a PE fund's actual cash flows against a hypothetical investment in a public market index using the same timing and magnitude, answering the question: did this fund outperform what the LP could have earned in public equities, not just in absolute IRR terms, but accounting for the timing and illiquidity of PE cash flows? Same money, same dates, different destination.\n\n[intuition] 2.5x that still lost\nImagine you gave a manager ten million in 2010, received distributions over ten years, and ended with twenty-five million total — a two-and-a-half times MOIC. Did you do well? The IRR says yes, around ten percent a year. But the S&P 500 returned roughly thirteen-and-a-half percent a year over that same 2010-to-2020 stretch, so the same ten million in an index fund would have grown to about thirty-five million. The PE fund returned two-and-a-half times; the alternative returned three-and-a-half. You underperformed — and the IRR alone never told you. PME gets the answer right by using the same cash flows — when the fund called capital, when it returned distributions — and asking what would have happened if you'd put those same amounts into the index at those same times. You can't just compare PE IRR to the index's compound rate, because PE cash flows are uneven: calls happen over years one to four, distributions trickle back over years five to ten. PME corrects for that by matching the timing precisely.\n\n[intuition] The taxi vs the bus\nThe mental model: PME asks, given the same commitments at the same times, how did the taxi driver do versus the bus? You booked a taxi — the PE fund — that charged premium rates, picked you up when convenient, that's the capital calls, dropped you at various points en route, the distributions, and finally delivered you to your destination. PME asks: if instead of the taxi you'd caught the bus — the index fund — at the exact same moments the taxi picked you up, and got off whenever the taxi dropped you, where would you have ended up? If the same destination, the taxi charged you for nothing. If the bus left you further back, the premium taxi was worth it. If the bus took you further, you should have taken the bus. The key insight: you must use the same stops at the same times, because the route matters, not just the average speed.\n\n[mechanics] Three PME methods\nTechnically, naive comparison fails for three reasons: the capital wasn't all deployed at once, distributions came back over years not at the end, and the J-curve means PE IRR starts negative and rises. PME fixes all three by simulating the index using the same cash-flow dates and amounts. There are three methods. Long-Nickels, the 1996 original: buy index shares with each capital call, sell index shares to fund each distribution, and compare the terminal index balance to the fund's residual NAV — intuitive, but it can over-deplete, selling more index shares than you hold when PE distributes heavily early, producing an invalid result for strong outperformers. Kaplan-Schoar PME, from 2005, fixes that with a ratio: discount all PE cash flows at the public market's actual return, then divide the present value of distributions by the present value of capital calls — above one means PE outperformed, exactly one means it matched, below one means it lagged. Concretely, a fund that called a hundred million and returned two hundred fifty million might give a present value of distributions of a hundred-eighty against capital calls of a hundred-fifty — a KS-PME of one-point-two, twenty percent outperformance in aggregate; its limitation is that a ratio is harder to communicate than a rate. The third method, Direct Alpha, is the most interpretable: solve for the extra annual return that, added to the index return, reproduces the fund's actual distributions — so if the index returned twelve percent and Direct Alpha is plus three, the fund delivered the equivalent of the index plus three percent a year. Cambridge Associates also publishes a Modified PME that holds a proportional index position rather than assuming partial liquidation on each distribution, and it's the version most often seen in LP reports. One more critical choice: the benchmark index. A mid-market buyout GP should be measured against the Russell 2000, not the large-cap S&P 500 — using the S&P understates the small-cap risk taken and can flatter the PME.\n\n[worked-example] The contested evidence\nTake the central empirical debate. Harris, Jenkinson and Kaplan, in 2014, analysed a comprehensive dataset of fund cash flows from the Burgiss database — a system used by hundreds of institutional LPs, covering funds from 1984 to 2010 — and found that US buyout PE outperformed the S&P 500 by roughly three to four percent a year, net of fees, on a Direct Alpha basis, with outperformance more consistent for the 1980s and 90s vintages and weaker for the 2000s. Set against that, Phalippou and Gottschalg, using a different dataset, found that after correcting for survivorship bias, overvalued NAV marks in partially-realised funds, and voluntary-reporting selection bias, the average PE fund barely outperformed the S&P 500 — a PME around one, possibly just below. Why the gap? Burgiss data comes from actual LP records and includes the poorly-performing funds that wouldn't voluntarily report, whereas the older Venture Economics data carried heavier self-reporting bias; the academic community generally regards the Burgiss-based results as more reliable. The practical working position: average US buyout PE generates a modest positive PME, roughly one-point-one to one-point-two times on a KS basis, or two-to-four percent Direct Alpha above the S&P — positive but not enormous, and crucially not a comfortable margin over most LPs' illiquidity-premium requirement. Which is exactly why manager selection, finding the GPs who actually generate alpha, matters far more than simply allocating to the asset class.\n\n[pitfalls] What people get wrong\nFour corrections. First, PE IRR is not directly comparable to a stock-market compound rate — an LP who put in ten million in year one and got twenty million in year five has a fifteen percent IRR, but if the market rose twenty percent a year over that span they were worse off; PME captures this, a direct IRR-versus-CAGR comparison does not. Second, PME above one does not automatically mean PE is a good investment — it means PE beat the specific benchmark chosen; the benchmark choice matters, PME doesn't adjust for PE's higher leverage and lower diversification, and it must exceed one by enough to compensate for illiquidity, so a PME of one-point-zero-five may simply be insufficient. Third, a Direct Alpha of plus three doesn't mean the LP's total PE allocation grew at market-plus-three each year — the J-curve means capital isn't fully deployed from day one, and early distributions were reinvested elsewhere, not at the fund's rate. And fourth, PME isn't only a fund-level tool — it can be computed at the individual-deal level, which is more granular and reveals within-fund variance, though GPs who show deal-level PME tend to show it selectively, for their best deals.\n\n[recap] The honest benchmark\nTo recap. PME analysis answers what IRR cannot: did this fund beat what the LP could have earned in public equities, accounting for the timing of PE cash flows? The three methods — Long-Nickels, Kaplan-Schoar, and Direct Alpha — all simulate index investment using the same cash-flow dates and amounts. The evidence is genuinely contested: Harris-Jenkinson-Kaplan found roughly three-to-four percent Direct Alpha for US buyout on high-quality Burgiss data, while Phalippou-Gottschalg found near-zero after correcting for bias — and the working position is a modest positive PME, often not a comfortable margin over the illiquidity premium, which makes manager selection far more important than the allocation decision itself. For LP practice, PME is the most rigorous performance benchmark, superior to absolute IRR because it controls for vintage and timing; any track-record analysis that omits it is optimising on a number with no opportunity-cost context. That completes the performance-measurement core of the LP module — next, co-investment economics.\n\nQ: A PE fund called £50m in Year 1 and £50m in Year 2. It returned £80m in Year 5 and £70m in Year 8. The S&P 500 returned 10% per year over the period. Using the KS-PME concept (without calculating precisely), would you expect KS-PME to be above or below 1.0, and what would a KS-PME of 1.15 mean?\nA: To estimate: the PE fund returned £150m total on £100m invested — a 1.5× MOIC. Whether that beats the S&P 500 (10% p.a.) depends on timing. £50m invested in Year 1 at 10% for 8 years = £107m; £50m in Year 2 for 7 years = £97m. Total index value at Year 8 ≈ £204m vs. PE's £150m total distributions → KS-PME < 1.0, PE underperformed. A KS-PME of 1.15 would mean the PV of PE distributions (discounted at the S&P return) is 15% greater than the PV of capital calls — i.e., PE delivered 15% more total value than the same capital in the index, adjusting for timing.\nQ: Why would a GP marketing their fund resist providing Direct Alpha PME figures to LPs, even though the calculation uses publicly available index data?\nA: If Direct Alpha is negative, the GP would rather show absolute IRR (e.g., 14%) without context than reveal underperformance (e.g., −1.5% vs the S&P 500). They may also pick a softer benchmark (S&P 500 instead of the more appropriate Russell 2000 for a mid-market fund). Resistance to PME disclosure is itself a signal that market-adjusted performance is unflattering.\nQ: A PE fund reports 19% net IRR for a 2008-vintage fund (investing through the GFC). The S&P 500 CAGR for the same period (2008–2018) was approximately 13%. A colleague says \"the PE fund clearly outperformed.\" What's wrong with this conclusion and what would you need to calculate a proper comparison?\nA: The 19% IRR vs 13% CAGR comparison is flawed: (1) PE capital was staggered over 2008–2012, so the LP had uncalled capital earning other returns during the crash; (2) IRR implicitly reinvests interim distributions at 19%; (3) a 2008 vintage buying at post-crisis lows shows strong absolute returns even with modest skill. The proper comparison is a PME: model the *same* call and distribution dates against the S&P 500 to see whether the fund generated alpha above passive index investment with identical timing.\nEnd-card question: Why can't you simply compare a PE fund's IRR to the S&P 500's annual return? What does a KS-PME of 1.2 mean, and why does the choice of benchmark index materially change the conclusion?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>IRR alone is an inadequate benchmark for PE performance. A PE fund returning 15% net IRR looks impressive in isolation — but if the S&amp;P 500 returned 18% over the same period with the same cash flow timing, the LP would have been better off in a passive index fund at far lower cost and without the illiquidity. PME answers the question IRR cannot: <strong>did PE actually beat the alternative?</strong></p><p>Without PME, LP track record analysis and manager selection are optimising on an absolute return measure that has no risk-adjusted or opportunity-cost context. The implication is significant: if PE systematically underperforms public markets on a PME basis after fees and illiquidity, the entire case for the asset class rests on diversification benefits or access effects — not return superiority.</p><p>PME is used in: - LP manager selection: comparing GPs against each other on a market-adjusted basis - Asset allocation decisions: whether PE deserves its allocation relative to liquid equities - Academic research: the empirical debate on whether PE generates genuine alpha</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Public Market Equivalent (PME) analysis is a method for comparing a PE fund's actual cash flows against a hypothetical investment in a public market index using the same timing and magnitude, answering the question: did this PE fund outperform what the LP could have earned in public equity markets — not just in absolute IRR terms, but accounting for the timing and illiquidity of PE cash flows?</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you gave a fund manager £10m in 2010, received distributions over the next 10 years, and at the end had received a total of £25m — a 2.5× MOIC. Did you do well?</p><p>The IRR calculation says \"yes, approximately 10% per year.\" But the S&amp;P 500 returned approximately 13.5% per year over the same 2010–2020 period. If you'd invested that same £10m in an S&amp;P 500 index fund, you'd have roughly £35m. The PE fund returned 2.5× but the alternative returned 3.5×. You underperformed — but the IRR alone never told you that.</p><p>PME answers the question correctly by using the <strong>same cash flows</strong> (when the fund called capital, when it returned distributions) and asking: what would have happened if I'd invested those same amounts into the S&amp;P 500 at the same times?</p><p>The reason you can't just compare \"PE IRR vs. S&amp;P CAGR\" is that PE cash flows are uneven — capital calls happen over years 1–4, distributions trickle back over years 5–10. A simple IRR comparison assumes you had all the PE money invested from Day 1 (false) and returned all at once at the end (false). PME corrects for this by matching timing precisely.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>PME is asking: <strong>\"Given the same commitments at the same times, how did the taxi driver do vs. the bus?\"</strong></p><p>You booked a taxi (PE fund) that charged premium rates, picked you up when convenient (capital calls), dropped you off at various points en route (distributions), and finally delivered you to your destination. PME asks: if instead of the taxi, you'd caught the bus (index fund) at the exact same moments the taxi picked you up, and got off the bus whenever the taxi dropped you off — where would you have ended up?</p><p>If you'd end up at the same destination (PME ≈ 1.0), the taxi charged you for nothing. If you'd end up significantly further back (PME &lt; 1.0 for the bus, &gt; 1.0 for the taxi), the premium taxi was worth it. If the bus took you further (PME &gt; 1.0 for the bus), you should have taken the bus.</p><p>The key insight: you must use the <strong>same stops at the same times</strong> — because the route matters, not just the average speed.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Why Naive Comparisons Fail</p><p>A PE fund with 15% net IRR over 10 years cannot be simply compared to \"the S&amp;P 500 returned 13% per year\" for three reasons:</p><ol><li><strong>The capital was not all deployed at once.</strong> Capital calls happen over years 1–4. The LP had use of uncalled capital during this period — it wasn't all sitting idle.</li><li><strong>Distributions were received over years 4–10, not all at the end.</strong> Early distributions could be reinvested in public markets. IRR implicitly assumes they are reinvested at the IRR rate itself — which is circular.</li><li><strong>The J-curve effect.</strong> PE IRR starts negative in early years and rises. Direct comparison to a compounding public return ignores this timing pattern.</li></ol><p>PME corrects all three by simulating an investment in the public index using the same cash flow dates and amounts.</p><p>---</p><p>### The Three PME Methods</p><p><strong>Method 1 — Long-Nickels PME (1996, the original)</strong></p><p><em>Concept:</em> Invest each PE capital call into the public index at the same time and size. \"Sell\" index holdings whenever the PE fund makes a distribution, using the sale proceeds to replicate the PE distribution. The terminal index portfolio balance represents the index's equivalent of the PE fund's residual value.</p><p><em>Calculation:</em> - For each capital call: buy that amount of index shares at that date's price - For each distribution: sell enough index shares to equal the distribution amount at that date's price - At fund end: compare the remaining index portfolio balance to the PE fund's residual NAV - If index portfolio &gt; 0 with a positive residual (or PE distributions were larger), PE outperformed</p><p><em>Limitation:</em> If PE distributions are large early (outperforming scenario), the index portfolio can be \"overdepleted\" — you sell more index shares than you hold. This produces a technically invalid result for strongly outperforming PE funds.</p><p><strong>Method 2 — Kaplan-Schoar PME (KS-PME, 2005)</strong></p><p><em>Concept:</em> A ratio that avoids the overdepletion problem. Discount all PE cash flows at the public market return — the same way a DCF works, but using the index return as the discount rate.</p><p><em>Formula:</em></p><ul class='notelist'><li><strong>KS-PME &gt; 1.0</strong>: PE outperformed the public market (distributions, discounted at market rate, exceed capital calls discounted at market rate)</li><li><strong>KS-PME = 1.0</strong>: PE matched the public market exactly</li><li><strong>KS-PME &lt; 1.0</strong>: PE underperformed the public market</li></ul><p><em>Example:</em> A PE fund called £100m over 4 years and returned £250m over 10 years. Discounting the distributions and capital calls at the S&amp;P 500's actual return over those dates: - PV of distributions at S&amp;P rate = £180m - PV of capital calls at S&amp;P rate = £150m - KS-PME = 180 ÷ 150 = <strong>1.20</strong> — PE outperformed by 20% in aggregate</p><p><em>Limitation:</em> KS-PME produces a ratio (not a rate), making it harder to communicate to non-technical audiences. \"PME of 1.20\" requires explanation; \"PE outperformed by 3% per year\" is more intuitive.</p><p><strong>Method 3 — Direct Alpha (most recent, most interpretable)</strong></p><p><em>Concept:</em> Solve for the additional annual return (α, alpha) that, when added to the public market return and applied to capital calls, produces distributions equal to the PE fund's actual distributions.</p><p><em>Formula:</em> Solve for α such that: PV(Distributions) = PV(Capital Calls) discounted at (public market return + α)</p><ul class='notelist'><li><strong>Direct Alpha &gt; 0</strong>: PE generated positive alpha above the public market</li><li><strong>Direct Alpha = 0</strong>: PE matched the market</li><li><strong>Direct Alpha &lt; 0</strong>: PE underperformed the market</li></ul><p><em>Example:</em> If the S&amp;P 500 returned 12% per year and the PE fund's Direct Alpha is +3%, the PE fund generated a return equivalent to the S&amp;P 500 plus 3% per year — after accounting for timing and cash flow patterns.</p><p><em>Why it's preferred:</em> Direct Alpha expresses outperformance in percentage points per year — a familiar, intuitive format. \"This GP generated 4% annual alpha above the S&amp;P 500\" is immediately interpretable by any investment professional.</p><p>---</p><p>### Modified PME (mPME — Cambridge Associates)</p><p>Cambridge Associates publishes a variation called mPME (Modified PME) that addresses a specific limitation of Long-Nickels and KS-PME: they assume that the index is partially liquidated whenever PE makes a distribution, which doesn't reflect how a real LP actually manages their portfolio.</p><p>mPME scales index positions based on the PE fund's NAV/investment value — maintaining a proportional index position throughout the fund's life. This produces a more realistic simulation of how an LP who had invested in the index (instead of PE) would have behaved.</p><p>mPME is the benchmark used by Cambridge Associates in their PE performance reporting — making it the most widely seen PME methodology in LP reports. [needs-verification on whether mPME is the CA standard]</p><p>---</p><p>### Choosing the Right Benchmark Index</p><p>PME requires selecting a public market benchmark. The choice of index significantly affects the result:</p><p>| Benchmark | Appropriate For | Typical PE PME Result | |---|---|---| | S&amp;P 500 | US large-cap buyout PE | Variable; S&amp;P 500 was strong 2010–2021 | | Russell 2000 | Small/mid-market US buyout | Often shows stronger PE outperformance | | MSCI World | Global or cross-border PE | Moderate; useful for diversified LP portfolios | | MSCI Europe | European buyout PE | Most appropriate for European GPs | | MSCI Emerging Markets | Emerging market PE | Often shows PE significantly outperforming — EM is more volatile |</p><p><strong>The index selection debate:</strong> A GP who consistently invests in mid-market buyouts should be benchmarked against the Russell 2000 (mid-cap), not the S&amp;P 500 (large-cap). Using the S&amp;P 500 as the benchmark for a mid-market GP understates the risk taken (small-cap PE is higher risk than large-cap public equity) and may show PME &gt; 1.0 even when the GP is not adding risk-adjusted value.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### Harris, Jenkinson &amp; Kaplan (2014) — The Definitive PME Study</p><p>Harris, Jenkinson &amp; Kaplan analysed a comprehensive dataset of PE fund cash flows from the Burgiss database — a portfolio management system used by hundreds of institutional LPs, covering PE funds from 1984 to 2010.</p><p><strong>Key findings using PME analysis:</strong></p><ul class='notelist'><li><strong>US buyout PE outperformed the S&amp;P 500 by approximately 3–4% per year (net of fees)</strong> using Direct Alpha methodology for vintage years 1984–2010. [needs-verification on exact figure]</li><li>Outperformance was more consistent for 1980s–1990s vintages; 2000s vintages showed lower and more variable PME.</li><li>VC showed higher absolute PME but also higher variance — more top performers but also more underperformers.</li><li>European buyout PE showed smaller PME advantage relative to European indices.</li></ul><p><strong>The Phalippou &amp; Gottschalg (2009) contrast:</strong></p><p>Using a different dataset and methodology, Phalippou &amp; Gottschalg found that after correcting for: - Survivorship bias (PE funds that dissolved without reporting are excluded from most databases) - Overvalued NAV marks in partially-realised funds (TVPI overstates true performance) - Sample selection bias in voluntary database reporting</p><p>...the average PE fund <strong>barely outperformed the S&amp;P 500</strong> — PME ≈ 1.0, possibly slightly below 1.0.</p><p><strong>Why the two studies differ:</strong> - Burgiss data (Harris et al.) is derived from actual LP records submitted for portfolio management — includes poorly performing funds that would not voluntarily report to Preqin or Venture Economics - Venture Economics data (Phalippou et al.) had higher self-reporting bias — GPs disproportionately reported when performance was strong - The academic community generally considers Burgiss-based results more reliable due to lower selection bias</p><p><strong>Practical LP implication:</strong> The best estimate of average US buyout PE PME (net of fees) is approximately 1.1–1.2× (KS-PME) or 2–4% Direct Alpha above the S&amp;P 500 — positive but not enormous. This means the average PE fund provides modest outperformance above liquid markets, which must be weighed against illiquidity risk, manager selection risk, and LP operational costs.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PE IRR is directly comparable to stock market returns.\"</strong> IRR and CAGR are not directly comparable because PE cash flows are uneven and multi-period. An LP who contributed £10m in year 1 and received £20m in year 5 has a 15% IRR — but if the market rose 20% per year over the same period, the LP was worse off. PME captures this; direct IRR vs. CAGR comparison does not.</p><p><strong>Misconception 2: \"PME &gt; 1.0 means PE is a good investment.\"</strong> PME &gt; 1.0 means PE outperformed the specific benchmark chosen. But: (a) the benchmark choice matters — a mid-cap PE fund should be benchmarked to mid-cap indices, not the large-cap S&amp;P 500; (b) PME does not adjust for risk (PE is more leveraged and less diversified than public indices); (c) PME must exceed 1.0 by enough to compensate for illiquidity — so PME = 1.05 may be insufficient. A minimal margin above 1.0 after illiquidity premium does not justify PE allocation.</p><p><strong>Misconception 3: \"Direct Alpha of +3% means the LP earned 3% more per year.\"</strong> Direct Alpha is the additional return implied by the PE cash flows over the benchmark — it describes the outperformance of the PE fund. But it does not mean the LP's total PE allocation grew at market + 3% each year, because: (a) capital is not fully deployed from Day 1 (J-curve); (b) distributions received early were reinvested elsewhere, not necessarily at the PE fund's rate; (c) the uncalled committed capital was deployed by the LP in other assets during years 1–4.</p><p><strong>Misconception 4: \"PME analysis is only relevant for fund-level comparisons.\"</strong> PME can be calculated at the individual deal level — comparing a specific investment's cash flows to the index. Deal-level PME is more granular than fund-level and reveals within-fund performance variance. Some GPs provide deal-level PME in marketing materials (often selectively, for their best deals).</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>PME (Public Market Equivalent) analysis answers the question that IRR alone cannot: did this PE fund outperform what the LP could have earned in public equity markets, accounting for the timing of PE cash flows? The three main methods — Long-Nickels PME, KS-PME (Kaplan-Schoar), and Direct Alpha — all simulate public market investment using the same cash flow dates and amounts, comparing the outcome to the PE fund's actual performance.</p><p>The empirical evidence on whether PE systematically outperforms on a PME basis is contested: Harris, Jenkinson &amp; Kaplan (2014) found US buyout PE generated approximately 3–4% Direct Alpha above the S&amp;P 500 using high-quality Burgiss data; Phalippou &amp; Gottschalg (2009) found near-zero outperformance after correcting for selection bias and NAV overvaluation in their dataset. The working position is that average US buyout PE generates modest positive PME — insufficient to clear most LPs' illiquidity premium requirement by a comfortable margin — making manager selection (which GPs actually generate alpha) far more important than asset class allocation.</p><p>For LP manager selection, PME is the most rigorous performance benchmark — superior to absolute IRR because it controls for vintage year and cash flow timing. Any LP track record analysis that does not include PME comparison is optimising on an absolute return metric that has no opportunity cost context.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

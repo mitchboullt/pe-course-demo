@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "the-post-2022-pe-market-reset", "title": "The Post-2022 PE Market Reset", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The current moment", "on_screen_bullets": ["The cycle still in progress", "Rate shock reshaping valuations", "Reform actively contested"], "narration": "This is the current moment — the market PE operates in right now, and a stress cycle still in progress. Unlike the earlier history, this isn't completed: the 2022-plus cycle is still developing, with both the crisis and reform stages only partly formed. It matters for three reasons. The stress shows up directly in fund valuations: when a portfolio company is marked down because its coverage ratio compressed, that flows straight into lower NAV and deferred distributions. The same firms — KKR, Apollo, Blackstone, Carlyle — are all managing portfolio companies under exactly this rate-shock pressure. And the regulatory environment is being actively contested in real time: the SEC's 2023 Private Fund Adviser Rules were vacated by a federal court in June 2024, while the FTC and DOJ pursue PE-related antitrust actions. This is the fourth iteration of the historical pattern, unfolding as we speak.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The fourth iteration", "on_screen_bullets": ["528bps: SOFR 0.05% → 5.33%", "First simultaneous ICR compression", "Slow-burn, not acute collapse"], "narration": "The definition. The post-2022 PE market reset is the fourth documented iteration of the historical pattern's cycle — triggered by the Federal Reserve's five-hundred-twenty-eight-basis-point rate increase, SOFR rising from near-zero to five-point-three-three percent between February 2022 and July 2023, that produced the first simultaneous interest-coverage compression across all PE portfolio companies at once. It froze the deal market, slowed fundraising, expanded the GP-led secondary market as the primary deal mechanism, and produced a slow-burn stress rather than the acute collapse of 1989 or the systemic banking crisis of 2008 — while the reform phase follows the historical form-not-substance template, though with more sustained enforcement-agency attention than any prior reset.", "est_sec": 44}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Cheap debt was the assumption", "on_screen_bullets": ["Floating-rate debt everywhere", "$18m interest → $50m, same company", "Internal stress, not infrastructure failure"], "narration": "The entire post-2010 expansion rested on one foundational assumption: that debt would stay cheap. Nearly every portfolio company acquired between 2010 and 2022 was financed with floating-rate debt — loans whose rate adjusts with a benchmark, SOFR, plus a fixed spread. When SOFR was basically zero, the total rate was about three percent, and companies could service enormous debt at that level. Then in February 2022 the Fed began raising rates to fight post-COVID inflation, and by July 2023 SOFR had gone from near-zero to five-point-three-three — a five-hundred-twenty-eight-basis-point jump in eighteen months. For a company paying three percent on six hundred million of debt, eighteen million a year of interest, the bill became eight-point-three percent — fifty million — the same company, same operations, same management, now paying thirty-two million more a year with no new revenue to cover it. Multiplied across thousands of companies all holding the same floating-rate cov-lite debt from the same era, this happened everywhere at once. And it's different from 2008: that was an infrastructure failure, banks stopped lending and credit markets froze; this is internal — the pipeline infrastructure is intact, but the content it carries, the portfolio companies, is degrading under load. The visible failures are real but diffuse and slow-moving rather than concentrated and sudden.", "est_sec": 60}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Returning from overclock", "on_screen_bullets": ["2010–21 ran at 150% capacity", "3–5% rates are normal, not high", "Overclock-only companies fail"], "narration": "The mental model: the reset is a system returning to its design specifications after running at emergency overclocked settings. During 2010 to 2021 the PE pipeline ran in overclock mode — at a hundred-fifty percent of designed capacity, enabled by near-zero energy costs, interest rates; disabled safety sensors, cov-lite; and more raw material than it was built to process, LP capital. Overclock works and produces output, but it creates thermal stress that accumulates invisibly until you can't overclock anymore. The 2022 reset is the system returning to designed specifications — three-to-five-percent rates aren't abnormally high, they're roughly where the economy normally operates, and eight-to-ten-times entry multiples aren't a discount, they're roughly where PE operated before the post-crisis experiment. So the stress is relative: companies that were only viable under overclock conditions, extreme leverage at near-zero rates, are failing or struggling; companies viable at normal conditions but financed on overclock assumptions are stressed but survivable; and companies with genuine operational quality were always viable and remain so. Unlike 2008's external infrastructure failure or 1989's supply-chain failure, this is an internal calibration — the pipeline's own content being tested against the conditions it was actually designed for. The system will reset to normal; the question is how many nodes fail in the process, and whether the reset produces real governance improvement or just another restart at a slightly higher floor.", "est_sec": 58}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Freeze, slowdown, secondaries", "on_screen_bullets": ["Deal volume $1.2tn → ~$400–500bn", "Fundraising $950bn → ~$500bn", "GP-led secondaries become the lifeline"], "narration": "Technically, the shock hit three markets. First, the deal market froze. PE acquisitions are priced on an IRR that depends on entry multiple, growth, exit multiple, leverage, and the cost of debt — and when debt went from three to eight percent, the math broke: a company bought at twelve times with seventy-percent debt that projected a twenty-to-twenty-five-percent IRR at three percent now projected only five-to-ten at eight, far below a fund's twenty-percent target. For the math to work, either the entry multiple had to fall to eight or nine times, or the equity contribution had to rise — both of which sellers, anchored to 2021 pricing, resisted. So a bid-ask spread opened and froze activity, and global buyout volume fell from about one-point-two trillion in 2021 to six hundred billion in 2022 and four-to-five hundred billion in 2023. Second, fundraising slowed: public markets fell in 2022, the denominator effect made LPs appear over-allocated to PE even though they hadn't committed more, and with 2019-to-2021 commitments still being called, appetite for new commitments collapsed — fundraising fell from about nine hundred fifty billion in 2021 to six-forty in 2022 to five hundred in 2023, the first decline since 2019, polarised toward the largest, most established firms. And third, with the primary market frozen, GP-led secondaries became the dominant deal mechanism: GPs moved portfolio companies into continuation funds, giving existing LPs a choice to exit at a reasonable price or roll, while secondary buyers provided the liquidity and the GP extended the hold. Secondary pricing shifted from near-NAV in 2021 to about eighty-to-ninety cents for diversified portfolios and seventy-to-eighty for stressed sectors like healthcare, and GP-led deals reached forty-to-forty-five percent of secondary volume — the liquidity mechanism of last resort.", "est_sec": 70}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Apollo on both sides", "on_screen_bullets": ["PE sponsor AND credit provider", "Refinances stressed companies at higher spreads", "Solutions-provider, with conflict concerns"], "narration": "Apollo's positioning shows the reset's dynamics in one firm. Apollo entered it differently from most, because its massive credit platform — the Athene insurance float plus a direct-lending operation — put it on both sides of the stress. As an equity investor, its own PE portfolio companies face the same coverage compression as everyone's. But as a credit provider, its funds are lending to stressed PE-backed companies, earning higher spreads than before 2022 while taking higher credit risk. Apollo publicly positioned itself as a solutions provider — offering to refinance the existing bank debt or leveraged loans of stressed sponsors with Apollo-originated direct loans, often giving the company more runway through longer maturities in exchange for higher spreads, more interest income for Apollo's credit funds. That integrated positioning became increasingly visible, and increasingly contested: critics raise conflict-of-interest concerns about Apollo lending to companies it also owns in PE funds, potentially on terms favourable to the credit platform at the expense of PE-fund LPs; defenders argue it provides flexibility the company couldn't get from arms-length lenders. The reset affects both sides of Apollo's book at once — PE gains deferred as exits are delayed, credit income higher but riskier — which is exactly why the modern PE-credit firm is so much harder to read than a pure buyout shop.", "est_sec": 58}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not a 2008-style crisis", "Cov-lite delays, doesn't dissolve, stress", "Reform isn't dead — it moved channels"], "narration": "Four corrections. First, the rate shock will not produce a 2008-style crisis — 2008 was a banking-system failure, banks levered thirty-to-one wiped out by mark-to-market losses; here, leverage is at the portfolio-company level not the bank level, the distress is at floating-rate borrowers not financial institutions, and cov-lite prevents automatic enforcement, so it's a slow burn rather than a systemic banking crisis, and applying 2008 analogies produces wrong predictions on timing and severity. Second, cov-lite does not protect companies from the rate shock — it prevents automatic default when coverage falls, but it doesn't dissolve the economic reality that a company paying fifty million instead of eighteen has that much less cash for investment and resilience; if anything, cov-lite lets companies operate in distress longer than they should, deferring a necessary restructuring. Third, the reform phase has not failed just because the SEC rules were vacated — the FTC's challenge to physician-practice rollups, the DOJ's algorithmic-pricing case, and state-level healthcare and housing legislation are all real reform activity through alternative channels; the vacatur eliminated one pathway, not the multi-agency momentum. And fourth, a secondary-market price decline does not simply mean secondary funds are under pressure — buying LP interests at eighty cents on a stressed NAV can ultimately generate strong returns when those companies recover, so the dislocation is simultaneously a markdown on old positions and a buying opportunity on new ones.", "est_sec": 58}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "An incomplete reset", "on_screen_bullets": ["Simultaneous, slow-burn compression", "Extend-and-pretend → maturity wall", "Reform active but uncertain"], "narration": "To recap. The post-2022 reset is the fourth iteration of the historical pattern, triggered by the Fed's five-hundred-twenty-eight-basis-point increase that produced the first simultaneous coverage compression across all PE portfolio companies. Unlike 1989's selective collapse or 2008's systemic banking failure, this is a slow burn: every cov-lite floating-rate company's interest roughly tripled in eighteen months with no operational change, compressing coverage from comfortable four-to-six times to stressed one-and-a-half-to-two-and-a-half — but cov-lite prevents automatic enforcement, so the distress accumulates in P&Ls and fund valuations rather than producing immediate defaults. The deal market froze, fundraising slowed under the denominator effect, and GP-led secondaries became the dominant deal mechanism. The extend-and-pretend dynamic kept the crisis diffuse but deferred resolution of the most stressed positions to the 2025-to-2027 wall of maturities. And the reform phase follows the form-not-substance template — the SEC's most ambitious rules vacated, no comprehensive legislation passed — but with unprecedented multi-agency enforcement that introduces genuine uncertainty about whether this iteration produces more durable change. As of now, the reset is incomplete. That deferred resolution — the wall of maturities — is exactly the next lesson.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why is the post-2022 stress a 'slow burn' rather than a 2008-style acute crisis — what role does cov-lite play? And what is the denominator effect's role in the fundraising slowdown?", "narration": "Before the next lesson, answer both. Why is the post-2022 stress described as a slow burn rather than a 2008-style acute crisis — and what specific role does cov-lite play in making it so? And how did the denominator effect contribute to the fundraising slowdown? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The Post-2022 PE Market Reset\n\n[hook] The current moment\nThis is the current moment — the market PE operates in right now, and a stress cycle still in progress. Unlike the earlier history, this isn't completed: the 2022-plus cycle is still developing, with both the crisis and reform stages only partly formed. It matters for three reasons. The stress shows up directly in fund valuations: when a portfolio company is marked down because its coverage ratio compressed, that flows straight into lower NAV and deferred distributions. The same firms — KKR, Apollo, Blackstone, Carlyle — are all managing portfolio companies under exactly this rate-shock pressure. And the regulatory environment is being actively contested in real time: the SEC's 2023 Private Fund Adviser Rules were vacated by a federal court in June 2024, while the FTC and DOJ pursue PE-related antitrust actions. This is the fourth iteration of the historical pattern, unfolding as we speak.\n\n[definition] The fourth iteration\nThe definition. The post-2022 PE market reset is the fourth documented iteration of the historical pattern's cycle — triggered by the Federal Reserve's five-hundred-twenty-eight-basis-point rate increase, SOFR rising from near-zero to five-point-three-three percent between February 2022 and July 2023, that produced the first simultaneous interest-coverage compression across all PE portfolio companies at once. It froze the deal market, slowed fundraising, expanded the GP-led secondary market as the primary deal mechanism, and produced a slow-burn stress rather than the acute collapse of 1989 or the systemic banking crisis of 2008 — while the reform phase follows the historical form-not-substance template, though with more sustained enforcement-agency attention than any prior reset.\n\n[intuition] Cheap debt was the assumption\nThe entire post-2010 expansion rested on one foundational assumption: that debt would stay cheap. Nearly every portfolio company acquired between 2010 and 2022 was financed with floating-rate debt — loans whose rate adjusts with a benchmark, SOFR, plus a fixed spread. When SOFR was basically zero, the total rate was about three percent, and companies could service enormous debt at that level. Then in February 2022 the Fed began raising rates to fight post-COVID inflation, and by July 2023 SOFR had gone from near-zero to five-point-three-three — a five-hundred-twenty-eight-basis-point jump in eighteen months. For a company paying three percent on six hundred million of debt, eighteen million a year of interest, the bill became eight-point-three percent — fifty million — the same company, same operations, same management, now paying thirty-two million more a year with no new revenue to cover it. Multiplied across thousands of companies all holding the same floating-rate cov-lite debt from the same era, this happened everywhere at once. And it's different from 2008: that was an infrastructure failure, banks stopped lending and credit markets froze; this is internal — the pipeline infrastructure is intact, but the content it carries, the portfolio companies, is degrading under load. The visible failures are real but diffuse and slow-moving rather than concentrated and sudden.\n\n[intuition] Returning from overclock\nThe mental model: the reset is a system returning to its design specifications after running at emergency overclocked settings. During 2010 to 2021 the PE pipeline ran in overclock mode — at a hundred-fifty percent of designed capacity, enabled by near-zero energy costs, interest rates; disabled safety sensors, cov-lite; and more raw material than it was built to process, LP capital. Overclock works and produces output, but it creates thermal stress that accumulates invisibly until you can't overclock anymore. The 2022 reset is the system returning to designed specifications — three-to-five-percent rates aren't abnormally high, they're roughly where the economy normally operates, and eight-to-ten-times entry multiples aren't a discount, they're roughly where PE operated before the post-crisis experiment. So the stress is relative: companies that were only viable under overclock conditions, extreme leverage at near-zero rates, are failing or struggling; companies viable at normal conditions but financed on overclock assumptions are stressed but survivable; and companies with genuine operational quality were always viable and remain so. Unlike 2008's external infrastructure failure or 1989's supply-chain failure, this is an internal calibration — the pipeline's own content being tested against the conditions it was actually designed for. The system will reset to normal; the question is how many nodes fail in the process, and whether the reset produces real governance improvement or just another restart at a slightly higher floor.\n\n[mechanics] Freeze, slowdown, secondaries\nTechnically, the shock hit three markets. First, the deal market froze. PE acquisitions are priced on an IRR that depends on entry multiple, growth, exit multiple, leverage, and the cost of debt — and when debt went from three to eight percent, the math broke: a company bought at twelve times with seventy-percent debt that projected a twenty-to-twenty-five-percent IRR at three percent now projected only five-to-ten at eight, far below a fund's twenty-percent target. For the math to work, either the entry multiple had to fall to eight or nine times, or the equity contribution had to rise — both of which sellers, anchored to 2021 pricing, resisted. So a bid-ask spread opened and froze activity, and global buyout volume fell from about one-point-two trillion in 2021 to six hundred billion in 2022 and four-to-five hundred billion in 2023. Second, fundraising slowed: public markets fell in 2022, the denominator effect made LPs appear over-allocated to PE even though they hadn't committed more, and with 2019-to-2021 commitments still being called, appetite for new commitments collapsed — fundraising fell from about nine hundred fifty billion in 2021 to six-forty in 2022 to five hundred in 2023, the first decline since 2019, polarised toward the largest, most established firms. And third, with the primary market frozen, GP-led secondaries became the dominant deal mechanism: GPs moved portfolio companies into continuation funds, giving existing LPs a choice to exit at a reasonable price or roll, while secondary buyers provided the liquidity and the GP extended the hold. Secondary pricing shifted from near-NAV in 2021 to about eighty-to-ninety cents for diversified portfolios and seventy-to-eighty for stressed sectors like healthcare, and GP-led deals reached forty-to-forty-five percent of secondary volume — the liquidity mechanism of last resort.\n\n[worked-example] Apollo on both sides\nApollo's positioning shows the reset's dynamics in one firm. Apollo entered it differently from most, because its massive credit platform — the Athene insurance float plus a direct-lending operation — put it on both sides of the stress. As an equity investor, its own PE portfolio companies face the same coverage compression as everyone's. But as a credit provider, its funds are lending to stressed PE-backed companies, earning higher spreads than before 2022 while taking higher credit risk. Apollo publicly positioned itself as a solutions provider — offering to refinance the existing bank debt or leveraged loans of stressed sponsors with Apollo-originated direct loans, often giving the company more runway through longer maturities in exchange for higher spreads, more interest income for Apollo's credit funds. That integrated positioning became increasingly visible, and increasingly contested: critics raise conflict-of-interest concerns about Apollo lending to companies it also owns in PE funds, potentially on terms favourable to the credit platform at the expense of PE-fund LPs; defenders argue it provides flexibility the company couldn't get from arms-length lenders. The reset affects both sides of Apollo's book at once — PE gains deferred as exits are delayed, credit income higher but riskier — which is exactly why the modern PE-credit firm is so much harder to read than a pure buyout shop.\n\n[pitfalls] What people get wrong\nFour corrections. First, the rate shock will not produce a 2008-style crisis — 2008 was a banking-system failure, banks levered thirty-to-one wiped out by mark-to-market losses; here, leverage is at the portfolio-company level not the bank level, the distress is at floating-rate borrowers not financial institutions, and cov-lite prevents automatic enforcement, so it's a slow burn rather than a systemic banking crisis, and applying 2008 analogies produces wrong predictions on timing and severity. Second, cov-lite does not protect companies from the rate shock — it prevents automatic default when coverage falls, but it doesn't dissolve the economic reality that a company paying fifty million instead of eighteen has that much less cash for investment and resilience; if anything, cov-lite lets companies operate in distress longer than they should, deferring a necessary restructuring. Third, the reform phase has not failed just because the SEC rules were vacated — the FTC's challenge to physician-practice rollups, the DOJ's algorithmic-pricing case, and state-level healthcare and housing legislation are all real reform activity through alternative channels; the vacatur eliminated one pathway, not the multi-agency momentum. And fourth, a secondary-market price decline does not simply mean secondary funds are under pressure — buying LP interests at eighty cents on a stressed NAV can ultimately generate strong returns when those companies recover, so the dislocation is simultaneously a markdown on old positions and a buying opportunity on new ones.\n\n[recap] An incomplete reset\nTo recap. The post-2022 reset is the fourth iteration of the historical pattern, triggered by the Fed's five-hundred-twenty-eight-basis-point increase that produced the first simultaneous coverage compression across all PE portfolio companies. Unlike 1989's selective collapse or 2008's systemic banking failure, this is a slow burn: every cov-lite floating-rate company's interest roughly tripled in eighteen months with no operational change, compressing coverage from comfortable four-to-six times to stressed one-and-a-half-to-two-and-a-half — but cov-lite prevents automatic enforcement, so the distress accumulates in P&Ls and fund valuations rather than producing immediate defaults. The deal market froze, fundraising slowed under the denominator effect, and GP-led secondaries became the dominant deal mechanism. The extend-and-pretend dynamic kept the crisis diffuse but deferred resolution of the most stressed positions to the 2025-to-2027 wall of maturities. And the reform phase follows the form-not-substance template — the SEC's most ambitious rules vacated, no comprehensive legislation passed — but with unprecedented multi-agency enforcement that introduces genuine uncertainty about whether this iteration produces more durable change. As of now, the reset is incomplete. That deferred resolution — the wall of maturities — is exactly the next lesson.\n\nEnd-card question: Why is the post-2022 stress a 'slow burn' rather than a 2008-style acute crisis — what role does cov-lite play? And what is the denominator effect's role in the fundraising slowdown?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>This note covers the current moment — the market the learner is operating within, the regulatory environment their employer navigates, and the stress cycle that is directly shaping the value of the PE fund positions CVC Secondary Partners holds. Unlike the preceding history notes, this is not completed history: the 2022+ cycle is still in progress as of mid-2024, with the crisis and reform stages both partially developed.</p><p>Three direct connections to the learner's daily work:</p><p><strong>1. The K-1 data the learner processes reflects the 2022+ stress in real time.</strong> When a PE fund marks down its portfolio company valuations due to ICR compression, CVC Secondary Partners' K-1 from that fund shows lower NAV and potentially lower or deferred distributions. The PE funds whose K-1s the learner processes — KKR, Apollo, Blackstone, Carlyle, TPG, Bain Capital — are all managing portfolio companies under exactly the rate-shock pressure this note documents.</p><p><strong>2. CVC Secondary Partners is both stressed by and benefiting from the 2022+ market.</strong> As a secondary fund, CVC faces the same ICR pressure on positions it holds (secondary positions in PE funds that themselves hold stressed portfolio companies). But as a buyer of secondary PE positions, the price dislocations of 2022-2024 create buying opportunities analogous to (though smaller than) the 2009 GFC trough. The secondary market dynamics this note covers are the immediate operational context for the learner's employer.</p><p><strong>3. The regulatory environment the learner's employer operates within is being actively contested right now.</strong> The SEC's 2023 Private Fund Adviser Rules — which would have changed how PE fund data is reported to LPs, directly affecting the reporting workflows the learner builds — were vacated by the Fifth Circuit in June 2024. The FTC and DOJ are actively pursuing PE-related antitrust actions. The learner who understands the current regulatory moment is better positioned to explain why their employer's compliance environment is being actively contested.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The Post-2022 PE Market Reset is the fourth documented iteration of the Historical Pattern's cycle — triggered by the Federal Reserve's 528-basis-point rate increase (SOFR 0.05% → 5.33%, February 2022 to July 2023) that produced the first simultaneous ICR compression across all PE portfolio companies simultaneously, freezing the deal market, slowing fundraising, expanding the GP-led secondary market as the primary deal-making mechanism, and producing a \"slow-burn\" stress rather than the acute collapse of 1989 or the systemic banking crisis of 2008 — while the reform phase (SEC 2023 rules vacated, FTC/DOJ actions developing) is following the historical \"form not substance\" template, though with more sustained enforcement agency attention than any prior reset.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>The entire post-2010 PE expansion was built on one foundational assumption: that debt would remain cheap. Nearly every PE portfolio company acquired between 2010 and 2022 was financed with floating-rate debt — loans whose interest rate adjusts based on a benchmark rate (SOFR) plus a fixed credit spread. When SOFR was 0.05%, the total interest rate was 3%. The companies could service enormous amounts of debt at that rate.</p><p>In February 2022, the Federal Reserve began raising rates to combat post-COVID inflation. By July 2023, SOFR had risen from 0.05% to 5.33% — a 528-basis-point increase in 18 months. [needs-verification on exact dates and figures] For PE portfolio companies, this meant: - A company that was paying 3% on $600M of debt (annual interest: $18M) was now paying 8.3% (annual interest: $50M) - The same company, with the same operations, the same management team, the same customers — now paying $32M more per year in interest with no additional revenue to cover it</p><p>Multiplied across thousands of PE portfolio companies all holding the same type of floating-rate, cov-lite debt from the same expansion era, this happened everywhere simultaneously.</p><p>Using the data pipeline analogy: the post-2010 pipeline had been built to carry maximum throughput at near-zero gravity. In 2022, gravity returned. Every node in the pipeline suddenly required 2.7× more energy to operate than it had been designed for. The pipeline didn't collapse immediately — cov-lite means there are no automatic pressure sensors that trigger a shutoff. But every pipeline node (portfolio company) has less energy left for anything other than staying operational, and some are running out of energy entirely.</p><p>This is different from 2008, when the pipeline infrastructure itself collapsed (banks stopped lending, credit markets froze). The 2022+ stress is internal — the pipeline infrastructure is intact, but the content it's carrying (portfolio companies) is degrading under load. The visible failures (Envision bankruptcy, Steward Health Care closures, private credit stress) are real but diffuse and slow-moving rather than concentrated and sudden.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The 2022+ market reset is best understood as a <strong>system returning to its design specifications</strong> after operating at emergency overclocked settings.</p><p>During 2010-2021, the PE pipeline was operating at \"overclock\" mode — running at 150% of its designed capacity, enabled by near-zero energy costs (interest rates), disabled safety sensors (cov-lite — no maintenance covenants), and more raw material than it was designed to process (LP capital inflows). Overclock mode works — it produces output — but it creates thermal stress that accumulates invisibly until you can't overclock anymore.</p><p>The 2022+ reset is the system returning to designed operating specifications. Interest rates at 3-5% is not abnormally high — it's approximately where the economy normally operates. Entry multiples at 8-10× EBITDA is not a discount — it's roughly where PE operated before the post-GFC experimental overclock period.</p><p>The stress is real but it's relative stress: companies that were only viable under overclock conditions (extreme leverage at near-zero rates) are failing or struggling. Companies that would be viable at normal operating conditions but were financed with overclock assumptions are stressed but survivable. Companies with genuine operational quality were always viable and remain so.</p><p>Unlike the 2008 GFC (which was an external infrastructure failure — the banking system itself broke) or the 1989 junk bond collapse (which was a supply-chain failure — Drexel's monopoly market-making broke), the 2022+ reset is an internal calibration: the pipeline's own content (portfolio companies) being tested against the conditions for which they were actually designed, rather than the emergency overclock settings under which many were acquired.</p><p>The system will reset to \"normal operating specifications.\" The question is how many nodes fail in the process, and whether the reset produces a meaningful governance improvement — or just another restart at the new, slightly higher floor.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Part 1: The Rate Shock Mechanism</p><p><strong>The Federal Reserve's rate cycle</strong> In response to post-COVID inflation (CPI peaked at approximately 9.1% in June 2022), the Federal Reserve raised the federal funds rate from 0-0.25% in February 2022 to 5.25-5.50% by July 2023 — eleven consecutive rate increases. SOFR (the benchmark used for nearly all US leveraged loans post-LIBOR transition) rose commensurately from approximately 0.05% to approximately 5.33%. [needs-verification on exact SOFR peak]</p><p><strong>The arithmetic of simultaneous ICR compression</strong> Every PE portfolio company that borrowed at floating rates during 2010-2022 experienced the same mechanical stress:</p><p>For a company with $600M in TLB debt at SOFR + 300bps, holding $100M EBITDA: - February 2022 (SOFR 0.05%): total rate 3.05% → interest expense $18.3M → ICR 5.5× - July 2023 (SOFR 5.33%): total rate 8.33% → interest expense $50M → ICR 2.0×</p><p>In 18 months, with no operational change, ICR fell from 5.5× to 2.0×. At 2.0×, the company has only $50M of EBITDA left after interest — barely enough to cover maintenance capex, let alone invest in growth or service the principal amortisation on Term Loan A tranches.</p><p><strong>Why it's simultaneous</strong> In the 1989 junk bond collapse, leveraged loan market freeze, or 2008 credit crisis, the stress hit sequentially: the most aggressively leveraged or highest-risk positions failed first, providing warning for the rest. In the 2022+ reset, every floating-rate cov-lite loan repriced simultaneously — whether the company was operating well or poorly, whether it was in a growth sector or a declining one, whether the GP was competent or not. The rate shock was indiscriminate.</p><p>This is the critical mechanical difference from prior cycles. It also explains why the stress is \"slow-burn\" rather than acute: a company at 2.0× ICR is stressed but operational (it can still pay its interest). Only when EBITDA falls enough to push ICR below approximately 1.0-1.2× does the company face imminent default on its interest obligations. Many companies are in the 1.5-2.5× ICR range — stressed but not immediately failing.</p><p><strong>The \"wall of maturities\" concern</strong> Many PE-backed company loans originated in 2018-2022 have five-to-seven-year terms, creating a concentration of loan maturities in the 2025-2027 period. Companies that borrowed at SOFR + 3% (total 3.05%) when they originated now face refinancing at SOFR + 4-5% (total 9-10%) if rates remain elevated. For highly leveraged companies, this refinancing may be economically impossible — they would need to either sell the company or seek a debt restructuring before their loan matures. The \"wall of maturities\" is the deferred version of the 2022+ stress: even companies that can service their current debt at current rates face potential crisis when they need to refinance.</p><p>---</p><p>### Part 2: The Deal Market Freeze (2022–2024)</p><p><strong>The acquisition math problem</strong> PE acquisitions are priced on an IRR calculation that depends on: entry multiple, EBITDA growth during the hold, exit multiple, leverage (amount of debt used), and cost of debt (interest rate). When debt costs rose from 3% to 8%, the IRR math broke:</p><ul class='notelist'><li>2021: Company acquired at 12× EBITDA, 70% debt at 3% → projected gross IRR approximately 20-25%</li><li>2023: Same company at 12× EBITDA, 70% debt at 8% → projected gross IRR approximately 5-10% (insufficient for a PE fund targeting 20%+ returns)</li><li>For the math to work at 8% debt cost, either the entry multiple must fall (to 8-9×) or the equity contribution must rise (reducing leverage and reducing IRR on the equity) — both of which sellers were reluctant to accept when they had seen 2021-era pricing</li></ul><p>The result: a significant portion of potential deals could not be agreed because sellers expected 2021-equivalent multiples and buyers could only pay 2021-equivalent multiples with 2021-equivalent debt costs — which no longer existed.</p><p><strong>Deal volume collapse</strong> Global PE buyout transaction volume declined substantially from the 2021 peak: - 2021: approximately $1.2tn in global PE buyout value - 2022: approximately $600bn — approximately 50% decline - 2023: approximately $400-500bn — a further decline</p><p><strong>The bid-ask spread problem</strong> Existing portfolio company owners (PE funds approaching the end of their fund life) needed to sell at prices that would generate acceptable returns for their LPs — which meant maintaining 2021-era entry multiple expectations. New buyers could not pay those prices at 2023 financing costs. This \"bid-ask spread\" between seller expectations and buyer capacity froze deal activity.</p><p>The exceptions: all-equity deals (avoiding leverage) in sectors where buyers had high conviction on growth (particularly technology); add-on acquisitions by existing platform owners (who didn't need to refinance the company's existing debt); and private credit-financed deals where the lender was affiliated with the buyer (the integrated PE/credit model enabling terms unavailable to others).</p><p>---</p><p>### Part 3: The Fundraising Slowdown</p><p><strong>The denominator effect returns</strong> In 2022, public equity markets fell significantly — the S&amp;P 500 fell approximately 18% and the NASDAQ fell approximately 33% in 2022. This created the same denominator effect documented in the GFC note: LP total portfolios shrank while PE allocations (marked quarterly, not daily) appeared to grow as a percentage of total portfolio.</p><p>LPs that had been at or near their PE target allocation (typically 10-20% of total assets) suddenly appeared over-allocated — not because they had committed more to PE but because the rest of their portfolio had shrunk. This created pressure to slow new PE commitments even as existing capital calls from 2019-2021 vintage funds continued.</p><p><strong>Record commitments from 2019-2021 still being called</strong> Many LPs had made large PE commitments in 2019-2021 during the peak. These commitments are called over 3-5 years — meaning LPs were still funding 2020-2021 commitments through 2023-2025 while simultaneously holding PE exposure that appeared over-weight due to the denominator effect. The combination of existing calls and apparent over-allocation severely reduced appetite for new PE commitments.</p><p><strong>Fundraising data</strong> PE fundraising declined significantly from the 2021 peak: - 2021: approximately $950bn globally - 2022: approximately $640bn - 2023: approximately $500bn — first year-over-year decline since 2019</p><p><strong>Polarisation by GP quality</strong> The fundraising decline was not evenly distributed. The largest, most established PE firms (Blackstone, KKR, Apollo, Carlyle) continued to raise capital — LPs, when making new commitments, consolidated into managers with the strongest track records and institutional infrastructure. Smaller and emerging GPs faced particularly difficult fundraising environments, and many funds took significantly longer to close than planned.</p><p>---</p><p>### Part 4: The GP-Led Secondary Market as the Deal-Making Lifeline</p><p>One of the most important structural developments of 2022-2024: with the primary deal market frozen, GP-led secondary transactions became the dominant mechanism for PE deal activity.</p><p><strong>Why GP-led secondaries became dominant:</strong> 1. GPs with portfolio companies approaching the end of their fund's 10-year life could not sell into the depressed exit market without accepting prices that would produce disappointing LP returns 2. The continuation fund structure allowed GPs to move portfolio companies into a new vehicle, giving existing LPs the choice to exit at a reasonable price or continue holding 3. Secondary buyers (like CVC Secondary Partners) could purchase LP interests in continuation funds at prices that reflected the current difficult environment — providing the exit liquidity existing LPs needed 4. The GP retained the asset, extending the hold period until market conditions improved for a primary exit</p><p><strong>Secondary market pricing shift:</strong> Secondary market pricing shifted significantly from the near-NAV levels of 2021: - 2021: LP positions trading at approximately 95-100 cents on NAV (high demand from LPs rebalancing) - 2022 Q2: approximately 85-90 cents (public market correction creating denominator effect selling) - 2023: approximately 80-90 cents for diversified portfolios; 70-80 cents for healthcare and other stressed sectors [needs-verification on all figures]</p><p>For CVC Secondary Partners, this price dislocation is both a challenge (existing portfolio positions marked at lower values) and an opportunity (new positions can be acquired at discounts to NAV).</p><p><strong>Secondary market volume:</strong> Despite the primary deal market freeze, secondary PE market volume remained substantial: - 2021: approximately $130bn globally - 2022: approximately $105bn - 2023: approximately $110bn — with GP-led secondaries representing approximately 40-45% of volume</p><p>The relative resilience of secondary market volume despite primary deal market freeze illustrates the secondary market's role as the liquidity mechanism of last resort for PE — providing exits when primary markets are unavailable.</p><p>---</p><p>### Part 5: Portfolio Company Stress — What's Actually Happening</p><p><strong>The stress is real but diffuse</strong> Unlike 2008, there is no dramatic single-event crisis. Portfolio company stress in 2022-2024 is manifesting in several ways:</p><p><strong>ICR compression without covenant breach:</strong> Because most PE debt is cov-lite (no maintenance covenants), companies can operate at 1.5-2.0× ICR without triggering a formal lender response. The stress shows up in: - Companies consuming cash rather than generating it (free cash flow negative when interest expense exceeds operating cash flow) - Management time diverted to managing lender relationships rather than operations - Under-investment in growth capex as available cash is consumed by interest expense - Dividend suspension — PE funds cannot take distributions from stressed portfolio companies, reducing fund-level distributions to LPs</p><p><strong>Private equity firm-level responses:</strong> - PIK toggle bonds: some portfolio companies are exercising PIK (payment-in-kind) provisions on subordinated debt, deferring cash interest payments in exchange for adding the interest to the principal balance — temporarily preserving cash at the cost of growing the debt burden - Asset disposals: selling non-core business units or real estate to generate cash and pay down debt - Operational restructuring: accelerating cost reduction programmes (which were already happening) to protect EBITDA margins against the interest expense increase</p><p><strong>NAV lending as a symptom:</strong> The growth of NAV lending during 2022-2024 — where PE funds borrow against the equity value of their portfolio — partly reflects funds needing cash for distributions to LPs when portfolio companies cannot generate distributable cash due to ICR compression. This is a form of financial engineering that provides short-term LP distributions while adding another layer of leverage to the PE system.</p><p><strong>Visible failures:</strong> Some high-profile PE portfolio company failures in the 2022-2024 period: - Envision Healthcare (KKR): Bankruptcy May 2023 — documented in PE in Healthcare; primary cause was the No Surprises Act's revenue impact, but the $7bn debt load made recovery impossible - Steward Health Care (Cerberus): Bankruptcy 2024 — documented in PE in Healthcare; hospital closures - Several technology PE portfolio companies with revenue multiples financed at 2021 peak valuations facing mark-downs - Some PE-backed retailers with lingering 2019-2021 vintage debt facing refinancing challenges</p><p>These visible failures are real but represent a fraction of the total PE-backed universe. The majority of portfolio companies are stressed but operational — the slow-burn character of the crisis.</p><p>---</p><p>### Part 6: The Reform Phase — Following the Pattern</p><p><strong>The pattern prediction:</strong> Based on the three prior iterations (FIRREA post-1989, Dodd-Frank post-GFC), the reform phase should: 1. Address the most visible/egregious specific practices 2. Leave core PE activities (leverage, carry, essential services) unrestricted 3. Be partially captured by PE industry lobbying and litigation</p><p><strong>What the reform phase looks like in 2022-2024:</strong></p><p><em>SEC Private Fund Adviser Rules (2023):</em> The most ambitious regulatory response — quarterly statements, annual audits, fairness opinions for GP-led secondaries, side letter disclosure. Adopted August 2023. Vacated by Fifth Circuit June 2024. The full story is documented in SEC Private Fund Adviser Rules (2023). Consistent with the historical pattern: the most substantive reform attempt was defeated through litigation (a new mechanism beyond lobbying). Post-vacatur, PE reporting remains at the Dodd-Frank baseline.</p><p><em>FTC antitrust actions:</em> The FTC's challenge to US Anesthesia Partners' physician practice rollup (Texas) represents a genuine new regulatory approach: applying antitrust law to sequential PE acquisitions that build market power rather than evaluating each deal independently. If upheld, this would materially constrain PE's buy-and-build healthcare strategy. Outcome as of mid-2024: uncertain; the case is working through the legal system. [needs-verification on current case status]</p><p><em>DOJ v. RealPage (2024):</em> The DOJ's civil antitrust complaint against RealPage algorithmic pricing — documented in PE in Housing — represents a novel antitrust theory with implications beyond housing. Outcome: uncertain.</p><p><em>State-level legislation:</em> Massachusetts enacted requirements for regulatory review of hospital acquisitions, specifically in response to Steward Health Care's failures. Several other states have introduced or passed legislation addressing PE ownership in healthcare and manufactured housing. These represent sector-specific regulatory responses that are emerging below the federal level.</p><p><em>Congressional inaction:</em> Despite sustained attention (Senate hearings on Steward Health Care, nursing home PE, housing concentration), no comprehensive federal PE legislation passed in 2022-2024. The pattern holds: concentrated PE industry lobbying + legislative gridlock = partial response.</p><p><strong>The reform phase assessment:</strong> Compared to prior reset reform phases (FIRREA in 1989, Dodd-Frank in 2010), the 2022-2024 reform phase shows: - <strong>More regulatory agency activity:</strong> FTC, DOJ, and SEC all pursuing PE-related actions simultaneously — unprecedented multi-agency engagement - <strong>Same structural constraint:</strong> Congressional legislation remains impossible given PE lobbying effectiveness; the IAA structural gap (confirmed by the Fifth Circuit) constrains SEC rulemaking - <strong>Novel instrument:</strong> FTC/DOJ using existing antitrust authority to reach PE practices that weren't previously targeted — potentially creating more durable reform than SEC rulemaking - <strong>Uncertain durability:</strong> The 2024 US election shifted the political environment; a Republican administration is unlikely to continue aggressive PE enforcement in the same direction</p><p>---</p><p>### Part 7: The \"Higher for Longer\" Scenario and Its Implications</p><p><strong>The Federal Reserve's post-2022 signalling:</strong> After reaching the 5.25-5.50% target rate in July 2023, the Federal Reserve signalled a \"higher for longer\" stance — suggesting rates would remain elevated well above the near-zero levels of the 2010-2021 expansion: - 2024: gradual rate reductions beginning (Federal Reserve cut rates in September 2024) - 2025-2026 projection: rates settling in the 3-4% range rather than returning to near-zero</p><p>For PE, \"higher for longer\" at 3-4% SOFR is materially different from 2010-2021's near-zero: - A company at 6× leverage with SOFR at 3% (vs. 0.05%) still pays 6% (vs. 3.05%) on its debt — double the interest expense from the 2010-2021 baseline - The ICR compression from near-zero to 3% is roughly half the magnitude of the 0.05% → 5.33% compression - \"Higher for longer\" at 3-4% still eliminates the most extreme leverage ratios (7-8×) as viable — deals need to be priced at lower multiples or with less leverage to maintain acceptable ICR</p><p><strong>The PE adaptation:</strong> The PE industry is adapting to \"higher for longer\": - Lower leverage ratios: deal leverage has fallen from 7-8× peak to approximately 5-6× in 2023-2024 - Lower entry multiples: buyers are accepting 8-10× EBITDA rather than 11-13× for deals that can be done - Operational focus: GPs publicly emphasising value creation through operational improvement rather than financial engineering — partly genuine, partly a response to the multi-expansion opportunity being reduced by rate normalisation - Private credit consolidation: some direct lenders unable to sustain their 2021-era volumes are being acquired or merging; the private credit market is maturing and consolidating</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### Apollo and the Private Credit Navigation</p><p><strong>Apollo's specific positioning in the 2022+ reset</strong> Apollo entered the 2022+ reset differently from most PE firms — its massive credit platform (Athene insurance float + Ares-competing direct lending operation) meant it was on both sides of the stress: - As an equity investor (PE sponsor): Apollo's PE portfolio companies face the same ICR compression as all PE-backed companies - As a credit provider (direct lender): Apollo's credit funds are lending to stressed PE-backed companies, earning higher spreads than pre-2022 but taking higher credit risk</p><p><strong>Apollo's response:</strong> Apollo publicly positioned itself as a \"solutions provider\" for PE sponsors with stressed portfolio companies — offering to refinance existing bank debt or leveraged loans with Apollo-originated direct loans, often at terms that provided the company with more runway (longer maturities) in exchange for higher spreads (more interest income for Apollo's credit funds).</p><p>This integrated positioning — PE sponsor + credit provider — became increasingly visible in the 2022+ environment. Critics raise conflict-of-interest concerns (Apollo lending to companies it owns in PE funds, potentially on terms favourable to the credit platform at the expense of PE fund LPs); defenders argue it provides essential flexibility that the company couldn't get from arms-length lenders.</p><p><strong>For the learner:</strong> Apollo K-1s processed through CVC Secondary Partners will show a mix of PE capital gains (from eventual exits of portfolio companies) and credit income (from direct lending activities). The 2022+ stress affects both: PE gains are deferred as exits are delayed; credit income may be higher (higher spreads) but carries higher default risk. Understanding Apollo's integrated model helps the learner interpret why Apollo K-1 income character is increasingly complex.</p><p>---</p><p>### KKR and the Health Logistics Case — A Slow-Burn Example</p><p><strong>Background</strong> KKR owns multiple healthcare services companies acquired in the 2017-2021 window at peak multiples with peak leverage. The hypothetical \"Health Logistics Partners\" represents the class of KKR healthcare portfolio companies facing 2022+ stress: acquired at 10× EBITDA with 7× leverage, generating $80M EBITDA, with $560M in debt at SOFR + 325bps.</p><p><strong>The math:</strong> - 2021: SOFR 0.05% → total rate 3.30% → interest $18.5M → ICR 4.3× → comfortable - 2023: SOFR 5.33% → total rate 8.58% → interest $48M → ICR 1.7× → stressed - ICR below 2× means the company is burning cash in a technical sense (interest + maintenance capex &gt; operating cash flow)</p><p><strong>What KKR is doing:</strong> KKR's portfolio management team for Health Logistics Partners is likely: 1. Working with management to accelerate cost reduction (reducing the denominator effect on ICR by improving EBITDA) 2. Exploring sale-leaseback of owned real estate to generate cash 3. Negotiating with lenders for covenant amendments or maturity extensions 4. Considering whether to exercise any PIK toggle provisions on subordinated debt 5. Evaluating whether a GP-led secondary continuation fund makes sense to buy more time</p><p>The company is not in default — cov-lite prevents that. But KKR fund managers are spending significant time and attention on the portfolio company that would, in a 2021 market, have been on autopilot toward a profitable exit.</p><p><strong>For the learner:</strong> This type of portfolio company management work — unseen in the K-1 data but reflected in delayed distributions, lower NAV marks, and eventual restructuring events — is the operational reality behind the K-1s the learner processes. A KKR fund that would have been distributing proceeds from portfolio company exits in 2023-2024 may instead be showing mostly unrealised value in its K-1 — because the exit markets are not yet attractive enough to crystallise those gains.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The 2022+ rate shock will produce a PE crisis like 2008.\"</strong> The 2008 GFC was caused by a banking system failure — banks that were levered 30:1 faced mark-to-market losses on mortgage-backed securities that wiped out their capital, triggering bank failures and a credit market freeze. In 2022+, PE's leverage is at portfolio company level (not bank level), the distress is at floating-rate borrowers (not financial institutions), and cov-lite prevents automatic enforcement. The 2022+ stress is real but structurally different — a \"slow burn\" at portfolio company level rather than a systemic banking crisis. Applying 2008 analogies to 2022+ produces incorrect predictions about timing and severity.</p><p><strong>Misconception 2: \"Cov-lite protects portfolio companies from the rate shock.\"</strong> Cov-lite prevents automatic enforcement of maintenance covenants — it means companies don't immediately default just because their ICR falls below a threshold. But it doesn't eliminate the economic reality of ICR compression: a company paying $50M in interest instead of $18M has that much less cash for investment, growth, and operational resilience. Cov-lite delays the formal default trigger; it doesn't dissolve the underlying financial stress. If anything, cov-lite can enable companies to operate in distress longer than they should, deferring a necessary restructuring that would ultimately reduce the total harm.</p><p><strong>Misconception 3: \"The reform phase of the 2022+ cycle has failed — SEC rules were vacated.\"</strong> The SEC 2023 rules' vacatur is one component of the reform phase. The FTC's antitrust challenge to physician practice rollups, the DOJ v. RealPage algorithmic pricing case, and the state-level healthcare and housing legislation all represent real reform activity through alternative channels. Whether these actions are more durable than the SEC channel depends on their legal outcomes. The vacatur eliminated one reform pathway; it didn't eliminate the multi-agency reform momentum that characterises the 2020s regulatory environment.</p><p><strong>Misconception 4: \"The secondary market price decline means CVC Secondary Partners is under pressure.\"</strong> Secondary fund performance is measured differently from primary PE performance. A secondary fund that buys LP interests at 80 cents on NAV (and NAV is marked at stressed levels) may ultimately generate strong returns when those underlying portfolio companies recover. The price decline creates buying opportunities for the secondary fund while creating mark-downs on existing positions. Whether the net effect is positive or negative depends on the vintage of positions (older positions acquired in 2020-2021 at higher prices are under more pressure; newer positions acquired at 2022-2024 discounts may benefit from recovery). CVC Secondary Partners is simultaneously experiencing mark-downs on pre-2022 positions and building positions at attractive 2022-2024 prices.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The Post-2022 PE Market Reset is the fourth documented iteration of the Historical Pattern thread's cycle — triggered by the Federal Reserve's 528-basis-point interest rate increase (SOFR 0.05% → 5.33%, February 2022 to July 2023) that produced the first simultaneous ICR compression across all PE portfolio companies simultaneously. Unlike the 1989 junk bond collapse (selective, acute, market-specific) and the 2008 GFC (banking system failure, systemic), the 2022+ stress is a \"slow burn\": every cov-lite floating-rate PE portfolio company's interest expense roughly tripled over 18 months with no operational change, compressing ICR from comfortable levels (4-6×) to stressed levels (1.5-2.5×), but cov-lite prevents automatic enforcement — the distress accumulates in P&amp;L statements and fund valuations rather than producing immediate defaults.</p><p>The deal market froze as acquisition financing costs rendered 2021-vintage entry multiples economically impossible; fundraising slowed as the denominator effect and LP over-allocation reduced appetite for new commitments; and GP-led secondary transactions became the dominant deal mechanism, providing exit liquidity to LPs while preserving GP hold periods beyond standard 10-year fund lives. The \"extend and pretend\" dynamic — lenders extending loan maturities rather than forcing restructuring — has kept the crisis diffuse but deferred the resolution of the most stressed positions to the 2025-2027 \"wall of maturities.\"</p><p>The reform phase is following the historical \"form not substance\" template: the SEC's most ambitious LP protection initiative (the 2023 Private Fund Adviser Rules) was vacated by the Fifth Circuit in June 2024; no comprehensive Congressional legislation has passed. But the multi-agency enforcement engagement — FTC challenging physician practice rollups, DOJ challenging algorithmic pricing, state-level healthcare and housing legislation — is more sustained than any prior reset's reform phase, introducing genuine uncertainty about whether this iteration will produce more durable governance change. As of mid-2024, the 2022+ reset is incomplete: the crisis stage is advanced but not resolved; the reform stage is active but uncertain; and the \"reset's\" ultimate character — whether it produces a partial correction or a more fundamental governance shift — depends on outcomes still developing.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

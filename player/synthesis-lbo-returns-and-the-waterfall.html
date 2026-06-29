@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-lbo-returns-and-the-waterfall", "title": "Synthesis: LBO Returns and the Waterfall", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "From deal to LP cash", "on_screen_bullets": ["Leverage = the amplifier", "Three sources fill the value", "Waterfall splits the proceeds"], "narration": "An LBO has three moving parts most learners study in isolation: the deal structure, the return sources, and the distribution mechanism — with the return metrics, IRR and MOIC, sitting at the intersection of all three. The connection is sequential and causal. Leverage sets the amplifier: the ratio of debt to equity at entry determines how much any rise in enterprise value flows through to equity holders, so a company bought at six-times leverage turns a fifty-percent rise in enterprise value into a two-hundred-percent-plus rise in equity. The three sources — EBITDA growth, multiple expansion, debt paydown — fill that amplified equity, arriving at exit as a single gross-proceeds number. And the waterfall distributes those proceeds, not caring which source produced them. The synthesis in one sentence: leverage amplifies all three return sources at once, those amplified returns flow through the waterfall, and the waterfall's structure means the GP captures a disproportionate share of leverage-amplified gains in good scenarios while LPs bear a disproportionate share of leverage-amplified losses in bad ones.", "est_sec": 58}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "The questions that matter", "on_screen_bullets": ["'3.5x gross — what did LPs get?'", "'Why max out leverage?'", "'25% IRR — is that good?'"], "narration": "Studying these five concepts separately produces five isolated facts; studying them together lets you answer the questions that actually matter in PE. This deal returned three-and-a-half-times gross — what did LPs actually receive? You can't answer without the waterfall: the hurdle, the catch-up, the carry rate. Why do GPs use as much leverage as lenders allow? You can't answer without seeing that leverage amplifies profits above the hurdle, which are subject to carry, more than it amplifies the return-of-capital tier, which belongs entirely to LPs. A fund reports a twenty-five percent IRR — is that good? You can't judge it without knowing gross or net, what the hurdle was, and how much of the return came from leverage versus genuine EBITDA growth. This synthesis is the missing layer connecting deal construction to LP outcomes.", "est_sec": 50}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "The five-stage pipeline", "on_screen_bullets": ["LBO + leverage → amplification", "Three sources → gross equity", "Waterfall → IRR & MOIC"], "narration": "The concept map is a pipeline. It starts with the LBO, which establishes the entry equity — the LP's invested capital — and the entry debt that will amplify returns. The leverage ratio sets the amplification factor: higher debt-to-EBITDA means a smaller equity cheque for the same enterprise value, so each pound of enterprise-value gain becomes a larger equity gain, and each pound of loss a larger equity loss. The three return sources then fill that amplified equity: EBITDA growth raises enterprise value through the exit multiple, multiple expansion raises it through the EBITDA, and debt paydown directly increases equity pound for pound — all combining into one gross exit equity value. Those gross proceeds flow straight into the waterfall's four tiers: return LP capital, pay the preferred return, the GP catch-up, then the eighty-twenty split. And IRR and MOIC measure the result at each level — gross before the waterfall, net after it, with the gap between them being precisely the cost of the waterfall to LPs.", "est_sec": 58}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "£120m → £520m gross", "on_screen_bullets": ["£400m EV, £280m debt, £120m equity", "EBITDA +£200m, multiple +£100m, paydown +£100m", "Gross MOIC 4.33x, ~34% IRR"], "narration": "Trace one deal end to end. A fund acquires a software company: entry EBITDA fifty million, an eight-times multiple, four hundred million enterprise value, two hundred eighty million of debt — five-point-six times leverage — and a hundred twenty million equity cheque, held five years. Over the hold the three sources each add value. EBITDA growth: twenty million more EBITDA times the ten-times exit multiple is plus two hundred million of enterprise value. Multiple expansion: the sector re-rates from eight to ten times, two extra turns on the fifty-million entry EBITDA, plus a hundred million. Debt paydown: free cash flow cuts debt from two-eighty to a hundred eighty, plus a hundred million straight to equity. So exit enterprise value is seven hundred million, exit debt a hundred eighty, and gross exit equity five hundred twenty million. Against the hundred-twenty entry, that's a gross MOIC of four-point-three-three and a gross IRR around thirty-four percent. And notice the attribution of the four hundred million profit: fifty percent from EBITDA growth, twenty-five from multiple expansion, twenty-five from debt paydown. But that five hundred twenty million is gross — it hasn't met the waterfall yet.", "est_sec": 64}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Through the waterfall", "on_screen_bullets": ["LP capital £120m, pref £48m", "Catch-up £12m, 80/20 on £340m", "LP net 3.67x; GP carry £80m = 20%"], "narration": "Now push the five hundred twenty million through the waterfall — eight percent simple preferred, full GP catch-up, twenty percent carry. Tier one returns the LP's hundred twenty million of capital, leaving four hundred. Tier two pays the preferred return — eight percent on a hundred twenty over five years is forty-eight million to the LP, leaving three hundred fifty-two. Tier three is the GP catch-up: the GP takes twelve million to reach twenty percent of profits distributed so far, leaving three hundred forty. Tier four splits that three forty eighty-twenty — two hundred seventy-two to the LP, sixty-eight to the GP. Total the LP: a hundred twenty plus forty-eight plus two seventy-two — four hundred forty million. Total GP carry: twelve plus sixty-eight — eighty million, which checks out as exactly twenty percent of the four-hundred-million profit. So the LP's net MOIC is four forty over a hundred twenty — three-point-six-seven — and the net IRR about twenty-nine-point-six percent. The gross-to-net drag is two-thirds of a turn of MOIC, four-and-a-half points of IRR — that drag is the cost of the waterfall to the LP, and it's the number that separates the deal's headline from what investors actually bank.", "est_sec": 66}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Carry is 20% above hurdle, not of all", "Debt paydown isn't unconditionally 'safe'", "GP's leverage incentive exceeds LP's"], "narration": "Four things people miss. First, the GP earns twenty percent of profits above the hurdle, not twenty percent of all profits — in a deal that barely clears the hurdle the LP keeps almost everything, because the catch-up never even starts; the hurdle is genuine LP protection, but it only bites in borderline deals, and in great deals it barely changes the GP's share. Second, debt paydown is not unconditionally the safe source — it only produces positive equity gains while enterprise value stays above the debt balance; if value falls below the debt, the equity is wiped out and the paydown doesn't help, and at high leverage value doesn't have to fall far. Third, leverage amplifies returns, so use the maximum — but the waterfall reveals an asymmetry: the GP captures upside via carry on leverage-amplified profits while bearing limited downside, because its commitment is typically only about one percent of the fund; the GP's expected benefit from leverage is systematically larger than the LP's. And fourth, MOIC is what matters, not the path — wrong, because the waterfall applies sequentially to each cash flow, so a dividend recap that returns capital early raises the net IRR on the same terminal MOIC; IRR captures the path, MOIC is time-blind.", "est_sec": 60}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Practical Example: The Leverage Sensitivity", "on_screen_title": "Same deal, two leverage levels", "on_screen_bullets": ["5.6x: £120m equity → 3.67x net", "3x: £250m equity → 2.12x net", "GP carry HIGHER on high leverage"], "narration": "The clearest way to see all five concepts interact is to run the identical operational performance through two leverage structures. Same company, same five years, same exit enterprise value of seven hundred million. High leverage, five-point-six times: entry debt two eighty, equity just a hundred twenty, exit equity five twenty — gross MOIC four-point-three-three, gross IRR thirty-four percent. Moderate leverage, three times: entry debt a hundred fifty, equity two hundred fifty, exit equity six hundred — gross MOIC only two-point-four-zero, gross IRR nineteen percent. Same operations, completely different equity returns, because leverage amplified the same absolute enterprise-value gain across a much smaller versus larger equity base. Through the waterfall, the high-leverage LP nets four hundred forty million, a three-point-six-seven net MOIC; the moderate-leverage LP nets five hundred thirty million, but on two-fifty invested that's only two-point-one-two. And here's the revealing number: the GP earns more carry in the high-leverage case — eighty million versus seventy — despite the LP putting in far less capital, because leverage amplified the profits above the hurdle. From the GP's seat, more leverage is almost always better when deals succeed. From the LP's, high leverage means spectacular net returns when it works and catastrophic ones when value falls below the debt. Not an argument against leverage — an argument for understanding exactly how it interacts before judging whether a given structure fits a given deal.", "est_sec": 72}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The return pipeline", "on_screen_bullets": ["Small cheque controls large EV", "Sources fill it; waterfall splits it", "Carry as a call option on leverage"], "narration": "To recap. The LBO return chain runs like a pipeline. The LBO and leverage ratio build the structure — a small equity cheque controlling a large enterprise value, amplifying any change in that value into a much larger proportional change in equity. The three sources fill the pipeline, arriving at exit as one gross-proceeds figure that IRR and MOIC measure. The waterfall then distributes it — LP capital first, then the hurdle, the catch-up, and the eighty-twenty split. The result is that LPs receive substantially less than the gross return, and the GP earns carry that is larger, in both absolute and relative terms, when leverage is higher and the deal succeeds. That asymmetry — carry behaving like a call option on leveraged equity — is exactly why the governance mechanisms we've studied exist: hurdle rates, European waterfalls, clawbacks. Next we widen the lens from the deal's economics to the whole arc of a transaction — the deal lifecycle, end to end.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Same company, same operations: at 5.6x leverage the GP earns £80m carry, at 3x it earns £70m — even though the LP invested far less at 5.6x. Why does higher leverage increase the GP's carry, and what asymmetry does this reveal?", "narration": "Before the next lesson, reason it through. The same company with identical operations produces eighty million of GP carry at five-point-six-times leverage but only seventy million at three-times — even though the LP invested far less capital in the high-leverage case. Why does more leverage increase the GP's carry, and what asymmetry between GP and LP does that reveal? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: LBO Returns and the Waterfall\n\n[hook] From deal to LP cash\nAn LBO has three moving parts most learners study in isolation: the deal structure, the return sources, and the distribution mechanism — with the return metrics, IRR and MOIC, sitting at the intersection of all three. The connection is sequential and causal. Leverage sets the amplifier: the ratio of debt to equity at entry determines how much any rise in enterprise value flows through to equity holders, so a company bought at six-times leverage turns a fifty-percent rise in enterprise value into a two-hundred-percent-plus rise in equity. The three sources — EBITDA growth, multiple expansion, debt paydown — fill that amplified equity, arriving at exit as a single gross-proceeds number. And the waterfall distributes those proceeds, not caring which source produced them. The synthesis in one sentence: leverage amplifies all three return sources at once, those amplified returns flow through the waterfall, and the waterfall's structure means the GP captures a disproportionate share of leverage-amplified gains in good scenarios while LPs bear a disproportionate share of leverage-amplified losses in bad ones.\n\n[intuition] The questions that matter\nStudying these five concepts separately produces five isolated facts; studying them together lets you answer the questions that actually matter in PE. This deal returned three-and-a-half-times gross — what did LPs actually receive? You can't answer without the waterfall: the hurdle, the catch-up, the carry rate. Why do GPs use as much leverage as lenders allow? You can't answer without seeing that leverage amplifies profits above the hurdle, which are subject to carry, more than it amplifies the return-of-capital tier, which belongs entirely to LPs. A fund reports a twenty-five percent IRR — is that good? You can't judge it without knowing gross or net, what the hurdle was, and how much of the return came from leverage versus genuine EBITDA growth. This synthesis is the missing layer connecting deal construction to LP outcomes.\n\n[mechanics] The five-stage pipeline\nThe concept map is a pipeline. It starts with the LBO, which establishes the entry equity — the LP's invested capital — and the entry debt that will amplify returns. The leverage ratio sets the amplification factor: higher debt-to-EBITDA means a smaller equity cheque for the same enterprise value, so each pound of enterprise-value gain becomes a larger equity gain, and each pound of loss a larger equity loss. The three return sources then fill that amplified equity: EBITDA growth raises enterprise value through the exit multiple, multiple expansion raises it through the EBITDA, and debt paydown directly increases equity pound for pound — all combining into one gross exit equity value. Those gross proceeds flow straight into the waterfall's four tiers: return LP capital, pay the preferred return, the GP catch-up, then the eighty-twenty split. And IRR and MOIC measure the result at each level — gross before the waterfall, net after it, with the gap between them being precisely the cost of the waterfall to LPs.\n\n[worked-example] £120m → £520m gross\nTrace one deal end to end. A fund acquires a software company: entry EBITDA fifty million, an eight-times multiple, four hundred million enterprise value, two hundred eighty million of debt — five-point-six times leverage — and a hundred twenty million equity cheque, held five years. Over the hold the three sources each add value. EBITDA growth: twenty million more EBITDA times the ten-times exit multiple is plus two hundred million of enterprise value. Multiple expansion: the sector re-rates from eight to ten times, two extra turns on the fifty-million entry EBITDA, plus a hundred million. Debt paydown: free cash flow cuts debt from two-eighty to a hundred eighty, plus a hundred million straight to equity. So exit enterprise value is seven hundred million, exit debt a hundred eighty, and gross exit equity five hundred twenty million. Against the hundred-twenty entry, that's a gross MOIC of four-point-three-three and a gross IRR around thirty-four percent. And notice the attribution of the four hundred million profit: fifty percent from EBITDA growth, twenty-five from multiple expansion, twenty-five from debt paydown. But that five hundred twenty million is gross — it hasn't met the waterfall yet.\n\n[worked-example] Through the waterfall\nNow push the five hundred twenty million through the waterfall — eight percent simple preferred, full GP catch-up, twenty percent carry. Tier one returns the LP's hundred twenty million of capital, leaving four hundred. Tier two pays the preferred return — eight percent on a hundred twenty over five years is forty-eight million to the LP, leaving three hundred fifty-two. Tier three is the GP catch-up: the GP takes twelve million to reach twenty percent of profits distributed so far, leaving three hundred forty. Tier four splits that three forty eighty-twenty — two hundred seventy-two to the LP, sixty-eight to the GP. Total the LP: a hundred twenty plus forty-eight plus two seventy-two — four hundred forty million. Total GP carry: twelve plus sixty-eight — eighty million, which checks out as exactly twenty percent of the four-hundred-million profit. So the LP's net MOIC is four forty over a hundred twenty — three-point-six-seven — and the net IRR about twenty-nine-point-six percent. The gross-to-net drag is two-thirds of a turn of MOIC, four-and-a-half points of IRR — that drag is the cost of the waterfall to the LP, and it's the number that separates the deal's headline from what investors actually bank.\n\n[pitfalls] What siloed study misses\nFour things people miss. First, the GP earns twenty percent of profits above the hurdle, not twenty percent of all profits — in a deal that barely clears the hurdle the LP keeps almost everything, because the catch-up never even starts; the hurdle is genuine LP protection, but it only bites in borderline deals, and in great deals it barely changes the GP's share. Second, debt paydown is not unconditionally the safe source — it only produces positive equity gains while enterprise value stays above the debt balance; if value falls below the debt, the equity is wiped out and the paydown doesn't help, and at high leverage value doesn't have to fall far. Third, leverage amplifies returns, so use the maximum — but the waterfall reveals an asymmetry: the GP captures upside via carry on leverage-amplified profits while bearing limited downside, because its commitment is typically only about one percent of the fund; the GP's expected benefit from leverage is systematically larger than the LP's. And fourth, MOIC is what matters, not the path — wrong, because the waterfall applies sequentially to each cash flow, so a dividend recap that returns capital early raises the net IRR on the same terminal MOIC; IRR captures the path, MOIC is time-blind.\n\n[worked-example] Same deal, two leverage levels\nThe clearest way to see all five concepts interact is to run the identical operational performance through two leverage structures. Same company, same five years, same exit enterprise value of seven hundred million. High leverage, five-point-six times: entry debt two eighty, equity just a hundred twenty, exit equity five twenty — gross MOIC four-point-three-three, gross IRR thirty-four percent. Moderate leverage, three times: entry debt a hundred fifty, equity two hundred fifty, exit equity six hundred — gross MOIC only two-point-four-zero, gross IRR nineteen percent. Same operations, completely different equity returns, because leverage amplified the same absolute enterprise-value gain across a much smaller versus larger equity base. Through the waterfall, the high-leverage LP nets four hundred forty million, a three-point-six-seven net MOIC; the moderate-leverage LP nets five hundred thirty million, but on two-fifty invested that's only two-point-one-two. And here's the revealing number: the GP earns more carry in the high-leverage case — eighty million versus seventy — despite the LP putting in far less capital, because leverage amplified the profits above the hurdle. From the GP's seat, more leverage is almost always better when deals succeed. From the LP's, high leverage means spectacular net returns when it works and catastrophic ones when value falls below the debt. Not an argument against leverage — an argument for understanding exactly how it interacts before judging whether a given structure fits a given deal.\n\n[recap] The return pipeline\nTo recap. The LBO return chain runs like a pipeline. The LBO and leverage ratio build the structure — a small equity cheque controlling a large enterprise value, amplifying any change in that value into a much larger proportional change in equity. The three sources fill the pipeline, arriving at exit as one gross-proceeds figure that IRR and MOIC measure. The waterfall then distributes it — LP capital first, then the hurdle, the catch-up, and the eighty-twenty split. The result is that LPs receive substantially less than the gross return, and the GP earns carry that is larger, in both absolute and relative terms, when leverage is higher and the deal succeeds. That asymmetry — carry behaving like a call option on leveraged equity — is exactly why the governance mechanisms we've studied exist: hurdle rates, European waterfalls, clawbacks. Next we widen the lens from the deal's economics to the whole arc of a transaction — the deal lifecycle, end to end.\n\nEnd-card question: Same company, same operations: at 5.6x leverage the GP earns £80m carry, at 3x it earns £70m — even though the LP invested far less at 5.6x. Why does higher leverage increase the GP's carry, and what asymmetry does this reveal?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>A leveraged buyout has three moving parts that most learners study in isolation: the deal structure (What Is an LBO, Leverage Ratio in LBOs), the return sources (Three Sources of PE Returns), and the distribution mechanism (Waterfall Mechanics). The return metrics (IRR and MOIC) sit at the intersection of all three.</p><p>The connection is sequential and causal:</p><p><strong>Leverage sets the amplifier.</strong> The ratio of debt to equity at entry determines how much any improvement in enterprise value flows through to equity holders. A company bought at 6x leverage turns a 50% rise in enterprise value into a 200%+ rise in equity value. Without understanding leverage, you cannot understand why the three return sources matter as much as they do.</p><p><strong>The three sources fill the enterprise value.</strong> EBITDA growth, multiple expansion, and debt paydown each independently increase the equity value at exit, by different mechanisms and with different reliability. But they arrive at the exit as a single number: the gross equity proceeds.</p><p><strong>The waterfall distributes those proceeds.</strong> The distribution waterfall does not care which return source produced the profits. It simply applies a fixed sequence of rules — return capital, pay hurdle, catch-up, split — to whatever the gross proceeds turn out to be. The result is the LP's net return and the GP's carried interest.</p><p><strong>IRR and MOIC measure the result at each level.</strong> Gross IRR and MOIC describe what the deal produced before fees. Net IRR and MOIC describe what the LP actually received after the waterfall consumed its share.</p><p>The synthesis: <strong>leverage amplifies all three return sources simultaneously; those amplified returns flow through the waterfall; and the structure of the waterfall means the GP captures a disproportionate share of leverage-amplified gains in good scenarios, while LPs bear a disproportionate share of leverage-amplified losses in bad ones.</strong></p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying these five concepts separately produces five isolated facts. Studying them together produces the ability to answer the questions that actually matter in PE:</p><ul class='notelist'><li><strong>\"This deal returned 3.5x gross — what did LPs actually receive?\"</strong> You cannot answer this without the waterfall, which requires knowing the hurdle, the catch-up structure, and the carry rate.</li><li><strong>\"Why do GPs use as much leverage as lenders will allow?\"</strong> You cannot answer this without seeing that leverage amplifies profits above the hurdle — which are subject to carry — more than it amplifies the return-of-capital tier, which belongs entirely to LPs.</li><li><strong>\"A fund reports a 25% IRR — is that good?\"</strong> You cannot evaluate this without knowing: gross or net? What was the hurdle? What proportion of returns came from leverage (market-driven) vs. EBITDA growth (GP skill)?</li><li><strong>\"The company's EBITDA grew 40% — how much of that reached the LP?\"</strong> You cannot calculate this without knowing the leverage at entry and exit (which determines what the equity gain actually was) and the waterfall structure (which determines what fraction of that equity gain was distributed to LPs vs. GP carry).</li></ul><p>This synthesis is the missing layer that connects deal construction to LP outcomes.</p><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p>The following full trace follows one deal from acquisition through to LP cash distribution. Every number is directly computable from the five source concepts.</p><p>### The Deal</p><p>A PE fund acquires a software company.</p><p>| Item | Value | |---|---| | Entry EBITDA | £50M | | Entry EV/EBITDA multiple | 8x | | Entry enterprise value | £400M | | Debt raised (5.6x leverage) | £280M | | Equity invested by LP fund | £120M | | Holding period | 5 years |</p><p>### What Happens During the Hold (Three Sources)</p><p>Over five years, the GP executes the value creation plan:</p><p>| Return Source | What Happened | Impact on Enterprise Value | Impact on Equity Value | |---|---|---|---| | <strong>EBITDA growth</strong> | Revenues expand; margins improve through cost discipline | +£20M EBITDA × 10x exit multiple = +<strong>£200M EV</strong> | Same £200M (flows entirely to equity once debt is fixed) | | <strong>Multiple expansion</strong> | Sector re-rates; company now commands 10x vs. 8x entry | +2 turns × £50M entry EBITDA = +<strong>£100M EV</strong> | Same £100M | | <strong>Debt paydown</strong> | FCF services debt; £280M reduced to £180M | No direct EV impact | Directly +<strong>£100M equity</strong> (debt paid off = equity gains £1 for £1) |</p><p><strong>Exit enterprise value:</strong> £400M + £200M + £100M = <strong>£700M</strong> <strong>Exit debt:</strong> £180M <strong>Exit equity value (gross proceeds):</strong> £700M − £180M = <strong>£520M</strong></p><p>### Gross Return Metrics</p><p>| Metric | Calculation | Result | |---|---|---| | Gross MOIC | £520M ÷ £120M | <strong>4.33x</strong> | | Gross IRR | (4.33)^(1/5) − 1 | <strong>~34%</strong> |</p><p>### What Produced the £400M Profit</p><p>| Source | £ Contribution | % of Profit | |---|---|---| | EBITDA growth | £200M | 50% | | Multiple expansion | £100M | 25% | | Debt paydown | £100M | 25% | | <strong>Total</strong> | <strong>£400M</strong> | <strong>100%</strong> |</p><p>### Through the Waterfall</p><p>The £520M gross exit proceeds now flow through the distribution waterfall. Assumptions: 8% simple preferred return, 100% GP catch-up, 20% carry.</p><p><strong>Tier 1 — Return of LP Capital</strong> LP receives: £120M Remaining to distribute: £520M − £120M = <strong>£400M</strong></p><p><strong>Tier 2 — Preferred Return</strong> 8% × £120M × 5 years = £48M LP receives: £48M Remaining: £400M − £48M = <strong>£352M</strong></p><p><strong>Tier 3 — GP Catch-Up</strong> GP must reach 20% of total profits distributed so far (£48M hurdle + catch-up C): → C = 20% × (£48M + C) → 0.8C = £9.6M → C = <strong>£12M</strong> to GP Remaining: £352M − £12M = <strong>£340M</strong></p><p><strong>Tier 4 — 80/20 Profit Split</strong> 80% × £340M = £272M to LP 20% × £340M = <strong>£68M to GP</strong> (carried interest)</p><p>### Final Distribution Table</p><p>| Recipient | Amount | Source | |---|---|---| | LP — Return of Capital | £120M | Tier 1 | | LP — Preferred Return | £48M | Tier 2 | | LP — 80% profit split | £272M | Tier 4 | | <strong>Total LP</strong> | <strong>£440M</strong> | | | GP — Catch-Up | £12M | Tier 3 | | GP — Carry (20% split) | £68M | Tier 4 | | <strong>Total GP Carry</strong> | <strong>£80M</strong> | | | <strong>Grand Total</strong> | <strong>£520M</strong> | |</p><p><strong>Verify:</strong> GP carry = £80M = exactly 20% of total profit (£400M). ✓</p><p>### Net LP Return Metrics</p><p>| Metric | Calculation | Result | |---|---|---| | Net MOIC | £440M ÷ £120M | <strong>3.67x</strong> | | Net IRR | (3.67)^(1/5) − 1 | <strong>~29.6%</strong> | | Gross-to-Net drag | 4.33x → 3.67x | <strong>−0.67x MOIC / −4.4 pp IRR</strong> |</p><p>---</p>"}, "4": {"section": "How They Interact in Practice", "html": "<p>The following full trace follows one deal from acquisition through to LP cash distribution. Every number is directly computable from the five source concepts.</p><p>### The Deal</p><p>A PE fund acquires a software company.</p><p>| Item | Value | |---|---| | Entry EBITDA | £50M | | Entry EV/EBITDA multiple | 8x | | Entry enterprise value | £400M | | Debt raised (5.6x leverage) | £280M | | Equity invested by LP fund | £120M | | Holding period | 5 years |</p><p>### What Happens During the Hold (Three Sources)</p><p>Over five years, the GP executes the value creation plan:</p><p>| Return Source | What Happened | Impact on Enterprise Value | Impact on Equity Value | |---|---|---|---| | <strong>EBITDA growth</strong> | Revenues expand; margins improve through cost discipline | +£20M EBITDA × 10x exit multiple = +<strong>£200M EV</strong> | Same £200M (flows entirely to equity once debt is fixed) | | <strong>Multiple expansion</strong> | Sector re-rates; company now commands 10x vs. 8x entry | +2 turns × £50M entry EBITDA = +<strong>£100M EV</strong> | Same £100M | | <strong>Debt paydown</strong> | FCF services debt; £280M reduced to £180M | No direct EV impact | Directly +<strong>£100M equity</strong> (debt paid off = equity gains £1 for £1) |</p><p><strong>Exit enterprise value:</strong> £400M + £200M + £100M = <strong>£700M</strong> <strong>Exit debt:</strong> £180M <strong>Exit equity value (gross proceeds):</strong> £700M − £180M = <strong>£520M</strong></p><p>### Gross Return Metrics</p><p>| Metric | Calculation | Result | |---|---|---| | Gross MOIC | £520M ÷ £120M | <strong>4.33x</strong> | | Gross IRR | (4.33)^(1/5) − 1 | <strong>~34%</strong> |</p><p>### What Produced the £400M Profit</p><p>| Source | £ Contribution | % of Profit | |---|---|---| | EBITDA growth | £200M | 50% | | Multiple expansion | £100M | 25% | | Debt paydown | £100M | 25% | | <strong>Total</strong> | <strong>£400M</strong> | <strong>100%</strong> |</p><p>### Through the Waterfall</p><p>The £520M gross exit proceeds now flow through the distribution waterfall. Assumptions: 8% simple preferred return, 100% GP catch-up, 20% carry.</p><p><strong>Tier 1 — Return of LP Capital</strong> LP receives: £120M Remaining to distribute: £520M − £120M = <strong>£400M</strong></p><p><strong>Tier 2 — Preferred Return</strong> 8% × £120M × 5 years = £48M LP receives: £48M Remaining: £400M − £48M = <strong>£352M</strong></p><p><strong>Tier 3 — GP Catch-Up</strong> GP must reach 20% of total profits distributed so far (£48M hurdle + catch-up C): → C = 20% × (£48M + C) → 0.8C = £9.6M → C = <strong>£12M</strong> to GP Remaining: £352M − £12M = <strong>£340M</strong></p><p><strong>Tier 4 — 80/20 Profit Split</strong> 80% × £340M = £272M to LP 20% × £340M = <strong>£68M to GP</strong> (carried interest)</p><p>### Final Distribution Table</p><p>| Recipient | Amount | Source | |---|---|---| | LP — Return of Capital | £120M | Tier 1 | | LP — Preferred Return | £48M | Tier 2 | | LP — 80% profit split | £272M | Tier 4 | | <strong>Total LP</strong> | <strong>£440M</strong> | | | GP — Catch-Up | £12M | Tier 3 | | GP — Carry (20% split) | £68M | Tier 4 | | <strong>Total GP Carry</strong> | <strong>£80M</strong> | | | <strong>Grand Total</strong> | <strong>£520M</strong> | |</p><p><strong>Verify:</strong> GP carry = £80M = exactly 20% of total profit (£400M). ✓</p><p>### Net LP Return Metrics</p><p>| Metric | Calculation | Result | |---|---|---| | Net MOIC | £440M ÷ £120M | <strong>3.67x</strong> | | Net IRR | (3.67)^(1/5) − 1 | <strong>~29.6%</strong> | | Gross-to-Net drag | 4.33x → 3.67x | <strong>−0.67x MOIC / −4.4 pp IRR</strong> |</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"The GP earns 20% of profits — so I need to subtract 20% from gross returns to get net.\"</p><p>This is wrong, and the error comes from not understanding the waterfall. The GP earns 20% of profits <em>above the hurdle</em>, not 20% of all profits. In this example: total profit = £400M. Hurdle consumed £48M of that. GP catch-up consumed £12M. GP earned 20% of the remaining £340M = £68M. Total GP carry = £80M. That is 20% of the <em>total</em> £400M profit — but it <em>feels</em> like less than 20% because LPs got the first £48M entirely for themselves.</p><p>In a deal that barely clears the hurdle (e.g., LP returns 1.2x over 5 years on a £120M investment = £24M profit), the LP earns almost all of it (£24M &lt; £48M hurdle, so GP catch-up never even starts). The waterfall's hurdle is genuine LP protection — but it only matters in borderline deals. In great deals, it barely changes the GP's share.</p><p>### 2. \"Debt paydown is the 'safe' return source — it doesn't depend on markets or skill.\"</p><p>Debt paydown does increase equity value mechanically as principal is repaid. But studying it in isolation from leverage obscures a crucial asymmetry: debt paydown only produces <em>positive</em> equity gains because the enterprise value remained above the debt balance. If EV falls below remaining debt, equity is wiped out — and the debt paydown that occurred doesn't help the equity holder. The \"safety\" of debt paydown depends entirely on the EV staying above the debt throughout the hold. At high leverage ratios, EV does not need to fall much before equity is at risk.</p><p>### 3. \"Leverage amplifies returns — I should use as much as lenders will allow.\"</p><p>This is the reasoning that produces excessive leverage and deal failures. The interaction with the waterfall reveals a subtler incentive: the GP benefits <em>asymmetrically</em> from leverage. In a winning deal, leverage amplifies profits above the hurdle — which are subject to 20% carry. In a losing deal, the LP loses equity capital (they invested £120M, not the GP). The GP's commitment is typically only ~1% of the fund. This means the GP's <em>expected</em> benefit from leverage is larger than the LP's, because the GP captures upside via carry but bears limited downside. The waterfall amplifies this asymmetry. LPs need to understand this dynamic when evaluating how much leverage a GP installs.</p><p>### 4. \"MOIC is what matters — not the path.\"</p><p>The path matters precisely because of the waterfall. A fund that earns 4.33x gross MOIC in 5 years and distributes it all at exit produces LP net MOIC of 3.67x (as above). The <em>same</em> fund earning the <em>same</em> 4.33x gross MOIC but distributing half of it in Year 3 via a dividend recapitalisation produces a <em>higher</em> LP net IRR — because the LP's capital is returned earlier, and the hurdle clock on the reinvested portion resets. IRR captures this; MOIC does not. The waterfall applies sequentially to each cash flow — not just to the terminal value. Studying IRR and the waterfall in isolation from each other hides this.</p><p>---</p>"}, "6": {"section": "Practical Example: The Leverage Sensitivity", "html": "<p>The most powerful way to see these five concepts interact is to run the same underlying operational performance through two different leverage structures and watch both the gross returns <em>and</em> the waterfall outputs change.</p><p><strong>Same company, same five-year performance, two leverage scenarios:</strong></p><p>| | High Leverage (5.6x) | Moderate Leverage (3x) | |---|---|---| | Entry EV | £400M | £400M | | Entry Debt | £280M | £150M | | Entry Equity | <strong>£120M</strong> | <strong>£250M</strong> | | Exit EV | £700M | £700M | | Debt at Exit | £180M | £100M | | Exit Equity | <strong>£520M</strong> | <strong>£600M</strong> | | Equity Gain | £400M | £350M | | <strong>Gross MOIC</strong> | <strong>4.33x</strong> | <strong>2.40x</strong> | | <strong>Gross IRR</strong> | <strong>~34%</strong> | <strong>~19%</strong> |</p><p>Same operational performance (EBITDA growth + multiple expansion). Completely different equity returns — because leverage amplified the same absolute EV gain differently across a much smaller vs. larger equity base.</p><p><strong>Through the waterfall (simplified 8% simple hurdle, 20% carry):</strong></p><p>| | High Leverage (5.6x) | Moderate Leverage (3x) | |---|---|---| | Total Profit | £400M | £350M | | LP Hurdle (8% × 5yrs) | £48M | £100M | | GP Catch-Up | £12M | £25M | | 80/20 Split on Remainder | £272M LP / £68M GP | £180M LP / £45M GP | | <strong>LP Net Total</strong> | <strong>£440M</strong> | <strong>£530M</strong> | | <strong>GP Carry</strong> | <strong>£80M</strong> | <strong>£70M</strong> | | <strong>LP Net MOIC</strong> | <strong>3.67x</strong> | <strong>2.12x</strong> | | <strong>LP Net IRR</strong> | <strong>~29.6%</strong> | <strong>~16.2%</strong> |</p><p><strong>The revealing numbers:</strong></p><p>The GP earns more carry in the high-leverage scenario (£80M vs £70M) despite the LP putting in much less capital — because leverage amplified the profits above the hurdle. From the GP's perspective, using more leverage is almost always better when deals succeed. From the LP's perspective, high leverage produces spectacular net returns in winning deals (3.67x net) but catastrophic outcomes when EV falls below the debt balance.</p><p>This is not an argument against leverage — it is an argument for understanding precisely how leverage, return sources, and waterfall interact before evaluating whether a specific leverage structure is appropriate for a specific deal.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The LBO return chain runs like a pipeline. What Is an LBO and Leverage Ratio in LBOs build the structure: a small equity cheque controlling a large enterprise value, amplifying any change in that enterprise value into a much larger proportional change in equity. Three Sources of PE Returns fill the pipeline: EBITDA growth, multiple expansion, and debt paydown each independently increase the exit equity value, arriving at exit as a single gross proceeds figure. IRR and MOIC measure that gross figure. Waterfall Mechanics then distribute it — returning LP capital first, paying the hurdle, allowing the GP catch-up, then splitting the remainder 80/20.</p><p>The result is that LPs receive substantially less than the gross return, and the GP earns carry that is larger — in absolute and relative terms — when leverage is higher and deals succeed. Understanding this pipeline end-to-end is the foundation of understanding PE economics. No individual stage makes full sense without the others.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

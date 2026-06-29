@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "debt-schedule-mechanics", "title": "Debt Schedule Mechanics", "draft_watermark": false, "estimated_runtime_sec": 445, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Where exit net debt is decided", "on_screen_bullets": ["Exit equity = exit EV − exit net debt", "The schedule sets that net debt", "It's the model's circular engine"], "narration": "Every PE return comes down to two numbers: entry equity and exit equity. And exit equity is exit enterprise value minus exit net debt. So whatever the debt schedule says exit net debt is, that's what your return hinges on. This module tracks how fast — or how slowly — debt is repaid, whether PIK is quietly accumulating, and whether the company's cash flows are strong enough to deleverage materially before exit. It's also the engine of the model's circular reference — interest depends on the balance, the balance depends on the sweep, the sweep depends on cash flow, and cash flow depends on interest. Every analyst eventually has to master this room. Let's open it.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A ledger per tranche", "on_screen_bullets": ["Module 3, period by period", "Opening · interest · amort · sweep · closing", "Most complex; drives paydown returns"], "narration": "The definition. The debt schedule is the LBO model's third module — a period-by-period ledger for each debt tranche, tracking the opening balance, interest in cash and PIK, mandatory amortisation, the optional cash-sweep prepayment, and the closing balance. It's simultaneously the most technically complex part of the model and the primary mechanism through which debt paydown generates equity returns. Get this room right and the third source of returns becomes concrete.", "est_sec": 40}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "A bank statement for every loan", "on_screen_bullets": ["Start: opening balance", "Interest: cash or PIK", "Min payment, then overpay (sweep)"], "narration": "Think of the debt schedule as a bank statement — but instead of one personal account, it tracks every loan the acquired company carries, all at once, year by year. For each loan: you start the year knowing what you owe — the opening balance. The lender charges interest, either in cash, which you pay, or PIK, which they add to what you owe. You make a required minimum repayment each year — mandatory amortisation, like a minimum mortgage payment. And if you have spare cash after that minimum, you can choose to pay down more — the cash sweep, exactly like overpaying your mortgage when you've got money to spare. At year-end, the opening balance, plus any PIK, minus the amortisation and the sweep, gives the closing balance — which becomes next year's opening balance, and round it goes.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Five loans at once", "on_screen_bullets": ["TLB · TLA · RCF · PIK · mezz", "Different rates + min payments", "PIK grows silently; you sweep the TLB"], "narration": "Picture juggling five loans simultaneously: a primary mortgage — the term loan B; a secondary mortgage — the term loan A; a credit card you used for a one-off — the revolver; a silent compounding loan from a business partner — the PIK; and an unsecured business loan — the mezzanine. Each has its own interest rate, its own minimum payment, and its own prepayment terms. Every year you get a statement for each. You pay the cash interest on the mortgages and the business loan because you must; the PIK just grows quietly in the background, no cash leaving your pocket; and you choose how much extra to throw at the term loan B — that's your sweep. The debt schedule is simply all five of those statements, stacked and run forward through the hold, year after year.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The four forces per period", "on_screen_bullets": ["Cash interest = opening × rate", "PIK accrues to principal", "Amortisation + cash sweep repay"], "narration": "Mechanically, each tranche gets its own block, with columns running from year zero at close to the exit year. Take the term loan B starting at, say, two hundred and fifty million. Each period four forces change the balance. Cash interest — the opening balance times the rate, paid out of free cash flow; on two-fifty that's around seventeen and a half million in year one, falling as the balance drops. Mandatory amortisation — the contractual minimum, perhaps one percent a year, a couple of million. The cash sweep — the optional extra, maybe twelve or thirteen million from excess free cash flow, accelerating the paydown. And, on the PIK tranche, PIK accrual — interest added to principal rather than paid. Opening balance, less amortisation, less sweep, plus any PIK, equals the closing balance. Run that for every tranche, every year, and you have the full schedule.", "est_sec": 60}, {"n": 6, "beat": "mechanics", "visual": "diagram", "source_section": "Diagram", "on_screen_title": "The loop — and PIK outside it", "on_screen_bullets": ["Interest → FCF → sweep → balance → interest", "Excel iterates to solve it", "PIK compounds outside the loop"], "mermaid": "flowchart LR\n  I[\"Cash interest<br/>= opening balance × rate\"] --> FCF[\"Free cash flow<br/>after interest, tax, capex, WC\"]\n  FCF --> SW[\"Cash sweep<br/>= FCF × sweep %\"]\n  SW --> BAL[\"Closing debt balance<br/>↓ sweep + amortisation · ↑ PIK accrual\"]\n  BAL --> I", "narration": "Here's the defining feature — a loop. Cash interest equals the opening balance times the rate. That interest is subtracted, along with tax, capex, and working capital, to give free cash flow. A percentage of that free cash flow becomes the cash sweep. The sweep, plus amortisation, reduces the closing balance — and PIK accrual increases it. And that closing balance sets next period's opening balance, which sets next period's interest. Round and round: interest depends on the balance, the balance depends on the sweep, the sweep depends on cash flow, cash flow depends on interest. That's the circular reference that forces Excel into iterative calculation. And notice where PIK sits — outside the loop. It compounds the balance every year regardless of cash flow, which is exactly how total debt can rise even while your sweep is busily paying the term loan B down. The cash debt falls; the silent PIK climbs.", "est_sec": 60}, {"n": 7, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "A staffing buyout's schedule", "on_screen_bullets": ["£35m EBITDA, 9x = £315m EV", "TLB £175m (5.0x) @ ~7%, 50% sweep", "PIK £35m at 13%; EBITDA → £42m"], "narration": "Take a speciality staffing business. Entry EBITDA thirty-five million, bought at nine times — three hundred and fifteen million. The capital structure: a covenant-lite term loan B of a hundred and seventy-five million, five times EBITDA, at SOFR plus four-fifty, around seven percent all-in, with one percent mandatory amortisation and a fifty percent cash sweep; PIK notes of thirty-five million at thirteen percent PIK, maturing in year seven; an undrawn fifteen-million revolver; and a hundred and five million of equity. Now run it. By year three, management has executed well — EBITDA has grown from thirty-five to forty-two million, a six percent compound rate — and the strong free cash flow has been sweeping the term loan B down hard. But watch the PIK: at thirteen percent compounding, that thirty-five million has been quietly growing every year, untouched by the sweep. So the term loan B balance is falling nicely, but total debt is falling more slowly than it looks — because one tranche is paying down while another silently inflates.", "est_sec": 62}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["TLB paydown ≠ total debt paydown", "Sweep doesn't always cut total debt", "Watch net change in ALL tranches"], "narration": "Two corrections, and they're the same trap. First, the debt schedule shows how fast cash debt is repaid — not necessarily total debt. If PIK is a meaningful part of the structure, total debt can grow even as the cash debt is swept down, and it's the net change in total debt, not the term loan B paydown alone, that drives equity value. Second, the cash sweep does not always reduce total debt: the sweep cuts the cash tranche it's applied to, usually the term loan B, but if the PIK accrual in a year exceeds the sweep, total debt actually rises even in a strong operational year. So never read the falling term loan B line and conclude the company is deleveraging — sum every tranche, including the compounding PIK, to see the real picture.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The paydown engine", "on_screen_bullets": ["4 forces: interest · PIK · amort · sweep", "Circular ref solved by iteration", "Track total debt, not one tranche"], "narration": "To recap. The debt schedule is the year-by-year ledger of every tranche, governed by four forces each period: cash interest paid out of free cash flow, PIK accrual added to principal, mandatory amortisation, and the optional cash sweep from excess cash flow. It's the implementation of debt-paydown returns in the model, and its circularity — interest from the balance, balance from the sweep, sweep from cash flow, cash flow from interest — is resolved by iterative calculation. The key trap is confusing one tranche's paydown with total deleveraging, especially when PIK is compounding outside the loop. Track total debt across all tranches. Next we turn to the three forward-looking inputs that decide the exit equity: the exit assumptions.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "True or False: the cash sweep in an LBO always reduces total debt outstanding. Explain.", "narration": "Before the next lesson, decide true or false — and explain. Does the cash sweep always reduce a company's total debt? Think about what PIK is doing while the sweep pays down the term loan B, then check the notes below."}, "quiz": [{"label": "Q1 (True/False):", "question": "The cash sweep in an LBO always reduces total debt outstanding.", "answer": "False. The cash sweep reduces the cash debt tranche it is applied to (typically the TLB). If PIK debt is also in the structure and its accrual in a given year exceeds the cash sweep amount, total net debt can increase even with active sweeping."}, {"label": "Q2 (Calculation):", "question": "A PIK note has an opening balance of £80M at Year 1 and a PIK rate of 13%. What is the closing balance after Year 3?", "answer": "Year 1 closing: £80M × 1.13 = £90.4M. Year 2 closing: £90.4M × 1.13 = £102.2M. Year 3 closing: £102.2M × 1.13 = **£115.4M**. Alternatively: £80M × 1.13³ = £80M × 1.443 = **£115.4M** [approx]."}, {"label": "Q3 (Short answer):", "question": "Why does a TLB have only 1% mandatory amortisation when it is the primary acquisition debt in most LBOs?", "answer": "TLBs are designed as effectively bullet loans for institutional investors (CLOs, credit funds) who want term exposure without early repayment. The 1% mandatory amortisation is nominal — a legal formality. The primary repayment mechanism is the cash sweep. This structure gives the PE sponsor flexibility (repay fast when FCF is strong, repay slowly when investing in growth) while giving lenders the yield duration they want."}, {"label": "Q4 (Concept):", "question": "Explain in one sentence why the debt schedule creates a circular reference in the LBO model.", "answer": "The cash sweep (which reduces the debt balance) depends on free cash flow, which depends on interest expense, which depends on the debt balance — creating a loop where each variable is a function of itself that requires iterative calculation to resolve."}, {"label": "Q5 (Scenario):", "question": "A company has a TLB of £150M at 7% and a PIK note of £40M at 12%. EBITDA is £30M. Cash sweep is 50% of FCF after interest, taxes, and capex. Approximate FCF for sweep: £10M. Will total debt increase or decrease after Year 1?", "answer": "- TLB mandatory amortisation: £150M × 1% = £1.5M\n- TLB cash sweep: £10M × 50% = £5M\n- TLB closing: £150M − £1.5M − £5M = **£143.5M** (down £6.5M)\n- PIK accrual: £40M × 12% = £4.8M\n- PIK closing: £40M + £4.8M = **£44.8M** (up £4.8M)\n- **Total debt change: −£6.5M + £4.8M = −£1.7M** — total debt falls slightly, but the PIK growth offset most of the TLB paydown."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Debt Schedule Mechanics\n\n[hook] Where exit net debt is decided\nEvery PE return comes down to two numbers: entry equity and exit equity. And exit equity is exit enterprise value minus exit net debt. So whatever the debt schedule says exit net debt is, that's what your return hinges on. This module tracks how fast — or how slowly — debt is repaid, whether PIK is quietly accumulating, and whether the company's cash flows are strong enough to deleverage materially before exit. It's also the engine of the model's circular reference — interest depends on the balance, the balance depends on the sweep, the sweep depends on cash flow, and cash flow depends on interest. Every analyst eventually has to master this room. Let's open it.\n\n[definition] A ledger per tranche\nThe definition. The debt schedule is the LBO model's third module — a period-by-period ledger for each debt tranche, tracking the opening balance, interest in cash and PIK, mandatory amortisation, the optional cash-sweep prepayment, and the closing balance. It's simultaneously the most technically complex part of the model and the primary mechanism through which debt paydown generates equity returns. Get this room right and the third source of returns becomes concrete.\n\n[intuition] A bank statement for every loan\nThink of the debt schedule as a bank statement — but instead of one personal account, it tracks every loan the acquired company carries, all at once, year by year. For each loan: you start the year knowing what you owe — the opening balance. The lender charges interest, either in cash, which you pay, or PIK, which they add to what you owe. You make a required minimum repayment each year — mandatory amortisation, like a minimum mortgage payment. And if you have spare cash after that minimum, you can choose to pay down more — the cash sweep, exactly like overpaying your mortgage when you've got money to spare. At year-end, the opening balance, plus any PIK, minus the amortisation and the sweep, gives the closing balance — which becomes next year's opening balance, and round it goes.\n\n[intuition] Five loans at once\nPicture juggling five loans simultaneously: a primary mortgage — the term loan B; a secondary mortgage — the term loan A; a credit card you used for a one-off — the revolver; a silent compounding loan from a business partner — the PIK; and an unsecured business loan — the mezzanine. Each has its own interest rate, its own minimum payment, and its own prepayment terms. Every year you get a statement for each. You pay the cash interest on the mortgages and the business loan because you must; the PIK just grows quietly in the background, no cash leaving your pocket; and you choose how much extra to throw at the term loan B — that's your sweep. The debt schedule is simply all five of those statements, stacked and run forward through the hold, year after year.\n\n[mechanics] The four forces per period\nMechanically, each tranche gets its own block, with columns running from year zero at close to the exit year. Take the term loan B starting at, say, two hundred and fifty million. Each period four forces change the balance. Cash interest — the opening balance times the rate, paid out of free cash flow; on two-fifty that's around seventeen and a half million in year one, falling as the balance drops. Mandatory amortisation — the contractual minimum, perhaps one percent a year, a couple of million. The cash sweep — the optional extra, maybe twelve or thirteen million from excess free cash flow, accelerating the paydown. And, on the PIK tranche, PIK accrual — interest added to principal rather than paid. Opening balance, less amortisation, less sweep, plus any PIK, equals the closing balance. Run that for every tranche, every year, and you have the full schedule.\n\n[mechanics] The loop — and PIK outside it\nHere's the defining feature — a loop. Cash interest equals the opening balance times the rate. That interest is subtracted, along with tax, capex, and working capital, to give free cash flow. A percentage of that free cash flow becomes the cash sweep. The sweep, plus amortisation, reduces the closing balance — and PIK accrual increases it. And that closing balance sets next period's opening balance, which sets next period's interest. Round and round: interest depends on the balance, the balance depends on the sweep, the sweep depends on cash flow, cash flow depends on interest. That's the circular reference that forces Excel into iterative calculation. And notice where PIK sits — outside the loop. It compounds the balance every year regardless of cash flow, which is exactly how total debt can rise even while your sweep is busily paying the term loan B down. The cash debt falls; the silent PIK climbs.\n\n[worked-example] A staffing buyout's schedule\nTake a speciality staffing business. Entry EBITDA thirty-five million, bought at nine times — three hundred and fifteen million. The capital structure: a covenant-lite term loan B of a hundred and seventy-five million, five times EBITDA, at SOFR plus four-fifty, around seven percent all-in, with one percent mandatory amortisation and a fifty percent cash sweep; PIK notes of thirty-five million at thirteen percent PIK, maturing in year seven; an undrawn fifteen-million revolver; and a hundred and five million of equity. Now run it. By year three, management has executed well — EBITDA has grown from thirty-five to forty-two million, a six percent compound rate — and the strong free cash flow has been sweeping the term loan B down hard. But watch the PIK: at thirteen percent compounding, that thirty-five million has been quietly growing every year, untouched by the sweep. So the term loan B balance is falling nicely, but total debt is falling more slowly than it looks — because one tranche is paying down while another silently inflates.\n\n[pitfalls] What people get wrong\nTwo corrections, and they're the same trap. First, the debt schedule shows how fast cash debt is repaid — not necessarily total debt. If PIK is a meaningful part of the structure, total debt can grow even as the cash debt is swept down, and it's the net change in total debt, not the term loan B paydown alone, that drives equity value. Second, the cash sweep does not always reduce total debt: the sweep cuts the cash tranche it's applied to, usually the term loan B, but if the PIK accrual in a year exceeds the sweep, total debt actually rises even in a strong operational year. So never read the falling term loan B line and conclude the company is deleveraging — sum every tranche, including the compounding PIK, to see the real picture.\n\n[recap] The paydown engine\nTo recap. The debt schedule is the year-by-year ledger of every tranche, governed by four forces each period: cash interest paid out of free cash flow, PIK accrual added to principal, mandatory amortisation, and the optional cash sweep from excess cash flow. It's the implementation of debt-paydown returns in the model, and its circularity — interest from the balance, balance from the sweep, sweep from cash flow, cash flow from interest — is resolved by iterative calculation. The key trap is confusing one tranche's paydown with total deleveraging, especially when PIK is compounding outside the loop. Track total debt across all tranches. Next we turn to the three forward-looking inputs that decide the exit equity: the exit assumptions.\n\nQ: The cash sweep in an LBO always reduces total debt outstanding.\nA: False. The cash sweep reduces the cash debt tranche it is applied to (typically the TLB). If PIK debt is also in the structure and its accrual in a given year exceeds the cash sweep amount, total net debt can increase even with active sweeping.\nQ: A PIK note has an opening balance of £80M at Year 1 and a PIK rate of 13%. What is the closing balance after Year 3?\nA: Year 1 closing: £80M × 1.13 = £90.4M. Year 2 closing: £90.4M × 1.13 = £102.2M. Year 3 closing: £102.2M × 1.13 = **£115.4M**. Alternatively: £80M × 1.13³ = £80M × 1.443 = **£115.4M** [approx].\nQ: Why does a TLB have only 1% mandatory amortisation when it is the primary acquisition debt in most LBOs?\nA: TLBs are designed as effectively bullet loans for institutional investors (CLOs, credit funds) who want term exposure without early repayment. The 1% mandatory amortisation is nominal — a legal formality. The primary repayment mechanism is the cash sweep. This structure gives the PE sponsor flexibility (repay fast when FCF is strong, repay slowly when investing in growth) while giving lenders the yield duration they want.\nQ: Explain in one sentence why the debt schedule creates a circular reference in the LBO model.\nA: The cash sweep (which reduces the debt balance) depends on free cash flow, which depends on interest expense, which depends on the debt balance — creating a loop where each variable is a function of itself that requires iterative calculation to resolve.\nQ: A company has a TLB of £150M at 7% and a PIK note of £40M at 12%. EBITDA is £30M. Cash sweep is 50% of FCF after interest, taxes, and capex. Approximate FCF for sweep: £10M. Will total debt increase or decrease after Year 1?\nA: - TLB mandatory amortisation: £150M × 1% = £1.5M\n- TLB cash sweep: £10M × 50% = £5M\n- TLB closing: £150M − £1.5M − £5M = **£143.5M** (down £6.5M)\n- PIK accrual: £40M × 12% = £4.8M\n- PIK closing: £40M + £4.8M = **£44.8M** (up £4.8M)\n- **Total debt change: −£6.5M + £4.8M = −£1.7M** — total debt falls slightly, but the PIK growth offset most of the TLB paydown.\nEnd-card question: True or False: the cash sweep in an LBO always reduces total debt outstanding. Explain.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Every PE return calculation ultimately depends on two numbers: entry equity and exit equity. Exit equity = exit enterprise value minus exit net debt. The debt schedule determines what \"exit net debt\" is. It is the module that tracks how fast (or slowly) debt is being repaid, whether PIK is silently accumulating, and whether the company's cash flows are strong enough to deleverage materially before exit.</p><p>The debt schedule is also the engine of the LBO model's circular reference — interest expense depends on the debt balance, which depends on the cash sweep, which depends on the free cash flow, which depends on the interest expense. Every PE analyst who builds LBO models must understand how to construct, resolve, and interpret this circularity. Beyond mechanics, the debt schedule is the operational expression of Three Sources of PE Returns Source 3 — it is where \"debt paydown\" becomes a trackable, year-by-year number rather than an abstract return concept.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The debt schedule is the LBO model's Module 3 — a period-by-period ledger for each debt tranche tracking opening balance, interest (cash and PIK), mandatory amortization, optional cash sweep prepayment, and closing balance — and it is simultaneously the most technically complex part of the model and the primary mechanism through which debt paydown generates equity returns.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Think of the debt schedule like a bank statement — but instead of tracking your personal account, it tracks every loan the acquired company carries, simultaneously, year by year.</p><p>For each loan: - You start each year knowing how much you owe (the opening balance) - The bank charges you interest — either in cash (you pay it) or PIK (they add it to what you owe) - You make a required minimum repayment every year (mandatory amortisation — like a minimum mortgage payment) - If you have extra money left over after the minimum payment, you can choose to pay down more (cash sweep — like overpaying your mortgage when you have spare cash) - At the end of the year, you know the new balance (closing balance = next year's opening balance)</p><p>The debt schedule does this for every tranche simultaneously — the TLB, the TLA, the PIK mezzanine, the RCF — and adds them up to get total debt each year.</p><p>Two things make this tricky:</p><p><strong>First, PIK accrual.</strong> A PIK loan doesn't require cash payment — instead, the interest is added to the outstanding balance. If you borrow £100M at 12% PIK, after Year 1 you owe £112M. After Year 2, £125.4M. After Year 5, £176.2M. Unlike cash interest (which you pay regularly and reduces your cash), PIK silently accumulates in the debt column — and eats into the equity you'll receive at exit.</p><p><strong>Second, the circularity.</strong> The interest you pay this year depends on the balance at the start of the year. The balance at the start of the year depends on how much you swept last year. How much you swept last year depends on your free cash flow. Your free cash flow depends on the interest you paid. This loop — interest → FCF → sweep → balance → interest — is the circular reference that makes LBO models technically demanding and requires Excel's iterative calculation to resolve.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Imagine you have five different loans simultaneously: a primary mortgage (the TLB), a secondary mortgage (the TLA), a credit card you used for a one-off purchase (the RCF), a silent compound loan from a business partner (the PIK), and an unsecured business loan (the mezz).</p><p>Each has different: - Interest rates (PIK rate, cash rate) - Minimum payment requirements (mandatory amortisation) - Prepayment terms (sweep — like overpaying your mortgage)</p><p>Every year you get a bank statement for each. You pay the cash interest on the mortgage and business loan (you have to), the PIK just grows quietly, and you choose how much extra to throw at the TLB (your sweep decision, constrained by the credit agreement).</p><p>The debt schedule is a year-by-year statement of all five accounts simultaneously. The total at the bottom tells you what you still owe when you \"sell the house\" (exit the investment). That total is subtracted from the sale price to get your profit.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Standard Debt Schedule Layout</p><p>Each debt tranche occupies its own section. The period columns run from Year 0 (acquisition close) through to Year N (the projected exit year):</p><p>Key observations from this layout: - The TLB deleverages steadily through mandatory amortisation and cash sweep - The PIK mezzanine compounds — growing from £50M to £88M over 5 years at 12% PIK - Net debt falls only modestly (£300M to £253M) despite significant TLB paydown, because PIK growth partially offsets it - This is the Synthesis - The LBO Capital Stack insight expressed in a working model</p><p>### Row-by-Row Construction</p><p><strong>Opening Balance:</strong> Always equals prior period's closing balance. Year 0 opening balance = 0 (the tranche didn't exist before). Year 1 opening balance = Year 0 closing balance = the amount borrowed at close.</p><p><strong>Cash Interest:</strong></p><p>For floating rate debt (TLB, TLA, RCF): Rate = Base rate (SOFR/SONIA) + Credit spread. The base rate changes period by period based on market assumptions. In a model, you typically hold SOFR flat at the current rate or use a simple rate assumption.</p><p>For fixed rate debt (HY bonds): Rate = fixed coupon, regardless of market rates.</p><p>For PIK debt: Cash interest = £0. No cash payment.</p><p><strong>PIK Accrual (PIK tranches only):</strong></p><p>Note that PIK accrual is added to principal, not cash interest expense in the traditional sense. It appears only in the debt schedule (as a balance increase), not as a cash flow item in the income statement — though it may be recorded as interest expense in the accounts.</p><p><strong>Mandatory Amortisation:</strong> Defined in the credit agreement. Typical structures: - TLB: 1% per annum of original principal (essentially a bullet with nominal amortisation) - TLA: 5-25% per annum (more meaningful quarterly amortisation) - PIK Mezz: typically nil until maturity - HY Bonds: nil until maturity (bullet) - RCF: revolving — repaid and redrawn as needed; no scheduled amortisation</p><p>For TLB: Mandatory Amort = Original Principal × 1%/year = constant every year. For TLA: Use the actual amortisation schedule from the credit agreement (varies by year).</p><p><strong>Cash Sweep (Optional Prepayment):</strong></p><p>The sweep is the key mechanism linking the cash flow module to the debt schedule:</p><p>Common sweep structures: - 50% of excess cash flow in years when leverage &gt; 4.5x; 25% when 3.5-4.5x; 0% when &lt; 3.5x - 75% sweep throughout the hold with no step-down (aggressive deleveraging) - Cash sweep with 12-month average test (measured over LTM basis, not instantaneous)</p><p>The sweep percentage is a negotiated term in the credit agreement. PE sponsors prefer lower sweep percentages (preserves cash for reinvestment in value creation); lenders prefer higher sweep percentages (deleverages faster, reduces risk).</p><p><strong>RCF Treatment:</strong> The revolving credit facility operates differently: - If drawn at close: appears as debt in the schedule; first to be swept (highest priority repayment) - If undrawn at close: no debt in schedule, but a commitment fee applies on the undrawn amount - RCF can be redrawn after repayment (it's revolving) — but redraws add back to the debt balance - In practice: many PE models assume the RCF is drawn at close for working capital and swept from excess FCF in Year 1</p><p>### The Circular Reference — Detailed</p><p>The circularity in the debt schedule is more precisely described as follows:</p><p>This is a within-period circularity <em>if</em> you try to compute current-period interest using the current-period balance (which depends on this period's sweep, which depends on this period's FCF, which depends on this period's interest). The standard resolution methods:</p><p><strong>Method 1: Prior-period opening balance (most common in practice)</strong> Use the opening balance for interest calculation. This breaks the circularity exactly: interest is calculated on the balance at the start of the period, not the end. Accepted approximation — in a real deal, interest is typically paid quarterly on the prior quarter-end balance anyway.</p><p><strong>Method 2: Iterative calculation (more precise)</strong> Enable Excel's iterative calculation feature (File → Options → Formulas → Enable Iterative Calculation, set max iterations to 100, tolerance to 0.001). Excel will recalculate the sheet multiple times until the values converge. This resolves the within-period circularity but introduces the risk of infinite loops if the model is poorly structured.</p><p><strong>Method 3: Manual sweep schedule (simplest)</strong> Pre-calculate the sweep amount from EBITDA before calculating interest. Approximation that's acceptable for early-stage analysis.</p><p>Most PE firms use Method 2 for final models and Method 1 for quick-analysis models.</p><p>---</p>"}, "5": {"section": "Diagram", "html": "<p>The defining feature is a loop: each quantity depends on the one before it, and the last depends on the first.</p><p>This loop is the <strong>circular reference</strong> that forces Excel's iterative calculation. <strong>PIK sits outside the loop</strong> — it compounds the balance every year regardless of cash flow, which is how total debt can rise even while the sweep is paying the TLB down.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Mid-market business services acquisition (illustrative, representative of UK mid-market LBO mechanics)</strong></p><p>A PE firm acquires a speciality staffing business. The deal: - Entry EBITDA: £35M - Entry EV: 9x = £315M - Capital structure:   - TLB (cov-lite): £175M (5.0x EBITDA) at SOFR+450bps (~7% all-in), 1% mandatory amortisation, 50% cash sweep   - PIK Notes: £35M at 13% PIK, matures at Year 7   - RCF: £15M undrawn   - Equity: £105M</p><p><strong>Year 3 snapshot from debt schedule:</strong></p><p>Operational performance: EBITDA grew from £35M to £42M (6% CAGR). Management executed well on client cross-selling.</p><p>| Item | Year 0 | Year 3 | |---|---|---| | TLB balance | £175M | £151M | | PIK Notes balance | £35M | £50M | | RCF balance | £0 | £0 | | <strong>Total debt</strong> | <strong>£210M</strong> | <strong>£201M</strong> | | Leverage (Debt/EBITDA) | 6.0x | 4.8x | | ICR (EBITDA/Cash interest) | 2.5x | 3.0x |</p><p>[All figures illustrative; reflect representative market norms, needs-verification]</p><p><strong>What this tells the analyst:</strong></p><ul class='notelist'><li>TLB has paid down £24M in 3 years (£5.25M mandatory amortisation + ~£18.75M from cash sweep)</li><li>PIK has grown by £15M despite no cash outflow (at 13% PIK compounding from £35M)</li><li>Net debt only fell £9M despite significant TLB paydown — the PIK is absorbing almost all of the equity benefit from debt service</li><li>ICR improved from 2.5x to 3.0x (not because interest fell much, but because EBITDA grew)</li><li>Leverage improved from 6.0x to 4.8x — getting closer to the 4.5x threshold at which the sweep drops to 25%</li></ul><p><strong>Year 5 exit mechanics:</strong></p><p>At exit (Year 5), assume EBITDA = £47M, exit at 10x = £470M: - TLB projected balance: ~£139M - PIK projected balance: ~£63M (£35M × 1.13^5 = £64.5M [rough]) - Total exit debt: ~£202M - Exit equity: £470M − £202M = <strong>£268M</strong> - Entry equity: £105M - <strong>Gross MOIC: 2.55x</strong></p><p><strong>What if there were no PIK (all debt was TLB at 7% cash)?</strong> - TLB would be £210M entry; same cash flow sweeps - Year 5 TLB: ~£175M (swept more because no PIK crowding out the debt paydown) - Exit equity: £470M − £175M = <strong>£295M</strong> - Gross MOIC without PIK: 2.81x vs. 2.55x with PIK</p><p>The PIK note cost approximately 0.26x MOIC — the precise cost of the financing structure, visible only in the debt schedule.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The debt schedule shows how quickly debt is repaid.\"</strong> Only partially. The debt schedule shows how quickly <em>cash debt</em> is repaid. If PIK is a significant portion of the capital structure, total debt can grow even as cash debt is being swept down. The net change in total debt — not just TLB paydown — is the relevant measure for equity creation.</p><p><strong>Misconception 2: \"The cash sweep always reduces debt.\"</strong> The cash sweep reduces the cash debt tranche it's applied to (typically the TLB). But if PIK is also in the structure, the PIK accrual may exceed the cash sweep, causing total debt to increase even in a year with strong operational performance.</p><p><strong>Misconception 3: \"Mandatory amortisation is the main deleveraging mechanism in LBOs.\"</strong> Mandatory amortisation on a TLB is typically 1% per annum — minimal. The primary deleveraging mechanism in most LBOs is the <strong>cash sweep</strong>. A company generating strong free cash flow and sweeping 50-75% can repay 20-30% of the TLB in a 5-year hold. Mandatory amortisation contributes only 5% over the same period.</p><p><strong>Misconception 4: \"The interest coverage ratio is calculated on total debt outstanding.\"</strong> ICR = EBITDA / <strong>Cash</strong> Interest. PIK interest is excluded from the ICR denominator because it doesn't require cash. This is why a PIK-heavy capital structure can show a healthy ICR even when total debt is growing — the PIK doesn't show up in the ICR calculation. Lenders may track a separate \"total debt service coverage\" ratio that includes PIK, but the standard ICR is cash-only.</p><p><strong>Misconception 5: \"You build the debt schedule after completing the operating model.\"</strong> In practice, the operating model and debt schedule are built and calibrated simultaneously. EBITDA assumptions in the operating model determine whether the debt schedule produces acceptable leverage and coverage ratios. If the coverage ratio falls below covenant requirements, the analyst goes back to the operating model and adjusts growth assumptions, or changes the debt structure.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>The debt schedule is the year-by-year ledger of every debt tranche in an LBO, tracking the four forces that change the balance each period: cash interest (paid out of FCF), PIK accrual (added to principal), mandatory amortisation (contractual minimum repayment), and the cash sweep (optional additional repayment from excess FCF). It is the implementation of Source 3 (debt paydown) returns in the LBO model. The circularity — interest depends on the opening balance, which depends on the cash sweep, which depends on FCF, which depends on interest — is resolved via iterative calculation. The key modelling trap is confusing TLB paydown (one tranche falling) with net debt reduction (all tranches combined): if PIK accrual exceeds the cash sweep, total debt grows even in a year of strong operational performance. Understanding the debt schedule precisely is the difference between knowing that \"debt paydown generates returns\" and knowing exactly how much, when, and subject to what constraints.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

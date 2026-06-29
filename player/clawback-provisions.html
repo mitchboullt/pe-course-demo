@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "clawback-provisions", "title": "Clawback Provisions", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Keep carry on profits that vanished?", "on_screen_bullets": ["Early winners pay carry", "Later losses erase the gains", "Makes the hurdle whole-fund"], "narration": "Without a clawback, a GP could collect carry on early winning deals and then — even if later deals wipe out those gains — simply keep the carry it was paid. LPs would have funded the GP's bonus on profits that ultimately never materialised at the fund level. The clawback is the enforcement mechanism that makes the preferred return meaningful on a whole-fund basis, especially in American waterfall structures where carry is paid deal-by-deal. It's one of the four cardinal LP protections in the fund's legal architecture.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Return the excess carry", "on_screen_bullets": ["Give back carry above entitlement", "Cumulative = 20% of whole-fund profit", "Regardless of exit timing"], "narration": "The definition. A clawback provision obligates the GP to return to LPs any carried interest received in excess of what it was entitled to earn on the fund's total net profits — ensuring the GP's cumulative carry equals exactly twenty percent of whole-fund profits above the hurdle, regardless of the timing of individual deal exits. It forces the deal-by-deal payments to reconcile to the true whole-fund entitlement.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Three deals, one reckoning", "on_screen_bullets": ["Deal 1 + 2 pay $15m carry", "Deal 3 is a total loss", "Whole-fund justified only $8m → return $7m"], "narration": "Imagine a fund makes three investments. Deal one is a home run — the GP is paid ten million in carry on those profits. Deal two is a modest winner — five million more carry. Deal three is a total loss. Without a clawback, the GP keeps the full fifteen million, even though the fund's total profits, netted across all three deals, only justified eight million of carry. With a clawback, at wind-down there's a final accounting: the carry the GP should have earned on whole-fund profits — say eight million — is compared to the fifteen million actually received, and the clawback requires the GP to return seven million to the LPs. The clawback corrects the timing mismatch between when carry is paid, deal-by-deal, and when the final entitlement is actually knowable, at the end of the fund. It's a retroactive correction, not a real-time one.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "A tax refund for LPs", "on_screen_bullets": ["Withhold through the year", "Reconcile at year-end", "Here the 'year' is the whole fund life"], "narration": "The mental model: the clawback is like the tax-refund process, but for LPs. Just as the government collects withholding tax throughout the year and then reconciles at year-end — refunding overpayments or collecting shortfalls — the fund reconciles to the right carry payment based on the actual final picture. The difference is that in private equity the year is the entire fund life, and the reconciliation happens only once, right at the end. Everything paid along the way is provisional until that final settling-up.", "est_sec": 42}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The four-step calculation", "on_screen_bullets": ["Earned carry = 20% of whole-fund excess", "Clawback = received − earned", "Net-of-tax + 3–5yr survival"], "narration": "Mechanically, clawback is most relevant in the American, deal-by-deal waterfall, where carry is paid each time a deal exits profitably without waiting to see how the others perform; in a European whole-fund waterfall the risk is much lower, because carry only flows after LPs recover all capital plus hurdle. The calculation at wind-down is four steps: one, total LP net profits above hurdle across all deals; two, times the carry rate, typically twenty percent, equals earned carry; three, sum every carry distribution the GP actually received; four, if received exceeds earned, the clawback is the difference. Take a typical case: total distributions of eleven hundred million, contributed capital five hundred, accrued preferred return about four-hundred-twenty-five million, so the total due before carry is nine-hundred-twenty-five; profits above hurdle a hundred-seventy-five million; earned carry at twenty percent is thirty-five million; but the GP received fifty million from early exits — so the clawback is fifteen million. Two complications matter. The tax complication: the GP already paid income tax on the carry it received, so net-of-tax provisions let it return the clawback reduced by an assumed tax rate — fifteen million times one-minus-forty-percent is nine million — making the obligation reflect what the GP can actually repay. And the distribution problem: once carry is paid out to individual partners who may have spent it or left the firm, collecting it back is extraordinarily hard — which is why escrow is the preferred solution. The clawback obligation typically survives three to five years after fund termination.", "est_sec": 70}, {"n": 6, "beat": "structure", "visual": "mermaid", "source_section": "Diagram", "on_screen_title": "A retroactive correction", "on_screen_bullets": ["Pay deal-by-deal", "Reconcile whole-fund at end", "Enforcement is the weak edge"], "mermaid": "flowchart TD\n  E1[\"Early exits:<br/>carry paid deal-by-deal\"] --> REC[\"Fund wind-down:<br/>whole-fund reconciliation\"]\n  L1[\"Later losses<br/>reduce whole-fund profit\"] --> REC\n  REC --> CMP{\"Received carry ><br/>earned carry?\"}\n  CMP -->|\"yes\"| CB[\"Clawback = received − earned<br/>(net-of-tax if specified)\"]\n  CMP -->|\"no\"| NONE[\"No clawback\"]\n  CB --> ESC[\"Paid from escrow /<br/>partner guarantees\"]", "narration": "Here's the logic in one picture. Carry gets paid as each early deal exits — top left. Later losses reduce the whole-fund profit — and both feed into the wind-down reconciliation. There the test is simple: did received carry exceed earned carry? If no, there's no clawback. If yes, the clawback equals received minus earned, reduced net-of-tax if the LPA specifies it, and it's paid from escrow or partner guarantees. And that last box is the weak edge — in practice, if carry was distributed to partners and never escrowed, the reconciliation can compute a clawback that no one can actually collect. Hold that thought, because the next lesson is entirely about fixing it.", "est_sec": 42}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Fund X: full $24m clawback", "on_screen_bullets": ["Deals A+B pay $24m carry", "Deals C+D wipe out the profit", "Earned $0 → clawback $24m"], "narration": "Take an illustrative Fund X — three hundred million, seven-year life, American waterfall, eight percent hurdle, twenty percent carry. In year three, Deal A exits with eighty million of profit above hurdle, and the GP receives sixteen million carry. In year five, Deal B exits with forty million above hurdle — eight million more carry. Then in year seven, Deal C is written off for sixty million and Deal D for thirty million. The final reconciliation: total profits are eighty plus forty minus sixty minus thirty — just thirty million; the hurdle on all called capital is, say, forty-five million; so profits above hurdle are negative, and the GP earned zero carry. But it received twenty-four million. The clawback is the full twenty-four million. That's an extreme case — more commonly a fund earns eighteen million against twenty-four received, a six-million clawback. And this isn't hypothetical: after 2008, funds that had collected carry on strong 2003-to-2007 exits faced clawback exposure when later-vintage deals were written down, and some GPs settled through negotiated payments rather than full repayment — which tells you everything about how hard enforcement can be.", "est_sec": 62}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not only American waterfalls", "GP entity is often a shell", "Clawback isn't rare"], "narration": "Four corrections. First, clawback doesn't only apply to American waterfalls — it applies to any structure where carry could be overpaid; the risk is just far lower in European whole-fund waterfalls, and many of those LPAs still include clawback as belt-and-suspenders. Second, you cannot always just sue the GP entity to enforce it — GP entities are frequently shells, so individual partners must be named or an escrow must be in place. Third, net-of-tax clawback doesn't mean LPs get nothing back — they receive less than the gross amount, but the provision reflects the economic reality of what the GP can actually repay. And fourth, clawback is not rare — clawback situations occur in virtually every vintage year with mixed performance; the real question is never whether it's triggered, but whether the mechanism is adequately enforced.", "est_sec": 48}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The whole-fund correction", "on_screen_bullets": ["Return carry above whole-fund entitlement", "Net-of-tax + 3–5yr survival", "Worthless without enforcement"], "narration": "To recap. Clawback provisions require GPs to return excess carried interest if, at wind-down, total carry received exceeds carry earned on a whole-fund basis — most relevant in American deal-by-deal waterfalls. The calculation reconciles carry received against carry earned on whole-fund net profits above the hurdle. Tax complications arise because GPs already paid income tax on carry received, so net-of-tax provisions reduce the gross obligation; and the obligation typically survives three to five years past termination. But the calculation is only half the story — enforcement is hard the moment carry has been distributed to individual partners. That enforcement problem, and the escrow and guarantee mechanisms that solve it, is exactly the next lesson.", "est_sec": 48}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A GP received $50m carry from early exits, but whole-fund profits above hurdle justify only $35m. What is the gross clawback — and at a deemed 40% tax rate, what is the net-of-tax amount returned to LPs?", "narration": "Before the next lesson, compute both. A GP received fifty million of carry from early exits, but the whole-fund profits above hurdle justify only thirty-five million earned — what's the gross clawback, and at a deemed forty percent tax rate, what net-of-tax amount actually goes back to the LPs? Work it out, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "What is the clawback provision and what does it correct for?", "answer": "The clawback requires GPs to return excess carry — it corrects for timing mismatches where carry was paid on early wins before later losses were realised."}, {"label": "Q2.", "question": "In which waterfall structure (American or European) is clawback risk highest, and why?", "answer": "American (deal-by-deal) waterfall — carry is paid as each deal exits, without waiting to see how the whole fund performs; later losing deals can reduce the GP's total carry entitlement below what was already paid."}, {"label": "Q3.", "question": "A GP received $30M carry during a fund's life. At wind-down, the whole-fund carry entitlement is calculated at $18M. What is the clawback amount?", "answer": "Clawback = $30M − $18M = $12M."}, {"label": "Q4.", "question": "What is the \"tax complication\" in clawback enforcement?", "answer": "GPs/partners have already paid income tax on carry received; returning gross carry means they overpay tax without guaranteed refund. Net-of-tax provisions address this by reducing the clawback to reflect taxes already paid."}, {"label": "Q5.", "question": "Why does distributing carry to individual partners make clawback enforcement harder?", "answer": "Partners may have spent the carry, left the firm, or have assets in multiple jurisdictions. Without personal guarantees or escrow, the GP entity (often a shell) may have no assets to satisfy the obligation."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Clawback Provisions\n\n[hook] Keep carry on profits that vanished?\nWithout a clawback, a GP could collect carry on early winning deals and then — even if later deals wipe out those gains — simply keep the carry it was paid. LPs would have funded the GP's bonus on profits that ultimately never materialised at the fund level. The clawback is the enforcement mechanism that makes the preferred return meaningful on a whole-fund basis, especially in American waterfall structures where carry is paid deal-by-deal. It's one of the four cardinal LP protections in the fund's legal architecture.\n\n[definition] Return the excess carry\nThe definition. A clawback provision obligates the GP to return to LPs any carried interest received in excess of what it was entitled to earn on the fund's total net profits — ensuring the GP's cumulative carry equals exactly twenty percent of whole-fund profits above the hurdle, regardless of the timing of individual deal exits. It forces the deal-by-deal payments to reconcile to the true whole-fund entitlement.\n\n[intuition] Three deals, one reckoning\nImagine a fund makes three investments. Deal one is a home run — the GP is paid ten million in carry on those profits. Deal two is a modest winner — five million more carry. Deal three is a total loss. Without a clawback, the GP keeps the full fifteen million, even though the fund's total profits, netted across all three deals, only justified eight million of carry. With a clawback, at wind-down there's a final accounting: the carry the GP should have earned on whole-fund profits — say eight million — is compared to the fifteen million actually received, and the clawback requires the GP to return seven million to the LPs. The clawback corrects the timing mismatch between when carry is paid, deal-by-deal, and when the final entitlement is actually knowable, at the end of the fund. It's a retroactive correction, not a real-time one.\n\n[intuition] A tax refund for LPs\nThe mental model: the clawback is like the tax-refund process, but for LPs. Just as the government collects withholding tax throughout the year and then reconciles at year-end — refunding overpayments or collecting shortfalls — the fund reconciles to the right carry payment based on the actual final picture. The difference is that in private equity the year is the entire fund life, and the reconciliation happens only once, right at the end. Everything paid along the way is provisional until that final settling-up.\n\n[mechanics] The four-step calculation\nMechanically, clawback is most relevant in the American, deal-by-deal waterfall, where carry is paid each time a deal exits profitably without waiting to see how the others perform; in a European whole-fund waterfall the risk is much lower, because carry only flows after LPs recover all capital plus hurdle. The calculation at wind-down is four steps: one, total LP net profits above hurdle across all deals; two, times the carry rate, typically twenty percent, equals earned carry; three, sum every carry distribution the GP actually received; four, if received exceeds earned, the clawback is the difference. Take a typical case: total distributions of eleven hundred million, contributed capital five hundred, accrued preferred return about four-hundred-twenty-five million, so the total due before carry is nine-hundred-twenty-five; profits above hurdle a hundred-seventy-five million; earned carry at twenty percent is thirty-five million; but the GP received fifty million from early exits — so the clawback is fifteen million. Two complications matter. The tax complication: the GP already paid income tax on the carry it received, so net-of-tax provisions let it return the clawback reduced by an assumed tax rate — fifteen million times one-minus-forty-percent is nine million — making the obligation reflect what the GP can actually repay. And the distribution problem: once carry is paid out to individual partners who may have spent it or left the firm, collecting it back is extraordinarily hard — which is why escrow is the preferred solution. The clawback obligation typically survives three to five years after fund termination.\n\n[structure] A retroactive correction\nHere's the logic in one picture. Carry gets paid as each early deal exits — top left. Later losses reduce the whole-fund profit — and both feed into the wind-down reconciliation. There the test is simple: did received carry exceed earned carry? If no, there's no clawback. If yes, the clawback equals received minus earned, reduced net-of-tax if the LPA specifies it, and it's paid from escrow or partner guarantees. And that last box is the weak edge — in practice, if carry was distributed to partners and never escrowed, the reconciliation can compute a clawback that no one can actually collect. Hold that thought, because the next lesson is entirely about fixing it.\n\n[worked-example] Fund X: full $24m clawback\nTake an illustrative Fund X — three hundred million, seven-year life, American waterfall, eight percent hurdle, twenty percent carry. In year three, Deal A exits with eighty million of profit above hurdle, and the GP receives sixteen million carry. In year five, Deal B exits with forty million above hurdle — eight million more carry. Then in year seven, Deal C is written off for sixty million and Deal D for thirty million. The final reconciliation: total profits are eighty plus forty minus sixty minus thirty — just thirty million; the hurdle on all called capital is, say, forty-five million; so profits above hurdle are negative, and the GP earned zero carry. But it received twenty-four million. The clawback is the full twenty-four million. That's an extreme case — more commonly a fund earns eighteen million against twenty-four received, a six-million clawback. And this isn't hypothetical: after 2008, funds that had collected carry on strong 2003-to-2007 exits faced clawback exposure when later-vintage deals were written down, and some GPs settled through negotiated payments rather than full repayment — which tells you everything about how hard enforcement can be.\n\n[pitfalls] What people get wrong\nFour corrections. First, clawback doesn't only apply to American waterfalls — it applies to any structure where carry could be overpaid; the risk is just far lower in European whole-fund waterfalls, and many of those LPAs still include clawback as belt-and-suspenders. Second, you cannot always just sue the GP entity to enforce it — GP entities are frequently shells, so individual partners must be named or an escrow must be in place. Third, net-of-tax clawback doesn't mean LPs get nothing back — they receive less than the gross amount, but the provision reflects the economic reality of what the GP can actually repay. And fourth, clawback is not rare — clawback situations occur in virtually every vintage year with mixed performance; the real question is never whether it's triggered, but whether the mechanism is adequately enforced.\n\n[recap] The whole-fund correction\nTo recap. Clawback provisions require GPs to return excess carried interest if, at wind-down, total carry received exceeds carry earned on a whole-fund basis — most relevant in American deal-by-deal waterfalls. The calculation reconciles carry received against carry earned on whole-fund net profits above the hurdle. Tax complications arise because GPs already paid income tax on carry received, so net-of-tax provisions reduce the gross obligation; and the obligation typically survives three to five years past termination. But the calculation is only half the story — enforcement is hard the moment carry has been distributed to individual partners. That enforcement problem, and the escrow and guarantee mechanisms that solve it, is exactly the next lesson.\n\nQ: What is the clawback provision and what does it correct for?\nA: The clawback requires GPs to return excess carry — it corrects for timing mismatches where carry was paid on early wins before later losses were realised.\nQ: In which waterfall structure (American or European) is clawback risk highest, and why?\nA: American (deal-by-deal) waterfall — carry is paid as each deal exits, without waiting to see how the whole fund performs; later losing deals can reduce the GP's total carry entitlement below what was already paid.\nQ: A GP received $30M carry during a fund's life. At wind-down, the whole-fund carry entitlement is calculated at $18M. What is the clawback amount?\nA: Clawback = $30M − $18M = $12M.\nQ: What is the \"tax complication\" in clawback enforcement?\nA: GPs/partners have already paid income tax on carry received; returning gross carry means they overpay tax without guaranteed refund. Net-of-tax provisions address this by reducing the clawback to reflect taxes already paid.\nQ: Why does distributing carry to individual partners make clawback enforcement harder?\nA: Partners may have spent the carry, left the firm, or have assets in multiple jurisdictions. Without personal guarantees or escrow, the GP entity (often a shell) may have no assets to satisfy the obligation.\nEnd-card question: A GP received $50m carry from early exits, but whole-fund profits above hurdle justify only $35m. What is the gross clawback — and at a deemed 40% tax rate, what is the net-of-tax amount returned to LPs?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Without a clawback, GPs can collect carry on early winning deals and then — even if later deals wipe out those gains — keep the carry they were paid. LPs would have funded the GP's bonus on profits that ultimately didn't materialise at the fund level. The clawback is the enforcement mechanism that makes the preferred return meaningful on a whole-fund basis, particularly in American waterfall structures where carry is paid deal-by-deal. It is one of the four cardinal LP protections in fund legal architecture.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A clawback provision obligates the GP to return to LPs any carried interest received in excess of what it was entitled to earn on the fund's total net profits — ensuring the GP's cumulative carry equals exactly 20% of whole-fund profits above the hurdle, regardless of the timing of individual deal exits.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a PE fund makes three investments. Deal 1 is a home run — the GP is paid $10M in carry on those profits. Deal 2 is a modest winner — the GP gets $5M more carry. Deal 3 is a total loss.</p><p>Without a clawback: the GP keeps $15M even though the fund's total profits, netted across all three deals, only justified $8M of carry.</p><p>With a clawback: at the fund's wind-down, there is a final accounting. Total carry the GP <em>should have earned</em> on whole-fund profits is calculated: say $8M. Total carry the GP <em>actually received</em> is $15M. The clawback requires the GP to return $7M to LPs.</p><p>The clawback corrects for the timing mismatch between <em>when</em> carry is paid (deal-by-deal) and <em>when</em> the final carry entitlement is known (end of fund). It is a retroactive correction, not a real-time mechanism.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The clawback is like a tax refund process for LPs. Just as the government collects withholding tax throughout the year but reconciles at year-end — refunding overpayments or collecting underpayments — the fund collects the \"right\" carry payment based on the actual annual picture. Except the \"year\" in PE is the entire fund life, and the reconciliation happens only once, at the end.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### When the Clawback Arises</p><p>Clawback is most relevant in <strong>American waterfall</strong> (deal-by-deal) structures. In these structures, carry is paid each time a deal exits profitably — without waiting to see how other deals perform. If the fund has early winners and late losers, the GP collects carry before the losses are known.</p><p>In a <strong>European waterfall</strong> (whole-fund basis), carry is not paid until LPs have recovered all contributed capital plus the hurdle across the whole fund — significantly reducing (but not eliminating) clawback risk.</p><p>### Clawback Calculation</p><p>At fund wind-down, the following calculation is performed:</p><p><strong>Step 1:</strong> Calculate total LP net profits above hurdle across all deals (whole-fund basis)</p><p><strong>Step 2:</strong> Multiply by carry rate (typically 20%) = GP's <strong>earned carry</strong></p><p><strong>Step 3:</strong> Sum all carry distributions the GP has received during the fund's life = GP's <strong>received carry</strong></p><p><strong>Step 4:</strong> If Received Carry &gt; Earned Carry → <strong>clawback = Received Carry − Earned Carry</strong></p><p><strong>Example:</strong></p><p>| | Amount | |---|---| | Total LP contributed capital | $500M | | Total distributions to LPs | $700M | | Preferred return (8%, 8-year hold) | $500M × 1.08^8 = $925M | | — Wait: distributions ($700M) &lt; hurdle ($925M) → No carry earned | |</p><p>In this case, the GP should have earned zero carry but may have received $40M on early deals. Full $40M clawback triggered.</p><p><strong>More typical example:</strong></p><p>| | Amount | |---|---| | Total distributions | $1,100M | | LP contributed capital | $500M | | Accrued preferred return (8%, 8 years) | $425M (approx.) | | Total due to LPs before carry | $925M | | Profits above hurdle | $175M | | GP earned carry (20%) | $35M | | GP received carry (from early exits) | $50M | | <strong>Clawback required</strong> | <strong>$15M</strong> |</p><p>### Time Horizon</p><p>The clawback obligation typically survives for <strong>3-5 years after fund termination</strong>, giving LPs time to complete the final accounting and pursue enforcement. After this period, the obligation lapses.</p><p>### The Tax Complication</p><p>This is one of the most technically complex aspects of the clawback:</p><ol><li>GP receives $50M carry over the fund's life</li><li>GP (or individual partners) pays income tax on that $50M — say 45% effective rate → $22.5M tax paid</li><li>At clawback, the GP owes $15M back to LPs</li><li>But the GP has already paid tax on the $50M received; they can file an amended return to reclaim tax on the $15M returned, but this takes years and involves uncertainty</li></ol><p><strong>Net-of-tax clawback provisions</strong> address this: instead of returning the gross $15M, the GP returns $15M × (1 − assumed tax rate). So if the assumed tax rate is 40%, the clawback payment is $9M (not $15M). LPs receive less, but the provision is more enforceable because it reflects the GP's actual economic position.</p><p>Whether the net-of-tax adjustment uses the <em>actual</em> tax rate or a <em>deemed</em> tax rate (say 40%) is heavily negotiated in the LPA.</p><p>### The Distribution Problem</p><p>When a PE firm distributes carry to individual partners (as they typically do throughout the fund), collecting it back is extraordinarily difficult:</p><ul class='notelist'><li>Partners may have spent the money</li><li>Partners may have left the firm</li><li>Partners are legally distinct from the GP entity</li><li>Tax refunds must be pursued by individuals, not the GP entity</li></ul><p>This is why <strong>carry escrow</strong> is the preferred solution — see Clawback Enforcement Mechanisms for detail.</p><p>### Post-2008 Clawback Situations</p><p>The 2008 financial crisis created significant clawback situations for many buyout funds that had collected carry on strong 2003-2007 exits, only to see 2007-2008 vintage investments suffer large write-downs. KKR, TPG, and others reportedly faced significant clawback exposure. Some GPs settled clawback obligations through negotiated payments rather than full repayment, highlighting enforcement challenges.</p>"}, "5": {"section": "Diagram", "html": "<p>Clawback is a <em>retroactive correction</em>: carry is paid as each deal exits, but the true entitlement is only knowable once every deal is in. The gap between the two is the clawback.</p><p>The enforcement edge (dashed in practice) is the weak point: if carry was distributed to partners and not escrowed, the reconciliation can compute a clawback that no one can actually collect.</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Illustrative \"Fund X\" scenario:</strong></p><ul class='notelist'><li>$300M fund, 7-year life, American waterfall, 8% hurdle, 20% carry</li><li>Year 3: Exit Deal A — $80M profit above hurdle → GP receives $16M carry</li><li>Year 5: Exit Deal B — $40M profit above hurdle → GP receives $8M carry</li><li>Year 7: Deal C write-off (−$60M loss); Deal D write-off (−$30M loss)</li></ul><p><strong>Final reconciliation:</strong> - Total profits: $80M + $40M − $60M − $30M = $30M - Hurdle on all called capital: say $45M - Profits above hurdle: negative → GP earned zero carry - GP received: $24M - <strong>Clawback: $24M</strong></p><p>This is an extreme example. More commonly, a fund may have earned $18M of carry against $24M received — clawback of $6M.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ul class='notelist'><li><strong>\"Clawback only applies to American waterfalls.\"</strong> Not technically true — it applies to any structure where carry could be overpaid, but the risk is far lower in European whole-fund waterfalls because carry only flows after LPs are made whole. Many European waterfall LPAs still include clawback as belt-and-suspenders protection.</li><li><strong>\"The GP entity can always be sued to enforce the clawback.\"</strong> Often false — GP entities are frequently shells. Individual partners must be named or an escrow mechanism must be in place.</li><li><strong>\"Net-of-tax clawback means LPs don't get their money back.\"</strong> Partially true — LPs receive less than gross clawback, but the provision is designed to reflect the economic reality of what the GP can actually repay.</li><li><strong>\"Clawback is rare.\"</strong> Untrue — clawback situations occur in virtually every vintage year with mixed fund performance. The question is whether the mechanism is adequately enforced.</li></ul>"}, "8": {"section": "Summary", "html": "<p>Clawback provisions require GPs to return excess carried interest if, at fund wind-down, total carry received exceeds carry earned on a whole-fund basis. They are most relevant in American waterfall structures where carry is paid deal-by-deal. The clawback calculation reconciles carry received versus earned on the whole fund's net profits above the hurdle rate. Tax complications arise because GPs have already paid income tax on carried interest received; net-of-tax provisions reduce the gross clawback obligation. Enforcement is challenging when carry has been distributed to individual partners, making escrow accounts the preferred protective mechanism. Clawback obligations typically survive fund termination for 3-5 years.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

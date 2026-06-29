@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-fund-economics-and-lp-alignment", "title": "Synthesis: Fund Economics and LP Alignment", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "A system, not a menu", "on_screen_bullets": ["Five components, one problem", "Each has a failure mode", "Studying terms alone misleads"], "narration": "Every component of PE fund economics — management fees, carried interest, the hurdle rate, the waterfall, and the clawback — exists because of one fundamental principal-agent problem: the GP controls capital that belongs to the LP, and the GP's interests will not automatically align with the LP's without deliberate structural incentives and constraints. Each component addresses a different dimension. The management fee lets the GP operate without rushing exits, but creates a misalignment around fund size. Carried interest makes the GP wealthy only when LPs profit, but functions as a free call option that asymmetrically rewards risk. The hurdle ensures a minimum LP return before carry, but can be eroded by subscription lines and compounding conventions. The waterfall protects LP capital recovery before carry flows, but American structures create timing gaps the hurdle alone can't fix. And the clawback corrects those gaps at wind-down, but is only as strong as its enforcement. The synthesis: these five components form a system, not a menu — studying each term in isolation produces a false sense of security.", "est_sec": 56}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "Beyond '2 and 20'", "on_screen_bullets": ["Headline hides the structure", "Same terms, millions apart", "Read terms critically"], "narration": "The conventional wisdom is that two-and-twenty with an eight-percent hurdle aligns GPs and LPs. That's approximately true in an idealised scenario — but in practice, the details of how each component is structured can shift millions of pounds from LP to GP without changing any headline number. Mastering this synthesis lets you read fund terms critically, identifying which provisions create genuine alignment versus which are cosmetically aligned but structurally GP-friendly; evaluate the GP's actual incentives — not just that they earn carry when you profit, but specifically when and on what they earn it, and what behaviour each term encourages; negotiate intelligently, knowing which terms move the needle — waterfall type, clawback enforcement, fee offsets — and which are symbolic; and diagnose why a fund reporting twenty-five percent gross IRR may deliver seventeen percent net, and whether that gap is normal or a red flag. Many alignment failures aren't illegal — they're permitted by ambiguous LPA terms that sophisticated LPs negotiate out and unsophisticated LPs simply accept.", "est_sec": 54}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "The alignment chain", "on_screen_bullets": ["Fees → hurdle → waterfall → clawback", "Each helps AND can fail", "Four interaction effects most miss"], "narration": "The concept map is a chain, each link both an alignment device and a failure mode. Management fees and carry set the headline: the fee is an operating subsidy that, misused, rewards bigger AUM over better performance; carry is a profit share that, structurally, is an asymmetric call option with no downside beyond zero. Carry only flows after the hurdle is cleared, and the hurdle's protective value depends on compounding convention and whether subscription lines have compressed its period. Once cleared, distributions sequence through the waterfall — capital back, hurdle, catch-up, eighty-twenty — where a European whole-fund structure protects LPs but an American deal-by-deal structure pays carry on winners before losers are known. Those timing gaps create the need for the clawback, which forces reconciliation at wind-down but is only as strong as its escrow and enforcement. And the net of all of it is the gross-to-net gap — typically three to seven points of IRR drag. Four interaction effects most LPs miss: whether management fees reduce the hurdle base; whether a catch-up tier exists, which decides if the GP gets twenty percent of all profits above capital or only of profits above the hurdle; that the clawback is irrelevant in a European waterfall but essential in an American one; and that management-fee drag alone, before any carry, can consume fifteen to twenty percent of committed capital over a fund's life.", "est_sec": 62}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Fund A vs Fund B", "on_screen_bullets": ["Identical headline: 2 / 20 / 8%", "Same £500m, 20% gross, 2.5x", "Net IRR 15.2% vs 16.4%"], "narration": "Watch two funds with identical headline terms produce materially different LP outcomes. Both advertise two percent, twenty percent carry, eight percent hurdle — an unsophisticated LP sees no difference. But look closer. Fund A is GP-friendly within the standard headline: a two-percent fee on committed capital with no step-down until year seven and no offset for monitoring fees; an eight-percent simple hurdle, lower than compound; a two-hundred-million subscription line drawn nine to twelve months before capital calls, so the hurdle clock runs for fewer months; an American waterfall; and a clawback that is GP-entity-guarantee only, no escrow, no net-of-tax, with a three-year limit. Fund B is LP-standard: a two-percent fee stepping down to one-and-a-half on invested capital in year six with a hundred-percent fee offset; an eight-percent compound hurdle with subscription-line impact disclosed; a fifty-million line capped at ninety-day draws; a European waterfall; and a clawback with individual partner indemnification, thirty-percent escrow, net-of-tax, and a five-year limit. Now run the same underlying performance — a five-hundred-million fund, twenty-percent gross IRR, two-and-a-half-times gross MOIC over eight years. Fund A reports an inflated twenty-two percent IRR, pays cumulative fees of about sixty-five million, and delivers a net IRR around fifteen-point-two and a net MOIC of two-point-one. Fund B reports a clean twenty percent, pays about forty-eight million in fees thanks to the step-down and offsets, and delivers about sixteen-point-four net and two-point-two. That's a seventeen-million difference in LP fees over the fund's life — about three hundred forty thousand extra per ten-million commitment — for identical underlying performance. Neither fund broke any rules; both called themselves two-and-twenty with an eight-percent hurdle.", "est_sec": 70}, {"n": 5, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Hurdle isn't a market benchmark", "Carry = call option, not symmetry", "Waterfall + clawback are one protection"], "narration": "Four things people miss. First, the eight-percent hurdle protects LPs from paying carry on returns below eight percent — but a fund earning eight-and-a-half percent net still pays full carry, even in a year the public market returned fifteen; the hurdle does not compare the GP to a benchmark, and the public-market-equivalent comparison sits entirely outside this system as a tool sophisticated LPs apply, not a contractual term. Second, carry aligns the GP with LP profit interests, not LP risk interests — it's a call option the GP exercises if the fund performs and that expires worthless if it doesn't, with the GP's downside limited to its one-or-two-percent commitment while the LP can lose everything; that asymmetry means the GP is incentivised toward more risk than the LP would optimally prefer, including high leverage and extending fund life to chase a turnaround rather than recognise a loss. Third, the waterfall and clawback are separate protections — no, they're two halves of one: the waterfall decides when carry is distributed, the clawback whether bad timing can be recovered, so a European waterfall makes the clawback nearly irrelevant while an American one makes it essential, and saying we have a clawback is meaningless without knowing the waterfall type, escrow size, and enforcement. And fourth, gross-to-net drag is just the carry rate — it has three components: management fees that reduce investable capital from day one, carry above the hurdle, and fund expenses; on a five-hundred-million fund, two percent for ten years is a hundred million, twenty percent of committed capital consumed before a penny of profit is even considered.", "est_sec": 64}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Practical Example: The LP Alignment Scorecard", "on_screen_title": "The alignment scorecard", "on_screen_bullets": ["Score each term GP / standard / LP-friendly", "Count the columns", "Waterfall + clawback matter most"], "narration": "The practical output is a scorecard derived from how all five components interact. For each term you sort the fund into one of three columns. Management fee base: GP-friendly is two percent on committed throughout; LP-friendly is one-and-a-half on invested from year one. Fee offsets: red flag is zero, the GP keeping all monitoring fees; strong is a hundred percent offset so the GP can't double-dip. Hurdle: simple with no line disclosure is GP-friendly; compound with sub-lines under ninety days and disclosed is strong. Waterfall: American is the red flag, European with LPAC oversight the strong version. Catch-up: a hundred-percent catch-up with no threshold is GP-friendly. Clawback enforcement: GP-entity-only is the red flag, individual-partner indemnification plus thirty-percent escrow plus net-of-tax the strong one. GP commitment: under half a percent is weak, three-percent-plus invested alongside is strong. And carry rate, subscription lines, clawback time limit, each scored the same way. To use it, count how many terms fall in each column — a fund where most terms are GP-friendly but the headline is standard two-and-twenty is structurally misaligned despite its marketing. And the single most important pairing is waterfall type plus clawback enforcement: those two together determine whether the LP's theoretical protections are actually real; everything else creates meaningful but smaller value differences.", "est_sec": 64}, {"n": 7, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "Headline ≠ alignment", "on_screen_bullets": ["Failures are permitted, not illegal", "Sophisticated LPs negotiate them out", "The config decides, not the label"], "narration": "Step back to the governing insight. The most important point is that the alignment failures here are not illegal — they are permitted by the specific configuration of terms inside an LPA that still, truthfully, calls itself two-and-twenty with an eight-percent hurdle. Sophisticated LPs read the configuration and negotiate the GP-friendly settings out — the simple hurdle, the missing step-down, the American waterfall, the thin escrow — while unsophisticated LPs accept the headline and systematically overpay for GP services while bearing more incentive risk than they realise. That is why the entire discipline of reading fund terms exists: the label tells you almost nothing; the configuration of all five components tells you everything about whether the GP and LP are genuinely on the same side.", "est_sec": 46}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Read the configuration", "on_screen_bullets": ["Each term aligns AND can fail", "No fund judged on headline alone", "Waterfall + clawback decide reality"], "narration": "To recap. Fund economics are a system in which each component addresses a specific GP-LP misalignment and each carries a failure mode that creates a different one. Management fees pay the GP to operate but incentivise AUM maximisation; carry rewards performance but behaves as a one-sided call option; the hurdle ensures minimum LP returns but depends on compounding convention and subscription-line inflation; the waterfall sequences distributions but deal-by-deal structures create timing gaps only a robust clawback can fix; and the clawback corrects those gaps only if properly escrowed, individually guaranteed, and net-of-tax. The practical conclusion: no LP should evaluate a fund on headline terms alone, because the specific configuration of all five components — not any one of them — determines whether two-and-twenty with an eight-percent hurdle is genuine alignment or a formula that looks aligned while quietly favouring the GP. Next we sharpen this into the five precise points where GP and LP interests structurally diverge — LP and GP incentive alignment.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Two funds both advertise '2 and 20 with an 8% hurdle' yet deliver different net returns on identical performance. Which single pair of terms matters most, and why does an American waterfall without a robust clawback favour the GP?", "narration": "Before the next lesson, answer both. Two funds both advertise two-and-twenty with an eight-percent hurdle, yet deliver different net returns on identical underlying performance. Which single pair of terms matters most in explaining that — and why does an American waterfall without a robust clawback structurally favour the GP? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: Fund Economics and LP Alignment\n\n[hook] A system, not a menu\nEvery component of PE fund economics — management fees, carried interest, the hurdle rate, the waterfall, and the clawback — exists because of one fundamental principal-agent problem: the GP controls capital that belongs to the LP, and the GP's interests will not automatically align with the LP's without deliberate structural incentives and constraints. Each component addresses a different dimension. The management fee lets the GP operate without rushing exits, but creates a misalignment around fund size. Carried interest makes the GP wealthy only when LPs profit, but functions as a free call option that asymmetrically rewards risk. The hurdle ensures a minimum LP return before carry, but can be eroded by subscription lines and compounding conventions. The waterfall protects LP capital recovery before carry flows, but American structures create timing gaps the hurdle alone can't fix. And the clawback corrects those gaps at wind-down, but is only as strong as its enforcement. The synthesis: these five components form a system, not a menu — studying each term in isolation produces a false sense of security.\n\n[intuition] Beyond '2 and 20'\nThe conventional wisdom is that two-and-twenty with an eight-percent hurdle aligns GPs and LPs. That's approximately true in an idealised scenario — but in practice, the details of how each component is structured can shift millions of pounds from LP to GP without changing any headline number. Mastering this synthesis lets you read fund terms critically, identifying which provisions create genuine alignment versus which are cosmetically aligned but structurally GP-friendly; evaluate the GP's actual incentives — not just that they earn carry when you profit, but specifically when and on what they earn it, and what behaviour each term encourages; negotiate intelligently, knowing which terms move the needle — waterfall type, clawback enforcement, fee offsets — and which are symbolic; and diagnose why a fund reporting twenty-five percent gross IRR may deliver seventeen percent net, and whether that gap is normal or a red flag. Many alignment failures aren't illegal — they're permitted by ambiguous LPA terms that sophisticated LPs negotiate out and unsophisticated LPs simply accept.\n\n[mechanics] The alignment chain\nThe concept map is a chain, each link both an alignment device and a failure mode. Management fees and carry set the headline: the fee is an operating subsidy that, misused, rewards bigger AUM over better performance; carry is a profit share that, structurally, is an asymmetric call option with no downside beyond zero. Carry only flows after the hurdle is cleared, and the hurdle's protective value depends on compounding convention and whether subscription lines have compressed its period. Once cleared, distributions sequence through the waterfall — capital back, hurdle, catch-up, eighty-twenty — where a European whole-fund structure protects LPs but an American deal-by-deal structure pays carry on winners before losers are known. Those timing gaps create the need for the clawback, which forces reconciliation at wind-down but is only as strong as its escrow and enforcement. And the net of all of it is the gross-to-net gap — typically three to seven points of IRR drag. Four interaction effects most LPs miss: whether management fees reduce the hurdle base; whether a catch-up tier exists, which decides if the GP gets twenty percent of all profits above capital or only of profits above the hurdle; that the clawback is irrelevant in a European waterfall but essential in an American one; and that management-fee drag alone, before any carry, can consume fifteen to twenty percent of committed capital over a fund's life.\n\n[worked-example] Fund A vs Fund B\nWatch two funds with identical headline terms produce materially different LP outcomes. Both advertise two percent, twenty percent carry, eight percent hurdle — an unsophisticated LP sees no difference. But look closer. Fund A is GP-friendly within the standard headline: a two-percent fee on committed capital with no step-down until year seven and no offset for monitoring fees; an eight-percent simple hurdle, lower than compound; a two-hundred-million subscription line drawn nine to twelve months before capital calls, so the hurdle clock runs for fewer months; an American waterfall; and a clawback that is GP-entity-guarantee only, no escrow, no net-of-tax, with a three-year limit. Fund B is LP-standard: a two-percent fee stepping down to one-and-a-half on invested capital in year six with a hundred-percent fee offset; an eight-percent compound hurdle with subscription-line impact disclosed; a fifty-million line capped at ninety-day draws; a European waterfall; and a clawback with individual partner indemnification, thirty-percent escrow, net-of-tax, and a five-year limit. Now run the same underlying performance — a five-hundred-million fund, twenty-percent gross IRR, two-and-a-half-times gross MOIC over eight years. Fund A reports an inflated twenty-two percent IRR, pays cumulative fees of about sixty-five million, and delivers a net IRR around fifteen-point-two and a net MOIC of two-point-one. Fund B reports a clean twenty percent, pays about forty-eight million in fees thanks to the step-down and offsets, and delivers about sixteen-point-four net and two-point-two. That's a seventeen-million difference in LP fees over the fund's life — about three hundred forty thousand extra per ten-million commitment — for identical underlying performance. Neither fund broke any rules; both called themselves two-and-twenty with an eight-percent hurdle.\n\n[pitfalls] What siloed study misses\nFour things people miss. First, the eight-percent hurdle protects LPs from paying carry on returns below eight percent — but a fund earning eight-and-a-half percent net still pays full carry, even in a year the public market returned fifteen; the hurdle does not compare the GP to a benchmark, and the public-market-equivalent comparison sits entirely outside this system as a tool sophisticated LPs apply, not a contractual term. Second, carry aligns the GP with LP profit interests, not LP risk interests — it's a call option the GP exercises if the fund performs and that expires worthless if it doesn't, with the GP's downside limited to its one-or-two-percent commitment while the LP can lose everything; that asymmetry means the GP is incentivised toward more risk than the LP would optimally prefer, including high leverage and extending fund life to chase a turnaround rather than recognise a loss. Third, the waterfall and clawback are separate protections — no, they're two halves of one: the waterfall decides when carry is distributed, the clawback whether bad timing can be recovered, so a European waterfall makes the clawback nearly irrelevant while an American one makes it essential, and saying we have a clawback is meaningless without knowing the waterfall type, escrow size, and enforcement. And fourth, gross-to-net drag is just the carry rate — it has three components: management fees that reduce investable capital from day one, carry above the hurdle, and fund expenses; on a five-hundred-million fund, two percent for ten years is a hundred million, twenty percent of committed capital consumed before a penny of profit is even considered.\n\n[worked-example] The alignment scorecard\nThe practical output is a scorecard derived from how all five components interact. For each term you sort the fund into one of three columns. Management fee base: GP-friendly is two percent on committed throughout; LP-friendly is one-and-a-half on invested from year one. Fee offsets: red flag is zero, the GP keeping all monitoring fees; strong is a hundred percent offset so the GP can't double-dip. Hurdle: simple with no line disclosure is GP-friendly; compound with sub-lines under ninety days and disclosed is strong. Waterfall: American is the red flag, European with LPAC oversight the strong version. Catch-up: a hundred-percent catch-up with no threshold is GP-friendly. Clawback enforcement: GP-entity-only is the red flag, individual-partner indemnification plus thirty-percent escrow plus net-of-tax the strong one. GP commitment: under half a percent is weak, three-percent-plus invested alongside is strong. And carry rate, subscription lines, clawback time limit, each scored the same way. To use it, count how many terms fall in each column — a fund where most terms are GP-friendly but the headline is standard two-and-twenty is structurally misaligned despite its marketing. And the single most important pairing is waterfall type plus clawback enforcement: those two together determine whether the LP's theoretical protections are actually real; everything else creates meaningful but smaller value differences.\n\n[intuition] Headline ≠ alignment\nStep back to the governing insight. The most important point is that the alignment failures here are not illegal — they are permitted by the specific configuration of terms inside an LPA that still, truthfully, calls itself two-and-twenty with an eight-percent hurdle. Sophisticated LPs read the configuration and negotiate the GP-friendly settings out — the simple hurdle, the missing step-down, the American waterfall, the thin escrow — while unsophisticated LPs accept the headline and systematically overpay for GP services while bearing more incentive risk than they realise. That is why the entire discipline of reading fund terms exists: the label tells you almost nothing; the configuration of all five components tells you everything about whether the GP and LP are genuinely on the same side.\n\n[recap] Read the configuration\nTo recap. Fund economics are a system in which each component addresses a specific GP-LP misalignment and each carries a failure mode that creates a different one. Management fees pay the GP to operate but incentivise AUM maximisation; carry rewards performance but behaves as a one-sided call option; the hurdle ensures minimum LP returns but depends on compounding convention and subscription-line inflation; the waterfall sequences distributions but deal-by-deal structures create timing gaps only a robust clawback can fix; and the clawback corrects those gaps only if properly escrowed, individually guaranteed, and net-of-tax. The practical conclusion: no LP should evaluate a fund on headline terms alone, because the specific configuration of all five components — not any one of them — determines whether two-and-twenty with an eight-percent hurdle is genuine alignment or a formula that looks aligned while quietly favouring the GP. Next we sharpen this into the five precise points where GP and LP interests structurally diverge — LP and GP incentive alignment.\n\nEnd-card question: Two funds both advertise '2 and 20 with an 8% hurdle' yet deliver different net returns on identical performance. Which single pair of terms matters most, and why does an American waterfall without a robust clawback favour the GP?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>Every component of PE fund economics — management fees, carried interest, the hurdle rate, the waterfall, and the clawback — exists because of a fundamental principal-agent problem: the GP controls capital that belongs to the LP, and the GP's interests will not automatically align with the LP's without deliberate structural incentives and constraints.</p><p>Each component addresses a different dimension of this problem:</p><ul class='notelist'><li><strong>Management fee</strong>: ensures the GP can operate without needing to rush exits to generate income, but creates a misalignment around fund size</li><li><strong>Carried interest</strong>: makes the GP wealthy only when LPs profit, but functions as a free call option that asymmetrically rewards risk-taking</li><li><strong>Hurdle rate</strong>: ensures LPs earn a minimum return before carry is paid, but can be eroded by structural mechanics (subscription lines, compounding conventions)</li><li><strong>Waterfall</strong>: sequences distributions to protect LP capital recovery before carry flows, but American structures create timing gaps that hurdle provisions alone cannot fix</li><li><strong>Clawback</strong>: corrects waterfall timing errors at fund wind-down, but is only as strong as its enforcement mechanism</li></ul><p>The synthesis: <strong>the five components form a system, not a menu.</strong> Studying each term in isolation produces a false sense of security. It is only when you trace how they interact — how a generous hurdle can be undermined by a weak clawback, how a European waterfall can be gamed by subscription line timing, how management fee income can incentivise fund size over fund quality — that you can assess whether a specific fund's economics genuinely align GP and LP interests.</p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>The conventional wisdom is that \"2 and 20 with an 8% hurdle\" aligns GPs and LPs. This is approximately true in an idealised scenario. In practice, the details of <em>how</em> each component is structured can shift millions of pounds from LP to GP without changing any headline number.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Read fund terms critically</strong>: identify which specific provisions create alignment vs. which are cosmetically aligned but structurally GP-friendly</li><li><strong>Evaluate the GP's actual incentives</strong>: not just \"they earn carry when we profit\" but specifically <em>when</em> and <em>on what</em> they earn carry, and what behaviours each term encourages</li><li><strong>Negotiate intelligently</strong>: know which terms move the needle (waterfall type, clawback enforcement, fee offsets) and which are symbolic</li><li><strong>Diagnose performance claims</strong>: understand why a fund reporting 25% IRR may deliver 17% net to LPs — and whether that gap is normal or a red flag</li><li><strong>Understand why LP governance matters</strong>: many alignment failures are not illegal — they are permitted by ambiguous LPA terms that sophisticated LPs negotiate out and unsophisticated LPs accept</li></ul><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p><strong>The four interaction effects that most LPs miss:</strong></p><ol><li>Management Fees and Carried Interest ↔ Preferred Return and Hurdle Rate: management fees paid by LPs during the fund life reduce the fund's total invested capital — which means the hurdle should notionally apply to a smaller base. Whether management fees are treated as part of the \"capital contributed\" base for hurdle purposes varies by LPA and is worth several million pounds over a fund life.</li></ol><ol><li>Preferred Return and Hurdle Rate ↔ Waterfall Mechanics: the hurdle rate creates the catch-up tier. If there is no catch-up, the GP earns 20% only on profits <em>above</em> the hurdle (resulting in less than 20% of total profits going to the GP). If there is a catch-up, the GP ends up with exactly 20% of <em>all</em> profits above the return of capital. This is a significant difference that the headline \"8% hurdle\" does not reveal.</li></ol><ol><li>Waterfall Mechanics ↔ Clawback Provisions: the clawback is not needed in a European (whole-fund) waterfall because carry is only paid once the whole fund is known. It is essential in an American (deal-by-deal) waterfall. The combination of an American waterfall without a robust clawback is structurally GP-friendly in a way that \"20% carry\" does not reveal.</li></ol><ol><li>Gross vs Net Returns ↔ Management Fees and Carried Interest: the management fee drag on IRR is often underestimated. On a 10-year fund, 2% management fee on committed capital (even with a step-down to invested capital in Year 6) costs LPs roughly 15-20% of their total committed capital in cumulative fees. This means gross-to-net IRR drag is not just from carry — the management fee has already reduced the investable base.</li></ol><p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>Scenario: Two funds with identical headline terms, materially different LP outcomes</strong></p><p>Both Fund A and Fund B advertise: <em>\"2% management fee, 20% carry, 8% hurdle.\"</em> An unsophisticated LP sees no difference. A sophisticated LP finds the following on closer examination:</p><p><strong>Fund A (GP-friendly within standard headline terms):</strong> - Management fee: 2% on <em>committed</em> capital, no step-down until Year 7 (only 2 years at reduced rate), no fee offset for monitoring fees charged to portfolio companies - Hurdle: 8% <em>simple</em> interest (lower hurdle than compound), no disclosure of subscription line usage - Subscription credit line: £200M facility, drawn for 9-12 months before capital calls — LP capital is \"deployed\" later, so the 8% clock runs for fewer months per tranche - Waterfall: American (deal-by-deal) - Catch-up: 100% catch-up (GP gets all profits between hurdle and carry threshold — exactly as designed, but means carry flows fast once hurdle is cleared) - Clawback: GP entity guarantee only, no escrow, no net-of-tax provision, 3-year time limit post-fund wind-down</p><p><strong>Fund B (LP-standard terms):</strong> - Management fee: 2% on committed capital during investment period, steps down to 1.5% on <em>invested</em> capital in Year 6, 100% of monitoring/advisory fees offset against management fee - Hurdle: 8% <em>compound</em> interest, subscription line usage disclosed quarterly with IRR impact calculated with and without line - Subscription credit line: £50M facility, maximum 90-day draws only - Waterfall: European (whole-fund) - Catch-up: 100% catch-up - Clawback: GP entity + individual partner indemnification, 30% escrow, net-of-tax provision, 5-year time limit</p><p><strong>Same underlying fund performance:</strong> £500M fund, 5 investments, gross IRR 20%, gross MOIC 2.5x over 8 years.</p><p>| | Fund A | Fund B | |---|---|---| | Gross IRR (stated) | ~22% (inflated by subscription line) | ~20% (disclosed net of line) | | Cumulative management fees paid | ~£65M | ~£48M (step-down + fee offsets) | | Carry paid | £54M | £54M (same underlying profits) | | Total fees + carry | ~£119M | ~£102M | | LP Net IRR | ~15.2% | ~16.4% | | LP Net MOIC | ~2.1x | ~2.2x |</p><p>On a £500M fund, the structural differences — not the headline terms — produced a £17M difference in LP fees over the fund life. Per £10M LP commitment: roughly £340,000 extra cost in Fund A vs Fund B, for identical underlying performance.</p><p>Neither fund broke any rules. Both called themselves \"2 and 20 with an 8% hurdle.\"</p><p>---</p>"}, "4": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"The 8% hurdle protects LPs from paying carry on bad performance.\"</p><p>The hurdle rate protects LPs against paying carry on <em>returns below 8%</em>. But in a fund that generates 8.5% net IRR after fees, LPs receive slightly more than their hurdle and the GP earns carry — despite having barely beaten the hurdle and potentially underperformed a public market index.</p><p>The hurdle does not compare the GP's performance to a public benchmark. A PE fund earning 8.5% net IRR in a year when the S&amp;P 500 returned 15% would still pay full carry despite having destroyed LP value relative to the alternative. The PME (Public Market Equivalent) comparison sits outside this system entirely — it is a benchmark used by sophisticated LPs, not a contractual term.</p><p>### 2. \"Carried interest aligns the GP with LP interests.\"</p><p>Carry aligns the GP with LP <em>profit interests</em>, not LP <em>risk interests</em>. The distinction matters. Carry is a call option: the GP exercises it (receives income) if the fund performs; it expires worthless if the fund doesn't. The GP's personal downside is limited to their GP commitment (typically 1–2% of fund size). The LP's downside is unlimited (they can lose their entire committed capital).</p><p>This asymmetry has a specific implication: the GP is incentivised to take more risk than the LP would optimally prefer, because the GP captures upside via carry but does not proportionally bear downside. High-leverage strategies, large concentrated bets, and extending fund life (hoping a struggling investment turns around to generate carry rather than recognising the loss) are all rational GP behaviours under this structure — and all are potentially against LP interests.</p><p>### 3. \"The waterfall and clawback are separate protections.\"</p><p>They are two halves of the same protection, and only work as a system. The waterfall determines <em>when</em> carry is distributed; the clawback determines whether incorrectly timed distributions can be recovered. A European waterfall makes the clawback largely irrelevant (carry is only paid when the whole fund outcome is known). An American waterfall makes the clawback <em>essential</em> — without it, GPs can win on early deals, extract carry, and leave LPs holding losses on later deals with no recourse. The statement \"we have a clawback provision\" is meaningless without knowing the waterfall type, the escrow size, and the enforcement mechanism.</p><p>### 4. \"Gross-to-net IRR drag is just the carry rate.\"</p><p>The total drag from gross to net IRR has three components, not one: (1) management fees, which reduce the investable capital from day one; (2) carried interest, which takes 20% of profits above the hurdle; and (3) fund expenses (legal, audit, insurance), which are typically charged to the fund. The management fee drag is often overlooked because it is not calculated as a percentage of profits — it is a fixed annual cost. But on a £500M fund with 2% fees for 10 years = £100M total fees = 20% of committed capital consumed by fees before a penny of profit is considered. This fee base, compounded over the fund's life, reduces the IRR available to distribute by several percentage points before carry is even deducted.</p><p>---</p>"}, "5": {"section": "Practical Example: The LP Alignment Scorecard", "html": "<p>When an LP is evaluating a new fund commitment, the following framework — derived from how all five components interact — provides a structured way to assess whether the headline terms create genuine alignment:</p><p>| Term | GP-Friendly (Red Flag) | LP-Standard (Acceptable) | LP-Friendly (Strong) | |---|---|---|---| | <strong>Management fee base</strong> | 2% on committed capital throughout fund life | 2% on committed → step to invested capital post-investment period | 1.5% or lower; fee on invested capital from Year 1 | | <strong>Fee offsets</strong> | 0% — GP keeps all monitoring/advisory/deal fees | 80% offset against management fee | 100% offset; GP cannot double-dip | | <strong>Hurdle rate convention</strong> | 8% simple interest; no subscription line disclosure | 8% compound; subscription line impact disclosed | 8%+ compound; subscription lines &lt;90 days and disclosed | | <strong>Waterfall structure</strong> | American (deal-by-deal carry) | European (whole-fund carry) | European with LPAC oversight of distributions | | <strong>GP catch-up</strong> | 100% catch-up, no threshold | 100% catch-up | Reduced catch-up rate (e.g., 50/50 split until GP whole) | | <strong>Clawback enforcement</strong> | GP entity only, no escrow | GP entity + 25% escrow | Individual partner indemnification + 30% escrow + net-of-tax | | <strong>Clawback time limit</strong> | 2 years post-wind-down | 3-4 years | 5+ years or as long as LPs retain the right | | <strong>GP commitment</strong> | &lt;0.5% of fund | 1-2% of fund | 3%+ of fund; invested in same assets as LPs | | <strong>Carry rate</strong> | 25%+ | 20% | 15-17.5% (for larger, more established managers) | | <strong>Subscription credit lines</strong> | Large, undisclosed, &gt;180-day draws | Disclosed; &lt;180 days | Absent or &lt;90 days with dual IRR reporting |</p><p><strong>How to use this scorecard:</strong></p><p>Count how many terms fall into each column. A fund where most terms are \"GP-friendly\" but the headline is \"standard 2 and 20\" is structurally misaligned despite its marketing. An LP who only reads the headline and skips the LPA detail will systematically overpay for GP services and underscore the risk of incentive failures.</p><p>The most important single term: <strong>waterfall type + clawback enforcement.</strong> These two together determine whether the LP's theoretical protections are real. Everything else — hurdle rate, fee offsets, subscription lines — creates meaningful but smaller value differences. The waterfall/clawback combination can mean the difference between an LP receiving all losses from failed deals while the GP keeps carry on earlier winners, versus a structure where the GP genuinely shares in long-run outcome.</p><p>---</p>"}, "6": {"section": "Why This Relationship Matters", "html": "<p>The conventional wisdom is that \"2 and 20 with an 8% hurdle\" aligns GPs and LPs. This is approximately true in an idealised scenario. In practice, the details of <em>how</em> each component is structured can shift millions of pounds from LP to GP without changing any headline number.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Read fund terms critically</strong>: identify which specific provisions create alignment vs. which are cosmetically aligned but structurally GP-friendly</li><li><strong>Evaluate the GP's actual incentives</strong>: not just \"they earn carry when we profit\" but specifically <em>when</em> and <em>on what</em> they earn carry, and what behaviours each term encourages</li><li><strong>Negotiate intelligently</strong>: know which terms move the needle (waterfall type, clawback enforcement, fee offsets) and which are symbolic</li><li><strong>Diagnose performance claims</strong>: understand why a fund reporting 25% IRR may deliver 17% net to LPs — and whether that gap is normal or a red flag</li><li><strong>Understand why LP governance matters</strong>: many alignment failures are not illegal — they are permitted by ambiguous LPA terms that sophisticated LPs negotiate out and unsophisticated LPs accept</li></ul><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Fund economics are a system in which each component addresses a specific GP/LP misalignment — and each component has a failure mode that creates a different misalignment. Management fees pay the GP to operate but incentivise AUM maximisation. Carried interest rewards performance but functions as a one-sided call option. The hurdle rate ensures minimum LP returns before carry flows, but its protective value depends heavily on compounding convention and whether subscription lines have inflated the reported IRR. The waterfall sequences distributions to protect LP capital, but deal-by-deal structures create timing gaps that only a robust clawback can fix. The clawback corrects those timing gaps, but only if it is properly escrowed, individually guaranteed, and net-of-tax.</p><p>The practical output of this synthesis: no LP should evaluate a fund on headline terms alone. The specific configuration of all five components — not any one of them — determines whether \"2 and 20 with an 8% hurdle\" is genuine alignment or a formula that looks aligned while systematically favouring the GP.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "gp-vs-lp-rights-and-obligations", "title": "GP vs LP Rights and Obligations", "draft_watermark": false, "estimated_runtime_sec": 435, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The defining asymmetry", "on_screen_bullets": ["LPs fund billions, can't direct", "GP: authority + fiduciary duty", "Who can do what — and breach"], "narration": "The asymmetry between GP authority and LP passivity is the defining tension in PE fund governance. LPs commit billions of dollars to managers they largely cannot direct; GPs accept fiduciary duties and extensive obligations in exchange for management authority and carry. Understanding precisely who can do what — and what happens when either party breaches their role — is essential for anyone structuring, investing in, or advising on PE funds. This is the human relationship the LPA encodes, made concrete.", "est_sec": 42}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Two distinct legal roles", "on_screen_bullets": ["GP: management + fiduciary duty", "LP: passive economic rights", "Protection without management liability"], "narration": "The definition. The GP and LP in a private equity fund occupy distinct legal roles — the GP holds exclusive management authority with fiduciary duties toward LPs, while LPs hold passive economic rights and limited governance powers that protect their capital without exposing them to management liability. Authority on one side, passivity on the other, by deliberate design.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The silent restaurant backer", "on_screen_bullets": ["GP runs everything, earns fee + carry", "LPs put up ~99%, manage nothing", "Passivity is a legal condition"], "narration": "A PE fund is a partnership with two very different members. The GP, the general partner, is the manager — they run everything: find companies to buy, do the deals, manage the portfolio, and return the money. In return they earn a management fee and, if performance is strong, carried interest; and they carry legal responsibility and fiduciary duties to act in the LPs' interests. The LPs, the limited partners, are the investors — they provide most of the money, typically ninety-nine percent of fund capital, and they manage nothing. Their passivity isn't just contractual; it's the legal condition for their liability protection. An LP can lose at most what they committed, and in exchange they give up the right to tell the GP what to do. Think of a silent partnership in a restaurant: the LP is the backer who put up the money; the GP is the chef-owner who runs the kitchen. The backer can review the accounts, fire the chef if things go catastrophically wrong, and take their share of profits — but they cannot tell the chef how to cook.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Captain and financiers", "on_screen_bullets": ["Financiers own the ship, can't steer", "Captain has sole navigation authority", "Removable by vote; owes duty of care"], "narration": "The mental model: the GP-LP relationship is like a ship's captain and the ship's financiers. The financiers — the LPs — own the ship and funded its outfitting, but they cannot grab the wheel. The captain — the GP — has sole authority to navigate. What the financiers can do is receive the cargo profits, review the ship's logs, remove the captain by majority vote if truly necessary, and refuse to finance the next voyage. And the captain owes them a duty of care to keep ship and cargo safe, must stay within the chartered route — the investment mandate — and loses their profit share if the voyage ends in disaster. Authority to steer, but accountability for where the ship ends up.", "est_sec": 46}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Rights and obligations, both sides", "on_screen_bullets": ["GP: management, capital calls, fee, carry", "GP owes: care + loyalty, mandate, reporting", "LP: distributions, info, consent, removal"], "narration": "Technically, lay out all four quadrants. GP rights: exclusive management authority over every investment decision, non-delegable without consent; capital-call authority during the investment period, on about ten business days' notice; the management-fee entitlement, which is not contingent on performance; the conditional right to twenty percent carried interest above the hurdle; fund administration; and co-investment allocation. GP obligations: the fiduciary duties of care and loyalty — act with the prudence of a reasonable manager, and in the LPs' interests, not the GP's; compliance with the investment mandate, breach of which is material; quarterly and annual reporting; key-man compliance; investment-period restrictions; and consulting the LPAC on conflicts. LP rights: economic rights to distributions through the waterfall; information rights, quarterly and annual; LPAC representation for large LPs; consent rights over amendments and extensions; and ultimately no-fault removal of the GP on a roughly sixty-six-to-seventy-five percent supermajority, where the GP forfeits future fees but keeps carry already earned. LP obligations: the core one is capital-call compliance — fund the call within the notice period or be in default; plus confidentiality, no management interference, and regulatory representations. And the defaulting-LP regime is deliberately brutal — forced transfer of the interest at a steep discount, often fifty to eighty-five percent of NAV, forfeited distributions, and lost voting rights — severe enough to deter default while keeping the fund running. Underpinning all of it: limited liability caps an LP's loss at committed capital, but only so long as they stay genuinely passive.", "est_sec": 72}, {"n": 6, "beat": "structure", "visual": "mermaid", "source_section": "Diagram", "on_screen_title": "What an LP can actually do", "on_screen_bullets": ["Escalate via LPAC first", "Then supermajority vote", "Never directly direct an investment"], "mermaid": "flowchart TD\n  B[\"LP suspects breach<br/>(mandate / fiduciary duty)\"] --> LPAC[\"Raise via LPAC consultation\"]\n  LPAC --> FIX{\"GP remedies?\"}\n  FIX -->|\"yes\"| OK[\"Resolved\"]\n  FIX -->|\"no\"| VOTE[\"Supermajority vote<br/>(~66.7–75%)\"]\n  VOTE --> REM[\"No-fault removal:<br/>GP loses future fees,<br/>keeps earned carry\"]\n  B -.->|\"NOT this — destroys limited liability\"| DIRECT[\"Directly direct an investment\"]", "narration": "Here's the escalation path when an LP suspects a breach. It starts by raising the concern through LPAC consultation. If the GP remedies it, resolved. If not, the LPs can move to a supermajority vote, around sixty-six-point-seven to seventy-five percent, leading to no-fault removal — where the GP loses future fees but keeps carry already earned. Now look at the dashed branch, because it's the line an LP must never cross: directly directing an investment. Do that, and you forfeit passive status and limited liability. Every legitimate remedy runs through governance — LPAC, then vote — never through seizing management.", "est_sec": 44}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "CalPERS and the fee scandal", "on_screen_bullets": ["Board-observer + granular reporting rights", "Excess portfolio fees surfaced via reporting", "Info rights = active governance tool"], "narration": "Take CalPERS, one of the world's largest LP investors. It has negotiated LP terms that include board-observer rights at portfolio companies above a threshold, quarterly detailed exposure reporting, and enhanced carry-escrow requirements. When GPs were accused, around 2014 and 2015, of charging excess fees to portfolio companies — a real industry issue that prompted SEC enforcement — the LPs with strong information rights were the ones who discovered the practice, through portfolio-company-level reporting. GPs whose LPs lacked those rights had longer to run the practice before anyone caught it. The lesson: LP information rights aren't bureaucratic box-ticking. Within a passive role, they're the active governance tool — the way an LP catches a problem without ever grabbing the wheel.", "est_sec": 50}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Big commitment ≠ direction rights", "The fund owns the companies, not the GP", "Removal is a backstop, not routine"], "narration": "Three corrections. First, LPs cannot direct investments by committing enough capital — the amount committed grants no management authority; even a forty-percent LP gets only enhanced consent and LPAC rights, never investment direction. Second, the GP does not own the portfolio companies — technically the fund, and therefore the LPs, owns them; the GP merely manages the fund on the LPs' behalf as their fiduciary. And third, no-fault removal is not a realistic everyday threat — it's very rare in practice, because the sixty-six-to-seventy-five-percent threshold makes LP coordination hard, the process is disruptive, and LPs usually prefer to negotiate; it's a backstop, not a routine remedy.", "est_sec": 46}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Asymmetric by design", "on_screen_bullets": ["GP: authority + care + loyalty", "LP: passive rights, removal backstop", "Passivity buys limited liability"], "narration": "To recap. GP and LP roles are legally asymmetric by design. The GP holds exclusive management authority with fiduciary duties of care and loyalty — it must stay within the mandate, report regularly, and consult the LPAC on conflicts. LPs hold passive economic rights — distributions, information, consent, LPAC seats, and ultimately no-fault removal — but cannot direct investments, because that passivity is the very thing that buys their limited liability, capping loss at committed capital. Capital-call compliance is the LP's core obligation, and default triggers severe penalties including forced transfer at a deep discount. The LPAC bridges governance without ever crossing into management. Next we turn to the mathematics that decides when the GP actually starts earning carry — preferred return compounding and timing.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "What two fiduciary duties does the GP owe LPs? If an LP suspects a breach, what is the legitimate escalation path — and what must they never do, and why?", "narration": "Before the next lesson, answer both. What are the two fiduciary duties a GP owes its LPs — and if an LP suspects a breach, what is the legitimate escalation path, and what must they never do, and why? Reason it out, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "What fiduciary duties does a GP owe to LPs?", "answer": "Duty of care (act with prudence of a reasonable investment manager) and duty of loyalty (act in LPs' best interests, not the GP's)."}, {"label": "Q2.", "question": "What action can LPs take if the GP repeatedly breaches the investment mandate?", "answer": "LPs can vote to remove the GP (no-fault removal) with a supermajority (typically 66.7-75% by commitment)."}, {"label": "Q3.", "question": "Why can an LP NOT direct investment decisions even if they commit 40% of fund capital?", "answer": "Because directing investments would compromise LP passive status, risking reclassification as a general partner with unlimited liability — regardless of commitment size."}, {"label": "Q4.", "question": "What typically happens to an LP who defaults on a capital call?", "answer": "Default notice issued; cure period; if uncured: forced transfer at deep discount (50-85% of NAV), loss of distributions and voting rights, potential legal action."}, {"label": "Q5.", "question": "What is the LPAC and what specific types of decisions does it have authority over?", "answer": "LPAC is the Limited Partner Advisory Committee — it has authority over: conflict of interest approvals, valuation disputes, material LPA amendment approvals, and GP waiver requests. It cannot direct investment decisions."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: GP vs LP Rights and Obligations\n\n[hook] The defining asymmetry\nThe asymmetry between GP authority and LP passivity is the defining tension in PE fund governance. LPs commit billions of dollars to managers they largely cannot direct; GPs accept fiduciary duties and extensive obligations in exchange for management authority and carry. Understanding precisely who can do what — and what happens when either party breaches their role — is essential for anyone structuring, investing in, or advising on PE funds. This is the human relationship the LPA encodes, made concrete.\n\n[definition] Two distinct legal roles\nThe definition. The GP and LP in a private equity fund occupy distinct legal roles — the GP holds exclusive management authority with fiduciary duties toward LPs, while LPs hold passive economic rights and limited governance powers that protect their capital without exposing them to management liability. Authority on one side, passivity on the other, by deliberate design.\n\n[intuition] The silent restaurant backer\nA PE fund is a partnership with two very different members. The GP, the general partner, is the manager — they run everything: find companies to buy, do the deals, manage the portfolio, and return the money. In return they earn a management fee and, if performance is strong, carried interest; and they carry legal responsibility and fiduciary duties to act in the LPs' interests. The LPs, the limited partners, are the investors — they provide most of the money, typically ninety-nine percent of fund capital, and they manage nothing. Their passivity isn't just contractual; it's the legal condition for their liability protection. An LP can lose at most what they committed, and in exchange they give up the right to tell the GP what to do. Think of a silent partnership in a restaurant: the LP is the backer who put up the money; the GP is the chef-owner who runs the kitchen. The backer can review the accounts, fire the chef if things go catastrophically wrong, and take their share of profits — but they cannot tell the chef how to cook.\n\n[intuition] Captain and financiers\nThe mental model: the GP-LP relationship is like a ship's captain and the ship's financiers. The financiers — the LPs — own the ship and funded its outfitting, but they cannot grab the wheel. The captain — the GP — has sole authority to navigate. What the financiers can do is receive the cargo profits, review the ship's logs, remove the captain by majority vote if truly necessary, and refuse to finance the next voyage. And the captain owes them a duty of care to keep ship and cargo safe, must stay within the chartered route — the investment mandate — and loses their profit share if the voyage ends in disaster. Authority to steer, but accountability for where the ship ends up.\n\n[mechanics] Rights and obligations, both sides\nTechnically, lay out all four quadrants. GP rights: exclusive management authority over every investment decision, non-delegable without consent; capital-call authority during the investment period, on about ten business days' notice; the management-fee entitlement, which is not contingent on performance; the conditional right to twenty percent carried interest above the hurdle; fund administration; and co-investment allocation. GP obligations: the fiduciary duties of care and loyalty — act with the prudence of a reasonable manager, and in the LPs' interests, not the GP's; compliance with the investment mandate, breach of which is material; quarterly and annual reporting; key-man compliance; investment-period restrictions; and consulting the LPAC on conflicts. LP rights: economic rights to distributions through the waterfall; information rights, quarterly and annual; LPAC representation for large LPs; consent rights over amendments and extensions; and ultimately no-fault removal of the GP on a roughly sixty-six-to-seventy-five percent supermajority, where the GP forfeits future fees but keeps carry already earned. LP obligations: the core one is capital-call compliance — fund the call within the notice period or be in default; plus confidentiality, no management interference, and regulatory representations. And the defaulting-LP regime is deliberately brutal — forced transfer of the interest at a steep discount, often fifty to eighty-five percent of NAV, forfeited distributions, and lost voting rights — severe enough to deter default while keeping the fund running. Underpinning all of it: limited liability caps an LP's loss at committed capital, but only so long as they stay genuinely passive.\n\n[structure] What an LP can actually do\nHere's the escalation path when an LP suspects a breach. It starts by raising the concern through LPAC consultation. If the GP remedies it, resolved. If not, the LPs can move to a supermajority vote, around sixty-six-point-seven to seventy-five percent, leading to no-fault removal — where the GP loses future fees but keeps carry already earned. Now look at the dashed branch, because it's the line an LP must never cross: directly directing an investment. Do that, and you forfeit passive status and limited liability. Every legitimate remedy runs through governance — LPAC, then vote — never through seizing management.\n\n[worked-example] CalPERS and the fee scandal\nTake CalPERS, one of the world's largest LP investors. It has negotiated LP terms that include board-observer rights at portfolio companies above a threshold, quarterly detailed exposure reporting, and enhanced carry-escrow requirements. When GPs were accused, around 2014 and 2015, of charging excess fees to portfolio companies — a real industry issue that prompted SEC enforcement — the LPs with strong information rights were the ones who discovered the practice, through portfolio-company-level reporting. GPs whose LPs lacked those rights had longer to run the practice before anyone caught it. The lesson: LP information rights aren't bureaucratic box-ticking. Within a passive role, they're the active governance tool — the way an LP catches a problem without ever grabbing the wheel.\n\n[pitfalls] What people get wrong\nThree corrections. First, LPs cannot direct investments by committing enough capital — the amount committed grants no management authority; even a forty-percent LP gets only enhanced consent and LPAC rights, never investment direction. Second, the GP does not own the portfolio companies — technically the fund, and therefore the LPs, owns them; the GP merely manages the fund on the LPs' behalf as their fiduciary. And third, no-fault removal is not a realistic everyday threat — it's very rare in practice, because the sixty-six-to-seventy-five-percent threshold makes LP coordination hard, the process is disruptive, and LPs usually prefer to negotiate; it's a backstop, not a routine remedy.\n\n[recap] Asymmetric by design\nTo recap. GP and LP roles are legally asymmetric by design. The GP holds exclusive management authority with fiduciary duties of care and loyalty — it must stay within the mandate, report regularly, and consult the LPAC on conflicts. LPs hold passive economic rights — distributions, information, consent, LPAC seats, and ultimately no-fault removal — but cannot direct investments, because that passivity is the very thing that buys their limited liability, capping loss at committed capital. Capital-call compliance is the LP's core obligation, and default triggers severe penalties including forced transfer at a deep discount. The LPAC bridges governance without ever crossing into management. Next we turn to the mathematics that decides when the GP actually starts earning carry — preferred return compounding and timing.\n\nQ: What fiduciary duties does a GP owe to LPs?\nA: Duty of care (act with prudence of a reasonable investment manager) and duty of loyalty (act in LPs' best interests, not the GP's).\nQ: What action can LPs take if the GP repeatedly breaches the investment mandate?\nA: LPs can vote to remove the GP (no-fault removal) with a supermajority (typically 66.7-75% by commitment).\nQ: Why can an LP NOT direct investment decisions even if they commit 40% of fund capital?\nA: Because directing investments would compromise LP passive status, risking reclassification as a general partner with unlimited liability — regardless of commitment size.\nQ: What typically happens to an LP who defaults on a capital call?\nA: Default notice issued; cure period; if uncured: forced transfer at deep discount (50-85% of NAV), loss of distributions and voting rights, potential legal action.\nQ: What is the LPAC and what specific types of decisions does it have authority over?\nA: LPAC is the Limited Partner Advisory Committee — it has authority over: conflict of interest approvals, valuation disputes, material LPA amendment approvals, and GP waiver requests. It cannot direct investment decisions.\nEnd-card question: What two fiduciary duties does the GP owe LPs? If an LP suspects a breach, what is the legitimate escalation path — and what must they never do, and why?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The asymmetry between GP authority and LP passivity is the defining tension in PE fund governance. LPs commit billions of dollars to managers they largely cannot direct. GPs accept fiduciary duties and extensive obligations in exchange for management authority and carry. Understanding precisely who can do what — and what happens when either party breaches their role — is essential for anyone structuring, investing in, or advising on PE funds.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The GP and LP in a private equity fund occupy distinct legal roles — the GP holds exclusive management authority with fiduciary duties toward LPs, while LPs hold passive economic rights and limited governance powers that protect their capital without exposing them to management liability.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>A PE fund is a partnership with two very different types of members:</p><p><strong>The GP (General Partner):</strong> The manager. They run everything — find companies to buy, do the deals, manage the portfolio, and return money to investors. In return, they earn a management fee and, if performance is strong, carried interest. They are legally responsible for the fund's actions and have fiduciary duties to act in LPs' interests.</p><p><strong>The LPs (Limited Partners):</strong> The investors. They provide most of the money (typically 99% of fund capital). They do not manage anything. Their passivity is not just contractual — it is a legal condition for their liability protection. An LP can lose at most what they committed. In exchange, they give up the right to tell the GP what to do.</p><p>Think of it like a sleeping partnership in a restaurant: the LP is the silent financial backer who put up the money; the GP is the chef-owner who runs the kitchen. The backer can review the accounts, fire the chef if things go catastrophically wrong, and receive their share of profits — but they cannot tell the chef how to cook.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The GP-LP relationship is like a ship's captain and ship's financiers. The financiers (LPs) own the ship and provided the money to outfit it. The captain (GP) has sole authority to navigate — the financiers cannot grab the wheel. But the financiers can: receive the cargo profits, review the ship's logs, remove the captain by majority vote if truly necessary, and refuse to finance the next voyage. The captain owes a duty of care to keep the ship and cargo safe, must stay within the chartered route (investment mandate), and loses their profit share if the voyage ends in disaster.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### GP Rights</p><p><strong>1. Exclusive Management Authority</strong> The GP has sole and exclusive discretion over all investment decisions: selecting, structuring, managing, and exiting portfolio companies. This authority is non-delegable without LP consent and is the foundation of the fund's operational structure. No LP can override an investment decision within the mandate.</p><p><strong>2. Capital Call Authority</strong> During the investment period, the GP may call capital from LPs (typically with 10 business days' notice) up to their respective commitment amounts, subject to LPA restrictions (e.g., no single call may exceed 25% of commitment without LPAC approval).</p><p><strong>3. Management Fee Entitlement</strong> The GP is entitled to management fees as defined in the LPA — calculated on committed capital during the investment period, then stepping down to invested capital post-investment period. This fee is not contingent on performance.</p><p><strong>4. Carried Interest Entitlement</strong> Conditional right to 20% (standard) of net profits above the hurdle rate. The GP earns carry only upon realisation of investments and clearance of the waterfall. This right is fundamental but subject to clawback.</p><p><strong>5. Fund Administration Authority</strong> GP controls day-to-day fund operations: calling and convening LP meetings, preparing reports, directing valuations, managing fund-level entities.</p><p><strong>6. Co-Investment Allocation Rights</strong> The GP typically has the right to offer (but not compel) LPs to participate in co-investments alongside the fund, subject to LPA conflict provisions and the co-investment policy.</p><p>### GP Obligations</p><p><strong>1. Fiduciary Duties (Duty of Care and Duty of Loyalty)</strong> The GP owes fiduciary duties to LPs under both common law and most LP statutes. This means: - <em>Duty of care</em>: act with the care of a prudent, reasonable investment manager - <em>Duty of loyalty</em>: act in the best interests of the fund/LPs, not the GP's personal interests - Conflict of interest transactions require LPAC consent and disclosure</p><p><strong>2. Investment Mandate Compliance</strong> The GP must invest within the geographic, sector, deal size, and concentration limits defined in the LPA. Breach of mandate is a material breach — could trigger no-fault removal.</p><p><strong>3. Reporting Obligations</strong> - Quarterly NAV reports with portfolio company valuations - Annual audited financial statements (typically within 90 days of year-end) - LPAC meeting materials and conflict disclosures - Capital account statements for each LP - PCAP (portfolio company) reporting as specified</p><p><strong>4. Key Man Compliance</strong> Named key men must remain actively involved in fund management. Passive employment or departure triggers clause mechanics.</p><p><strong>5. Investment Period Restrictions</strong> Cannot make new investments after investment period expires (except follow-ons in existing portfolio). Cannot recycle capital beyond limits defined in LPA.</p><p><strong>6. LPAC Consultation</strong> Must consult LPAC before: (a) approving conflicts of interest, (b) making investments that breach mandate absent waiver, (c) making material amendments to LPA, (d) entering related-party transactions.</p><p>### LP Rights</p><p><strong>1. Economic Rights — Distributions</strong> LPs have the right to receive distributions according to the waterfall: return of capital → preferred return → GP catch-up → 80/20 split of remaining profits. This is the primary LP right — the economic bargain underlying the whole structure.</p><p><strong>2. Information Rights</strong> LPs have the right to receive: - Quarterly valuation reports (TVPI, DPI, RVPI, portfolio company updates) - Annual audited accounts - Capital call and distribution notices - Enhanced reporting for LPAC members The scope of information rights is heavily negotiated — top-tier LPs secure more granular data.</p><p><strong>3. LPAC Representation</strong> Large LPs (typically those committing &gt;5% of total fund or &gt;$50M) are eligible for LPAC seats. LPAC members have additional governance rights including: conflict approval, waiver decisions, valuation challenges, and material amendment approval.</p><p><strong>4. LP Consent Rights</strong> Certain actions require LP majority or supermajority approval: - Amending the LPA (typically 66.7% or 75% by commitment) - Extending the investment period beyond its scheduled end - Extending the fund life beyond the base term - Approving a key man resolution - Removal of the GP (typically 66.7-75%)</p><p><strong>5. No-Fault Removal</strong> LPs can remove the GP without cause with a supermajority vote (typically 66.7-75% of LP commitments by value). Upon removal, the GP forfeits future management fees but retains carry already earned on existing portfolio. The fund is typically wound down, or a replacement GP is appointed with LP approval. This right is rarely exercised but is a critical backstop.</p><p><strong>6. Transfer of LP Interests</strong> LPs may transfer their fund interest (their position in the fund) on the secondary market, subject to: GP written consent, right of first refusal in favour of existing LPs, transferee meeting eligibility requirements (qualified purchaser status in US).</p><p>### LP Obligations</p><p><strong>1. Capital Call Compliance</strong> The core LP obligation: fund capital calls within the notice period (typically 10 business days) up to committed capital. Failure to fund is a <strong>default</strong> — see defaulting LP provisions.</p><p><strong>2. Confidentiality</strong> LPs are bound by strict confidentiality provisions in the LPA: cannot disclose portfolio company financials, fund performance data, or deal-level information to third parties (subject to exceptions for regulatory disclosure).</p><p><strong>3. No Management Interference</strong> LPs must not take any action that could be construed as managing the fund or directing investments. This preserves their passive status and limited liability.</p><p><strong>4. Regulatory Representations</strong> LPs must represent that they are eligible investors (accredited, qualified purchaser, institutional) and comply with applicable securities laws. ERISA-status LPs must provide representations about plan assets and fiduciary compliance.</p><p>### Defaulting LPs</p><p>If an LP fails to fund a capital call: - Notice of default issued; typically 10-30 day cure period - Post-cure default consequences (as defined in LPA):   - Forced transfer of LP interest at significant discount (often 50-85% of NAV)   - Forfeiture of distributions   - Loss of voting rights   - GP discretion to seek alternative funding or reduce total fund size   - In severe cases, legal action for breach of contract</p><p>Defaulting LP provisions are designed to be severe enough to deter defaults while maintaining fund operational continuity.</p><p>### What \"Limited Liability\" Means Practically</p><p>An LP's liability is <strong>limited to committed capital</strong>. This means: - If an LP commits $100M to a fund and the fund's portfolio companies incur $500M of liabilities, the LP is not exposed to the $400M excess - The GP, as general partner, bears unlimited liability for fund obligations (this is why GPs are typically LLCs or limited liability companies themselves) - LP limited liability status is contingent on genuine passivity — active management involvement destroys it</p>"}, "5": {"section": "Diagram", "html": "<p>What an LP can actually <em>do</em> when it suspects the GP has breached its role — the escalation path, and where passivity ends.</p><p>The dashed branch is the line an LP must never cross: directing investments forfeits passive status and limited liability. Every legitimate remedy runs through governance (LPAC → vote), never through management.</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>CalPERS and the PE manager conflict (illustrative):</strong></p><p>CalPERS (California Public Employees' Retirement System), as one of the world's largest LP investors, has negotiated LP agreements that include: board observer rights at portfolio companies for investments above a threshold, quarterly detailed exposure reporting, and enhanced carry escrow requirements. When a GP was accused of charging excess fees to portfolio companies in 2014-2015 (a real industry issue that prompted SEC enforcement), LPs with strong information rights discovered the practice through portfolio company-level reporting. GPs without strong LP information rights had longer to run the practice before detection. This illustrates why LP information rights are not merely bureaucratic — they are an active governance tool.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ul class='notelist'><li><strong>\"LPs can direct investments if they commit enough capital.\"</strong> False. The amount committed does not grant management authority. Even a 40% LP commitment provides no investment direction rights — only enhanced consent and LPAC rights.</li><li><strong>\"The GP owns the portfolio companies.\"</strong> Technically false. The fund (the LP) owns the portfolio companies. The GP manages the fund on behalf of the LP as their fiduciary.</li><li><strong>\"No-fault removal is a realistic threat.\"</strong> Very rare in practice. The threshold (66.7-75%) is high enough that LP coordination is difficult; the process is disruptive; and LPs often prefer to negotiate rather than trigger removal. It is a backstop, not a routine remedy.</li></ul>"}, "8": {"section": "Summary", "html": "<p>GP and LP roles are legally asymmetric by design. The GP holds exclusive management authority with fiduciary duties of care and loyalty to LPs — must comply with the investment mandate, report regularly, and consult the LPAC on conflicts. LPs hold passive economic rights — distribution entitlements, information rights, consent rights, LPAC representation, and ultimately no-fault removal — but cannot direct investments. This passivity is not a weakness but a legal requirement for limited liability: LPs' maximum loss equals committed capital only so long as they remain passive. Capital call compliance is the LP's core obligation; default triggers severe penalties including forced transfer at deep discount. The LPAC bridges governance without crossing into management territory.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

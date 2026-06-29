@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "co-investment-rights", "title": "Co-Investment Rights", "draft_watermark": false, "estimated_runtime_sec": 415, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "A central value lever", "on_screen_bullets": ["Same deals, far lower cost", "Lets GPs do bigger deals", "~20% of PE deal funding"], "narration": "Co-investments have become one of the most significant value levers in the entire LP-GP relationship. For LPs, they offer access to the same deals at dramatically lower cost. For GPs, they make it possible to execute larger transactions than the fund size allows, to deepen LP relationships, and to selectively reward preferred LPs. The co-investment market has grown to roughly twenty percent of PE deal funding, and it's now a central consideration in any large LP's strategy. We covered the fee arithmetic earlier; this lesson is the legal and operational framework — the rights themselves, who gets them, and what it takes to actually use them.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The right to invest alongside", "on_screen_bullets": ["Contractual right, specific deals", "Zero or reduced fees and carry", "Outside the main fund vehicle"], "narration": "The definition. Co-investment rights are a limited partner's contractual right to invest directly alongside a PE fund in specific transactions — typically at zero or reduced management fees and carried interest — outside the main fund vehicle. The right is the entry ticket; whether and how often it actually gets exercised is a separate matter we'll come to.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Topping up the cheque", "on_screen_bullets": ["$2bn fund, $4bn target", "GP invites LPs for the extra $500m", "Granted in side letters, not for all"], "narration": "Imagine a two-billion-dollar fund identifies a target valued at four billion. The fund can only write a one-and-a-half-billion equity cheque from its own capital. To bridge the gap — or simply to do more deals than the fund can handle alone — the GP invites certain LPs to put an additional five hundred million directly into this specific deal. Those direct investments alongside the fund are co-investments. The key feature: most charge zero management fee and zero or reduced carry — sometimes called free carry — so the LP gets exposure to the deal at near-zero incremental cost, versus the two percent a year and twenty percent of profits they pay inside the fund. And critically, these rights are typically granted during the side-letter negotiations at fundraising, and they're not available to all LPs — only to the large and strategically important ones.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The big building deal", "on_screen_bullets": ["Syndicate normally does houses", "'Who wants the other $8m, no fees?'", "Watch which deals get offered"], "narration": "The mental model: picture a property syndicate — the fund — that normally buys and renovates houses. A large commercial building comes up, twenty million, too big for the fund's usual deal size. The syndicator calls his best investors: I'm taking twelve million from the fund — who wants to put in the other eight million directly, same deal, no extra fees? The investors who say yes get exposure to a specific deal at near-zero incremental cost. That's a co-investment. But here's the catch baked into the analogy: sometimes the syndicator offers co-investments on buildings he's less certain about, quietly offloading the riskier exposure. So the smart investors track whether the co-invest deals actually perform as well as the fund's main portfolio. That suspicion is the heart of the adverse-selection problem.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Who gets rights, and why", "on_screen_bullets": ["GP motives: capacity, loyalty, efficiency", "Allocated to $250m+ and capable LPs", "Three deal types: A, B, C"], "narration": "Technically, GPs offer co-investments for three reasons: deal size exceeding fund concentration limits, so a two-billion fund capped at six hundred million per deal can't fund a one-and-a-half-billion equity cheque alone; deepening relationships, because co-invest access is one of the most valued benefits an LP can receive and builds loyalty for future re-ups; and capital efficiency, since using co-invest capital keeps more dry powder in the fund for diversification. The rights are selectively allocated — typically to the largest commitments, two-hundred-fifty-million-plus; to strategic anchor LPs who provided first-close capital; to LPs with demonstrated capability to evaluate and execute fast, not those who'll demand two months of diligence; and to loyal multi-fund relationships. Small LPs under fifty million usually get nothing. And the central risk is adverse selection across three deal types. Type A, capacity deals: genuinely too large for the fund, the GP has high conviction, and co-invest fills the gap — neutral to beneficial. Type B, adverse: the GP is less confident or had to overpay, so it takes a smaller fund allocation and offloads more exposure to co-investors, who end up overweight a lower-conviction deal. Type C, reward: the GP gives its most attractive deals to its most valued LPs — beneficial for that LP, but it means other rights-holders see weaker flow. LPs manage this by tracking co-invest outcomes separately, asking the GP directly why a deal is being offered, watching for patterns in weaker sectors, and requiring the GP to keep meaningful fund equity in each deal to align interests.", "est_sec": 70}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "GIC, one of the most active", "on_screen_bullets": ["$6bn EV, $3bn equity", "GIC co-invests $500m at 0% carry", "~$150m carry saved on one deal"], "narration": "Take GIC — Singapore's sovereign fund, over seven hundred billion in assets — one of the world's most active co-investors. In a typical large-cap deal, a GP acquiring a six-billion enterprise-value company with three billion of equity, the structure might be two-point-two billion from the fund, five hundred million co-invested by GIC at zero carry, and three hundred million from other LPs. Look at GIC's fee saving on that five hundred million at zero carry versus twenty percent. At a two-and-a-half-times gross MOIC, the five hundred million generates seven hundred fifty million of gross profit, and twenty percent carry on that would have been a hundred-fifty million — so the saving is roughly a hundred-fifty million on a single deal. Across a portfolio of eight to ten large co-investments, GIC's blended net return is materially higher than if all that capital had gone through the main fund vehicle. That arithmetic is precisely why GIC has built a substantial in-house direct-investment team — the rights are only worth as much as your capacity to act on them.", "est_sec": 58}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Not always free (5–10% carry)", "Rights ≠ actual co-invests", "Less time, not more safety"], "narration": "Three corrections. First, co-investments aren't always entirely free — some GPs charge a reduced five-to-ten percent carry rather than zero, especially on capital raised through placement agents or co-investment funds, and LPs still bear their own deal execution costs. Second, having co-invest rights in your side letter does not mean you'll actually get co-investments — GPs generally aren't contractually obliged to offer them; they choose which LPs to invite, based on relationship strength and execution capability, so a passive rights-holder may see few or none. And third, co-investments are not safer because you know more about the deal — in fact the LP gets far less time, five to ten days, to diligence a co-investment than the months the GP spent on the main fund deal, so the LP is inherently working with less information and time; rapid underwriting capability is essential, not a guarantee of quality.", "est_sec": 52}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Valuable, conditional, demanding", "on_screen_bullets": ["0 or reduced fees vs 2-and-20", "Adverse selection, 5–10 day windows", "For the largest, most capable LPs"], "narration": "To recap. Co-investment rights let LPs invest directly alongside a fund in specific deals at zero or reduced fees. GPs offer them to enable larger deals, deepen relationships, and reward strategic LPs, and the economics are compelling — zero fee and zero or reduced carry versus two-and-twenty saves millions per deal. But the rights carry adverse-selection risk, because GPs choose which deals to offer and to whom; effective co-investing requires institutional underwriting capability and the ability to commit within five to ten days; and the market has grown to twenty to thirty percent of large-cap PE equity, dominated by sovereign wealth funds and large pensions. The rights are negotiated in side letters and reserved for the largest, most strategic, most capable LPs. Next we meet the largest LP type of all, and the constraints that shape their behaviour — pension funds as PE LPs.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Holding co-invest rights in your side letter doesn't guarantee you'll receive deals — why not? And why is a co-investment riskier on information grounds than the GP's own fund investment in the same company?", "narration": "Before the next lesson, answer both. Holding co-investment rights in your side letter does not guarantee you'll actually receive co-investments — why not? And why is a co-investment riskier on pure information grounds than the GP's own fund investment in the very same company? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Co-Investment Rights\n\n[hook] A central value lever\nCo-investments have become one of the most significant value levers in the entire LP-GP relationship. For LPs, they offer access to the same deals at dramatically lower cost. For GPs, they make it possible to execute larger transactions than the fund size allows, to deepen LP relationships, and to selectively reward preferred LPs. The co-investment market has grown to roughly twenty percent of PE deal funding, and it's now a central consideration in any large LP's strategy. We covered the fee arithmetic earlier; this lesson is the legal and operational framework — the rights themselves, who gets them, and what it takes to actually use them.\n\n[definition] The right to invest alongside\nThe definition. Co-investment rights are a limited partner's contractual right to invest directly alongside a PE fund in specific transactions — typically at zero or reduced management fees and carried interest — outside the main fund vehicle. The right is the entry ticket; whether and how often it actually gets exercised is a separate matter we'll come to.\n\n[intuition] Topping up the cheque\nImagine a two-billion-dollar fund identifies a target valued at four billion. The fund can only write a one-and-a-half-billion equity cheque from its own capital. To bridge the gap — or simply to do more deals than the fund can handle alone — the GP invites certain LPs to put an additional five hundred million directly into this specific deal. Those direct investments alongside the fund are co-investments. The key feature: most charge zero management fee and zero or reduced carry — sometimes called free carry — so the LP gets exposure to the deal at near-zero incremental cost, versus the two percent a year and twenty percent of profits they pay inside the fund. And critically, these rights are typically granted during the side-letter negotiations at fundraising, and they're not available to all LPs — only to the large and strategically important ones.\n\n[intuition] The big building deal\nThe mental model: picture a property syndicate — the fund — that normally buys and renovates houses. A large commercial building comes up, twenty million, too big for the fund's usual deal size. The syndicator calls his best investors: I'm taking twelve million from the fund — who wants to put in the other eight million directly, same deal, no extra fees? The investors who say yes get exposure to a specific deal at near-zero incremental cost. That's a co-investment. But here's the catch baked into the analogy: sometimes the syndicator offers co-investments on buildings he's less certain about, quietly offloading the riskier exposure. So the smart investors track whether the co-invest deals actually perform as well as the fund's main portfolio. That suspicion is the heart of the adverse-selection problem.\n\n[mechanics] Who gets rights, and why\nTechnically, GPs offer co-investments for three reasons: deal size exceeding fund concentration limits, so a two-billion fund capped at six hundred million per deal can't fund a one-and-a-half-billion equity cheque alone; deepening relationships, because co-invest access is one of the most valued benefits an LP can receive and builds loyalty for future re-ups; and capital efficiency, since using co-invest capital keeps more dry powder in the fund for diversification. The rights are selectively allocated — typically to the largest commitments, two-hundred-fifty-million-plus; to strategic anchor LPs who provided first-close capital; to LPs with demonstrated capability to evaluate and execute fast, not those who'll demand two months of diligence; and to loyal multi-fund relationships. Small LPs under fifty million usually get nothing. And the central risk is adverse selection across three deal types. Type A, capacity deals: genuinely too large for the fund, the GP has high conviction, and co-invest fills the gap — neutral to beneficial. Type B, adverse: the GP is less confident or had to overpay, so it takes a smaller fund allocation and offloads more exposure to co-investors, who end up overweight a lower-conviction deal. Type C, reward: the GP gives its most attractive deals to its most valued LPs — beneficial for that LP, but it means other rights-holders see weaker flow. LPs manage this by tracking co-invest outcomes separately, asking the GP directly why a deal is being offered, watching for patterns in weaker sectors, and requiring the GP to keep meaningful fund equity in each deal to align interests.\n\n[worked-example] GIC, one of the most active\nTake GIC — Singapore's sovereign fund, over seven hundred billion in assets — one of the world's most active co-investors. In a typical large-cap deal, a GP acquiring a six-billion enterprise-value company with three billion of equity, the structure might be two-point-two billion from the fund, five hundred million co-invested by GIC at zero carry, and three hundred million from other LPs. Look at GIC's fee saving on that five hundred million at zero carry versus twenty percent. At a two-and-a-half-times gross MOIC, the five hundred million generates seven hundred fifty million of gross profit, and twenty percent carry on that would have been a hundred-fifty million — so the saving is roughly a hundred-fifty million on a single deal. Across a portfolio of eight to ten large co-investments, GIC's blended net return is materially higher than if all that capital had gone through the main fund vehicle. That arithmetic is precisely why GIC has built a substantial in-house direct-investment team — the rights are only worth as much as your capacity to act on them.\n\n[pitfalls] What people get wrong\nThree corrections. First, co-investments aren't always entirely free — some GPs charge a reduced five-to-ten percent carry rather than zero, especially on capital raised through placement agents or co-investment funds, and LPs still bear their own deal execution costs. Second, having co-invest rights in your side letter does not mean you'll actually get co-investments — GPs generally aren't contractually obliged to offer them; they choose which LPs to invite, based on relationship strength and execution capability, so a passive rights-holder may see few or none. And third, co-investments are not safer because you know more about the deal — in fact the LP gets far less time, five to ten days, to diligence a co-investment than the months the GP spent on the main fund deal, so the LP is inherently working with less information and time; rapid underwriting capability is essential, not a guarantee of quality.\n\n[recap] Valuable, conditional, demanding\nTo recap. Co-investment rights let LPs invest directly alongside a fund in specific deals at zero or reduced fees. GPs offer them to enable larger deals, deepen relationships, and reward strategic LPs, and the economics are compelling — zero fee and zero or reduced carry versus two-and-twenty saves millions per deal. But the rights carry adverse-selection risk, because GPs choose which deals to offer and to whom; effective co-investing requires institutional underwriting capability and the ability to commit within five to ten days; and the market has grown to twenty to thirty percent of large-cap PE equity, dominated by sovereign wealth funds and large pensions. The rights are negotiated in side letters and reserved for the largest, most strategic, most capable LPs. Next we meet the largest LP type of all, and the constraints that shape their behaviour — pension funds as PE LPs.\n\nEnd-card question: Holding co-invest rights in your side letter doesn't guarantee you'll receive deals — why not? And why is a co-investment riskier on information grounds than the GP's own fund investment in the same company?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Co-investments have become one of the most significant value levers in the LP-GP relationship. For LPs, co-investments offer access to the same deals at dramatically lower cost. For GPs, co-investments allow them to execute larger transactions than the fund size would allow, deepen LP relationships, and selectively reward preferred LPs. The co-investment market has grown to represent approximately 20% of PE deal funding and is now a central consideration in any large LP's PE strategy.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Co-investment rights are a limited partner's contractual right to invest directly alongside a PE fund in specific transactions, typically at zero or reduced management fees and carried interest, outside the main fund vehicle.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a PE fund ($2B) identifies an acquisition target valued at $4B. The fund can only write a $1.5B equity cheque from its own capital. To make up the difference — or to simply do more deals than the fund can handle — the GP invites certain LPs to invest an additional $500M directly into this specific deal. These direct investments, made alongside the fund, are called <strong>co-investments</strong>.</p><p>The key feature: most co-investments charge <strong>zero management fee and zero or reduced carried interest</strong>. This is sometimes called \"free carry\" — the LP gets exposure to the deal at near-zero incremental cost.</p><p>Compare that to investing through the fund vehicle, where the LP already pays 2% management fees per year and 20% of profits. On a $50M co-investment held for five years that returns 3x, the fee savings are substantial — potentially millions of dollars.</p><p>Co-invest rights are typically granted in the <strong>side letter</strong> negotiations during fundraising and are not available to all LPs — only to large and strategically important ones.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Imagine a property syndicate (the fund) that normally buys and renovates houses. A large commercial building ($20M) comes up for sale — too big for the fund's normal deal size. The syndicator calls his best investors and says: \"I'm taking $12M from the fund. Who wants to put in the other $8M directly — same deal, no extra fees?\" The investors who say yes get exposure to a specific deal at near-zero incremental cost. That's a co-investment.</p><p>The risk: sometimes the syndicator offers co-investments on buildings he's less certain about — offloading the riskier exposure. Smart investors track whether the \"co-invest deals\" perform as well as the fund's main portfolio.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Why GPs Offer Co-Investments</p><p><strong>Reason 1: Deal size exceeds fund capacity</strong> A $2B fund with 30% maximum single-investment concentration limits ($600M max) cannot acquire a company requiring $1.5B of equity. Co-investments allow the GP to bridge the gap without missing the opportunity.</p><p><strong>Reason 2: Deepening LP relationships</strong> Co-investment is one of the most valued benefits an LP can receive. Offering co-invest rights to key LPs builds loyalty and increases the probability of re-ups in future funds. Large, valuable LPs (SWFs, large pensions) use co-invest access as a condition of commitment.</p><p><strong>Reason 3: Capital efficiency for the GP</strong> By using co-invest capital instead of fund capital, the GP can keep more dry powder in the fund for other deals — increasing portfolio diversification.</p><p>### Economics of Co-Investments</p><p><strong>Standard fund terms (for reference):</strong> - Management fee: 2% p.a. on committed capital - Carried interest: 20% of profits above hurdle</p><p><strong>Typical co-investment terms:</strong> - Management fee: 0% (most common) - Carried interest: 0% (most common) or 5-10% (reduced carry for co-invests from smaller LPs or via co-investment funds)</p><p><strong>Fee saving illustration:</strong> - $50M co-investment, 5-year hold, 3.0x gross MOIC = $100M gross profit - At 0% carry: LP receives full $100M profit - If same deal were inside the fund (20% carry on gains above 8% hurdle): approximately $20M carry to GP on this deal's share of profit - Net benefit of co-invest vs. fund allocation: approximately $15-20M in this example</p><p>Over a portfolio of co-investments, the fee saving compounds significantly — LPs who actively co-invest can materially improve their blended net return vs. their fund-only cost structure.</p><p>### Who Gets Co-Investment Rights?</p><p>Co-investment rights are <strong>selectively allocated</strong> by GPs. Typical allocation logic:</p><ol><li><strong>Largest LP commitments</strong>: LPs committing $250M+ to the fund typically receive co-invest rights as standard</li><li><strong>Strategic anchor LPs</strong>: Sovereign wealth funds and large pensions that provided first-close anchor capital</li><li><strong>LPs with demonstrated capability</strong>: GPs prefer LPs who can quickly evaluate and execute on co-invest opportunities — not LPs who will ask for two months of due diligence</li><li><strong>Relationship LPs</strong>: Multi-fund relationships where the LP has been loyal across vintages</li></ol><p>Not all LPs receive co-invest rights. Small LPs (sub-$50M commitments) typically do not. LPs without in-house PE deal teams typically receive fewer co-invest opportunities because they lack execution speed.</p><p>### The Adverse Selection Problem</p><p>Co-investment creates an <strong>adverse selection risk</strong> for LPs. There are three types of co-invest offers:</p><p><strong>Type A — Capacity deals (neutral selection)</strong> The deal is genuinely larger than fund capacity. This is the \"clean\" reason for co-invest. The GP has high conviction; co-invest fills the gap. Neutral to beneficial for LPs.</p><p><strong>Type B — Adverse selection</strong> The GP is less confident about the deal than usual, or the deal was harder to win and required higher entry pricing. The GP takes a smaller fund allocation and offloads more exposure to co-investors. LPs end up with more exposure to a lower-conviction deal than the average fund deal. The fund's risk-adjusted return is better than the co-investor's in this scenario.</p><p><strong>Type C — GP rewarding anchor LPs</strong> The GP has a particularly attractive deal and uses co-invest allocation as a reward for the most valued LP relationships — giving best deals to best LPs. This is beneficial for that LP, neutral for the GP, but means other co-invest rights holders receive lower-quality deal flow.</p><p><strong>How LPs manage adverse selection:</strong> - Track co-invest deal outcomes separately and compare to main fund performance - Ask the GP directly: \"Why are you offering co-invest on this deal?\" - Look for pattern: are offered deals consistently in sectors or geographies where GP has lower experience? - Require the GP to invest at least X% of deal equity from the main fund (aligning interests)</p><p>### LP Operational Requirements for Co-Investment</p><p>To capture co-investment value, LPs need:</p><ol><li><strong>In-house PE deal capability</strong>: LP must be able to conduct deal-by-deal underwriting — reviewing investment thesis, financial model, management, and risks</li><li><strong>Fast decision-making</strong>: GPs require co-invest commitment within 5-10 business days of deal signing — slower LPs miss opportunities</li><li><strong>Board approval authority</strong>: LP's investment committee must be able to approve $50M-$500M single deal decisions quickly</li><li><strong>Legal infrastructure</strong>: Co-investment agreements, side pocket structures, direct deal documentation</li><li><strong>Portfolio management</strong>: LPs must monitor co-investments separately from fund NAV</li></ol><p><strong>Consequence</strong>: Only LPs with professional, institutional investment teams can effectively exercise co-invest rights. Smaller family offices and FoF investors may have co-invest rights in their side letter but never use them effectively.</p><p>### Co-Investment Market Size</p><p>The co-investment market has grown significantly: - Estimated 20-30% of large-cap PE deal equity is co-invested - Large SWFs (GIC, ADIA) are among the most active co-investors - Some large pensions (CPP Investments, Ontario Teachers') have built dedicated co-investment teams - Dedicated \"co-investment funds\" managed by FoF managers allow smaller LPs to access co-invest economics via a pooled vehicle (reintroducing a fee layer)</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>GIC and a Large-Cap Buyout</strong> GIC (Singapore, $700B+) is one of the world's most active co-investors. In a typical large-cap deal (e.g., a GP acquiring a $6B enterprise value company using $3B of equity): - Fund equity: $2.2B - GIC co-invest: $500M at 0% carry - Other LP co-invests: $300M at 0% or reduced carry</p><p>GIC's fee saving on $500M with 0% carry vs. 20% carry (assuming 2.5x gross MOIC): - Gross profit: $750M - Carry saved: $150M (20% of $750M) - Effective carry saving: ~$150M over deal life</p><p>Over a portfolio of 8-10 large co-investments, GIC's blended net return is materially higher than if all capital were deployed via the main fund vehicle. This is why GIC has built a substantial in-house direct investment team.</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Co-investments are always free.\"</strong> Not entirely. Some GPs charge reduced carry (5-10%) rather than zero carry, especially on co-invest capital raised through placement agents or co-investment funds. And LPs still bear deal execution costs (legal, advisory) that would otherwise be shared across the fund.</p><p><strong>Misconception 2: \"Having co-invest rights means you'll get co-invests.\"</strong> LPs with co-invest rights in their side letter may receive few or no actual co-invest opportunities. GPs are not contractually obligated to offer co-investments in most cases — they choose which LPs to offer, based on relationship strength and LP execution capability.</p><p><strong>Misconception 3: \"Co-investments are safer because you know more about the deal.\"</strong> LPs receive less time (5-10 days) to diligence a co-investment than the GP spends diligencing the main fund deal (months). The LP is inherently working with less information and time than the GP — making rapid underwriting capability essential, not a guarantee of quality.</p>"}, "7": {"section": "Summary", "html": "<p>Co-investment rights allow LPs to invest directly alongside a PE fund in specific transactions, typically at zero or reduced fees. GPs offer co-investments to enable larger deals than fund size allows, to deepen LP relationships, and to reward strategic LPs. The economics are compelling: zero management fee and zero or reduced carry vs. 2% + 20% in the fund can save LPs millions per deal. However, co-investments carry adverse selection risk — GPs may cherry-pick which deals to offer and to whom. Effective co-investing requires institutional underwriting capability and the ability to commit within 5-10 days. The co-investment market has grown to approximately 20-30% of large-cap PE deal equity, with sovereign wealth funds and large pensions as the most active participants. Co-invest rights are negotiated in side letters and are typically only available to the largest and most strategic LPs.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

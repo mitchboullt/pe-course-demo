@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-in-housing", "title": "PE in Housing", "draft_watermark": false, "estimated_runtime_sec": 445, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Same question, finer answer", "on_screen_bullets": ["Housing is essential service #2", "Exit ability varies by sub-sector", "Critique holds — but selectively"], "narration": "Housing is the second great essential-services case, after healthcare. It poses the same structural question — can PE's standard financial-engineering playbook operate appropriately in a sector where consumers have limited ability to walk away? — but with a crucial twist that makes the analysis finer-grained than healthcare. In housing, tenant exit ability varies dramatically by sub-sector, and that variation is the whole key. We'll test whether the broken-feedback-loop framework from the healthcare lessons generalises to housing, and we'll find it applies powerfully in one sub-sector, weakly in another, and somewhere in between in a third. The discipline of this lesson is honesty: we'll mark where the PE-housing critique is strong, where it's genuinely contested, and where it overreaches — because treating all PE housing investment as identical captures the wrong target.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Three sub-sectors, three answers", "on_screen_bullets": ["SFR, manufactured housing, multifamily", "Different exit ability each", "Invitation Homes the defining case"], "narration": "The definition. PE investment in housing spans three distinct sub-sectors — single-family rentals, manufactured-housing communities, and multifamily apartments — each with different mechanisms, different degrees of tenant exit ability, and different evidence on whether PE's playbook creates or destroys value for residents. Blackstone's Invitation Homes, the first institutionalised single-family-rental platform, is the defining case; manufactured housing is the strongest parallel to healthcare's captive-consumer problem; and the RealPage algorithmic-pricing controversy has opened a new front of antitrust scrutiny. One word — housing — but three very different economic stories.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Invitation Homes' origin", "on_screen_bullets": ["Post-2008 foreclosure glut", "$10bn, ~82,000 homes, 2012–15", "Buy distressed, rent, IPO out"], "narration": "Plain English, through the origin story. After the two-thousand-eight crisis, millions of American homes were foreclosed, and banks found themselves owning houses they had no idea how to manage, with prices thirty to fifty percent below peak in markets like Phoenix, Atlanta, and Tampa. Blackstone, through a subsidiary it named Invitation Homes, saw a chance to build something that had never existed: an institutional-scale single-family-rental business. Until twenty-twelve, no large institution had tried to own and rent individual suburban houses at scale — the received wisdom was that managing thousands of scattered properties was operationally impossible. Blackstone bet that technology, centralised management, and cheap debt had changed that math. Between twenty-twelve and twenty-fifteen it spent roughly ten billion dollars buying about eighty-two thousand homes, renovated them, rented them at market rates, and in twenty-seventeen took the company public as a REIT — the second-largest US REIT IPO at the time — exiting fully by twenty-nineteen. The financial logic was clean: buy distressed at a discount, rent in a rising market, exit at a premium. The social verdict is where it gets complicated.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Different-diameter exit valves", "on_screen_bullets": ["SFR: narrow but open valve", "Manufactured: nearly welded shut", "Multifamily: works, few alternatives"], "narration": "The mental model is the broken-feedback-loop pipeline from healthcare, modified. In healthcare the loop was broken because patients couldn't exit at all. In housing, picture a pipeline with different-diameter exit valves depending on the sub-sector. Single-family rental has a narrow but open valve: a tenant can leave — it costs time, money, and disruption, but the valve works, so if a landlord pushes rents too hard, some tenants flow out and occupancy falls; the feedback loop is impaired but not broken. Manufactured housing has a valve that's nearly welded shut: the resident owns the home sitting inside the pipeline, a structure that costs many thousands to move and loses most of its value in transit, so lot rent can rise a long way before exiting becomes worthwhile; the loop is severely impaired. And multifamily has a valve that works at lease expiry but offers few alternatives in a tight market — in a city with two percent vacancy, the formal exit exists but the practical alternative may be housing insecurity. The regulatory implication falls straight out: where the valve works, market discipline limits extraction without special rules; where it's sealed, as in manufactured housing, regulation has to substitute for the missing discipline — exactly as nursing-home staffing mandates do.", "est_sec": 58}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Why PE entered post-2008", "on_screen_bullets": ["Distress pricing + rising rental demand", "Tech made scale manageable", "Cheap debt, then securitisation"], "narration": "Technically, several forces converged to open the door. First, forced-sale distress pricing: banks held millions of foreclosed homes as real-estate-owned inventory, didn't want to be landlords, and sold in bulk at twenty-to-forty-percent discounts to buyers who could move fast with committed capital — which described PE precisely. Second, rising rental demand: the homeownership rate fell from around sixty-nine percent in two-thousand-four to about sixty-three percent by twenty-fifteen as former owners became renters, creating the tenant base. Third, technology: centralised management software, remote maintenance coordination, and predictive scheduling made it feasible to run tens of thousands of scattered homes — Invitation Homes managed eighty-two thousand properties at staffing ratios traditional managers couldn't approach. Fourth, cheap debt and yield-hungry capital: near-zero rates let PE borrow cheaply, while pension funds and insurers chasing yield funded a brand-new single-family-rental securitisation market — the first such deal, in twenty-thirteen, packaged rental income from individual homes into bonds for the first time, letting PE refinance and pull out equity. And fifth, specific to manufactured housing: a captive-tenant premium, where stable lot-rent income from residents who literally cannot leave behaves like an inflation-protected annuity — an attraction about pricing power, not distress.", "est_sec": 66}, {"n": 6, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Two Blackstone housing cases", "on_screen_bullets": ["Invitation Homes: SFR, ~2–3x return", "Yes! Communities: captive lot rents", "Same firm, two very different stories"], "narration": "Two real cases, both Blackstone, show the spread. Invitation Homes is the single-family story: the SFR-CMBS securitisation it pioneered in twenty-thirteen raised an initial four-hundred-seventy-nine million, the twenty-seventeen IPO priced at twenty dollars a share for roughly an eleven-billion-dollar valuation, and a twenty-eighteen merger with Starwood Waypoint Homes created the largest US single-family-rental company at about a hundred thousand homes, with Blackstone reportedly earning around two-to-three times its invested capital. The positive case is real — eighty-two thousand foreclosed, often-derelict homes renovated and re-tenanted, professional management, supply unlocked. The contested case is also real — research suggests bulk institutional buying nudged up prices in specific zip codes, early eviction-filing rates ran above small landlords, and rents were optimised aggressively. The second case is starker: Yes! Communities, a major manufactured-housing operator Blackstone backed, collects lot rents from residents who own their homes but rent the land — and because moving a manufactured home is prohibitively expensive, multiple state attorneys-general and tenant groups have documented steep lot-rent increases after acquisition, falling on some of the lowest-income residents in the country. Same firm, same era — but single-family rental is genuinely ambiguous, while manufactured housing is the clear structural-harm case.", "est_sec": 60}, {"n": 7, "beat": "mechanics", "visual": "table", "source_section": "Part 6: The RealPage Algorithmic Pricing Controversy", "on_screen_title": "The RealPage new front", "on_screen_bullets": ["YieldStar sets rents on shared data", "Same algorithm = soft coordination", "DOJ antitrust suit, 2024"], "narration": "The newest and most significant development isn't about any single landlord — it's about coordination across all of them. RealPage is a property-management software firm whose YieldStar tool recommends optimal rents by analysing market data, including non-public rental data from many competing landlords who all use the same software. The antitrust concern: if every major landlord in a market sets rents using one algorithm fed by each other's confidential data, they may effectively be coordinating prices without ever meeting — which is what the Sherman Act forbids, even absent an explicit agreement. A twenty-twenty-two ProPublica investigation documented the mechanism and quoted RealPage materials boasting that the software pushed rents above what any landlord would set alone. The Justice Department opened an investigation and in twenty-twenty-four filed a civil antitrust complaint against RealPage and a group of large landlords, several PE-backed, alleging algorithmic rent coordination as an illegal restraint of trade. This introduces a genuinely new category of PE housing risk — not aggressive pricing by one landlord, but potential antitrust liability for market-wide coordination through a shared tool — and it's important enough that it gets its own lesson shortly.", "est_sec": 58}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Institutions own only ~3–5% of SFR", "Don't equate the sub-sectors", "Build-to-rent adds supply"], "narration": "Five corrections that keep the analysis honest. First, the idea that PE owns most single-family rentals — institutional and PE investors own only about three-to-five percent of the roughly fifteen million SFR units nationally; small mom-and-pop landlords own the vast majority, and the debate is driven by local concentration in specific Sun Belt zip codes, not national share. Second, the idea that Invitation Homes' buying caused the twenty-twenty-one-to-twenty-two rent surge — that surge was driven by pandemic migration, a decade of suppressed construction, and rising mortgage rates, by which point most institutions were operating portfolios, not acquiring at scale. Third, and most important, the idea that the manufactured-housing and single-family cases carry equal moral weight — they don't; manufactured housing has strong evidence of structural harm and captive tenants, while the single-family case has moderate exit ability, contested causation, and a small national share. Fourth, the idea that build-to-rent worsens the crisis — purpose-built rental adds net new supply rather than converting owner-occupant stock, so that critique doesn't apply. And fifth, the idea that RealPage's algorithm is obviously illegal — whether using a shared third-party algorithm fed by common data counts as an agreement under the Sherman Act is genuinely unsettled law. The throughline: the exit-ability lens correctly sorts the sub-sectors, and manufactured housing is where it bites hardest — which is exactly where we go next.", "est_sec": 60}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The exit-ability framework predicts that PE harm is most severe in one of the three housing sub-sectors. Which one, and why? Then: give one reason the single-family-rental critique is genuinely more contested than the manufactured-housing critique.", "narration": "Before the next lesson, reason it through. The exit-ability framework predicts PE harm is most severe in one of the three housing sub-sectors — which one, and why does the sealed exit valve produce that result? And give one solid reason the single-family-rental critique is genuinely more contested than the manufactured-housing one. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE in Housing\n\n[hook] Same question, finer answer\nHousing is the second great essential-services case, after healthcare. It poses the same structural question — can PE's standard financial-engineering playbook operate appropriately in a sector where consumers have limited ability to walk away? — but with a crucial twist that makes the analysis finer-grained than healthcare. In housing, tenant exit ability varies dramatically by sub-sector, and that variation is the whole key. We'll test whether the broken-feedback-loop framework from the healthcare lessons generalises to housing, and we'll find it applies powerfully in one sub-sector, weakly in another, and somewhere in between in a third. The discipline of this lesson is honesty: we'll mark where the PE-housing critique is strong, where it's genuinely contested, and where it overreaches — because treating all PE housing investment as identical captures the wrong target.\n\n[definition] Three sub-sectors, three answers\nThe definition. PE investment in housing spans three distinct sub-sectors — single-family rentals, manufactured-housing communities, and multifamily apartments — each with different mechanisms, different degrees of tenant exit ability, and different evidence on whether PE's playbook creates or destroys value for residents. Blackstone's Invitation Homes, the first institutionalised single-family-rental platform, is the defining case; manufactured housing is the strongest parallel to healthcare's captive-consumer problem; and the RealPage algorithmic-pricing controversy has opened a new front of antitrust scrutiny. One word — housing — but three very different economic stories.\n\n[intuition] Invitation Homes' origin\nPlain English, through the origin story. After the two-thousand-eight crisis, millions of American homes were foreclosed, and banks found themselves owning houses they had no idea how to manage, with prices thirty to fifty percent below peak in markets like Phoenix, Atlanta, and Tampa. Blackstone, through a subsidiary it named Invitation Homes, saw a chance to build something that had never existed: an institutional-scale single-family-rental business. Until twenty-twelve, no large institution had tried to own and rent individual suburban houses at scale — the received wisdom was that managing thousands of scattered properties was operationally impossible. Blackstone bet that technology, centralised management, and cheap debt had changed that math. Between twenty-twelve and twenty-fifteen it spent roughly ten billion dollars buying about eighty-two thousand homes, renovated them, rented them at market rates, and in twenty-seventeen took the company public as a REIT — the second-largest US REIT IPO at the time — exiting fully by twenty-nineteen. The financial logic was clean: buy distressed at a discount, rent in a rising market, exit at a premium. The social verdict is where it gets complicated.\n\n[intuition] Different-diameter exit valves\nThe mental model is the broken-feedback-loop pipeline from healthcare, modified. In healthcare the loop was broken because patients couldn't exit at all. In housing, picture a pipeline with different-diameter exit valves depending on the sub-sector. Single-family rental has a narrow but open valve: a tenant can leave — it costs time, money, and disruption, but the valve works, so if a landlord pushes rents too hard, some tenants flow out and occupancy falls; the feedback loop is impaired but not broken. Manufactured housing has a valve that's nearly welded shut: the resident owns the home sitting inside the pipeline, a structure that costs many thousands to move and loses most of its value in transit, so lot rent can rise a long way before exiting becomes worthwhile; the loop is severely impaired. And multifamily has a valve that works at lease expiry but offers few alternatives in a tight market — in a city with two percent vacancy, the formal exit exists but the practical alternative may be housing insecurity. The regulatory implication falls straight out: where the valve works, market discipline limits extraction without special rules; where it's sealed, as in manufactured housing, regulation has to substitute for the missing discipline — exactly as nursing-home staffing mandates do.\n\n[mechanics] Why PE entered post-2008\nTechnically, several forces converged to open the door. First, forced-sale distress pricing: banks held millions of foreclosed homes as real-estate-owned inventory, didn't want to be landlords, and sold in bulk at twenty-to-forty-percent discounts to buyers who could move fast with committed capital — which described PE precisely. Second, rising rental demand: the homeownership rate fell from around sixty-nine percent in two-thousand-four to about sixty-three percent by twenty-fifteen as former owners became renters, creating the tenant base. Third, technology: centralised management software, remote maintenance coordination, and predictive scheduling made it feasible to run tens of thousands of scattered homes — Invitation Homes managed eighty-two thousand properties at staffing ratios traditional managers couldn't approach. Fourth, cheap debt and yield-hungry capital: near-zero rates let PE borrow cheaply, while pension funds and insurers chasing yield funded a brand-new single-family-rental securitisation market — the first such deal, in twenty-thirteen, packaged rental income from individual homes into bonds for the first time, letting PE refinance and pull out equity. And fifth, specific to manufactured housing: a captive-tenant premium, where stable lot-rent income from residents who literally cannot leave behaves like an inflation-protected annuity — an attraction about pricing power, not distress.\n\n[example] Two Blackstone housing cases\nTwo real cases, both Blackstone, show the spread. Invitation Homes is the single-family story: the SFR-CMBS securitisation it pioneered in twenty-thirteen raised an initial four-hundred-seventy-nine million, the twenty-seventeen IPO priced at twenty dollars a share for roughly an eleven-billion-dollar valuation, and a twenty-eighteen merger with Starwood Waypoint Homes created the largest US single-family-rental company at about a hundred thousand homes, with Blackstone reportedly earning around two-to-three times its invested capital. The positive case is real — eighty-two thousand foreclosed, often-derelict homes renovated and re-tenanted, professional management, supply unlocked. The contested case is also real — research suggests bulk institutional buying nudged up prices in specific zip codes, early eviction-filing rates ran above small landlords, and rents were optimised aggressively. The second case is starker: Yes! Communities, a major manufactured-housing operator Blackstone backed, collects lot rents from residents who own their homes but rent the land — and because moving a manufactured home is prohibitively expensive, multiple state attorneys-general and tenant groups have documented steep lot-rent increases after acquisition, falling on some of the lowest-income residents in the country. Same firm, same era — but single-family rental is genuinely ambiguous, while manufactured housing is the clear structural-harm case.\n\n[mechanics] The RealPage new front\nThe newest and most significant development isn't about any single landlord — it's about coordination across all of them. RealPage is a property-management software firm whose YieldStar tool recommends optimal rents by analysing market data, including non-public rental data from many competing landlords who all use the same software. The antitrust concern: if every major landlord in a market sets rents using one algorithm fed by each other's confidential data, they may effectively be coordinating prices without ever meeting — which is what the Sherman Act forbids, even absent an explicit agreement. A twenty-twenty-two ProPublica investigation documented the mechanism and quoted RealPage materials boasting that the software pushed rents above what any landlord would set alone. The Justice Department opened an investigation and in twenty-twenty-four filed a civil antitrust complaint against RealPage and a group of large landlords, several PE-backed, alleging algorithmic rent coordination as an illegal restraint of trade. This introduces a genuinely new category of PE housing risk — not aggressive pricing by one landlord, but potential antitrust liability for market-wide coordination through a shared tool — and it's important enough that it gets its own lesson shortly.\n\n[pitfalls] What people get wrong\nFive corrections that keep the analysis honest. First, the idea that PE owns most single-family rentals — institutional and PE investors own only about three-to-five percent of the roughly fifteen million SFR units nationally; small mom-and-pop landlords own the vast majority, and the debate is driven by local concentration in specific Sun Belt zip codes, not national share. Second, the idea that Invitation Homes' buying caused the twenty-twenty-one-to-twenty-two rent surge — that surge was driven by pandemic migration, a decade of suppressed construction, and rising mortgage rates, by which point most institutions were operating portfolios, not acquiring at scale. Third, and most important, the idea that the manufactured-housing and single-family cases carry equal moral weight — they don't; manufactured housing has strong evidence of structural harm and captive tenants, while the single-family case has moderate exit ability, contested causation, and a small national share. Fourth, the idea that build-to-rent worsens the crisis — purpose-built rental adds net new supply rather than converting owner-occupant stock, so that critique doesn't apply. And fifth, the idea that RealPage's algorithm is obviously illegal — whether using a shared third-party algorithm fed by common data counts as an agreement under the Sherman Act is genuinely unsettled law. The throughline: the exit-ability lens correctly sorts the sub-sectors, and manufactured housing is where it bites hardest — which is exactly where we go next.\n\nEnd-card question: The exit-ability framework predicts that PE harm is most severe in one of the three housing sub-sectors. Which one, and why? Then: give one reason the single-family-rental critique is genuinely more contested than the manufactured-housing critique.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Housing is the second major \"essential services\" case in the thesis's Live Dispute #3. It raises the same structural question as PE in Healthcare — can PE's standard financial engineering playbook operate appropriately in sectors where consumers have limited exit ability? — but with a crucial difference: tenant exit ability in housing varies significantly by sub-sector, making the analysis more granular than healthcare.</p><p>For the learner, three specific connections matter:</p><p><strong>1. Blackstone — whose K-1 allocations you process through CVC — built Invitation Homes.</strong> Blackstone's real estate strategies are distinct from its PE buyout strategies, but both flow through Blackstone-managed funds. When CVC Secondary Partners holds LP positions in Blackstone funds, those positions may reflect Blackstone's real estate activities as well as buyouts. Invitation Homes is the most visible and most studied example of Blackstone's real estate investment activity during the period those funds were operating.</p><p><strong>2. The \"broken feedback loop\" framework from PE in Healthcare applies here — but differently.</strong> This note tests whether that framework generalises to housing, and finds that it applies most strongly in manufactured housing (where residents own their structures but rent the land and face prohibitive relocation costs) and more weakly in SFR (where tenants can, with cost and effort, move to alternative rentals). Understanding the difference sharpens the analytical tool.</p><p><strong>3. The RealPage case introduces a new category of harm.</strong> The DOJ's 2024 antitrust suit against RealPage — algorithmic rent-setting software used by many PE-backed landlords — expands the PE housing controversy from individual company conduct to systemic market coordination. This is a new type of PE regulatory risk the thesis needs to track.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE investment in housing spans three distinct sub-sectors — single-family rentals (SFR), manufactured housing communities, and multifamily apartments — each with different mechanisms, different degrees of tenant exit ability, and different evidence on whether PE's financial engineering playbook produces or destroys value for residents and communities; Blackstone's Invitation Homes (the first institutionalised SFR platform) is the defining case, while manufactured housing represents the strongest parallel to healthcare's \"captive consumer\" problem, and the RealPage algorithmic pricing controversy has introduced a new dimension of antitrust scrutiny.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>After the 2008 financial crisis, millions of American homes were foreclosed. Banks found themselves owning thousands of houses they didn't know how to manage. The housing market was deeply distressed — prices were 30–50% below their pre-crisis peaks in markets like Phoenix, Atlanta, and Tampa.</p><p>Blackstone, through a subsidiary it named Invitation Homes, saw this as the opportunity to create something that had never existed before: an institutional-scale single-family rental business. Until 2012, no large institution had ever tried to own and rent individual suburban houses at scale — the conventional wisdom was that managing thousands of individual properties across different neighbourhoods was too operationally complex. Blackstone bet that technology, centralised management, and the ability to raise cheap debt capital had changed that calculus.</p><p>Between 2012 and 2015, Invitation Homes spent approximately $10 billion buying approximately 82,000 homes. It renovated them, rented them at market rates, and managed them through a centralised platform. In 2017, it IPO'd as a real estate investment trust (REIT) — the second-largest US REIT IPO at the time (the largest since 2014). Blackstone exited its remaining stake by 2019.</p><p>The financial case was clear: buy distressed at a discount, rent in a rising market, exit at a premium. The social case is more complicated.</p><p>Using the data pipeline analogy: think of housing as a pipeline where the \"output\" is a place for people to live. PE entered this pipeline at a moment when the pipeline was broken (post-GFC foreclosure crisis) and provided capital to restore flow (buying and renovating foreclosed homes for rental). That's the positive case. The negative case is that as the pipeline stabilised and tightened, PE's financial engineering — algorithmic rent increases, eviction practices, lot rent hikes in manufactured housing — began extracting value from the people living in the pipeline rather than improving the pipeline's function.</p><p>The key question this note answers: what specifically has PE done in housing, what does the evidence show about its effects on tenants and communities, and where does the critique hold versus where does it overreach?</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The data pipeline analogy works for housing with a nuanced modification of the healthcare version.</p><p>In healthcare, the feedback loop was broken because patients couldn't exit at all. In housing, imagine a pipeline with <strong>different-diameter exit valves</strong> depending on the sub-sector:</p><ul class='notelist'><li><strong>SFR exits:</strong> The exit valve is narrow but open. A tenant can leave — it costs time, money, and disruption, but the valve works. If the landlord raises rents too aggressively, some tenants will flow out through the exit valve, reducing occupancy and eventually revenue. The feedback loop is impaired but not broken.</li></ul><ul class='notelist'><li><strong>Manufactured housing exits:</strong> The exit valve is nearly welded shut. The resident owns the structure inside the pipeline — a structure that costs $10,000+ to move and loses most of its value in transit. The exit valve is a real option in principle but practically inaccessible. Lot rent can be raised significantly before the exit valve opens, because the cost of exiting exceeds the cost of staying even at elevated rent levels. The feedback loop is severely impaired.</li></ul><ul class='notelist'><li><strong>Multifamily exits:</strong> The exit valve works at lease expiration but has limited alternatives in tight markets. In a city with a 2% rental vacancy rate and a 12-month waiting list for affordable housing, the formal exit option exists but the practical alternative is homelessness or housing insecurity. The feedback loop is impaired by supply constraint, not by structural captivity.</li></ul><p>The regulatory implication: in a market with functional exit valves, market discipline limits PE rent extraction without sector-specific regulation. In manufactured housing — where the exit valve is nearly sealed — market discipline is absent, and regulatory substitution (rent increase caps, tenant purchase rights, notice requirements) is required for the same reasons nursing home staffing mandates are required.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Part 1: The Three Housing Sub-Sectors and Why They Differ</p><p>PE investment in housing is not a single phenomenon. Three distinct sub-sectors have different economic structures, different levels of tenant exit ability, and different evidence on outcomes.</p><p><strong>Sub-sector 1: Single-Family Rental (SFR)</strong> Individual detached houses, purchased and rented to families. Before 2012, institutional ownership of SFR was essentially zero — it was seen as an unmanageable, fragmented asset class. Post-GFC foreclosure crisis created the entry point; technology made management at scale feasible.</p><p>Key players: Invitation Homes (Blackstone), American Homes 4 Rent (AMH), Progress Residential (Pretium Partners), Tricon Residential (Blackstone), Amherst Residential.</p><p>Tenant exit ability: <strong>Medium.</strong> Tenants have leases with end dates. At lease expiration, they can move to another rental or buy a home. Moving has real costs (security deposits, moving expenses, school/job disruption) but is not structurally prohibitive in the way nursing home relocation is.</p><p>Market concentration: nationally low (~3–5% of 15 million SFR units owned by institutional investors); locally high in specific Sun Belt markets (Phoenix, Atlanta, Dallas-Fort Worth) where Invitation Homes and peers own 10–20% of SFR inventory in certain zip codes.</p><p><strong>Sub-sector 2: Manufactured Housing Communities (MHCs)</strong> Mobile home parks where residents own their manufactured home (the structure) but rent the land/lot from the community owner. Residents have \"purchased\" their home but can't easily leave.</p><p>Key players: Equity LifeStyle Properties (Sam Zell, public REIT), Sun Communities (public REIT), Yes! Communities (Blackstone-backed), RHP Properties (PE-backed), Havenpark Communities (PE-backed), Homes of America (PE-backed). [needs-verification on current PE ownership status of each]</p><p>Tenant exit ability: <strong>Very low — structurally captive.</strong> Moving a manufactured home costs $5,000–$15,000, requires a destination community willing to accept it, and often destroys the structure's value (many manufactured homes cannot survive a move intact). Residents have effectively purchased an asset that is tied to a specific location controlled by a landlord who can raise lot rents indefinitely.</p><p>Market concentration: Higher than SFR in this sub-sector. PE and institutional investors have acquired a significant portion of manufactured housing communities in recent years, attracted by the captive tenant economics. [needs-verification on exact market share]</p><p><strong>Sub-sector 3: Multifamily Apartments</strong> Apartment complexes with multiple units. PE acquires these as value-add strategies: buy underperforming asset, renovate units, raise rents, increase NOI, sell at a higher multiple.</p><p>Key players: Multiple large PE firms (Blackstone Real Estate, KKR Real Estate, Starwood Capital, Brookfield), as well as specialist apartment-focused operators.</p><p>Tenant exit ability: <strong>Medium.</strong> Similar to SFR — lease expiration provides exit point; moving has costs but is not structurally prohibitive. In markets with tight supply (New York, San Francisco, Boston), practical alternatives are limited; in markets with more supply, competition constrains rent increases.</p><p>---</p><p>### Part 2: Why PE Was Attracted to Housing Post-2008</p><p>The 2008 financial crisis created a specific entry point for PE housing investment that would not have existed in normal market conditions:</p><p><strong>1. Forced-sale distress pricing</strong> Between 2008 and 2012, approximately 5 million homes were foreclosed across the United States. [needs-verification on exact figure] Banks acquired these as REO (real estate owned) — they did not want to be landlords and were motivated sellers. Bulk purchase discounts of 20–40% below pre-crisis valuations were available to buyers who could move quickly with large amounts of capital. PE, with committed fund capital and no requirement to mark to market, could acquire these portfolios when few other buyers existed.</p><p><strong>2. Rising rental demand</strong> Post-crisis, many former homeowners became renters — either involuntarily (foreclosure) or voluntarily (preferring flexibility as the economic outlook was uncertain). The homeownership rate fell from ~69% in 2004 to approximately 63% by 2015. [needs-verification on exact figures] This structural shift in demand toward rental housing created the tenant base for an institutionalised SFR business.</p><p><strong>3. Technology reducing operational complexity</strong> Before 2012, the conventional wisdom was that individual houses were too expensive to manage at scale — each property required local maintenance, tenant screening, rent collection, and lease management. Centralised property management software, remote maintenance coordination, and predictive analytics for maintenance scheduling changed the calculus. Invitation Homes built a technology infrastructure that enabled managing 82,000 properties with staffing ratios that would have been unthinkable for a traditional property manager.</p><p><strong>4. Cheap debt and yield-starved buyers</strong> Post-GFC, interest rates were near zero. PE could borrow cheaply to acquire housing portfolios. Simultaneously, investors (insurance companies, pension funds, foreign capital) were searching for yield above the near-zero Treasury rates. Single-family rental income — yielding approximately 5–7% at the time — was attractive. This investor base funded the SFR securitisation market that allowed PE to refinance its portfolio debt and return capital.</p><p><strong>5. Manufactured housing: the captive-tenant premium</strong> Manufactured housing communities had a specific economic attraction beyond the general post-GFC opportunity: the captive tenant structure meant that lot rent could be raised above general market rates without the tenant having a realistic exit. Communities generating stable, growing lot rent income from residents who could not leave were essentially inflation-protected annuities. PE acquisition of MHCs was about accessing that captive rent stream, not about distress pricing.</p><p>---</p><p>### Part 3: The SFR Playbook and Its Outcomes</p><p><strong>The Invitation Homes playbook (2012–2019)</strong></p><p>Step 1: <strong>Bulk acquisition at distressed pricing.</strong> Blackstone sent teams to courthouse foreclosure auctions and purchased REO portfolios from banks. The acquisition scale — billions of dollars, tens of thousands of homes — was unprecedented.</p><p>Step 2: <strong>Renovation.</strong> Each acquired home received a renovation (average cost approximately $25,000–$30,000 per home in the early years). Renovation standardised the homes to a \"Invitation Homes standard\" — new appliances, HVAC, flooring — that justified a market or above-market rental rate.</p><p>Step 3: <strong>Tenanting at market rates.</strong> Homes were rented at prevailing market rates, which in Sun Belt markets were rising through 2012–2019 as demand increased and new construction remained limited.</p><p>Step 4: <strong>Portfolio leverage and securitisation.</strong> Invitation Homes borrowed against its rental income through a novel structure: single-borrower CMBS (commercial mortgage-backed securities) backed by SFR rental income. This was the first time SFR income had been securitised at scale. The securitisation allowed Invitation Homes to refinance its acquisition debt at lower long-term rates, extracting equity that Blackstone returned to its fund. [needs-verification on specific securitisation amounts]</p><p>Step 5: <strong>IPO.</strong> In February 2017, Invitation Homes priced its IPO at $20/share, valuing the company at approximately $11 billion. The IPO allowed Blackstone to convert its PE fund position into publicly traded REIT shares that it could sell over time.</p><p>Step 6: <strong>Exit.</strong> By 2019, Blackstone had sold all its Invitation Homes shares. The fund's return on the SFR investment has been reported as approximately 2–3× invested capital at a strong IRR, given the 5–7 year hold and the appreciation in housing values during the hold period. [needs-verification on specific return figures]</p><p><strong>Outcomes — the positive case:</strong> - Renovated approximately 82,000 homes that had been sitting vacant or in disrepair post-foreclosure - Provided rental options in markets where multifamily construction was limited - Demonstrated that institutional SFR management was operationally feasible, unlocking capital flow into a previously under-institutionalised asset class - The housing stock in Invitation Homes' markets was in aggregate improved by the renovation programme</p><p><strong>Outcomes — the contested case:</strong></p><p><em>Home price appreciation and homeownership:</em> Research by Immergluck, Lawrence, and others has found evidence that bulk institutional acquisition of homes in specific zip codes contributed to home price increases that priced out potential first-time homebuyers. [needs-verification on specific study findings] The mechanism: institutional buyers purchasing hundreds of homes in a single market reduce supply available for owner-occupier purchase, potentially increasing prices.</p><p>The counter-argument: PE was buying distressed homes that banks were selling; if PE hadn't bought them, those homes would likely have been purchased by other investors (smaller landlords) or remained vacant longer. The homeownership affordability problem in the US has structural roots (zoning, low construction, population growth) that dwarf the 3–5% institutional share of SFR.</p><p><em>Eviction rates:</em> A 2016 Federal Reserve Bank of Atlanta study (Raymond, Lewis, and Wang) found that SFR institutional investors in Atlanta had higher eviction filing rates than individual landlords in the first years of the market. [needs-verification on specific findings and whether this pattern persisted]</p><p>The counter-argument: Institutional landlords may be more consistent in following legal eviction processes (which show up in filing records) compared to informal pressure by small landlords. Higher filing rates do not necessarily mean higher displacement rates if many filings are resolved before eviction.</p><p><em>Rent increases:</em> Invitation Homes and other large SFR operators have raised rents annually, using market data to optimise pricing. In 2021–2022, during the COVID-era housing demand surge, SFR rents increased 15–25% in some markets. [needs-verification on specific figures]</p><p>The counter-argument: Rent increases in 2021–2022 reflected genuine supply-demand imbalances (migration to Sun Belt, construction lag, interest rate increases reducing homeownership affordability) that affected all landlords, not specifically institutional ones. SFR operators were pricing at or below the market rates that would have emerged regardless of institutional presence.</p><p>---</p><p>### Part 4: Manufactured Housing — The Structural Harm Case</p><p>Manufactured housing is where the \"broken feedback loop\" analysis from PE in Healthcare applies most directly to housing. This sub-sector is structurally analogous to nursing homes in the key dimension: residents cannot realistically leave.</p><p><strong>Why manufactured housing residents are effectively captive:</strong> 1. They own the manufactured home structure (the building) but rent the land (the lot) 2. Moving a manufactured home costs $5,000–$15,000 or more 3. Many manufactured homes cannot physically survive a move — they are placed on permanent foundations and the move would destroy the structure 4. Even if moveable, accepting manufactured homes is uncommon among receiving communities, limiting destination options 5. Manufactured homes rarely appreciate, and often depreciate, making selling and moving difficult 6. Residents in manufactured housing communities are typically lower-income and cannot absorb large rent increases</p><p><strong>The PE acquisition pattern:</strong> PE firms (including Blackstone through Yes! Communities and others) have acquired manufactured housing communities as a captive-income asset: - Low acquisition prices relative to the rental income stream - Stable, non-cyclical demand (residents can't easily leave regardless of economic conditions) - Lot rent can be raised significantly above general inflation - Capital expenditure requirements are low (the resident owns the structure; the community owner only maintains infrastructure)</p><p><strong>The documented harm:</strong> Multiple investigative journalism pieces, academic studies, and tenant advocacy reports have documented that PE acquisition of manufactured housing communities is associated with significant lot rent increases. The mechanism is the same as the healthcare analysis: when consumers cannot exit, the price discipline that normally constrains rent increases is absent. PE ownership specifically is associated with larger rent increases than non-PE ownership in this sector. [needs-verification on specific studies]</p><p>The consequence: residents who have invested their savings in a manufactured home — often the only asset ownership available to the lowest-income Americans — find themselves priced out of the community by lot rent increases they cannot afford and cannot escape. Displacement from a manufactured housing community often means abandoning the home entirely, losing whatever equity the resident had accumulated.</p><p>This is the clearest case in housing where the thesis's claim applies directly: PE's incentive architecture, operating in a sector where consumers cannot exit, produces predictably harmful outcomes for the people with the least economic resilience.</p><p>Notable cases: - <strong>Yes! Communities</strong> (Blackstone-backed): Multiple state attorney general investigations and tenant reports of significant lot rent increases following PE acquisition [needs-verification on specific AG investigations] - <strong>Havenpark Communities</strong> (PE-backed): Documented lot rent increases of 25–35% in Utah communities following acquisition, triggering state legislative action - <strong>RHP Properties</strong> (PE-backed): Acquired manufactured housing communities across Michigan and the Midwest; tenant advocacy groups documented rent increases and reduced maintenance</p><p><strong>The congressional response:</strong> Senator Sherrod Brown (D-Ohio) and others have introduced legislation specifically addressing PE acquisition of manufactured housing communities, requiring notice periods before lot rent increases and providing tenants rights of first refusal to purchase communities. [needs-verification on specific bills and current status]</p><p>---</p><p>### Part 5: Multifamily — The Value-Add Displacement Problem</p><p>PE multifamily investment (apartments) follows the standard value-add PE real estate playbook:</p><p><strong>The value-add playbook:</strong> 1. Acquire an apartment complex at a price reflecting its current below-market rent roll (existing tenants pay rents set years or decades ago, below current market) 2. Renovate vacant units as they turn over (new appliances, flooring, countertops, bathrooms) 3. Raise rents on renovated units to market rates 4. Eventually, pressure existing tenants (non-renewals, rent increases, renovation disruption) to turn over so their units can also be renovated and re-leased at higher rates 5. After raising rents across the property, sell at a higher multiple to NOI</p><p><strong>The displacement mechanism:</strong> Steps 3 and 4 often result in long-term tenants — frequently lower-income residents who have lived in the building for years — being priced out or non-renewed in favour of higher-income tenants who can pay the renovated rents. This is not explicitly eviction; it is market pricing applied to a sector where long-term tenants' implicit claim to stable housing is not legally protected.</p><p>The evidence on displacement from value-add PE multifamily investment is contested. It is documented anecdotally and in specific case studies, but systematic evidence comparable to the nursing home mortality studies is limited. [needs-verification on academic literature]</p><p><strong>Where value-add adds genuine value:</strong> In markets with genuinely outdated, poorly maintained housing stock, PE capital that renovates aging buildings improves housing quality for the residents who can afford the post-renovation rents — and sometimes creates better living conditions than the pre-renovation building offered. The displacement critique applies most strongly to markets with tight supply where displaced tenants have nowhere affordable to go; it applies less in markets with abundant affordable alternatives.</p><p>---</p><p>### Part 6: The RealPage Algorithmic Pricing Controversy</p><p>The most significant new development in PE housing since Invitation Homes is the RealPage case — a controversy that expands the housing debate from individual company conduct to systemic market coordination.</p><p><strong>What RealPage does:</strong> RealPage is a property management software company that provides, among other tools, an algorithmic rent-setting system called YieldStar. YieldStar analyses market data — including rental data from multiple competing landlords who all use RealPage's software — to recommend optimal rent prices for individual units. The algorithm incorporates data on competing buildings' rents, vacancy rates, lease expiration schedules, and demand signals to recommend prices that maximise revenue across the portfolio.</p><p><strong>The antitrust concern:</strong> Many large apartment operators in the same market use RealPage software simultaneously. If all competing landlords are setting rents using the same algorithm fed by the same data (from each other's buildings), they may effectively be coordinating pricing without direct communication. This would be analogous to a price-fixing cartel — prohibited under the Sherman Antitrust Act — even if no explicit agreement existed between the landlords.</p><p>ProPublica's October 2022 investigation, \"The Secret Algorithm Behind Your Rising Rent,\" documented the mechanism and quoted RealPage sales materials boasting about the software's ability to push rents above what any individual landlord would set unilaterally. [needs-verification on specific ProPublica findings and RealPage materials cited]</p><p><strong>DOJ investigation and filing:</strong> The DOJ opened an investigation and in August 2024 filed a civil antitrust complaint against RealPage and a group of large landlords alleged to be co-conspirators, arguing that the algorithmic rent coordination constituted an illegal restraint of trade under Sherman Act Section 1. [needs-verification on exact DOJ filing date and the specific defendants named; this was a rapidly developing story in mid-2024]</p><p>Several PE-backed apartment operators have been named in the complaint or related private lawsuits. The outcome of the DOJ case will determine whether algorithmic pricing using shared data constitutes price-fixing even without explicit coordination — a question with implications far beyond housing (the same analysis could apply to any sector where competitors use common algorithmic pricing tools).</p><p><strong>Why this matters for PE:</strong> The RealPage case introduces a new category of PE housing risk: not just aggressive rent increases by individual landlords, but potential antitrust liability for market-wide rent coordination through algorithmic tools. PE apartment operators who used RealPage during the relevant period face potential liability regardless of individual intent, if the court finds that using the algorithm constituted participation in a coordination scheme.</p><p>---</p><p>### Part 7: The Homeownership and Wealth Gap Argument</p><p>One specific critique of SFR PE investment that goes beyond tenant harm is the homeownership/wealth gap argument: by buying up homes that would otherwise be sold to first-time owner-occupants, institutional investors are contributing to declining homeownership rates and the concentration of wealth.</p><p><strong>The argument:</strong> Homeownership is the primary wealth-building mechanism for middle-class Americans. The median homeowner has approximately 40× the net worth of the median renter in the United States. [needs-verification on specific figure] When PE buys a home that would otherwise have been sold to a first-time buyer, that buyer instead becomes a renter — generating wealth for the PE fund's investors rather than building their own equity. At the scale of hundreds of thousands of homes, this represents a significant transfer of potential middle-class wealth to institutional investors and their LP base.</p><p><strong>The counter-argument:</strong> The scale argument is weak nationally (3–5% institutional share of 15 million SFR units). The counterfactual also matters: many PE-acquired homes were foreclosed properties that would not have been competitive for first-time buyers in their distressed condition. Without renovation capital, they might have remained vacant or been purchased by smaller investors rather than owner-occupiers. The structural drivers of declining homeownership (high prices, student debt, zoning restrictions, rising mortgage rates) are much larger than the institutional investor share. [needs-verification on specific homeownership rate drivers research]</p><p><strong>The distributional conclusion:</strong> The homeownership argument is more powerful as a distributional critique (who accumulates housing wealth) than as a causal claim (did PE cause homeownership to decline). At large PE firms whose LP base includes pension funds, some of the housing-related returns do accrue to the pension beneficiaries who might otherwise have been homeowners — creating a complex distributional picture where \"PE investors\" are not simply ultra-wealthy individuals but also include middle-class pension fund members.</p><p>---</p><p>### Part 8: Where the Critique Overgeneralises</p><p>As with PE in Healthcare, the thesis requires engaging the evidence on both sides.</p><p><strong>Where PE housing investment has been defensible or positive:</strong> 1. <strong>Post-GFC renovation.</strong> The 2012–2015 SFR acquisition wave bought homes in genuine distress, renovated them, and made them habitable. Without institutional capital, many of these homes would have remained vacant longer, deteriorating further and depressing the value of surrounding homes.</p><ol><li><strong>Professional property management.</strong> Large institutional SFR operators (Invitation Homes, AMH) have professionalised property management in ways that benefit some tenants: faster maintenance response, transparent lease processes, consistent policy application, and 24/7 call centres. Small landlords — who own the vast majority of SFR — are sometimes less responsive and less professional.</li></ol><ol><li><strong>Housing supply addition in some segments.</strong> Some PE-backed multifamily development has added net new housing supply, particularly in markets with constrained supply. Build-to-rent communities (PE-backed purpose-built rental housing) represent a new housing type that meets demand from households that prefer renting to owning.</li></ol><ol><li><strong>SFR national market share is small.</strong> PE and institutional investors own approximately 3–5% of single-family rentals nationally. The housing affordability crisis in the US is primarily driven by structural supply constraints (restrictive zoning, NIMBY opposition to new construction), rising land costs, and post-2022 mortgage rate increases — factors that PE's small market share did not cause and cannot resolve.</li></ol><ol><li><strong>The manufactured housing critique is strong; the SFR critique is more contested.</strong> The analytical tool from PE in Healthcare (exit ability determines structural harm risk) correctly predicts that manufactured housing is the worst case in housing PE. The SFR case is genuinely more ambiguous, and treating all PE housing investment as equivalent to manufactured housing captures the wrong sub-sector.</li></ol><p><strong>The structural compatibility framework for housing:</strong></p><p>| Housing Sub-Sector | Tenant Exit Ability | Feedback Loop | PE Risk Level | Evidence Quality | |---|---|---|---|---| | Manufactured housing (land lease) | Very low — structural captivity | Severely impaired | High — documented harm | Strong (investigative journalism, legislative response) | | SFR in concentrated local markets | Medium — costly but possible | Partially impaired | Moderate | Mixed (some evidence of price effects; counterfactual disputed) | | SFR nationally | Medium | Partially functional | Lower — national share is small | Weak causal claim | | Multifamily value-add (tight markets) | Medium — limited alternatives | Impaired by supply constraint | Moderate — displacement documented | Moderate (anecdotal; systematic evidence limited) | | Multifamily in supply-abundant markets | Medium-high | More functional | Lower | Mixed | | New multifamily construction (build-to-rent) | N/A — new supply | Functional | Low — adding supply | Positive |</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### Blackstone and Invitation Homes — From Foreclosure Crisis to the Largest US REIT IPO</p><p><strong>The entry thesis (2012)</strong> In early 2012, Blackstone's real estate investment team identified the SFR opportunity: millions of foreclosed homes sitting in bank REO portfolios, housing market at 30–50% discount to peak values, rental demand rising as former homeowners became renters, and no institutional competitor in the market. The thesis: buy at distressed pricing, renovate, rent, and exit through a public vehicle before the market recovered to replace the opportunity.</p><p>Blackstone created Invitation Homes as the vehicle. Within three years, it deployed approximately $10 billion, acquiring approximately 82,000 homes primarily in Atlanta, Phoenix, Tampa, Dallas-Fort Worth, Denver, Seattle, and Southern California.</p><p><strong>The operational innovation</strong> The conventional wisdom was that individual houses were too fragmented to manage institutionally. Invitation Homes proved otherwise: - Centralised property management platform handling maintenance requests, rent collection, and lease renewals - Maintenance technicians covering defined geographic zones (rather than individual property managers) - Predictive maintenance algorithms reducing emergency repair costs - National vendor contracts for appliances, HVAC, and renovation materials, lowering unit costs</p><p>By 2016, Invitation Homes was managing 82,000 homes with approximately 4,500 employees — a ratio of approximately 18 homes per employee that traditional property management could not approach. [needs-verification on staffing figures]</p><p><strong>The securitisation structure</strong> Invitation Homes pioneered SFR-CMBS: securitising rental income from hundreds of homes into bonds, backed by the rental cash flows. The first SFR securitisation in 2013 raised $479 million — the first time residential rental income from individual homes had been packaged into institutional bonds. [needs-verification on specific deal details] This innovation reduced Invitation Homes' cost of capital and enabled Blackstone to extract equity from the portfolio before the IPO.</p><p><strong>The IPO (February 2017)</strong> Invitation Homes priced its IPO at $20 per share, raising approximately $1.77 billion — the second-largest US REIT IPO at the time (the largest since 2014). The IPO valued Invitation Homes at approximately $11 billion. Blackstone retained significant shares but began the exit process.</p><p><strong>The 2018 merger and Blackstone exit</strong> In 2018, Invitation Homes merged with Starwood Waypoint Homes (a similar SFR REIT backed by Starwood Capital), creating a combined entity owning approximately 100,000 homes — the largest US SFR company. Blackstone continued selling down its stake and completed its exit by 2019.</p><p><strong>Reported return:</strong> Blackstone's SFR investment is reported to have generated approximately 2–3× invested capital on the equity deployed, with a strong IRR given the 5–7 year holding period and the significant home price appreciation in Sun Belt markets during the hold. [needs-verification on specific return figures — these are reported estimates, not publicly disclosed]</p><p><strong>The controversy:</strong> Invitation Homes has been the subject of tenant complaints and investigative reporting on multiple issues: - Annual rent increases of 3–10% compounding over multi-year tenancies, making long-term rent affordable only for rising-income households - Eviction filing rates reported to be above those of individual landlords in early years - Maintenance response time and quality complaints documented in tenant reviews and media investigations - The use of algorithmic pricing tools (including RealPage's YieldStar) to set rents at levels maximising portfolio revenue [needs-verification on Invitation Homes' specific use of RealPage]</p><p><strong>For the learner specifically:</strong> Blackstone — whose fund K-1 allocations flow through CVC Secondary Partners into the learner's daily data workflow — built Invitation Homes. The real estate returns that generated Blackstone fund returns in the 2012–2019 period, which subsequently flowed through K-1 allocations to CVC and then to CVC's investors, came partly from this SFR investment. Understanding what Invitation Homes was, how it made money, and what controversies it generated connects the abstract concept of \"Blackstone fund returns\" to a specific, documented economic activity with specific social consequences.</p><p>---</p><p>### Yes! Communities — Manufactured Housing and the Captive Tenant Case</p><p><strong>Background</strong> Yes! Communities is one of the largest manufactured housing community operators in the United States, with approximately 65,000 lots across approximately 200+ communities. It was acquired by Blackstone in 2019 as part of Blackstone's real estate strategies. [needs-verification on Blackstone acquisition details]</p><p><strong>The business model</strong> Yes! Communities collects lot rents from manufactured home residents — people who own their homes (the structures) but rent the land beneath them. The business generates predictable, low-volatility rental income with minimal capital expenditure obligations (the resident owns and is responsible for the structure; Yes! Communities maintains roads, utilities, and common areas).</p><p><strong>The controversy</strong> Multiple state attorney general offices and tenant advocacy groups have investigated and documented significant lot rent increases at Yes! Communities properties following acquisition. The mechanism: because residents cannot easily relocate their manufactured homes, lot rent can be increased significantly without triggering departure. Residents who invested $20,000–$50,000 in a manufactured home — often their only asset — face the choice of paying the higher rent or abandoning the home entirely.</p><p>This is the manufactured housing version of the nursing home problem: the \"customer\" has purchased an asset (the home structure) that is effectively trapped in a specific location, creating captivity that the landlord can exploit.</p><p><strong>Why this case matters for the thesis:</strong> Yes! Communities is owned by Blackstone — the same firm whose K-1 data the learner processes. It represents the clearest housing case where the \"broken feedback loop\" analysis applies directly and the distributional harm falls on the lowest-income residents with the least capacity to absorb it. The Blackstone brand that appears on the learner's CVC K-1 data is the same brand that owns communities where manufactured home residents face lot rents they cannot escape.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PE investors own most of the single-family rental market.\"</strong> Institutional and PE investors own approximately 3–5% of single-family rental homes nationally — a small fraction of the approximately 15 million SFR units in the US. Individual \"mom and pop\" landlords (owning 1–10 properties) own the vast majority. The policy debate is partly driven by the concentration of institutional ownership in specific local markets (zip codes in Phoenix and Atlanta), not by national market share.</p><p><strong>Misconception 2: \"Invitation Homes buying foreclosed homes caused the 2021–2022 SFR rent surge.\"</strong> The 2021–2022 rent surge in SFR markets was primarily driven by COVID-era migration to Sun Belt metros, low housing supply (construction had been suppressed for a decade post-GFC), and rising mortgage rates reducing homeownership affordability. Institutional investors contributed to demand for SFR in 2012–2015; by 2021–2022, most had shifted to operating existing portfolios rather than large-scale new acquisition. The timing does not support institutional acquisition as the primary driver of the 2021–2022 surge.</p><p><strong>Misconception 3: \"The manufactured housing and SFR cases have the same moral weight.\"</strong> The manufactured housing case has much stronger evidence of structural harm (captive tenants, documented displacement, very low exit ability) than the SFR case (moderate exit ability, contested causal claims, small national share). Treating them as equivalent misapplies the analytical framework. The exit-ability lens from PE in Healthcare predicts the difference correctly: manufactured housing residents are closer to nursing home patients in their captivity; SFR tenants are closer to ordinary consumers in competitive markets.</p><p><strong>Misconception 4: \"Build-to-rent communities worsen the housing crisis.\"</strong> BTR communities add net new housing supply — they are not converting potential owner-occupancy stock to rental. To the extent they meet genuine demand for single-family rental housing, they reduce pressure on the existing housing stock. The critique of acquisitive SFR (buying homes that could have been sold to owner-occupants) does not apply to purpose-built rental communities.</p><p><strong>Misconception 5: \"RealPage's algorithmic pricing is obviously illegal.\"</strong> The RealPage case raises genuinely novel antitrust questions. Traditional price-fixing requires explicit agreement between competitors. Whether using the same third-party algorithm, fed by shared market data, constitutes \"agreement\" within the meaning of Sherman Act Section 1 is legally unsettled — it depends on judicial interpretation of what constitutes a \"meeting of the minds\" among competitors. The DOJ has filed its complaint; the legal outcome is uncertain as of mid-2024.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "sbic-programme-as-regulated-pe", "title": "The SBIC Programme as Regulated PE", "draft_watermark": false, "estimated_runtime_sec": 410, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Regulated PE already exists", "on_screen_bullets": ["Historical precursor to modern PE", "Counters 'regulation destroys PE'", "A working domestic model"], "narration": "The whole regulation section keeps running into one industry argument: that comprehensive regulation would destroy private equity. This lesson presents a sixty-five-year-old counterexample hiding in plain sight. The Small Business Investment Company programme matters for three reasons. It's a historical precursor: it was the institutional structure within which many early US PE and venture investments were made before the nineteen-seventy-nine pension rule change, so it shows what regulated PE actually looked like before deregulation — the closest historical American equivalent to European-style regulation. It's a direct counter-argument to regulation-destroys-PE, because it has operated continuously for over six decades, licensing and regulating private capital investment without eliminating the asset class. And it's a working model of what US regulated PE would look like in practice — licensing, leverage caps, investment restrictions, mandatory reporting — which lets us compare concrete reality against the European proposals rather than arguing from theory.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Government-leveraged, licensed PE", "on_screen_bullets": ["Created 1958, SBA-licensed", "2:1 government debenture leverage", "Invests in small businesses"], "narration": "The definition. The Small Business Investment Company programme, created by the Small Business Investment Act of nineteen-fifty-eight, is the US government's oldest continuous PE and venture regulatory framework — a licensed, government-regulated structure in which privately managed investment companies receive government-backed debenture leverage, typically two-to-one against their private capital, to invest in qualifying small businesses. It is at once the historical precursor to modern PE and the only currently operating example of government-regulated private capital investment in the United States. Regulated PE, made concrete.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The basic bargain", "on_screen_bullets": ["Sputnik-era capital mobilisation", "Put in $1, govt lends $2, invest $3", "Leverage in exchange for rules"], "narration": "Plain English. In nineteen-fifty-eight, partly as a response to Sputnik, Congress created the programme because the US wanted to mobilise private capital for technology investment in small businesses. The idea: the government guarantees a debt facility that private fund managers can borrow against cheaply, and the managers combine that government-backed leverage with their own private capital to invest. The government backstop lowers the funding cost, while private management keeps market incentives. Think of it as a government-backed mortgage for PE investors: you put in one dollar, the government lends you two at a subsidised rate, and you invest three in small businesses — so if the investments succeed you profit on three while having risked only one, and if they fail the government bears part of the loss. But there's a trade-off, and it's the whole point of the lesson. In exchange for that government-backed leverage, these companies must be licensed by the Small Business Administration, accept investment restrictions limiting them to qualifying small businesses, and follow regulatory reporting requirements. Regulated PE in exchange for regulatory capital — that's the basic bargain, and it has held for sixty-five years.", "est_sec": 50}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "SBIC Structure", "on_screen_title": "How an SBIC works", "on_screen_bullets": ["Licence, then 2x debentures", "$50m private → $150m total", "Govt backs the debt, manager risks capital"], "narration": "Technically, here's how one works, step by step. First, licensing: a private manager applies to the Small Business Administration for a licence, needing minimum private capital, usually around five million, plus management experience and an acceptable investment plan. Second, government leverage: a licensed company can issue government-guaranteed debentures at subsidised below-market rates, with a fixed ten-year maturity, up to twice its private capital — so with fifty million in private capital, it can access up to a hundred million in debentures for a hundred-fifty million in total investment capital. Third, investment restrictions: it must invest in small businesses, qualifying by size standards on employees or revenue, and is barred from certain industries like financial intermediaries and real estate. Fourth, returns: the private investors earn returns net of the debenture interest cost, and the manager's profit is the outperformance over that cost. And fifth, losses: if the investments fail and the company can't repay its debentures, the government guarantee covers the debenture holders, absorbing that loss, while the managers lose their private capital. Notice the structure amplifies returns the same way buyout leverage does — gains and losses both magnified — but the government backstop means the downside isn't fully market-priced, since the guaranteed debentures cost less than private lenders would charge. The same leverage logic as PE, inside a regulatory cage.", "est_sec": 58}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Regulatory Framework", "on_screen_title": "An authorisation model", "on_screen_bullets": ["SBA approves, not just registers", "Exams, leverage cap, restrictions", "Closer to AIFMD than Dodd-Frank"], "narration": "The regulatory framework is the analytically important part, because of which model it resembles. The Small Business Administration affirmatively approves licences — it's an authorisation model, where the regulator says yes before you operate, not merely a registration model where you file and proceed. It examines these companies periodically to verify investment compliance and financial condition, actively monitors portfolio-company eligibility, and requires regular financial and portfolio reporting. Contrast that with unregulated PE: these companies cannot invest in non-qualifying businesses because of the size restrictions, cannot exceed the two-to-one leverage cap, must maintain minimum capital ratios, and face examination and potential licence revocation for non-compliance. And here's the key comparison — this is a much closer analogue to the European directive than to Dodd-Frank. The European model uses authorisation, leverage caps, and investment restrictions; Dodd-Frank uses registration and disclosure. The SBIC programme has all three of the European-style elements — affirmative authorisation, a hard leverage cap, and monitored investment restrictions — and it's been running them domestically, on American soil, under American law, for over sixty years. So when critics say authorisation-based regulation with leverage caps is alien to the US system, the SBIC programme is the standing rebuttal.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "SBIC as \"Proof of Concept\" for Regulated PE", "on_screen_title": "Proof of concept", "on_screen_bullets": ["~300 SBICs, ~$30–40bn", "Authorisation + caps are feasible", "Undercuts 'impossible' claim"], "narration": "This is why the programme functions as a proof of concept, and it's the crux of its analytical value. Before the nineteen-seventy-nine pension rule change, these companies were the primary vehicle for institutional PE investment, with early PE managers — including some who later became dominant buyout firms — operating through the structure, using government leverage to subsidise early-stage investing when private capital was scarce. After nineteen-seventy-nine, with pension capital available at scale, unregulated limited partnerships became the dominant form, and the programme settled into a niche: smaller funds below institutional minimums, an early-stage and growth focus, since large buyouts don't qualify under the investment restrictions. Today there are roughly three hundred active companies managing about thirty to forty billion dollars — significant but a niche within a PE universe above ten trillion. Yet its sixty-five-year history provides direct evidence of four things: that licensed, authorised PE is operationally feasible; that leverage caps on PE funds are technically enforceable; that investment restrictions can be monitored by a regulator; and that government-involved PE leverage does not necessarily produce catastrophic losses, even though failures have occurred. That's exactly the evidence the legislative-path analysis draws on to argue that European-equivalent provisions are achievable in the US — pointing not to a foreign model, but to a working domestic precedent.", "est_sec": 54}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "SBIC Failures and Limitations", "on_screen_title": "The limits and the catch", "on_screen_bullets": ["Moral hazard from the backstop", "Small-business restriction excludes LBOs", "Architecture, not the deal type"], "narration": "But the programme has real limitations that keep the lesson honest. First, failures: it suffered significant losses in downturns, notably the nineteen-seventies recession and the two-thousand-eight crisis, because government-backed leverage that amplifies losses as well as gains meant portfolios could impose losses on the government when their small businesses failed. Second, moral hazard: the government backstop on the debentures creates a classic problem, where managers who fail don't bear the full cost because the government absorbs the debenture losses, which tilts incentives toward excessive risk-taking — the same incentive flaw that plagued the savings-and-loan model. And third, limited scope, which is the crucial catch: the investment restrictions confine these companies to small businesses, so the programme cannot be a model for large-cap buyout regulation — it answers can PE be regulated, but not can large buyout funds be regulated using these specific mechanics. The right way to read it is that the SBIC programme validates the regulatory architecture — authorisation, leverage caps, investment monitoring — not the specific deal type. To recap: the programme is the oldest continuously operating example of regulated PE in the US, demonstrating across six decades that authorisation, leverage caps, and investment restrictions are technically feasible domestically, which directly undercuts the claim that European-equivalent regulation is structurally impossible here — even as its small-business scope means a buyout equivalent would need new design. Next we examine the legal doctrine that has lately made all such regulation harder to sustain in court — the major questions doctrine.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The standing rebuttal", "on_screen_bullets": ["Authorisation + caps, 65 years", "Domestic precedent, not theory", "Validates architecture, not deal type"], "narration": "To recap. The Small Business Investment Company programme, dating to nineteen-fifty-eight, is the oldest continuously operating example of regulated PE in the United States, using an authorisation model with affirmative government licensing, a two-to-one leverage cap, investment restrictions to qualifying small businesses, and periodic regulatory examination. Historically it was the primary institutional PE vehicle before the nineteen-seventy-nine pension change opened the door to unregulated limited partnerships, and it's now a niche segment of perhaps thirty to forty billion in assets. But its analytical value isn't its size — it's that it serves as a standing domestic rebuttal to the claim that European-style regulation can't work in America, demonstrating in practice that authorisation-based oversight, hard leverage caps, and monitored investment restrictions are all technically feasible under US law. The one caveat that keeps the argument precise: because its scope is small businesses, it validates the regulatory architecture rather than proving any particular deal type, so a large-buyout equivalent would still require fresh design. The programme proves regulated PE is not an oxymoron — it's been running for sixty-five years.", "est_sec": 46}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The SBIC programme is cited as proof that 'regulated PE' is not an oxymoron. Explain which regulatory model it resembles (authorisation vs registration) and why that matters. Then: why does its small-business restriction mean it validates the ARCHITECTURE but not large-cap buyout regulation specifically?", "narration": "Before the next lesson, reason it through. The SBIC programme is cited as proof that regulated PE is not an oxymoron — explain which regulatory model it resembles, authorisation or registration, and why that distinction matters for the broader argument. And why does its small-business investment restriction mean it validates the regulatory architecture but not large-cap buyout regulation specifically? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The SBIC Programme as Regulated PE\n\n[hook] Regulated PE already exists\nThe whole regulation section keeps running into one industry argument: that comprehensive regulation would destroy private equity. This lesson presents a sixty-five-year-old counterexample hiding in plain sight. The Small Business Investment Company programme matters for three reasons. It's a historical precursor: it was the institutional structure within which many early US PE and venture investments were made before the nineteen-seventy-nine pension rule change, so it shows what regulated PE actually looked like before deregulation — the closest historical American equivalent to European-style regulation. It's a direct counter-argument to regulation-destroys-PE, because it has operated continuously for over six decades, licensing and regulating private capital investment without eliminating the asset class. And it's a working model of what US regulated PE would look like in practice — licensing, leverage caps, investment restrictions, mandatory reporting — which lets us compare concrete reality against the European proposals rather than arguing from theory.\n\n[definition] Government-leveraged, licensed PE\nThe definition. The Small Business Investment Company programme, created by the Small Business Investment Act of nineteen-fifty-eight, is the US government's oldest continuous PE and venture regulatory framework — a licensed, government-regulated structure in which privately managed investment companies receive government-backed debenture leverage, typically two-to-one against their private capital, to invest in qualifying small businesses. It is at once the historical precursor to modern PE and the only currently operating example of government-regulated private capital investment in the United States. Regulated PE, made concrete.\n\n[intuition] The basic bargain\nPlain English. In nineteen-fifty-eight, partly as a response to Sputnik, Congress created the programme because the US wanted to mobilise private capital for technology investment in small businesses. The idea: the government guarantees a debt facility that private fund managers can borrow against cheaply, and the managers combine that government-backed leverage with their own private capital to invest. The government backstop lowers the funding cost, while private management keeps market incentives. Think of it as a government-backed mortgage for PE investors: you put in one dollar, the government lends you two at a subsidised rate, and you invest three in small businesses — so if the investments succeed you profit on three while having risked only one, and if they fail the government bears part of the loss. But there's a trade-off, and it's the whole point of the lesson. In exchange for that government-backed leverage, these companies must be licensed by the Small Business Administration, accept investment restrictions limiting them to qualifying small businesses, and follow regulatory reporting requirements. Regulated PE in exchange for regulatory capital — that's the basic bargain, and it has held for sixty-five years.\n\n[mechanics] How an SBIC works\nTechnically, here's how one works, step by step. First, licensing: a private manager applies to the Small Business Administration for a licence, needing minimum private capital, usually around five million, plus management experience and an acceptable investment plan. Second, government leverage: a licensed company can issue government-guaranteed debentures at subsidised below-market rates, with a fixed ten-year maturity, up to twice its private capital — so with fifty million in private capital, it can access up to a hundred million in debentures for a hundred-fifty million in total investment capital. Third, investment restrictions: it must invest in small businesses, qualifying by size standards on employees or revenue, and is barred from certain industries like financial intermediaries and real estate. Fourth, returns: the private investors earn returns net of the debenture interest cost, and the manager's profit is the outperformance over that cost. And fifth, losses: if the investments fail and the company can't repay its debentures, the government guarantee covers the debenture holders, absorbing that loss, while the managers lose their private capital. Notice the structure amplifies returns the same way buyout leverage does — gains and losses both magnified — but the government backstop means the downside isn't fully market-priced, since the guaranteed debentures cost less than private lenders would charge. The same leverage logic as PE, inside a regulatory cage.\n\n[mechanics] An authorisation model\nThe regulatory framework is the analytically important part, because of which model it resembles. The Small Business Administration affirmatively approves licences — it's an authorisation model, where the regulator says yes before you operate, not merely a registration model where you file and proceed. It examines these companies periodically to verify investment compliance and financial condition, actively monitors portfolio-company eligibility, and requires regular financial and portfolio reporting. Contrast that with unregulated PE: these companies cannot invest in non-qualifying businesses because of the size restrictions, cannot exceed the two-to-one leverage cap, must maintain minimum capital ratios, and face examination and potential licence revocation for non-compliance. And here's the key comparison — this is a much closer analogue to the European directive than to Dodd-Frank. The European model uses authorisation, leverage caps, and investment restrictions; Dodd-Frank uses registration and disclosure. The SBIC programme has all three of the European-style elements — affirmative authorisation, a hard leverage cap, and monitored investment restrictions — and it's been running them domestically, on American soil, under American law, for over sixty years. So when critics say authorisation-based regulation with leverage caps is alien to the US system, the SBIC programme is the standing rebuttal.\n\n[mechanics] Proof of concept\nThis is why the programme functions as a proof of concept, and it's the crux of its analytical value. Before the nineteen-seventy-nine pension rule change, these companies were the primary vehicle for institutional PE investment, with early PE managers — including some who later became dominant buyout firms — operating through the structure, using government leverage to subsidise early-stage investing when private capital was scarce. After nineteen-seventy-nine, with pension capital available at scale, unregulated limited partnerships became the dominant form, and the programme settled into a niche: smaller funds below institutional minimums, an early-stage and growth focus, since large buyouts don't qualify under the investment restrictions. Today there are roughly three hundred active companies managing about thirty to forty billion dollars — significant but a niche within a PE universe above ten trillion. Yet its sixty-five-year history provides direct evidence of four things: that licensed, authorised PE is operationally feasible; that leverage caps on PE funds are technically enforceable; that investment restrictions can be monitored by a regulator; and that government-involved PE leverage does not necessarily produce catastrophic losses, even though failures have occurred. That's exactly the evidence the legislative-path analysis draws on to argue that European-equivalent provisions are achievable in the US — pointing not to a foreign model, but to a working domestic precedent.\n\n[pitfalls] The limits and the catch\nBut the programme has real limitations that keep the lesson honest. First, failures: it suffered significant losses in downturns, notably the nineteen-seventies recession and the two-thousand-eight crisis, because government-backed leverage that amplifies losses as well as gains meant portfolios could impose losses on the government when their small businesses failed. Second, moral hazard: the government backstop on the debentures creates a classic problem, where managers who fail don't bear the full cost because the government absorbs the debenture losses, which tilts incentives toward excessive risk-taking — the same incentive flaw that plagued the savings-and-loan model. And third, limited scope, which is the crucial catch: the investment restrictions confine these companies to small businesses, so the programme cannot be a model for large-cap buyout regulation — it answers can PE be regulated, but not can large buyout funds be regulated using these specific mechanics. The right way to read it is that the SBIC programme validates the regulatory architecture — authorisation, leverage caps, investment monitoring — not the specific deal type. To recap: the programme is the oldest continuously operating example of regulated PE in the US, demonstrating across six decades that authorisation, leverage caps, and investment restrictions are technically feasible domestically, which directly undercuts the claim that European-equivalent regulation is structurally impossible here — even as its small-business scope means a buyout equivalent would need new design. Next we examine the legal doctrine that has lately made all such regulation harder to sustain in court — the major questions doctrine.\n\n[recap] The standing rebuttal\nTo recap. The Small Business Investment Company programme, dating to nineteen-fifty-eight, is the oldest continuously operating example of regulated PE in the United States, using an authorisation model with affirmative government licensing, a two-to-one leverage cap, investment restrictions to qualifying small businesses, and periodic regulatory examination. Historically it was the primary institutional PE vehicle before the nineteen-seventy-nine pension change opened the door to unregulated limited partnerships, and it's now a niche segment of perhaps thirty to forty billion in assets. But its analytical value isn't its size — it's that it serves as a standing domestic rebuttal to the claim that European-style regulation can't work in America, demonstrating in practice that authorisation-based oversight, hard leverage caps, and monitored investment restrictions are all technically feasible under US law. The one caveat that keeps the argument precise: because its scope is small businesses, it validates the regulatory architecture rather than proving any particular deal type, so a large-buyout equivalent would still require fresh design. The programme proves regulated PE is not an oxymoron — it's been running for sixty-five years.\n\nEnd-card question: The SBIC programme is cited as proof that 'regulated PE' is not an oxymoron. Explain which regulatory model it resembles (authorisation vs registration) and why that matters. Then: why does its small-business restriction mean it validates the ARCHITECTURE but not large-cap buyout regulation specifically?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The SBIC programme is analytically significant for the course in three ways:</p><ol><li><strong>Historical precursor:</strong> SBIC was the institutional structure within which many early US PE and VC investments were made before the 1979 ERISA clarification. Understanding SBIC explains what \"regulated PE\" looked like in practice before deregulation — the closest historical US equivalent to AIFMD-style regulation.</li></ol><ol><li><strong>Counter-argument to \"regulation destroys PE\":</strong> The SBIC programme has operated continuously for 65+ years, licensing and regulating private capital investment without eliminating the asset class. It demonstrates that regulated PE is not an oxymoron.</li></ol><ol><li><strong>\"What US regulated PE would look like\":</strong> SBIC provides a working model for what government-regulated PE looks like in practice — licensing, leverage caps, investment restrictions, mandatory reporting — allowing concrete comparison to AIFMD proposals.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The Small Business Investment Company (SBIC) programme, created by the Small Business Investment Act of 1958, is the US government's oldest continuous PE/VC regulatory framework — a licensed, SBA-regulated structure in which privately managed investment companies receive government-backed debenture leverage (typically 2:1 against private capital) to invest in qualifying small businesses — representing both the historical precursor to modern PE and the only currently operating example of government-regulated private capital investment in the US.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>In 1958, Congress created SBIC as part of the response to Sputnik — the US needed to mobilise private capital for technology investment in small businesses. The idea: the government guarantees a debt facility that private fund managers can borrow cheaply; the fund managers use that government-backed leverage plus their own private capital to invest in small businesses. The government backstop reduces funding costs; the private management creates market incentives.</p><p>Think of it like a government-backed mortgage for PE investors: you put in $1, the government lends you $2 at a subsidised rate, and you invest $3 in small businesses. If the investments succeed, you profit on $3 while only having risked $1. If the investments fail, the government bears part of the loss.</p><p>The trade-off: in exchange for the government-backed leverage, SBICs must be licensed by the SBA, accept investment restrictions (qualifying small businesses only), and follow SBA reporting requirements. Regulated PE, in exchange for regulatory capital — this is the basic bargain.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The SBIC programme (1958) is the oldest continuously operating example of regulated PE in the US, using an authorisation model (SBA affirmative licensing), leverage caps (2:1 SBA debenture ratio), investment restrictions (qualifying small businesses), and periodic regulatory examination. Historically the primary institutional PE vehicle before the 1979 ERISA clarification enabled unregulated LP structures, SBIC is now a niche ($30-40bn AUM) but continuously operating segment. Its analytical value is as domestic precedent: SBIC demonstrates that authorisation-based PE regulation, leverage caps, and investment restrictions are technically feasible in the US — directly undermining the claim that AIFMD-equivalent regulation is structurally impossible.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

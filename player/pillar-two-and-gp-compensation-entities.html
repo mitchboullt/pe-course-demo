@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pillar-two-and-gp-compensation-entities", "title": "Pillar Two and GP Compensation Entities — Fund Layer Interaction", "draft_watermark": false, "estimated_runtime_sec": 405, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The exclusion's blind spot", "on_screen_bullets": ["Fund exclusion protects the LP vehicle", "But not the GP management entity", "Carry vehicle is the open question"], "narration": "When people say Pillar Two doesn't affect PE, they're leaning on one mechanism: the investment-fund exclusion, which keeps the fund vehicle out of the fifteen percent minimum tax. But that exclusion was written for the fund — the limited partnership that holds the portfolio-company investments — not for the GP management entity that collects management fees and carried interest as compensation for a service. For most PE firms this distinction is academic, because they fall under the size threshold and Pillar Two simply doesn't reach them. But for the handful of very large firms whose revenues approach or exceed the threshold, the question becomes live: does the GP entity benefit from the fund exclusion, or is it taxed as the management business it functionally is? And there's a sharper sub-question underneath — what about the separate carry vehicle? That specific blind spot is what this lesson addresses.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Fund yes, manager maybe", "on_screen_bullets": ["Funds explicitly excluded", "GP entities are not funds", "Live question for the largest firms"], "narration": "The definition. Pillar Two — the OECD global minimum tax — explicitly excludes investment funds from its scope. But GP management entities that receive management fees and carried interest are not investment funds; they're service businesses. That creates a specific, unresolved question about whether the GP compensation vehicles of the largest PE firms fall inside the fifteen percent global minimum tax framework. The fund is clearly out. The manager is the genuine question — and the carry vehicle sitting between them is the part the rules handle least clearly.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Two entities, one exemption", "on_screen_bullets": ["The fund: holds investments, excluded", "The GP: charges fees, runs the show", "Is the GP an investment or a service?"], "narration": "Plain English. Pillar Two says large multinational companies should pay at least fifteen percent tax on their income wherever they're located. To avoid wrecking investment-fund taxation — where fund income is meant to flow through to investors who pay their own tax — the OECD carved out an exemption for investment funds. But a PE firm is really two distinct entities. There's the fund itself, which holds the portfolio-company investments; that's unambiguously an investment fund, and Pillar Two doesn't apply. And there's the GP management company, which receives the management fees, typically one-and-a-half to two percent a year, plus twenty percent carried interest, and which employs the professionals and makes the investment decisions. Is that an investment fund? Or a service business receiving service fees? If you characterise it as an investment fund — on the theory that it holds the GP interest in the fund, which is itself an investment — the exclusion might reach it. If you characterise it by what it actually does, manage other people's money for a fee, the exclusion shouldn't apply. That tension between form and function is the whole problem.", "est_sec": 50}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The fund's law firm", "on_screen_bullets": ["Fund exempt: income flows to investors", "GP is the adviser, not the fund", "Law firms pay normal corporate tax"], "narration": "The mental model. Think of Pillar Two as a minimum-wage law for corporate tax — companies must pay at least a fifteen percent tax wage on their income. The investment-fund exclusion says funds are exempt, because their income flows through to investors who pay their own tax. But the GP management entity isn't the fund; it's the investment manager — much more like a law firm or a consulting firm that advises the fund. Law firms and consultancies pay corporate tax at normal rates. There's no principled reason a PE management firm should slip out through an exclusion that was designed for the fund vehicle it advises, not for the advisory business itself. So the natural default — the one the OECD's direction of travel supports — is that the fund is excluded and the manager is not. The interesting cases are the ones that try to dress the manager up as something fund-like, and that's where the carry vehicle comes in.", "est_sec": 44}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "What the exclusion actually covers", "on_screen_bullets": ["Fund: aggregates capital, invests, broad ownership", "GP also: fees, staff, decisions, monitoring", "Service activity, not investment activity"], "narration": "Technically, the exclusion has defined boundaries. An entity qualifies as an excluded investment fund broadly if it aggregates capital from multiple investors, invests with a view to financial return, isn't run as a financial institution or insurer, and is either publicly traded or held by a broad group of investors not related to the manager. The limited-partnership fund vehicle clearly satisfies that — investors commit capital, the fund invests in portfolio companies, returns flow to the limited partners. Now the GP entity. Yes, it holds the GP interest in the fund, which is technically an investment — a small economic stake plus the right to carry. But the same entity also receives management fees, which are explicitly service-fee income rather than investment return; it employs the investment professionals; it makes the fund's investment decisions; and it charges portfolio companies transaction and monitoring fees. Every one of those is a service activity, not an investment activity. So the argument that the GP entity is itself an investment fund is weak on the functional analysis, even though it holds GP interests. And the OECD's administrative guidance points the same way — the fund vehicle is excluded, the fund manager is not. Form says maybe; function says no; and Pillar Two is increasingly a function test.", "est_sec": 58}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Who is actually in scope", "on_screen_bullets": ["Threshold: ~750m euro consolidated revenue", "Most firms: well below, out of scope", "Live only for the 5-10 largest"], "narration": "Crucially, the size threshold settles most of this before the characterisation question even arises. Pillar Two applies to groups with consolidated revenue at or above roughly seven hundred and fifty million euros. Run that against the industry. A mid-size firm with a few billion in assets under management might have management-company revenue of fifty to a hundred and fifty million a year — comfortably below the threshold, entirely out of scope, so the GP entity question never bites. The publicly listed mega-firms, by contrast, have total revenues well above the threshold and are potentially in scope as multinational groups if they have qualifying entities in low-tax jurisdictions. A handful of large private firms sit right on the borderline. So the practical takeaway is that for the vast majority of PE firms, Pillar Two creates no GP-entity tax obligation at all — the question is genuinely relevant only for the five to ten largest management companies globally. That dramatically shrinks the surface area of the issue, and it's why a lot of the anxiety about Pillar Two and PE is misplaced: most firms never cross the threshold that would make any of it apply.", "est_sec": 52}, {"n": 7, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The carry vehicle and the real risk", "on_screen_bullets": ["Carry vehicle: investment-like or comp-like?", "Local rates mostly exceed 15%", "Risk: low-tax offshore carry routing"], "narration": "Now the sharper sub-question: the carry vehicle, which is often a separate entity from the management company. The management company employs the professionals and charges fees — clearly a service entity. The carry vehicle, by contrast, holds the GP's carry entitlement, and it can at least argue it's an investment entity excluded from Pillar Two. Its characterisation turns on whether it holds the GP interest directly, which looks investment-like, or merely has a contractual right to carry, which looks compensation-like, and on how each jurisdiction's implementing legislation treats it. As of now, that specific treatment is still evolving, and the industry has been actively seeking guidance — the working assumption is that the exclusion doesn't protect management-company revenue, while its reach over carry-vehicle income remains unclear. But step back and the practical risk is smaller than it sounds, because of the rates. In the major jurisdictions, management fees are taxed at corporate rates around twenty-five percent, and carry is taxed at the partner level at rates above fifteen percent — UK carry in the high twenties, US carry at roughly twenty-four percent. All of those clear the fifteen percent floor, so no top-up is triggered on standard income. The genuine exposure is narrow: carry routed through a very low-tax offshore vehicle without adequate economic substance — and even there, the fund-vehicle exclusion typically insulates much of the structure. So the real-world Pillar Two risk for large PE managers is mostly about structuring and compliance, not about actually paying additional tax.", "est_sec": 62}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Fund exclusion covers everything", "US carry triggers EU top-ups", "Threshold lets every firm off"], "narration": "Three corrections to close. First, the belief that Pillar Two doesn't apply to PE at all because of the investment-fund exclusion — the exclusion protects the fund vehicle, not the GP management entity, which is a service business, so for large firms Pillar Two potentially does apply at the GP level. Second, the belief that US carry, being taxed below some headline rate, triggers EU top-up taxes — US carry is taxed at roughly twenty-four percent at the partner level, comfortably above the fifteen percent floor, so no top-up is triggered; the concern only arises if carry were routed through an entity taxed below fifteen. And third, the belief that the size threshold lets every firm off the hook — for GP-entity analysis that's broadly true, since most management companies fall below the threshold, but it's precisely the five to ten largest firms for whom the question is real, so don't generalise the exemption to them. To recap: the fund exclusion clearly shields the fund vehicle but not the GP management entity; the question is live only for the largest firms above the size threshold; standard management-fee and carry rates in major jurisdictions already exceed fifteen percent, so top-ups are unlikely on ordinary income; and the remaining risk is concentrated in low-tax offshore carry vehicles where the investment-fund characterisation argument decides the outcome. That closes the Pillar Two and GP tax thread; next we turn to the fee-waiver mechanism and its regulatory status.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why does the Pillar Two investment-fund exclusion protect the LP fund vehicle but not the GP management entity? Then: for the handful of firms actually in scope, why is the real Pillar Two exposure mostly about offshore carry vehicles rather than management-fee income?", "narration": "Before the next lesson, reason it through. Why does the Pillar Two investment-fund exclusion protect the limited-partnership fund vehicle but not the GP management entity — what's the form-versus-function distinction doing? Then: for the handful of firms genuinely in scope, why does the real exposure concentrate in low-tax offshore carry vehicles rather than in ordinary management-fee income? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Pillar Two and GP Compensation Entities — Fund Layer Interaction\n\n[hook] The exclusion's blind spot\nWhen people say Pillar Two doesn't affect PE, they're leaning on one mechanism: the investment-fund exclusion, which keeps the fund vehicle out of the fifteen percent minimum tax. But that exclusion was written for the fund — the limited partnership that holds the portfolio-company investments — not for the GP management entity that collects management fees and carried interest as compensation for a service. For most PE firms this distinction is academic, because they fall under the size threshold and Pillar Two simply doesn't reach them. But for the handful of very large firms whose revenues approach or exceed the threshold, the question becomes live: does the GP entity benefit from the fund exclusion, or is it taxed as the management business it functionally is? And there's a sharper sub-question underneath — what about the separate carry vehicle? That specific blind spot is what this lesson addresses.\n\n[definition] Fund yes, manager maybe\nThe definition. Pillar Two — the OECD global minimum tax — explicitly excludes investment funds from its scope. But GP management entities that receive management fees and carried interest are not investment funds; they're service businesses. That creates a specific, unresolved question about whether the GP compensation vehicles of the largest PE firms fall inside the fifteen percent global minimum tax framework. The fund is clearly out. The manager is the genuine question — and the carry vehicle sitting between them is the part the rules handle least clearly.\n\n[intuition] Two entities, one exemption\nPlain English. Pillar Two says large multinational companies should pay at least fifteen percent tax on their income wherever they're located. To avoid wrecking investment-fund taxation — where fund income is meant to flow through to investors who pay their own tax — the OECD carved out an exemption for investment funds. But a PE firm is really two distinct entities. There's the fund itself, which holds the portfolio-company investments; that's unambiguously an investment fund, and Pillar Two doesn't apply. And there's the GP management company, which receives the management fees, typically one-and-a-half to two percent a year, plus twenty percent carried interest, and which employs the professionals and makes the investment decisions. Is that an investment fund? Or a service business receiving service fees? If you characterise it as an investment fund — on the theory that it holds the GP interest in the fund, which is itself an investment — the exclusion might reach it. If you characterise it by what it actually does, manage other people's money for a fee, the exclusion shouldn't apply. That tension between form and function is the whole problem.\n\n[intuition] The fund's law firm\nThe mental model. Think of Pillar Two as a minimum-wage law for corporate tax — companies must pay at least a fifteen percent tax wage on their income. The investment-fund exclusion says funds are exempt, because their income flows through to investors who pay their own tax. But the GP management entity isn't the fund; it's the investment manager — much more like a law firm or a consulting firm that advises the fund. Law firms and consultancies pay corporate tax at normal rates. There's no principled reason a PE management firm should slip out through an exclusion that was designed for the fund vehicle it advises, not for the advisory business itself. So the natural default — the one the OECD's direction of travel supports — is that the fund is excluded and the manager is not. The interesting cases are the ones that try to dress the manager up as something fund-like, and that's where the carry vehicle comes in.\n\n[mechanics] What the exclusion actually covers\nTechnically, the exclusion has defined boundaries. An entity qualifies as an excluded investment fund broadly if it aggregates capital from multiple investors, invests with a view to financial return, isn't run as a financial institution or insurer, and is either publicly traded or held by a broad group of investors not related to the manager. The limited-partnership fund vehicle clearly satisfies that — investors commit capital, the fund invests in portfolio companies, returns flow to the limited partners. Now the GP entity. Yes, it holds the GP interest in the fund, which is technically an investment — a small economic stake plus the right to carry. But the same entity also receives management fees, which are explicitly service-fee income rather than investment return; it employs the investment professionals; it makes the fund's investment decisions; and it charges portfolio companies transaction and monitoring fees. Every one of those is a service activity, not an investment activity. So the argument that the GP entity is itself an investment fund is weak on the functional analysis, even though it holds GP interests. And the OECD's administrative guidance points the same way — the fund vehicle is excluded, the fund manager is not. Form says maybe; function says no; and Pillar Two is increasingly a function test.\n\n[mechanics] Who is actually in scope\nCrucially, the size threshold settles most of this before the characterisation question even arises. Pillar Two applies to groups with consolidated revenue at or above roughly seven hundred and fifty million euros. Run that against the industry. A mid-size firm with a few billion in assets under management might have management-company revenue of fifty to a hundred and fifty million a year — comfortably below the threshold, entirely out of scope, so the GP entity question never bites. The publicly listed mega-firms, by contrast, have total revenues well above the threshold and are potentially in scope as multinational groups if they have qualifying entities in low-tax jurisdictions. A handful of large private firms sit right on the borderline. So the practical takeaway is that for the vast majority of PE firms, Pillar Two creates no GP-entity tax obligation at all — the question is genuinely relevant only for the five to ten largest management companies globally. That dramatically shrinks the surface area of the issue, and it's why a lot of the anxiety about Pillar Two and PE is misplaced: most firms never cross the threshold that would make any of it apply.\n\n[mechanics] The carry vehicle and the real risk\nNow the sharper sub-question: the carry vehicle, which is often a separate entity from the management company. The management company employs the professionals and charges fees — clearly a service entity. The carry vehicle, by contrast, holds the GP's carry entitlement, and it can at least argue it's an investment entity excluded from Pillar Two. Its characterisation turns on whether it holds the GP interest directly, which looks investment-like, or merely has a contractual right to carry, which looks compensation-like, and on how each jurisdiction's implementing legislation treats it. As of now, that specific treatment is still evolving, and the industry has been actively seeking guidance — the working assumption is that the exclusion doesn't protect management-company revenue, while its reach over carry-vehicle income remains unclear. But step back and the practical risk is smaller than it sounds, because of the rates. In the major jurisdictions, management fees are taxed at corporate rates around twenty-five percent, and carry is taxed at the partner level at rates above fifteen percent — UK carry in the high twenties, US carry at roughly twenty-four percent. All of those clear the fifteen percent floor, so no top-up is triggered on standard income. The genuine exposure is narrow: carry routed through a very low-tax offshore vehicle without adequate economic substance — and even there, the fund-vehicle exclusion typically insulates much of the structure. So the real-world Pillar Two risk for large PE managers is mostly about structuring and compliance, not about actually paying additional tax.\n\n[pitfalls] What people get wrong\nThree corrections to close. First, the belief that Pillar Two doesn't apply to PE at all because of the investment-fund exclusion — the exclusion protects the fund vehicle, not the GP management entity, which is a service business, so for large firms Pillar Two potentially does apply at the GP level. Second, the belief that US carry, being taxed below some headline rate, triggers EU top-up taxes — US carry is taxed at roughly twenty-four percent at the partner level, comfortably above the fifteen percent floor, so no top-up is triggered; the concern only arises if carry were routed through an entity taxed below fifteen. And third, the belief that the size threshold lets every firm off the hook — for GP-entity analysis that's broadly true, since most management companies fall below the threshold, but it's precisely the five to ten largest firms for whom the question is real, so don't generalise the exemption to them. To recap: the fund exclusion clearly shields the fund vehicle but not the GP management entity; the question is live only for the largest firms above the size threshold; standard management-fee and carry rates in major jurisdictions already exceed fifteen percent, so top-ups are unlikely on ordinary income; and the remaining risk is concentrated in low-tax offshore carry vehicles where the investment-fund characterisation argument decides the outcome. That closes the Pillar Two and GP tax thread; next we turn to the fee-waiver mechanism and its regulatory status.\n\nEnd-card question: Why does the Pillar Two investment-fund exclusion protect the LP fund vehicle but not the GP management entity? Then: for the handful of firms actually in scope, why is the real Pillar Two exposure mostly about offshore carry vehicles rather than management-fee income?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The Pillar Two and Private Equity note covers how Pillar Two affects PE-owned portfolio companies and the fund structure itself. It identifies the investment fund exclusion as the primary mechanism protecting PE fund structures from Pillar Two compliance. But the investment fund exclusion was designed for the fund vehicle (the LP that holds portfolio company investments) — not for the GP management entity that receives management fees and carried interest as service compensation.</p><p>For large PE firms (Blackstone, KKR, Apollo, Carlyle) that have revenues approaching or exceeding the €750m threshold, this distinction matters. For smaller PE firms, the threshold means Pillar Two is typically irrelevant to the GP entity. But the question of whether carry vehicles benefit from the investment fund exclusion — or whether they're treated as taxable management entities — is the specific blind spot this note addresses.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Pillar Two (OECD GloBE minimum tax) explicitly excludes investment funds from its scope — but GP management entities that receive management fees and carried interest are not investment funds, creating a specific question about whether large PE firm GP compensation vehicles fall within the 15% global minimum tax framework.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Pillar Two says: large multinational companies should pay at least 15% tax on their income, no matter where they're located. To prevent this rule from creating chaos in investment fund taxation (where fund income is meant to flow through to investors who pay their own taxes), the OECD created an exemption for investment funds.</p><p>But a PE firm has two distinct entities: 1. <strong>The fund</strong> (e.g., KKR PE Fund XIII): This holds portfolio company investments; it's an investment fund; Pillar Two doesn't apply. 2. <strong>The GP management company</strong> (e.g., KKR Management LLC): This receives management fees (1.5-2% annually) and carried interest (20% of profits). Is this an investment fund? Or a service business receiving service fees?</p><p>If the GP management company is an investment fund (because it holds the GP interest in the fund, which is an \"investment\"), the fund exclusion might apply. If it's a management service business (which is what it functionally is — it manages other people's money), the exclusion might not apply.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Pillar Two is like a minimum wage law for corporate tax — companies must pay at least 15% \"tax wage\" on their income. The investment fund exclusion says: investment funds are exempt, because their income flows through to investors who pay their own taxes. The GP management entity is not the investment fund; it's the investment manager — more like a law firm or consulting firm that advises the fund. Law firms pay corporate tax at normal rates; there's no reason a PE management firm should be exempt through the investment fund exclusion designed for the fund vehicle itself.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Pillar Two Investment Fund Exclusion — What It Covers</p><p><strong>OECD GloBE Model Rules Article 1.5(f):</strong> An \"investment fund\" is excluded from the definition of \"MNE Group\" if it: (i) is designed to aggregate capital from multiple investors; (ii) invests in assets with a view to generating financial return; (iii) is not operated as a financial institution or insurance company; and (iv) interests in the fund are either publicly traded or held by a broad group of investors who are not related to the fund manager [needs-verification: exact definition text].</p><p><strong>What this covers:</strong> The LP vehicle (KKR PE Fund XIII) — investors commit capital; the fund invests in portfolio companies; returns flow to LPs. This is clearly an investment fund. ✓</p><p><strong>The GP entity question:</strong></p><p>The GP management entity (KKR Management LLC) holds the GP interest in the fund — which is technically an investment (the GP's 1-2% economic interest in the fund, plus the right to receive carry). If the GP entity is characterised as an investment entity that holds an investment interest in the fund, the investment fund exclusion might apply to the GP entity too.</p><p>But the GP entity also: - Receives management fees (explicitly service fee income, not investment return) - Employs investment professionals (service provision) - Makes investment decisions for the fund (advisory/management service) - Charges portfolio companies transaction and monitoring fees</p><p>These activities are service activities, not investment activities. The argument that the GP entity is an \"investment fund\" is weak on the functional analysis even if it holds GP interests.</p><p><strong>OECD Commentary guidance:</strong> OECD Pillar Two administrative guidance has addressed some aspects of how investment fund exclusions apply to fund managers. The general direction appears to be: the fund vehicle is excluded; the fund manager is not [needs-verification: specific OECD guidance on fund manager treatment].</p><p>### Size Threshold — Who Is Actually Affected</p><p>Pillar Two applies to MNE Groups with consolidated revenue ≥ €750m. This threshold excludes most PE management companies from Pillar Two:</p><ul class='notelist'><li><strong>Mid-size PE firms</strong> (€2-5bn AUM, management company revenue = management fees + carry on one or two funds): Management company revenue might be €50-150m annually — well below the €750m threshold. <strong>Not in scope.</strong></li></ul><ul class='notelist'><li><strong>Large PE firms (public PE management companies):</strong> Blackstone, KKR, Apollo, Carlyle are publicly listed with total revenues (management fees + carry + investment income) exceeding €750m. <strong>Potentially in scope as MNE Groups</strong> if they have qualifying constituent entities in low-tax jurisdictions.</li></ul><ul class='notelist'><li><strong>Large private PE firms:</strong> Some large PE firms (TPG, Warburg Pincus, General Atlantic) have revenue approaching €750m threshold but are not yet public. <strong>Borderline scope.</strong></li></ul><p><strong>Practical implication:</strong> For the vast majority of PE firms (sub-€750m management company revenue), Pillar Two creates no GP entity tax obligation. The question is relevant primarily for the 5-10 largest PE management companies globally.</p><p>### The Carry Vehicle Specific Question</p><p>The carry vehicle is often a separate entity from the management company: - <strong>Management company:</strong> Employs professionals, charges management fees — clearly a service entity - <strong>Carry vehicle</strong> (e.g., a partnership that holds the GP's carry entitlement): This vehicle holds a legal interest in the fund — it could argue it's an \"investment fund\" or at least an \"investment entity\" excluded from Pillar Two</p><p>The carry vehicle's characterisation depends on: 1. Whether it holds the GP interest directly (investment-like) or just has a contractual right to carry (compensation-like) 2. Whether Pillar Two regulations in the relevant jurisdiction treat the carry vehicle as part of the management MNE group or separately 3. The specific Pillar Two implementing legislation in each jurisdiction (EU Directive, UK Finance Act, and other jurisdictions have varying treatments)</p><p><strong>Current state of play:</strong> As of 2026, the specific treatment of PE carry vehicles under Pillar Two is still evolving. Major accounting firms and PE industry groups have sought guidance. The investment fund exclusion likely does not protect management company revenues; whether it protects carry vehicle income is unclear.</p><p>### Implications for EU/UK-Based PE Managers</p><p>For large EU/UK-based PE management companies subject to Pillar Two (assuming they exceed the €750m threshold):</p><p><strong>Management fee income:</strong> Received in the management company, taxed at whatever the local statutory rate is. UK management company: 25% corporate tax rate (2023+) — above the 15% Pillar Two minimum. Luxembourg management company: approximately 25% effective corporate rate — above 15%. No Pillar Two top-up likely needed on management fee income.</p><p><strong>Carry income:</strong> Received in carry vehicles (often UK or US partnerships for US managers, Luxembourg SCSps or FCPs for EU managers). UK carry: taxed at 28% CGT at the partner level — above 15%. US carry: taxed at 23.8% at partner level — above 15% if Pillar Two income inclusion rule looks through to partner level.</p><p><strong>Practical assessment:</strong> Large PE management companies in UK/EU with management fees and carry taxed at national rates above 15% are unlikely to face Pillar Two top-up taxes at the management company level. The risk is primarily for structures where carry is routed through very low-tax jurisdictions (Cayman Islands carry vehicles receiving distributions from offshore funds) without adequate economic substance — and even there, the investment fund exclusion for the fund vehicle typically insulates the structure.</p><p>### CVC-Specific Relevance</p><p>CVC Capital Partners (parent of CVC Secondary Partners) operates management entities in Luxembourg and the UK. CVC is a large PE firm that may approach the €750m management company revenue threshold as it has expanded [needs-verification: CVC revenue]. If CVC's management entities are within Pillar Two scope: - Luxembourg management entity: Luxembourg corporate tax rate approximately 24-25% — above Pillar Two minimum - UK advisory entities: UK 25% corporate rate — above minimum - Carry vehicles: UK BADR/CGT treatment at 18-28% — above minimum</p><p><strong>For Mitch's K-1 work:</strong> The K-1s Mitch processes from CVC Secondary Partners' LP positions in Apollo, KKR, etc. represent income at the fund level — the investment fund exclusion clearly applies to the fund vehicle generating those K-1s. The Pillar Two GP entity question affects the management company level (one step above the fund), not the K-1 allocations themselves.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### Pillar Two Investment Fund Exclusion — What It Covers</p><p><strong>OECD GloBE Model Rules Article 1.5(f):</strong> An \"investment fund\" is excluded from the definition of \"MNE Group\" if it: (i) is designed to aggregate capital from multiple investors; (ii) invests in assets with a view to generating financial return; (iii) is not operated as a financial institution or insurance company; and (iv) interests in the fund are either publicly traded or held by a broad group of investors who are not related to the fund manager [needs-verification: exact definition text].</p><p><strong>What this covers:</strong> The LP vehicle (KKR PE Fund XIII) — investors commit capital; the fund invests in portfolio companies; returns flow to LPs. This is clearly an investment fund. ✓</p><p><strong>The GP entity question:</strong></p><p>The GP management entity (KKR Management LLC) holds the GP interest in the fund — which is technically an investment (the GP's 1-2% economic interest in the fund, plus the right to receive carry). If the GP entity is characterised as an investment entity that holds an investment interest in the fund, the investment fund exclusion might apply to the GP entity too.</p><p>But the GP entity also: - Receives management fees (explicitly service fee income, not investment return) - Employs investment professionals (service provision) - Makes investment decisions for the fund (advisory/management service) - Charges portfolio companies transaction and monitoring fees</p><p>These activities are service activities, not investment activities. The argument that the GP entity is an \"investment fund\" is weak on the functional analysis even if it holds GP interests.</p><p><strong>OECD Commentary guidance:</strong> OECD Pillar Two administrative guidance has addressed some aspects of how investment fund exclusions apply to fund managers. The general direction appears to be: the fund vehicle is excluded; the fund manager is not [needs-verification: specific OECD guidance on fund manager treatment].</p><p>### Size Threshold — Who Is Actually Affected</p><p>Pillar Two applies to MNE Groups with consolidated revenue ≥ €750m. This threshold excludes most PE management companies from Pillar Two:</p><ul class='notelist'><li><strong>Mid-size PE firms</strong> (€2-5bn AUM, management company revenue = management fees + carry on one or two funds): Management company revenue might be €50-150m annually — well below the €750m threshold. <strong>Not in scope.</strong></li></ul><ul class='notelist'><li><strong>Large PE firms (public PE management companies):</strong> Blackstone, KKR, Apollo, Carlyle are publicly listed with total revenues (management fees + carry + investment income) exceeding €750m. <strong>Potentially in scope as MNE Groups</strong> if they have qualifying constituent entities in low-tax jurisdictions.</li></ul><ul class='notelist'><li><strong>Large private PE firms:</strong> Some large PE firms (TPG, Warburg Pincus, General Atlantic) have revenue approaching €750m threshold but are not yet public. <strong>Borderline scope.</strong></li></ul><p><strong>Practical implication:</strong> For the vast majority of PE firms (sub-€750m management company revenue), Pillar Two creates no GP entity tax obligation. The question is relevant primarily for the 5-10 largest PE management companies globally.</p><p>### The Carry Vehicle Specific Question</p><p>The carry vehicle is often a separate entity from the management company: - <strong>Management company:</strong> Employs professionals, charges management fees — clearly a service entity - <strong>Carry vehicle</strong> (e.g., a partnership that holds the GP's carry entitlement): This vehicle holds a legal interest in the fund — it could argue it's an \"investment fund\" or at least an \"investment entity\" excluded from Pillar Two</p><p>The carry vehicle's characterisation depends on: 1. Whether it holds the GP interest directly (investment-like) or just has a contractual right to carry (compensation-like) 2. Whether Pillar Two regulations in the relevant jurisdiction treat the carry vehicle as part of the management MNE group or separately 3. The specific Pillar Two implementing legislation in each jurisdiction (EU Directive, UK Finance Act, and other jurisdictions have varying treatments)</p><p><strong>Current state of play:</strong> As of 2026, the specific treatment of PE carry vehicles under Pillar Two is still evolving. Major accounting firms and PE industry groups have sought guidance. The investment fund exclusion likely does not protect management company revenues; whether it protects carry vehicle income is unclear.</p><p>### Implications for EU/UK-Based PE Managers</p><p>For large EU/UK-based PE management companies subject to Pillar Two (assuming they exceed the €750m threshold):</p><p><strong>Management fee income:</strong> Received in the management company, taxed at whatever the local statutory rate is. UK management company: 25% corporate tax rate (2023+) — above the 15% Pillar Two minimum. Luxembourg management company: approximately 25% effective corporate rate — above 15%. No Pillar Two top-up likely needed on management fee income.</p><p><strong>Carry income:</strong> Received in carry vehicles (often UK or US partnerships for US managers, Luxembourg SCSps or FCPs for EU managers). UK carry: taxed at 28% CGT at the partner level — above 15%. US carry: taxed at 23.8% at partner level — above 15% if Pillar Two income inclusion rule looks through to partner level.</p><p><strong>Practical assessment:</strong> Large PE management companies in UK/EU with management fees and carry taxed at national rates above 15% are unlikely to face Pillar Two top-up taxes at the management company level. The risk is primarily for structures where carry is routed through very low-tax jurisdictions (Cayman Islands carry vehicles receiving distributions from offshore funds) without adequate economic substance — and even there, the investment fund exclusion for the fund vehicle typically insulates the structure.</p><p>### CVC-Specific Relevance</p><p>CVC Capital Partners (parent of CVC Secondary Partners) operates management entities in Luxembourg and the UK. CVC is a large PE firm that may approach the €750m management company revenue threshold as it has expanded [needs-verification: CVC revenue]. If CVC's management entities are within Pillar Two scope: - Luxembourg management entity: Luxembourg corporate tax rate approximately 24-25% — above Pillar Two minimum - UK advisory entities: UK 25% corporate rate — above minimum - Carry vehicles: UK BADR/CGT treatment at 18-28% — above minimum</p><p><strong>For Mitch's K-1 work:</strong> The K-1s Mitch processes from CVC Secondary Partners' LP positions in Apollo, KKR, etc. represent income at the fund level — the investment fund exclusion clearly applies to the fund vehicle generating those K-1s. The Pillar Two GP entity question affects the management company level (one step above the fund), not the K-1 allocations themselves.</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### Pillar Two Investment Fund Exclusion — What It Covers</p><p><strong>OECD GloBE Model Rules Article 1.5(f):</strong> An \"investment fund\" is excluded from the definition of \"MNE Group\" if it: (i) is designed to aggregate capital from multiple investors; (ii) invests in assets with a view to generating financial return; (iii) is not operated as a financial institution or insurance company; and (iv) interests in the fund are either publicly traded or held by a broad group of investors who are not related to the fund manager [needs-verification: exact definition text].</p><p><strong>What this covers:</strong> The LP vehicle (KKR PE Fund XIII) — investors commit capital; the fund invests in portfolio companies; returns flow to LPs. This is clearly an investment fund. ✓</p><p><strong>The GP entity question:</strong></p><p>The GP management entity (KKR Management LLC) holds the GP interest in the fund — which is technically an investment (the GP's 1-2% economic interest in the fund, plus the right to receive carry). If the GP entity is characterised as an investment entity that holds an investment interest in the fund, the investment fund exclusion might apply to the GP entity too.</p><p>But the GP entity also: - Receives management fees (explicitly service fee income, not investment return) - Employs investment professionals (service provision) - Makes investment decisions for the fund (advisory/management service) - Charges portfolio companies transaction and monitoring fees</p><p>These activities are service activities, not investment activities. The argument that the GP entity is an \"investment fund\" is weak on the functional analysis even if it holds GP interests.</p><p><strong>OECD Commentary guidance:</strong> OECD Pillar Two administrative guidance has addressed some aspects of how investment fund exclusions apply to fund managers. The general direction appears to be: the fund vehicle is excluded; the fund manager is not [needs-verification: specific OECD guidance on fund manager treatment].</p><p>### Size Threshold — Who Is Actually Affected</p><p>Pillar Two applies to MNE Groups with consolidated revenue ≥ €750m. This threshold excludes most PE management companies from Pillar Two:</p><ul class='notelist'><li><strong>Mid-size PE firms</strong> (€2-5bn AUM, management company revenue = management fees + carry on one or two funds): Management company revenue might be €50-150m annually — well below the €750m threshold. <strong>Not in scope.</strong></li></ul><ul class='notelist'><li><strong>Large PE firms (public PE management companies):</strong> Blackstone, KKR, Apollo, Carlyle are publicly listed with total revenues (management fees + carry + investment income) exceeding €750m. <strong>Potentially in scope as MNE Groups</strong> if they have qualifying constituent entities in low-tax jurisdictions.</li></ul><ul class='notelist'><li><strong>Large private PE firms:</strong> Some large PE firms (TPG, Warburg Pincus, General Atlantic) have revenue approaching €750m threshold but are not yet public. <strong>Borderline scope.</strong></li></ul><p><strong>Practical implication:</strong> For the vast majority of PE firms (sub-€750m management company revenue), Pillar Two creates no GP entity tax obligation. The question is relevant primarily for the 5-10 largest PE management companies globally.</p><p>### The Carry Vehicle Specific Question</p><p>The carry vehicle is often a separate entity from the management company: - <strong>Management company:</strong> Employs professionals, charges management fees — clearly a service entity - <strong>Carry vehicle</strong> (e.g., a partnership that holds the GP's carry entitlement): This vehicle holds a legal interest in the fund — it could argue it's an \"investment fund\" or at least an \"investment entity\" excluded from Pillar Two</p><p>The carry vehicle's characterisation depends on: 1. Whether it holds the GP interest directly (investment-like) or just has a contractual right to carry (compensation-like) 2. Whether Pillar Two regulations in the relevant jurisdiction treat the carry vehicle as part of the management MNE group or separately 3. The specific Pillar Two implementing legislation in each jurisdiction (EU Directive, UK Finance Act, and other jurisdictions have varying treatments)</p><p><strong>Current state of play:</strong> As of 2026, the specific treatment of PE carry vehicles under Pillar Two is still evolving. Major accounting firms and PE industry groups have sought guidance. The investment fund exclusion likely does not protect management company revenues; whether it protects carry vehicle income is unclear.</p><p>### Implications for EU/UK-Based PE Managers</p><p>For large EU/UK-based PE management companies subject to Pillar Two (assuming they exceed the €750m threshold):</p><p><strong>Management fee income:</strong> Received in the management company, taxed at whatever the local statutory rate is. UK management company: 25% corporate tax rate (2023+) — above the 15% Pillar Two minimum. Luxembourg management company: approximately 25% effective corporate rate — above 15%. No Pillar Two top-up likely needed on management fee income.</p><p><strong>Carry income:</strong> Received in carry vehicles (often UK or US partnerships for US managers, Luxembourg SCSps or FCPs for EU managers). UK carry: taxed at 28% CGT at the partner level — above 15%. US carry: taxed at 23.8% at partner level — above 15% if Pillar Two income inclusion rule looks through to partner level.</p><p><strong>Practical assessment:</strong> Large PE management companies in UK/EU with management fees and carry taxed at national rates above 15% are unlikely to face Pillar Two top-up taxes at the management company level. The risk is primarily for structures where carry is routed through very low-tax jurisdictions (Cayman Islands carry vehicles receiving distributions from offshore funds) without adequate economic substance — and even there, the investment fund exclusion for the fund vehicle typically insulates the structure.</p><p>### CVC-Specific Relevance</p><p>CVC Capital Partners (parent of CVC Secondary Partners) operates management entities in Luxembourg and the UK. CVC is a large PE firm that may approach the €750m management company revenue threshold as it has expanded [needs-verification: CVC revenue]. If CVC's management entities are within Pillar Two scope: - Luxembourg management entity: Luxembourg corporate tax rate approximately 24-25% — above Pillar Two minimum - UK advisory entities: UK 25% corporate rate — above minimum - Carry vehicles: UK BADR/CGT treatment at 18-28% — above minimum</p><p><strong>For Mitch's K-1 work:</strong> The K-1s Mitch processes from CVC Secondary Partners' LP positions in Apollo, KKR, etc. represent income at the fund level — the investment fund exclusion clearly applies to the fund vehicle generating those K-1s. The Pillar Two GP entity question affects the management company level (one step above the fund), not the K-1 allocations themselves.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"Pillar Two doesn't apply to PE at all because of the investment fund exclusion.\"</strong> The investment fund exclusion protects the fund vehicle (the LP). It does not protect the GP management entity, which is a management service business, not an investment fund. For large PE management companies, Pillar Two potentially applies to the GP entity.</li></ol><ol><li><strong>\"Carry is taxed below 15% in the US, so US PE managers face EU top-up taxes.\"</strong> US carry is taxed at 23.8% (20% LTCG + 3.8% NIIT) at the US partner level. 23.8% &gt; 15%, so no Pillar Two top-up is triggered on US carry income — the effective rate exceeds the minimum. The concern would be if carry were routed through an entity taxed below 15%.</li></ol><ol><li><strong>\"The €750m threshold means Pillar Two only matters for the very largest PE firms.\"</strong> For GP entity analysis, this is broadly correct. The vast majority of PE management companies are below €750m management company revenue. Pillar Two at the GP entity level is primarily a concern for the five to ten largest PE management companies globally.</li></ol><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

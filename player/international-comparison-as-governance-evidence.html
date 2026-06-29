@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "international-comparison-as-governance-evidence", "title": "International Comparison as Governance Evidence", "draft_watermark": false, "estimated_runtime_sec": 435, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Testing the whole thesis", "on_screen_bullets": ["PE is positive WHEN well-governed", "Needs evidence governance works", "Counters 'rules make capital flee'"], "narration": "The whole course rests on a single conditional claim: PE is a positive force when well-governed and a destructive one when not. But that claim is only defensible if real-world evidence shows governance actually works without destroying what makes PE valuable. This lesson supplies that evidence, and it confronts the industry's central counter-argument head-on. To every reform proposal, the industry says the same thing: tighten the rules and capital will flee, PE activity will shrink, and the pension funds that depend on PE returns will suffer. If that's correct, the whole thesis collapses into wishful thinking. If it's wrong, the case for governance becomes empirically grounded. International comparison is the closest available test, because countries that have implemented governance frameworks equivalent to the proposed US reforms have not seen the predicted collapse. This is where the normative argument either earns its evidence or fails to.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Natural experiments abroad", "on_screen_bullets": ["UK, EU, Nordic, Canada, Australia", "Imperfect but consistent evidence", "Governance + thriving PE coexist"], "narration": "The definition. International comparison uses the UK, EU, Nordic, Canadian, and Australian governance frameworks as natural experiments to test whether the thesis's core claim is empirically grounded. The evidence, while imperfect and confounded, consistently shows that institutional reform like the European directive, partial tax reform like the UK's twenty-sixteen change, and stronger investor-governance models like the Canadian and Australian ones are all compatible with thriving PE industries. That provides the positive empirical foundation for the argument that well-governed PE delivers its benefits without being destroyed by the governance itself.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Shifting the burden of proof", "on_screen_bullets": ["Can't run a controlled US experiment", "Other countries added rules, thrived", "Opponents must now say why US differs"], "narration": "The mental model is the burden of proof, and it's the most important idea in the lesson. You can't run a controlled experiment — you can't observe the same PE fund simultaneously under US rules and under European rules. What you can do is compare countries that made different governance choices and look at their outcomes. The UK raised carry tax rates in twenty-sixteen — did UK PE collapse? No; it remained Europe's dominant market. The EU required full registration, disclosure, and anti-asset-stripping rules in twenty-thirteen — did European PE collapse? No; its assets under management grew substantially. The Nordic firms built ESG and governance disciplines into their investment process — did their returns collapse? No; one of them is among the most successful PE firms in the world. None of this proves US PE would behave identically, because the US market has different features — larger capital pools, a different judicial environment. But it decisively disproves the categorical claim that governance destroys PE, because PE has survived and thrived under frameworks stronger than anything proposed for the US. And that shifts the burden of proof. The reform opponent can no longer simply assert that governance kills PE; they must now explain specifically what is different about the US case that makes the European evidence inapplicable — a far more demanding and falsifiable claim. The argument moves from an impossible-to-meet demand on reformers to a specific demand on opponents.", "est_sec": 56}, {"n": 4, "beat": "mechanics", "visual": "table", "source_section": "The Comparative Governance Framework — Four Tests", "on_screen_title": "Four natural experiments", "on_screen_bullets": ["UK 2016 carry; EU AIFMD", "German co-determination", "Canada/Australia LP governance"], "narration": "Technically, the evidence runs through four distinct tests, each isolating a different governance proposition. Test one, partial tax reform: the UK's Finance Act of twenty-sixteen reclassified carry on portfolios held under forty months as income, taxed up to forty-five percent, while carry on longer holds keeps capital-gains treatment at twenty-eight percent — a partial tax reform, and the UK PE market kept its position as Europe's most developed, with fundraising and investment activity actually rising the year after, and no documented mass exodus. Test two, institutional reform: the European directive of twenty-thirteen required full authorisation, disclosure, leverage reporting, and anti-asset-stripping rules, and European PE assets under management kept growing substantially, with the feared relocation to offshore centres not materially occurring. Test three, labour protection: German co-determination puts worker representatives on the supervisory boards of larger companies, constraining how fast PE can make workforce changes — and German PE exists and operates, though it's structurally smaller relative to GDP and shows somewhat lower returns, the one case where governance imposes a measurable but non-fatal cost, and crucially it applies to all companies, not just PE. Test four, investor governance: Canadian and Australian pension funds impose strong reporting and oversight requirements on their managers, and their PE returns have been competitive, suggesting strong investor governance is compatible with, and possibly supportive of, good outcomes. Four experiments, four governance levers, one consistent direction.", "est_sec": 64}, {"n": 5, "beat": "example", "visual": "table", "source_section": "EQT and CVC Secondary Partners — Governance Under AIFMD", "on_screen_title": "The EQT case", "on_screen_bullets": ["AUM €41bn (2019) → €232bn (2023)", "Full AIFMD + deep ESG", "Disproves governance-vs-excellence"], "narration": "The clearest single case is the Nordic firm EQT, because it bundles institutional governance and voluntary discipline together and still excels. EQT is a Stockholm-headquartered, publicly listed PE firm operating under full European authorisation, Swedish regulatory oversight, public quarterly reporting as a listed company, and a deep ESG model that requires each portfolio company to set emissions, board-diversity, and employee-satisfaction targets. And over that period its assets under management grew from forty-one billion euros at the end of twenty-nineteen to two-hundred-thirty-two billion by the end of twenty-twenty-three — a nearly six-fold increase, achieved entirely under full European governance compliance, with a global investor base spanning European pension funds, US endowments, and Middle Eastern sovereign funds. Now the honest caveat: EQT is not proof that governance caused its success — correlation isn't causation, and its performance reflects its investment team and strategy as much as anything. But that's exactly the right framing, because EQT doesn't need to prove governance helps; it only needs to disprove that governance is incompatible with PE excellence — and it does that decisively. A firm carrying the full weight of European-style institutional governance plus genuine ESG requirements became one of the fastest-growing PE firms in the world. The compatibility claim is settled even where the causation claim isn't.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "The Confounders — Why Evidence Is Imperfect", "on_screen_title": "The confounders", "on_screen_bullets": ["Universal healthcare substitutes for Track 2", "EU passport = the 6th condition", "Scale, timing, accounting differ"], "narration": "Intellectual honesty requires taking the confounders seriously, because the evidence is genuinely imperfect. Five matter most. First, universal healthcare: in most of Europe, healthcare is publicly provided and regulated, so PE can't own hospitals and nursing homes the American way, which means Europe's better healthcare-sector outcomes may reflect the health system's design, not PE governance specifically — a major confound for the sector-reform evidence. Second, the EU passport incentive: European compliance was commercially rational because non-compliance meant losing access to European capital, the so-called sixth condition for regulatory success, and the US has no equivalent market-access incentive, so what works in Europe via the passport may not translate to a US context where compliance is purely regulatory. Third, market structure: the US PE market is roughly four-to-five times larger by assets, so governance constraints manageable for smaller European firms might impose proportionally larger costs on the US mega-funds. Fourth, timing: the European directive took effect in twenty-thirteen, right at the start of a record low-rate fundraising boom, so attributing European PE growth to good governance rather than to cheap money is impossible from the time series alone. And fifth, accounting: European and US PE use different reporting standards, so cross-country return comparisons need adjustment. None of these confounders rescues the categorical claim that governance destroys PE — but each one limits how far you can extrapolate the positive evidence, which is why the conclusion has to be carefully bounded rather than triumphant.", "est_sec": 62}, {"n": 7, "beat": "mechanics", "visual": "slide", "source_section": "What the Evidence Actually Shows — The Conservative Read", "on_screen_title": "The conservative read", "on_screen_bullets": ["Categorical claim is falsified", "Moderate reform clearly compatible", "Extreme reform: no precedent yet"], "narration": "So what's the defensible conclusion — the conservative read that survives all those confounders? Five points. First, moderate tax reform of the UK type is compatible with PE health, because the UK proves carry rates several points above US levels don't collapse the industry. Second, full institutional reform of the European type is compatible with PE growth, because the EU proves comprehensive registration, disclosure, and reporting don't prevent expansion. Third, investor-level governance enhancements of the Canadian and Australian type are compatible with, and possibly supportive of, strong risk-adjusted returns. Fourth, labour protections of the German type constrain but do not eliminate PE — there's a measurable return cost, but it isn't prohibitive. And fifth, the industry's categorical counter-argument, that governance destroys PE, is empirically falsified, because no country with materially stronger frameworks has seen PE collapse. But the read is conservative precisely because of what the evidence does not show: it does not show that the most extreme reforms — full ordinary-income treatment of all carry, or mark-to-market taxation — are compatible with PE health, since no country has implemented those; it does not show that US-style private-healthcare sector reform is comparable to sector reform in a universal-healthcare country; and it does not show that US PE would respond identically to European PE, because the structural differences are real. The honest verdict is bounded: the categorical claim is dead, moderate-to-substantial reform is clearly survivable, and the most aggressive reforms remain genuinely untested.", "est_sec": 60}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["UK ≠ proof of full carry reform", "AIFMD had the passport incentive", "Nordic success risks survivorship bias"], "narration": "Four corrections that keep the extrapolation disciplined. First, the belief that the UK's twenty-sixteen reform proves full US carry reform would work — a false extrapolation, because the UK kept capital-gains treatment for long holds, so it's analogous to an enhanced holding-period rule, not full ordinary-income treatment; the evidence tests moderate reform, and the most aggressive proposals like mark-to-market have no international precedent. Second, the belief that the European directive proves a US statutory amendment would work seamlessly — it needs qualification, because the directive worked partly through the passport incentive that doesn't exist in the US, so the compliance economics differ, though that means the mechanism would be compulsion rather than market incentive, not that it couldn't work. Third, the belief that Nordic PE's success proves ESG integration improves returns — that risks survivorship bias, since the successful firms are visible and the failures aren't, and high performance may reflect team quality rather than governance, with both possibly stemming from a common commitment to operational excellence. And fourth, the belief that Germany proves labour protections are affordable — limited comparability, because co-determination applies to all German companies, not just PE-owned ones, so the burden isn't separable from the general labour-market structure. To recap: international comparison disproves the categorical claim that governance destroys PE and shifts the burden to reform opponents to show specifically why the US is different — converting the thesis's normative claim into one that's consistent with the evidence rather than refuted by it. Next we go deep on the single most important of these frameworks — the European directive itself.", "est_sec": 58}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The international evidence is said to 'shift the burden of proof' rather than 'prove governance works.' Explain that distinction and why it's the stronger claim. Then: name two confounders that limit how far European evidence extrapolates to the US.", "narration": "Before the next lesson, reason it through. The international evidence is described as shifting the burden of proof rather than proving governance works — explain that distinction, and why the burden-shift is actually the stronger and more defensible claim. And name two confounders, like universal healthcare or the EU passport incentive, that limit how far the European evidence extrapolates to the US. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: International Comparison as Governance Evidence\n\n[hook] Testing the whole thesis\nThe whole course rests on a single conditional claim: PE is a positive force when well-governed and a destructive one when not. But that claim is only defensible if real-world evidence shows governance actually works without destroying what makes PE valuable. This lesson supplies that evidence, and it confronts the industry's central counter-argument head-on. To every reform proposal, the industry says the same thing: tighten the rules and capital will flee, PE activity will shrink, and the pension funds that depend on PE returns will suffer. If that's correct, the whole thesis collapses into wishful thinking. If it's wrong, the case for governance becomes empirically grounded. International comparison is the closest available test, because countries that have implemented governance frameworks equivalent to the proposed US reforms have not seen the predicted collapse. This is where the normative argument either earns its evidence or fails to.\n\n[definition] Natural experiments abroad\nThe definition. International comparison uses the UK, EU, Nordic, Canadian, and Australian governance frameworks as natural experiments to test whether the thesis's core claim is empirically grounded. The evidence, while imperfect and confounded, consistently shows that institutional reform like the European directive, partial tax reform like the UK's twenty-sixteen change, and stronger investor-governance models like the Canadian and Australian ones are all compatible with thriving PE industries. That provides the positive empirical foundation for the argument that well-governed PE delivers its benefits without being destroyed by the governance itself.\n\n[intuition] Shifting the burden of proof\nThe mental model is the burden of proof, and it's the most important idea in the lesson. You can't run a controlled experiment — you can't observe the same PE fund simultaneously under US rules and under European rules. What you can do is compare countries that made different governance choices and look at their outcomes. The UK raised carry tax rates in twenty-sixteen — did UK PE collapse? No; it remained Europe's dominant market. The EU required full registration, disclosure, and anti-asset-stripping rules in twenty-thirteen — did European PE collapse? No; its assets under management grew substantially. The Nordic firms built ESG and governance disciplines into their investment process — did their returns collapse? No; one of them is among the most successful PE firms in the world. None of this proves US PE would behave identically, because the US market has different features — larger capital pools, a different judicial environment. But it decisively disproves the categorical claim that governance destroys PE, because PE has survived and thrived under frameworks stronger than anything proposed for the US. And that shifts the burden of proof. The reform opponent can no longer simply assert that governance kills PE; they must now explain specifically what is different about the US case that makes the European evidence inapplicable — a far more demanding and falsifiable claim. The argument moves from an impossible-to-meet demand on reformers to a specific demand on opponents.\n\n[mechanics] Four natural experiments\nTechnically, the evidence runs through four distinct tests, each isolating a different governance proposition. Test one, partial tax reform: the UK's Finance Act of twenty-sixteen reclassified carry on portfolios held under forty months as income, taxed up to forty-five percent, while carry on longer holds keeps capital-gains treatment at twenty-eight percent — a partial tax reform, and the UK PE market kept its position as Europe's most developed, with fundraising and investment activity actually rising the year after, and no documented mass exodus. Test two, institutional reform: the European directive of twenty-thirteen required full authorisation, disclosure, leverage reporting, and anti-asset-stripping rules, and European PE assets under management kept growing substantially, with the feared relocation to offshore centres not materially occurring. Test three, labour protection: German co-determination puts worker representatives on the supervisory boards of larger companies, constraining how fast PE can make workforce changes — and German PE exists and operates, though it's structurally smaller relative to GDP and shows somewhat lower returns, the one case where governance imposes a measurable but non-fatal cost, and crucially it applies to all companies, not just PE. Test four, investor governance: Canadian and Australian pension funds impose strong reporting and oversight requirements on their managers, and their PE returns have been competitive, suggesting strong investor governance is compatible with, and possibly supportive of, good outcomes. Four experiments, four governance levers, one consistent direction.\n\n[example] The EQT case\nThe clearest single case is the Nordic firm EQT, because it bundles institutional governance and voluntary discipline together and still excels. EQT is a Stockholm-headquartered, publicly listed PE firm operating under full European authorisation, Swedish regulatory oversight, public quarterly reporting as a listed company, and a deep ESG model that requires each portfolio company to set emissions, board-diversity, and employee-satisfaction targets. And over that period its assets under management grew from forty-one billion euros at the end of twenty-nineteen to two-hundred-thirty-two billion by the end of twenty-twenty-three — a nearly six-fold increase, achieved entirely under full European governance compliance, with a global investor base spanning European pension funds, US endowments, and Middle Eastern sovereign funds. Now the honest caveat: EQT is not proof that governance caused its success — correlation isn't causation, and its performance reflects its investment team and strategy as much as anything. But that's exactly the right framing, because EQT doesn't need to prove governance helps; it only needs to disprove that governance is incompatible with PE excellence — and it does that decisively. A firm carrying the full weight of European-style institutional governance plus genuine ESG requirements became one of the fastest-growing PE firms in the world. The compatibility claim is settled even where the causation claim isn't.\n\n[mechanics] The confounders\nIntellectual honesty requires taking the confounders seriously, because the evidence is genuinely imperfect. Five matter most. First, universal healthcare: in most of Europe, healthcare is publicly provided and regulated, so PE can't own hospitals and nursing homes the American way, which means Europe's better healthcare-sector outcomes may reflect the health system's design, not PE governance specifically — a major confound for the sector-reform evidence. Second, the EU passport incentive: European compliance was commercially rational because non-compliance meant losing access to European capital, the so-called sixth condition for regulatory success, and the US has no equivalent market-access incentive, so what works in Europe via the passport may not translate to a US context where compliance is purely regulatory. Third, market structure: the US PE market is roughly four-to-five times larger by assets, so governance constraints manageable for smaller European firms might impose proportionally larger costs on the US mega-funds. Fourth, timing: the European directive took effect in twenty-thirteen, right at the start of a record low-rate fundraising boom, so attributing European PE growth to good governance rather than to cheap money is impossible from the time series alone. And fifth, accounting: European and US PE use different reporting standards, so cross-country return comparisons need adjustment. None of these confounders rescues the categorical claim that governance destroys PE — but each one limits how far you can extrapolate the positive evidence, which is why the conclusion has to be carefully bounded rather than triumphant.\n\n[mechanics] The conservative read\nSo what's the defensible conclusion — the conservative read that survives all those confounders? Five points. First, moderate tax reform of the UK type is compatible with PE health, because the UK proves carry rates several points above US levels don't collapse the industry. Second, full institutional reform of the European type is compatible with PE growth, because the EU proves comprehensive registration, disclosure, and reporting don't prevent expansion. Third, investor-level governance enhancements of the Canadian and Australian type are compatible with, and possibly supportive of, strong risk-adjusted returns. Fourth, labour protections of the German type constrain but do not eliminate PE — there's a measurable return cost, but it isn't prohibitive. And fifth, the industry's categorical counter-argument, that governance destroys PE, is empirically falsified, because no country with materially stronger frameworks has seen PE collapse. But the read is conservative precisely because of what the evidence does not show: it does not show that the most extreme reforms — full ordinary-income treatment of all carry, or mark-to-market taxation — are compatible with PE health, since no country has implemented those; it does not show that US-style private-healthcare sector reform is comparable to sector reform in a universal-healthcare country; and it does not show that US PE would respond identically to European PE, because the structural differences are real. The honest verdict is bounded: the categorical claim is dead, moderate-to-substantial reform is clearly survivable, and the most aggressive reforms remain genuinely untested.\n\n[pitfalls] What people get wrong\nFour corrections that keep the extrapolation disciplined. First, the belief that the UK's twenty-sixteen reform proves full US carry reform would work — a false extrapolation, because the UK kept capital-gains treatment for long holds, so it's analogous to an enhanced holding-period rule, not full ordinary-income treatment; the evidence tests moderate reform, and the most aggressive proposals like mark-to-market have no international precedent. Second, the belief that the European directive proves a US statutory amendment would work seamlessly — it needs qualification, because the directive worked partly through the passport incentive that doesn't exist in the US, so the compliance economics differ, though that means the mechanism would be compulsion rather than market incentive, not that it couldn't work. Third, the belief that Nordic PE's success proves ESG integration improves returns — that risks survivorship bias, since the successful firms are visible and the failures aren't, and high performance may reflect team quality rather than governance, with both possibly stemming from a common commitment to operational excellence. And fourth, the belief that Germany proves labour protections are affordable — limited comparability, because co-determination applies to all German companies, not just PE-owned ones, so the burden isn't separable from the general labour-market structure. To recap: international comparison disproves the categorical claim that governance destroys PE and shifts the burden to reform opponents to show specifically why the US is different — converting the thesis's normative claim into one that's consistent with the evidence rather than refuted by it. Next we go deep on the single most important of these frameworks — the European directive itself.\n\nEnd-card question: The international evidence is said to 'shift the burden of proof' rather than 'prove governance works.' Explain that distinction and why it's the stronger claim. Then: name two confounders that limit how far European evidence extrapolates to the US.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The course thesis argues that PE is a positive force <em>when well-governed</em> — but this is only a defensible claim if international evidence shows that governance actually works without destroying what makes PE valuable. Without this evidence, the thesis is aspirational rather than empirical.</p><p>The PE industry's central counter-argument to every reform proposal — Track 1, Track 2, and Track 3 — is the same: \"Tighten the rules and capital will flee, PE activity will shrink, and the pension funds and endowments that depend on PE returns will suffer.\" If this counter-argument is correct, the thesis collapses. If it is wrong, then the case for governance is empirically grounded.</p><p>International comparison provides the closest available test. Countries that have implemented governance frameworks equivalent to the US three reform tracks have not seen the predicted collapse. The UK's Finance Act 2016 carry reform did not cause capital flight. AIFMD's 2013 implementation did not cause European PE to shrink. Nordic PE firms running integrated ESG and governance models achieve competitive returns. This is not proof — causal identification is weak and confounders are substantial — but it is systematic evidence that governance and PE performance are not inherently in tension.</p><p>For CVC Secondary Partners context: CVC Secondary Partners operates under FCA authorisation (or its equivalent), making it an AIFMD-regulated Alternative Investment Fund Manager. The AIFMD framework that governs CVC's operations is itself governance evidence — CVC continues to function as a commercially viable secondary fund while complying with AIFMD disclosure, depositiary, and reporting requirements that the US PE industry has successfully resisted. The AIFMD compliance burden exists; the fund continues to operate.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>International comparison uses the UK, EU, Nordic, Canadian, and Australian governance frameworks as natural experiments to test whether the thesis's core claim is empirically grounded — and the evidence, while imperfect and confounded, consistently shows that Track 1 institutional reform (AIFMD), partial Track 3 tax reform (UK Finance Act 2016), and LP governance enhancements (Canadian/Australian models) are all compatible with thriving PE industries, providing the positive empirical foundation for the argument that well-governed PE delivers its benefits without being destroyed by governance.</p><p>---</p>"}, "2": {"section": "Mental Model / Analogy", "html": "<p><strong>The controlled experiment analogy (the pipeline version for this learner):</strong></p><p>Imagine you manage a data pipeline and need to add logging, validation, and audit trails (governance). The pipeline team argues: \"If you add governance layers, throughput will collapse and the pipeline will fail.\" Before agreeing to hold back governance permanently, you check: do other organisations running the same type of pipeline (but with more governance built in) see throughput collapse?</p><p>You find: Organisation A (UK) added audit logging in 2016 — throughput remained high. Organisation B (EU) added comprehensive validation rules in 2013 — throughput grew. Organisation C (Nordic) runs full validation + logging + audit trails — achieves the best throughput numbers in the industry.</p><p>This doesn't prove your pipeline would respond identically — your organisation is different, the data volumes are different, the technical infrastructure is different. But it does disprove the categorical claim that \"governance = pipeline collapse.\" The burden of proof shifts: the pipeline team must now explain specifically what is different about your case, not simply assert the categorical claim.</p><p>International governance evidence does exactly this: it shifts the burden of proof from \"prove governance won't destroy PE\" (impossible without a US experiment) to \"prove the US case is specifically different in a way that makes European evidence non-applicable\" (a more specific and falsifiable claim the industry must now make).</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>\"UK Finance Act 2016 proves full US carry reform would work.\"</strong> False extrapolation. The Finance Act 2016 introduced a two-tier structure preserving CGT for long holds (40+ months) — it is analogous to an enhanced three-year US hold requirement, not full ordinary income treatment. The evidence tests Tier 2 Track 3 reform, not Tier 4. The most challenging US Track 3 proposals (mark-to-market, deemed realisation) have no international analogues because no comparable PE market has enacted them.</p><p><strong>\"AIFMD proves US IAA amendment would work seamlessly.\"</strong> Requires qualification. AIFMD worked partly because the EU passport created a market-access incentive for compliance that does not exist in the US regulatory context. US PE managers can raise from US LPs without any equivalent incentive structure. The compliance economics differ. However, this doesn't mean US Track 1 reform wouldn't work — it means the mechanism would be different (compulsion rather than market incentive).</p><p><strong>\"Nordic PE's success proves ESG integration improves returns.\"</strong> Survivorship bias risk. EQT and Nordic Capital's success is visible; Nordic PE firms that failed under ESG governance are less visible. High-performing Nordic PE may reflect investment strategy and team quality rather than governance discipline. Governance and performance may both reflect a common underlying commitment to operational excellence rather than one causing the other.</p><p><strong>\"Germany proves labor protections are affordable.\"</strong> Limited comparability. Mitbestimmung applies universally to German companies — it is not PE-specific regulation. PE operating in Germany must comply with Mitbestimmung as they comply with all German law. A US equivalent would be extending co-determination to all US companies, not just PE-owned ones. The specific burden on PE is not separable from the general labor market structure in the German case.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

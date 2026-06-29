@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-the-deal-lifecycle-end-to-end", "title": "Synthesis: The Deal Lifecycle End-to-End", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "A causal cascade", "on_screen_bullets": ["Six stages, not a checklist", "Each choice collapses the next", "80% decided in the first 90 days"], "narration": "The stages of a PE deal — sourcing, due diligence, LBO structuring, the hundred-day plan, and exit — are not a checklist of independent tasks. They're a causal cascade: every decision at each stage collapses the option space available at the next. What's decided at sourcing, the investment thesis, is the hypothesis that due diligence tests. What due diligence discovers about the business directly determines how much debt is safe to put on it. The debt structure installed at close sets the operating constraints for value creation. The value-creation path chosen during the hold determines which exit routes are viable at year five. And the exit route dictates the exit process and timeline. By the time a fund reaches exit, roughly eighty percent of the outcome has been determined by decisions made in the first ninety days of engagement — before the company was even owned.", "est_sec": 52}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "Why competent deals still fail", "on_screen_bullets": ["Each stage fine, but misaligned", "Diagnose failure as misalignment", "Think about exit from day one"], "narration": "Studying these stages individually teaches you what each one is. Studying them as a causal cascade teaches you how PE actually works — and why so many deals fail despite every individual stage being executed competently. A GP can run excellent due diligence, build a sensible LBO model, and still destroy value, if the thesis they brought into diligence was wrong, the debt structure they chose was incompatible with the value-creation plan they had in mind, or the hundred-day plan they executed eliminated the exit routes they were counting on. Mastering this synthesis lets you identify the highest-leverage decisions in any deal — almost always at sourcing and structuring, not at exit; diagnose failures not as individual stage errors but as structural misalignments between stages; judge a GP not by whether their exits were good but by whether their theses survived diligence and their structures enabled the value creation they claimed; and think about exit from day one, because the options available at year five are a direct function of what was built in years one and two.", "est_sec": 56}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map", "on_screen_title": "The cascade, stage by stage", "on_screen_bullets": ["Thesis → DD → debt structure", "Structure → 100-day plan → exit universe", "Each link rarely taught"], "narration": "The concept map is the cascade itself. Sourcing forms the thesis, which defines exactly what diligence must validate. Commercial due diligence reveals revenue quality, market position, management strength, and the value-creation levers available — and those findings set the risk envelope that determines safe leverage. The deal structure follows: high leverage permits only cash-generative value creation, while low leverage leaves flexibility to invest, build, and acquire — and that capital structure sets the operating constraints for the entire hold. The hundred-day plan must work within those debt constraints and should build toward, not foreclose, multiple exit options. The business you've built by year three or four narrows the exit universe, so the viable routes at exit are determined by company size, growth rate, leverage, management quality, and the buyer universe. And once the route is selected, the exit process executes it. The cascades rarely taught are the joins: revenue predictability in commercial diligence directly sets maximum debt-to-EBITDA; covenant headroom in the debt package determines how aggressively the GP can invest versus conserve cash; and whether the hundred-day plan emphasises cost cuts, organic growth, or buy-and-build largely determines who will pay the most at exit.", "est_sec": 64}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Healthcare IT, stage by stage", "on_screen_bullets": ["$30m EBITDA, consolidator thesis", "Recurring revenue → 5.5x leverage", "Two add-ons → $52m, still sub-IPO"], "narration": "Watch the cascade in a healthcare-IT deal. A fund sources a company with thirty million of EBITDA, and the thesis formed at sourcing is: the market is fragmented, this is the natural consolidator, we can do four add-on acquisitions and exit to a large strategic or via IPO. Stage one to two: that thesis immediately determines what diligence must find — a defensible market position worth building around, genuine add-on targets at reasonable prices, and an IPO-viable combined entity at scale; if any fails, say the target turns out to have forty-percent customer concentration, the thesis breaks and the deal reprices, restructures, or dies. Stage two to three: diligence confirms revenues are eighty-percent recurring with low churn and stable margins, and that revenue quality justifies five-and-a-half-times leverage — enough to win competitively but with headroom to draw the revolver for add-ons; had revenue been cyclical and lumpy, safe leverage might have been three-and-a-half, making the deal impossible to win at the same price. Stage three to four: at five-and-a-half times, the company throws off about ten million of free cash flow after debt service, so the hundred-day plan can't simultaneously invest heavily in organic growth, pursue acquisitions, and service debt — the capital structure has made it a prioritisation problem, and the plan is shaped around retaining management, hiring an M&A director, and stabilising revenue, nothing that would stress coverage. Stage four to five: by year three the GP has done two add-ons, EBITDA is fifty-two million — larger, but still below the roughly seventy-five-million threshold for a credible float — so the buy-and-build has partly delivered but not enough for IPO, and the GP faces a fork created entirely by the earlier choices.", "est_sec": 66}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "Practical Example", "on_screen_title": "Advent: thesis delivered, 6.9x", "on_screen_bullets": ["$200m EV, 5.5x, no add-ons", "EBITDA $20m→$42m, leverage → 2.6x", "Exit 16x = $672m → 6.9x MOIC"], "narration": "Now a case where coherence held all the way through — an illustrative Advent software deal. The entry thesis: a mid-market B2B SaaS business in a vertical with three or four larger potential acquirers; buy it, double EBITDA through pricing power and churn reduction, exit to a strategic at fourteen-to-sixteen times. Diligence shaped the structure: eighty-five percent recurring revenue, net retention above a hundred-and-five percent, pricing fifteen percent below market, and a management team strong operationally but weak on M&A — which justified five-and-a-half-times leverage but flagged that the team needed strengthening, not an acquisition spree. So the structure was two hundred million enterprise value, a hundred ten of debt, ninety of equity, with a covenant giving room for a temporary EBITDA dip while prices were raised. The hundred-day plan followed directly: an immediate ten-to-twelve percent price reset on renewals, hire a CFO and VP of Sales, and deliberately no add-ons — preserving a clean organic-growth narrative for a strategic exit. Over the hold, EBITDA grew from twenty to forty-two million entirely organically, leverage fell from five-and-a-half to two-point-six times, and the company entered year five with high growth, low leverage, a strong team, and a clear story. That bought three viable exit routes — strategic sale, secondary buyout, or IPO — and the banker-run process drew three strategic bidders, with the winner paying sixteen times forty-two million, six hundred seventy-two million enterprise value. Net of fifty-five million of remaining debt, that's six hundred seventeen million of equity on a ninety-million cheque — a six-point-nine-times MOIC, a forty-seven percent IRR. The exit story was literally the entry thesis, delivered as promised — and any single broken link, forty-percent concentration in diligence, seven-times leverage forcing cash maximisation, or an add-on spree muddying the narrative, would have cascaded forward and destroyed it.", "est_sec": 72}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["DD also calibrates leverage", "100-day plan = exit optionality", "Thesis is the causal backbone"], "narration": "Four things people miss. First, due diligence is about risk identification — true, but it's also LBO-structure calibration; when a report confirms recurring revenue and pricing power, the immediate consequence isn't just low risk, it's that five-and-a-half-times leverage is justified — the risk register and the financial structuring are the same exercise run at once. Second, the hundred-day plan is an operational tool — but it's also an exit-optionality-preservation tool: aggressive cost cuts lift near-term EBITDA but make the company less appealing to a growth-seeking strategic; hiring a Chief Revenue Officer signals an IPO trajectory; launching an add-on programme pushes the exit later — these are structural decisions about what the business will look like at exit, made four or five years early. Third, you choose your exit route at year five based on market conditions — no, market conditions set the pricing, but the viable routes were determined years earlier; a company entering year five over-leveraged, under-scaled, and customer-concentrated has exactly one route regardless of the market. And fourth, the investment thesis is a marketing document — it's the causal backbone of the entire deal, and the single most predictive question in any deal review is simply: does the exit story match the entry thesis?", "est_sec": 60}, {"n": 7, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "Coherence is the real skill", "on_screen_bullets": ["Not any single stage done well", "Each link must hold to the next", "Breaks usually show at the end"], "narration": "Step back to the core lesson. The defining skill in PE is not executing any individual stage well — plenty of failed deals had excellent diligence and sensible models. The defining skill is maintaining coherence across all the stages: ensuring that what commercial diligence reveals shapes the LBO structure, that the structure is compatible with the value-creation plan, that the plan builds toward the intended exit, and that the exit story is recognisably the same as the entry thesis. When that chain holds, deals work. When it breaks at any link, it usually breaks at the end — at exit — even though the actual error happened years earlier, at sourcing or in the first ninety days. That's why diagnosing a PE failure means tracing backward through the cascade to find the stage where the misalignment was introduced, not just examining the disappointing exit in isolation.", "est_sec": 48}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "One decision, made in layers", "on_screen_bullets": ["Thesis → test → commitment → execution", "Exit value largely pre-determined", "Coherence across all six stages"], "narration": "To recap. A PE deal is not six stages — it is one decision, made in layers. The thesis formed at sourcing is the hypothesis; due diligence is the test; the LBO structure is the commitment; the hundred-day plan is the execution; the exit routes are the options available depending on what was built; and the exit process is the realisation of a value that was largely determined before the company was ever owned. The defining skill is not executing any single stage well but maintaining coherence across all of them — so that diligence shapes the structure, the structure fits the value-creation plan, the plan builds toward the intended exit, and the exit story is recognisably the entry thesis. When that chain holds, deals work; when it breaks at any link, it usually shows up, painfully, at the end. Next we zoom in on the single most consequential pair of those links — how due diligence and deal pricing are really one integrated process.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The note claims ~80% of a deal's outcome is set in the first 90 days, yet exit happens at Year 5+. Explain the causal cascade that makes this true, and why 'exit optionality' must be built in the 100-day plan rather than chosen at exit.", "narration": "Before the next lesson, reason it through. The note claims roughly eighty percent of a deal's outcome is determined in the first ninety days, even though the exit happens five or more years later. Explain the causal cascade that makes this true — and why exit optionality has to be built during the hundred-day plan rather than simply chosen at exit. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: The Deal Lifecycle End-to-End\n\n[hook] A causal cascade\nThe stages of a PE deal — sourcing, due diligence, LBO structuring, the hundred-day plan, and exit — are not a checklist of independent tasks. They're a causal cascade: every decision at each stage collapses the option space available at the next. What's decided at sourcing, the investment thesis, is the hypothesis that due diligence tests. What due diligence discovers about the business directly determines how much debt is safe to put on it. The debt structure installed at close sets the operating constraints for value creation. The value-creation path chosen during the hold determines which exit routes are viable at year five. And the exit route dictates the exit process and timeline. By the time a fund reaches exit, roughly eighty percent of the outcome has been determined by decisions made in the first ninety days of engagement — before the company was even owned.\n\n[intuition] Why competent deals still fail\nStudying these stages individually teaches you what each one is. Studying them as a causal cascade teaches you how PE actually works — and why so many deals fail despite every individual stage being executed competently. A GP can run excellent due diligence, build a sensible LBO model, and still destroy value, if the thesis they brought into diligence was wrong, the debt structure they chose was incompatible with the value-creation plan they had in mind, or the hundred-day plan they executed eliminated the exit routes they were counting on. Mastering this synthesis lets you identify the highest-leverage decisions in any deal — almost always at sourcing and structuring, not at exit; diagnose failures not as individual stage errors but as structural misalignments between stages; judge a GP not by whether their exits were good but by whether their theses survived diligence and their structures enabled the value creation they claimed; and think about exit from day one, because the options available at year five are a direct function of what was built in years one and two.\n\n[mechanics] The cascade, stage by stage\nThe concept map is the cascade itself. Sourcing forms the thesis, which defines exactly what diligence must validate. Commercial due diligence reveals revenue quality, market position, management strength, and the value-creation levers available — and those findings set the risk envelope that determines safe leverage. The deal structure follows: high leverage permits only cash-generative value creation, while low leverage leaves flexibility to invest, build, and acquire — and that capital structure sets the operating constraints for the entire hold. The hundred-day plan must work within those debt constraints and should build toward, not foreclose, multiple exit options. The business you've built by year three or four narrows the exit universe, so the viable routes at exit are determined by company size, growth rate, leverage, management quality, and the buyer universe. And once the route is selected, the exit process executes it. The cascades rarely taught are the joins: revenue predictability in commercial diligence directly sets maximum debt-to-EBITDA; covenant headroom in the debt package determines how aggressively the GP can invest versus conserve cash; and whether the hundred-day plan emphasises cost cuts, organic growth, or buy-and-build largely determines who will pay the most at exit.\n\n[worked-example] Healthcare IT, stage by stage\nWatch the cascade in a healthcare-IT deal. A fund sources a company with thirty million of EBITDA, and the thesis formed at sourcing is: the market is fragmented, this is the natural consolidator, we can do four add-on acquisitions and exit to a large strategic or via IPO. Stage one to two: that thesis immediately determines what diligence must find — a defensible market position worth building around, genuine add-on targets at reasonable prices, and an IPO-viable combined entity at scale; if any fails, say the target turns out to have forty-percent customer concentration, the thesis breaks and the deal reprices, restructures, or dies. Stage two to three: diligence confirms revenues are eighty-percent recurring with low churn and stable margins, and that revenue quality justifies five-and-a-half-times leverage — enough to win competitively but with headroom to draw the revolver for add-ons; had revenue been cyclical and lumpy, safe leverage might have been three-and-a-half, making the deal impossible to win at the same price. Stage three to four: at five-and-a-half times, the company throws off about ten million of free cash flow after debt service, so the hundred-day plan can't simultaneously invest heavily in organic growth, pursue acquisitions, and service debt — the capital structure has made it a prioritisation problem, and the plan is shaped around retaining management, hiring an M&A director, and stabilising revenue, nothing that would stress coverage. Stage four to five: by year three the GP has done two add-ons, EBITDA is fifty-two million — larger, but still below the roughly seventy-five-million threshold for a credible float — so the buy-and-build has partly delivered but not enough for IPO, and the GP faces a fork created entirely by the earlier choices.\n\n[worked-example] Advent: thesis delivered, 6.9x\nNow a case where coherence held all the way through — an illustrative Advent software deal. The entry thesis: a mid-market B2B SaaS business in a vertical with three or four larger potential acquirers; buy it, double EBITDA through pricing power and churn reduction, exit to a strategic at fourteen-to-sixteen times. Diligence shaped the structure: eighty-five percent recurring revenue, net retention above a hundred-and-five percent, pricing fifteen percent below market, and a management team strong operationally but weak on M&A — which justified five-and-a-half-times leverage but flagged that the team needed strengthening, not an acquisition spree. So the structure was two hundred million enterprise value, a hundred ten of debt, ninety of equity, with a covenant giving room for a temporary EBITDA dip while prices were raised. The hundred-day plan followed directly: an immediate ten-to-twelve percent price reset on renewals, hire a CFO and VP of Sales, and deliberately no add-ons — preserving a clean organic-growth narrative for a strategic exit. Over the hold, EBITDA grew from twenty to forty-two million entirely organically, leverage fell from five-and-a-half to two-point-six times, and the company entered year five with high growth, low leverage, a strong team, and a clear story. That bought three viable exit routes — strategic sale, secondary buyout, or IPO — and the banker-run process drew three strategic bidders, with the winner paying sixteen times forty-two million, six hundred seventy-two million enterprise value. Net of fifty-five million of remaining debt, that's six hundred seventeen million of equity on a ninety-million cheque — a six-point-nine-times MOIC, a forty-seven percent IRR. The exit story was literally the entry thesis, delivered as promised — and any single broken link, forty-percent concentration in diligence, seven-times leverage forcing cash maximisation, or an add-on spree muddying the narrative, would have cascaded forward and destroyed it.\n\n[pitfalls] What siloed study misses\nFour things people miss. First, due diligence is about risk identification — true, but it's also LBO-structure calibration; when a report confirms recurring revenue and pricing power, the immediate consequence isn't just low risk, it's that five-and-a-half-times leverage is justified — the risk register and the financial structuring are the same exercise run at once. Second, the hundred-day plan is an operational tool — but it's also an exit-optionality-preservation tool: aggressive cost cuts lift near-term EBITDA but make the company less appealing to a growth-seeking strategic; hiring a Chief Revenue Officer signals an IPO trajectory; launching an add-on programme pushes the exit later — these are structural decisions about what the business will look like at exit, made four or five years early. Third, you choose your exit route at year five based on market conditions — no, market conditions set the pricing, but the viable routes were determined years earlier; a company entering year five over-leveraged, under-scaled, and customer-concentrated has exactly one route regardless of the market. And fourth, the investment thesis is a marketing document — it's the causal backbone of the entire deal, and the single most predictive question in any deal review is simply: does the exit story match the entry thesis?\n\n[intuition] Coherence is the real skill\nStep back to the core lesson. The defining skill in PE is not executing any individual stage well — plenty of failed deals had excellent diligence and sensible models. The defining skill is maintaining coherence across all the stages: ensuring that what commercial diligence reveals shapes the LBO structure, that the structure is compatible with the value-creation plan, that the plan builds toward the intended exit, and that the exit story is recognisably the same as the entry thesis. When that chain holds, deals work. When it breaks at any link, it usually breaks at the end — at exit — even though the actual error happened years earlier, at sourcing or in the first ninety days. That's why diagnosing a PE failure means tracing backward through the cascade to find the stage where the misalignment was introduced, not just examining the disappointing exit in isolation.\n\n[recap] One decision, made in layers\nTo recap. A PE deal is not six stages — it is one decision, made in layers. The thesis formed at sourcing is the hypothesis; due diligence is the test; the LBO structure is the commitment; the hundred-day plan is the execution; the exit routes are the options available depending on what was built; and the exit process is the realisation of a value that was largely determined before the company was ever owned. The defining skill is not executing any single stage well but maintaining coherence across all of them — so that diligence shapes the structure, the structure fits the value-creation plan, the plan builds toward the intended exit, and the exit story is recognisably the entry thesis. When that chain holds, deals work; when it breaks at any link, it usually shows up, painfully, at the end. Next we zoom in on the single most consequential pair of those links — how due diligence and deal pricing are really one integrated process.\n\nEnd-card question: The note claims ~80% of a deal's outcome is set in the first 90 days, yet exit happens at Year 5+. Explain the causal cascade that makes this true, and why 'exit optionality' must be built in the 100-day plan rather than chosen at exit.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>The six stages of a PE deal — sourcing, due diligence, LBO structuring, the 100-day plan, and exit — are not a checklist of independent tasks. They are a <strong>causal cascade</strong>: every decision at each stage collapses the option space available at the next.</p><p>What is decided at sourcing (the investment thesis) is the hypothesis that due diligence tests. What due diligence discovers about the business directly determines how much debt is safe to put on it. The debt structure installed at close sets the operating constraints for value creation. The value creation path chosen during the hold determines which exit routes are viable at Year 5. The exit route dictates the exit process and timeline.</p><p>By the time a PE fund reaches exit, roughly 80% of the outcome has been determined by decisions made in the first 90 days of deal engagement — before the company was even owned.</p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>Studying these stages individually teaches you what each one is. Studying them as a causal cascade teaches you how PE actually works — and why so many deals fail despite each individual stage being executed competently.</p><p>A GP can run excellent due diligence, build a sensible LBO model, and still destroy value — if the thesis they brought into DD was wrong, the debt structure they chose was incompatible with the value creation plan they had in mind, or the 100-day plan they executed eliminated the exit routes they were counting on.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Identify the highest-leverage decisions</strong> in any deal (almost always at sourcing and LBO structuring, not at exit)</li><li><strong>Diagnose deal failures</strong> — not as individual stage errors but as structural misalignments between stages</li><li><strong>Evaluate a GP's quality</strong> — not by whether their exits were good, but by whether their theses survived DD and their LBO structures enabled the value creation they claimed to be executing</li><li><strong>Think about exit from day one</strong> — because the exit options available at Year 5 are a direct function of what was built in Years 1–2</li></ul><p>---</p>"}, "2": {"section": "Concept Map", "html": "<p><strong>The cascades that are rarely taught:</strong></p><ul class='notelist'><li>Commercial Due Diligence → What Is an LBO: Revenue predictability found in CDD directly sets maximum Debt/EBITDA (unstable revenue → lower leverage → lower entry multiple → better or worse IRR depending on whether competition allows it)</li><li>What Is an LBO → 100-Day Plan: Covenant headroom found in the debt package determines how aggressively the GP can invest in the business vs. conserve cash for debt service</li><li>100-Day Plan → Exit Routes Overview: Whether the 100-day plan focuses on cost cuts vs. revenue growth vs. buy-and-build largely determines who will pay the most for the business at exit (cost-cut story = strategic or SBO; growth story = IPO or strategic; platform play = must reach scale before IPO is viable)</li></ul><p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>Scenario: A healthcare software acquisition</strong></p><p>A PE fund sources a healthcare IT company with $30M EBITDA. The investment thesis (formed in sourcing) is: <em>\"The market is fragmented, this is the natural consolidator, we can do four add-on acquisitions and exit to a large strategic or via IPO.\"</em></p><p><strong>Stage 1 → Stage 2 (Thesis constrains DD focus):</strong> The thesis immediately determines what DD must find. CDD must verify: (a) that the target has a defensible market position worth building around, (b) that there are genuine add-on targets available at reasonable prices, (c) that the combined entity will be IPO-viable at scale. If any of these fail in CDD — say, the target turns out to have 40% customer concentration in one client — the thesis is broken and the deal either reprices, restructures, or dies.</p><p><strong>Stage 2 → Stage 3 (DD findings set LBO structure):</strong> CDD and FDD confirm the target's revenues are 80% recurring, churn is low, and EBITDA margins are stable. This revenue quality justifies 5.5x Debt/EBITDA — enough to get the deal done at a competitive price but with headroom to draw on the RCF for add-on acquisitions. If CDD had found cyclical, lumpy revenue, the safe leverage might have been 3.5x — making the deal impossible to win at the same price in a competitive auction, or forcing a lower entry multiple that competitors might not accept.</p><p><strong>Stage 3 → Stage 4 (LBO structure constrains 100-day plan):</strong> At 5.5x leverage, the company generates ~$10M of free cash flow after debt service annually. The 100-day plan must allocate this carefully: some toward mandatory amortisation, some toward the RCF drawdown for add-on #1. The GP cannot simultaneously invest heavily in organic growth (hiring, R&amp;D) AND pursue acquisitions AND service debt. The capital structure has made this a prioritisation problem. The 100-day plan is thus shaped around: retain the management team (MIP grants), hire an M&amp;A director, identify the two most viable add-on targets, stabilise the existing revenue base. Nothing in the 100-day plan that would stress the interest coverage ratio.</p><p><strong>Stage 4 → Stage 5 (Value creation path determines exit options):</strong> By Year 3, the GP has completed two add-ons. EBITDA is now $52M. The combined entity is larger, but still sub-IPO scale (typically $75M+ EBITDA for a credible float). The buy-and-build thesis has partially delivered but not enough for IPO. The GP now faces a fork: pursue two more add-ons (extending the hold to Year 6+, risking fund life pressure) or exit now via strategic sale or SBO. The 100-day plan's execution — specifically the add-on strategy — has created this exact dilemma. The exit route was not freely chosen at Year 5; it was pre-selected by what was built in Years 1–4.</p><p><strong>Stage 5 → Stage 6 (Exit route determines execution):</strong> The GP chooses a strategic sale. This triggers the PE Exit Process and Timeline: vendor due diligence commissioned, investment bank mandated, CIM drafted, 8–10 potential strategic buyers approached under NDA. Because the buy-and-build has created a genuinely differentiated asset, two strategics compete — one US healthcare IT major and one European EHR provider. The competitive dynamic yields a 12x EBITDA exit multiple vs. a likely 9–10x in an SBO. The entire exit process is shaped by the asset that was built — which was itself shaped by the 100-day plan choices, which were themselves shaped by the LBO structure, which was itself shaped by what CDD found.</p><p>---</p>"}, "4": {"section": "Practical Example", "html": "<p><strong>Advent International's acquisition of a B2B software company (illustrative)</strong></p><p><em>Entry thesis (sourcing):</em> Mid-market B2B SaaS in a vertical with 3–4 larger potential acquirers. \"Buy it, double EBITDA through pricing power and churn reduction, exit to a strategic at 14–16x.\"</p><p><em>CDD findings that shaped the LBO structure:</em> 85% recurring revenue, net revenue retention &gt;105%, single large customer = 18% (acceptable). Pricing below market by ~15%. Management team strong operationally, weak on M&amp;A. → CDD validates the thesis, quantifies the pricing lever, and identifies management risk. This directly justifies 5.5x leverage (high-quality revenue) but flags that the management team needs strengthening before exit (which will affect the 100-day plan).</p><p><em>LBO structure:</em> $200M EV, $110M debt (5.5x × $20M EBITDA), $90M equity. Low-enough leverage that FCF goes partly toward optional debt paydown, partly available for operational investment. Covenant: leverage must stay below 6.5x (gives room for temporary EBITDA dip while pricing is being raised).</p><p><em>100-day plan constrained by this structure and CDD findings:</em> Priority 1: pricing reset — immediate 10–12% price increase on renewal contracts (no capital required, CDD validated customer tolerance). Priority 2: hire CFO and VP Sales (moderate investment, covered by FCF). Priority 3: no add-ons — thesis is organic, and management team isn't ready to integrate acquisitions. The 100-day plan does NOT pursue acquisitions, deliberately preserving the clean growth narrative for a strategic exit.</p><p><em>Value creation through hold (Years 1–5):</em> EBITDA grows from $20M to $42M ($22M growth = pricing, churn reduction, sales investment). No add-ons. Leverage declines from 5.5x to 2.6x as debt is partly repaid and EBITDA grows. Company enters Year 5 with: high growth rate, low leverage, strong management team, clean revenue quality, and a clear narrative of organic software excellence.</p><p><em>Exit optionality at Year 5:</em> Three viable routes — (1) Strategic sale to one of the four identified acquirers (best premium, ~16x EBITDA), (2) Secondary buyout to a larger PE fund that wants a platform to build on, (3) IPO (the company is now large enough and profitable enough). The 100-day plan choices (no add-ons, organic growth, management investment) built this optionality deliberately.</p><p><em>Exit execution:</em> Banker-run process. Three strategics bid. Winner pays 16x $42M = $672M EV. Net of $55M remaining debt: $617M equity value. Entry equity was $90M. MOIC = $617M / $90M = <strong>6.9x</strong>. IRR over 5 years = <strong>47%</strong> (illustrative). The exit story is literally the entry thesis, delivered as promised.</p><p><em>What would have destroyed this:</em> At any stage — DD finding 40% customer concentration (would have reduced safe leverage to 3.5x, making the entry price uncompetitive) → OR LBO structure at 7x leverage (forcing 100-day plan to maximise cash, preventing sales investment) → OR 100-day plan pursuing acquisitions (creating integration noise that destroys the clean organic narrative) → OR entering Year 5 with no growth story (forcing an SBO at 9x instead of a strategic sale at 16x). Each single-stage failure cascades forward.</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p><strong>1. \"Due diligence is about risk identification.\"</strong> It is — but it is also about LBO structure calibration. When a CDD report confirms recurring revenue and pricing power, the key immediate consequence is not just \"risk is low\" but \"5.5x leverage is justified.\" The risk identification and the financial structuring are the same exercise, run simultaneously. Studying CDD without studying LBO structure mechanics means you'll produce a great risk register and have no idea what to do with it.</p><p><strong>2. \"The 100-day plan is an operational tool.\"</strong> The 100-day plan is also an <em>exit optionality preservation</em> tool. Every decision in the first 100 days either opens or closes future exit routes. Implementing aggressive cost cuts improves near-term EBITDA but makes the company less appealing to a strategic buyer who wants a growth story. Hiring a Chief Revenue Officer signals growth trajectory for an eventual IPO. Launching an add-on acquisition programme requires choosing an exit 12–18 months later than if organic growth alone had been pursued. These are not operational decisions — they are structural decisions about what the business will look like at exit, made 4–5 years before exit.</p><p><strong>3. \"You choose your exit route at Year 5 based on market conditions.\"</strong> Market conditions set the pricing, but the viable exit routes were determined years earlier. A company that enters Year 5 over-leveraged, under-scaled, and with one major customer accounting for 30% of revenue has exactly one viable exit route regardless of market conditions. The GP who thinks about exit route optionality from the 100-day plan — maintaining scale options, keeping leverage manageable, preserving management team quality — arrives at Year 5 with three viable routes and chooses the best-priced one. Market conditions then determine premium, not possibility.</p><p><strong>4. \"The investment thesis is a marketing document.\"</strong> The thesis is the causal backbone of the entire deal. If the thesis says \"we will grow EBITDA through operational improvement,\" then CDD must validate that improvement is achievable, the LBO structure must preserve cash for operational investment, the 100-day plan must execute the improvement programme, and the exit process must communicate the improvement story to buyers. If any link in that chain is broken, the thesis was either wrong at sourcing or was never truly operationalised at each stage. The single most predictive question in PE deal review is: <em>Does the exit story match the entry thesis?</em></p><p>---</p>"}, "6": {"section": "Why This Relationship Matters", "html": "<p>Studying these stages individually teaches you what each one is. Studying them as a causal cascade teaches you how PE actually works — and why so many deals fail despite each individual stage being executed competently.</p><p>A GP can run excellent due diligence, build a sensible LBO model, and still destroy value — if the thesis they brought into DD was wrong, the debt structure they chose was incompatible with the value creation plan they had in mind, or the 100-day plan they executed eliminated the exit routes they were counting on.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Identify the highest-leverage decisions</strong> in any deal (almost always at sourcing and LBO structuring, not at exit)</li><li><strong>Diagnose deal failures</strong> — not as individual stage errors but as structural misalignments between stages</li><li><strong>Evaluate a GP's quality</strong> — not by whether their exits were good, but by whether their theses survived DD and their LBO structures enabled the value creation they claimed to be executing</li><li><strong>Think about exit from day one</strong> — because the exit options available at Year 5 are a direct function of what was built in Years 1–2</li></ul><p>---</p>"}, "7": {"section": "Summary", "html": "<p>A PE deal is not six stages — it is one decision, made in layers. The thesis formed at sourcing is the hypothesis; due diligence is the test; the LBO structure is the commitment; the 100-day plan is the execution; the exit routes are the options available depending on what was built; and the exit process is the realisation of a value that was largely determined before the company was ever owned.</p><p>The defining skill in PE is not executing any individual stage well. It is maintaining coherence across all six — ensuring that what CDD reveals shapes the LBO structure, the LBO structure is compatible with the value creation plan, the value creation plan builds toward the intended exit, and the exit story is recognisably the same as the entry thesis. When that chain holds, deals work. When it breaks at any link, it usually breaks at the end.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

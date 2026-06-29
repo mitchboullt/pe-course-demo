@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "leverage-and-value-creation-constraints", "title": "Leverage and Value Creation Constraints", "draft_watermark": false, "estimated_runtime_sec": 330, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Leverage sets the strategy", "on_screen_bullets": ["Entry leverage constrains the hold", "Debt service eats the cash", "Strategy must fit the structure"], "narration": "The leverage ratio chosen at entry is the single decision that most constrains a manager's strategic options for the entire holding period. Consider a manager who buys a business at high leverage and then writes a plan centred on heavy investment — big research spending, transformational acquisitions, geographic expansion. That plan is incoherent, because the debt service consumes the very cash those initiatives would need. Understanding this explains why leveraged businesses so often make choices that look suboptimal from the outside — favouring organic growth and cost efficiency over capital-intensive investment — when in fact those choices are perfectly rational given the capital structure. It also explains why the recent rate shock was so damaging: it did not just reduce profitability, it eliminated strategic optionality across whole portfolios at once. So this lesson is about how the debt level quietly dictates which value-creation levers are even available.", "est_sec": 52}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Debt level gates the levers", "on_screen_bullets": ["Entry debt-to-earnings ratio", "High: preserve cash", "Low: invest and transform"], "narration": "Here is the definition. Leverage and value-creation constraints describes how the debt-to-earnings ratio at the point of acquisition determines which value-creation levers are operationally available — with high leverage forcing cash-preservation strategies, and low leverage enabling investment-intensive, transformational strategies. The key idea is that leverage is not merely a financial metric measuring risk; it is a strategic gate. It decides, before the manager makes a single operating move, whether the business can afford to invest for growth or must instead grind out cash to service its debt. Hold that framing — leverage as a gate on strategy, not just a number on the balance sheet — because everything in this lesson follows from it.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The 95% mortgage", "on_screen_bullets": ["Most income to the mortgage", "No room to invest", "Low debt restores freedom"], "narration": "Picture taking a mortgage for ninety-five percent of a house's value. Every month, most of your income goes straight to servicing it. You cannot save, renovate, or buy a second property — your options are constrained by the debt. If you find a way to earn more, most of it disappears into the mortgage before you ever see it, and if interest rates rise, you are in immediate trouble. Now imagine a mortgage at half the house's value. You have cash flow for renovations, for savings, for investment. You can be strategic, take calculated risks, and the debt does not dictate your every move. Private equity works the same way. High leverage forces a specific mode — generate cash, cut costs, pay down debt. Low leverage enables a different mode — invest in growth, make acquisitions, expand. The debt-to-earnings ratio at entry is not just a financial measure; it is a strategic straitjacket or a strategic enabler, depending entirely on the level.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The backpack", "on_screen_bullets": ["Light pack: run and pivot", "Heavy pack: only walk", "Rough ground topples you first"], "narration": "Another way to feel it: leverage is like carrying a backpack. With a light pack — low leverage — you can run, climb, pivot, and change direction quickly. With a heavy pack — high leverage — you can still walk, and on flat, predictable ground, meaning stable earnings and low rates, you will get where you are going just fine. But you cannot sprint if you suddenly need to, you cannot take detours, and the moment the ground gets rough — a macro shock — you are the first to fall over. The crucial point of the analogy is that the pack determines what kind of journey you can make, not just how hard the journey is. A heavy debt load does not merely make the business riskier; it forecloses entire categories of strategic movement, which is a different and more consequential thing than just dialling up the risk.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three leverage zones", "on_screen_bullets": ["High: organic and cost only", "Medium: bolt-ons allowed", "Low: full optionality"], "narration": "There is a clear leverage-to-strategy map with three zones. In the high-leverage zone, the interest-coverage cushion is thin, and only the most capital-efficient levers are available: organic revenue growth, cost reduction, working-capital optimisation, and pricing discipline. Transformational acquisitions, research investment, and capital-intensive expansion are effectively prohibited, because they all require short-term earnings dips that the thin cushion cannot absorb. In the medium-leverage zone, there is meaningful headroom, so all the organic levers remain available plus modest bolt-on acquisitions and selective investment within the cash the business generates — though a transformational deal that would push leverage back up is still off the table. And in the low-leverage zone, with substantial headroom, the full strategic menu opens up: transformational acquisitions, sustained research and product cycles, capital-intensive build-outs, and heavy investment in management. The zone the manager enters at, set entirely by the entry leverage, defines the strategic playbook they are allowed to run.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The coverage covenant gate", "on_screen_bullets": ["Coverage equals earnings over interest", "Must stay above a floor", "Any earnings dip risks breach"], "narration": "The precise mechanism doing the gating is the interest-coverage covenant. Coverage is simply earnings divided by cash interest, and the lender requires it to stay above a floor. Now watch how that constrains strategy. Imagine a company earning a hundred with cash interest of forty-five — coverage of about two-and-a-quarter, just above a covenant floor of two. That means any initiative that would reduce short-term earnings by more than about eleven risks breaching the covenant. So no investment is permitted that cannot demonstrate it will keep earnings roughly flat in the near term — which rules out exactly the strategies that trade short-term earnings for long-term growth. The covenant does not care that a research programme or an integration cost would enhance earnings two years out; it only sees the dip today. That is how a financial ratio becomes an operational veto: any lever that requires a temporary earnings sacrifice is simply unavailable, no matter how value-creating it would ultimately be.", "est_sec": 56}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The rate shock shifted everyone left", "on_screen_bullets": ["Debt fixed, but interest rose", "Coverage compressed sharply", "Strategy froze across portfolios"], "narration": "The recent rate shock demonstrated this mechanism at portfolio scale, and the way it happened is subtle. The debt-to-earnings ratios did not change — the debt was fixed. What changed was the coverage ratio, because most of that debt carried a floating rate. When the benchmark rate jumped from near zero to over five percent, the cash interest on a large floating-rate loan could roughly double, and coverage that had comfortably sat around five times could compress toward two. A company that behaved like a moderately-levered business by its debt ratio suddenly behaved like a heavily-levered one by its coverage. The effect was to shift essentially every portfolio company leftward on the leverage-strategy map at once. Companies that had been executing ambitious acquisition strategies and investment programmes abruptly found themselves in pure coverage-management mode, with strategic optionality eliminated. That is why so many portfolios fell into simultaneous strategic paralysis — not because anyone added debt, but because the cost of the existing debt repriced under everyone at the same moment.", "est_sec": 56}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["High leverage isn't always bad", "Entry leverage can't be reset", "Cov-lite doesn't supply cash"], "narration": "Four misconceptions to correct. First, that high leverage is always negative — not so; in businesses with stable, predictable cash flows, high leverage is perfectly manageable and amplifies equity returns without materially constraining operations. The danger is leverage mismatched to a cyclical or capital-intensive business, not leverage itself. Second, that managers can adjust their leverage whenever they like — no; entry leverage is fixed at acquisition financing and only comes down gradually through cash generation, while re-leveraging through a dividend recap actually tightens the constraint. Third, that covenant-lite lending makes leverage irrelevant — wrong; covenant-lite removes the legal trigger of a breach, not the financial reality of insufficient cash, so a covenant-lite company with thin coverage still cannot fund investment, because there is simply no cash above debt service to deploy. And fourth, that management teams understand their own constraint — often they do not, until a rate shock or an earnings miss makes the straitjacket suddenly and painfully explicit.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Match the thesis to the leverage", "on_screen_bullets": ["Leverage gates the strategy", "Coverage is the binding mechanism", "Mismatch destroys value"], "narration": "So to summarise: the debt-to-earnings ratio at entry determines operational strategy for the entire hold. High leverage forces cash-preservation — organic growth, cost cuts, working-capital optimisation — because the coverage cushion is too thin to permit investment-cycle earnings dips. Medium leverage allows bolt-on acquisitions and selective investment. Low leverage enables transformational strategies and heavy growth investment. The binding mechanism is the interest-coverage covenant: any initiative that reduces short-term earnings risks a breach, which effectively vetoes any investment-led strategy. The recent rate shock proved this at scale, compressing coverage across whole portfolios as floating-rate costs repriced and freezing strategic optionality overnight. The single most important takeaway: a mismatch between an ambitious growth thesis and a high leverage level is one of the most common ways private equity deals destroy value — the strategy and the structure have to fit each other.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Which levers at high leverage?", "How does coverage gate strategy?", "Why did the rate shock freeze portfolios?"], "narration": "Before you finish, answer these from memory. At high leverage, which value-creation levers are available and which are foreclosed, and why? How does the interest-coverage covenant act as an operational veto on certain strategies? And why did the recent rate shock eliminate strategic optionality across portfolios even though nobody added any debt? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Leverage and Value Creation Constraints\n\n[hook] Leverage sets the strategy\nThe leverage ratio chosen at entry is the single decision that most constrains a manager's strategic options for the entire holding period. Consider a manager who buys a business at high leverage and then writes a plan centred on heavy investment — big research spending, transformational acquisitions, geographic expansion. That plan is incoherent, because the debt service consumes the very cash those initiatives would need. Understanding this explains why leveraged businesses so often make choices that look suboptimal from the outside — favouring organic growth and cost efficiency over capital-intensive investment — when in fact those choices are perfectly rational given the capital structure. It also explains why the recent rate shock was so damaging: it did not just reduce profitability, it eliminated strategic optionality across whole portfolios at once. So this lesson is about how the debt level quietly dictates which value-creation levers are even available.\n\n[definition] Debt level gates the levers\nHere is the definition. Leverage and value-creation constraints describes how the debt-to-earnings ratio at the point of acquisition determines which value-creation levers are operationally available — with high leverage forcing cash-preservation strategies, and low leverage enabling investment-intensive, transformational strategies. The key idea is that leverage is not merely a financial metric measuring risk; it is a strategic gate. It decides, before the manager makes a single operating move, whether the business can afford to invest for growth or must instead grind out cash to service its debt. Hold that framing — leverage as a gate on strategy, not just a number on the balance sheet — because everything in this lesson follows from it.\n\n[intuition] The 95% mortgage\nPicture taking a mortgage for ninety-five percent of a house's value. Every month, most of your income goes straight to servicing it. You cannot save, renovate, or buy a second property — your options are constrained by the debt. If you find a way to earn more, most of it disappears into the mortgage before you ever see it, and if interest rates rise, you are in immediate trouble. Now imagine a mortgage at half the house's value. You have cash flow for renovations, for savings, for investment. You can be strategic, take calculated risks, and the debt does not dictate your every move. Private equity works the same way. High leverage forces a specific mode — generate cash, cut costs, pay down debt. Low leverage enables a different mode — invest in growth, make acquisitions, expand. The debt-to-earnings ratio at entry is not just a financial measure; it is a strategic straitjacket or a strategic enabler, depending entirely on the level.\n\n[intuition] The backpack\nAnother way to feel it: leverage is like carrying a backpack. With a light pack — low leverage — you can run, climb, pivot, and change direction quickly. With a heavy pack — high leverage — you can still walk, and on flat, predictable ground, meaning stable earnings and low rates, you will get where you are going just fine. But you cannot sprint if you suddenly need to, you cannot take detours, and the moment the ground gets rough — a macro shock — you are the first to fall over. The crucial point of the analogy is that the pack determines what kind of journey you can make, not just how hard the journey is. A heavy debt load does not merely make the business riskier; it forecloses entire categories of strategic movement, which is a different and more consequential thing than just dialling up the risk.\n\n[mechanics] Three leverage zones\nThere is a clear leverage-to-strategy map with three zones. In the high-leverage zone, the interest-coverage cushion is thin, and only the most capital-efficient levers are available: organic revenue growth, cost reduction, working-capital optimisation, and pricing discipline. Transformational acquisitions, research investment, and capital-intensive expansion are effectively prohibited, because they all require short-term earnings dips that the thin cushion cannot absorb. In the medium-leverage zone, there is meaningful headroom, so all the organic levers remain available plus modest bolt-on acquisitions and selective investment within the cash the business generates — though a transformational deal that would push leverage back up is still off the table. And in the low-leverage zone, with substantial headroom, the full strategic menu opens up: transformational acquisitions, sustained research and product cycles, capital-intensive build-outs, and heavy investment in management. The zone the manager enters at, set entirely by the entry leverage, defines the strategic playbook they are allowed to run.\n\n[mechanics] The coverage covenant gate\nThe precise mechanism doing the gating is the interest-coverage covenant. Coverage is simply earnings divided by cash interest, and the lender requires it to stay above a floor. Now watch how that constrains strategy. Imagine a company earning a hundred with cash interest of forty-five — coverage of about two-and-a-quarter, just above a covenant floor of two. That means any initiative that would reduce short-term earnings by more than about eleven risks breaching the covenant. So no investment is permitted that cannot demonstrate it will keep earnings roughly flat in the near term — which rules out exactly the strategies that trade short-term earnings for long-term growth. The covenant does not care that a research programme or an integration cost would enhance earnings two years out; it only sees the dip today. That is how a financial ratio becomes an operational veto: any lever that requires a temporary earnings sacrifice is simply unavailable, no matter how value-creating it would ultimately be.\n\n[application] The rate shock shifted everyone left\nThe recent rate shock demonstrated this mechanism at portfolio scale, and the way it happened is subtle. The debt-to-earnings ratios did not change — the debt was fixed. What changed was the coverage ratio, because most of that debt carried a floating rate. When the benchmark rate jumped from near zero to over five percent, the cash interest on a large floating-rate loan could roughly double, and coverage that had comfortably sat around five times could compress toward two. A company that behaved like a moderately-levered business by its debt ratio suddenly behaved like a heavily-levered one by its coverage. The effect was to shift essentially every portfolio company leftward on the leverage-strategy map at once. Companies that had been executing ambitious acquisition strategies and investment programmes abruptly found themselves in pure coverage-management mode, with strategic optionality eliminated. That is why so many portfolios fell into simultaneous strategic paralysis — not because anyone added debt, but because the cost of the existing debt repriced under everyone at the same moment.\n\n[application] Four myths\nFour misconceptions to correct. First, that high leverage is always negative — not so; in businesses with stable, predictable cash flows, high leverage is perfectly manageable and amplifies equity returns without materially constraining operations. The danger is leverage mismatched to a cyclical or capital-intensive business, not leverage itself. Second, that managers can adjust their leverage whenever they like — no; entry leverage is fixed at acquisition financing and only comes down gradually through cash generation, while re-leveraging through a dividend recap actually tightens the constraint. Third, that covenant-lite lending makes leverage irrelevant — wrong; covenant-lite removes the legal trigger of a breach, not the financial reality of insufficient cash, so a covenant-lite company with thin coverage still cannot fund investment, because there is simply no cash above debt service to deploy. And fourth, that management teams understand their own constraint — often they do not, until a rate shock or an earnings miss makes the straitjacket suddenly and painfully explicit.\n\n[recap] Match the thesis to the leverage\nSo to summarise: the debt-to-earnings ratio at entry determines operational strategy for the entire hold. High leverage forces cash-preservation — organic growth, cost cuts, working-capital optimisation — because the coverage cushion is too thin to permit investment-cycle earnings dips. Medium leverage allows bolt-on acquisitions and selective investment. Low leverage enables transformational strategies and heavy growth investment. The binding mechanism is the interest-coverage covenant: any initiative that reduces short-term earnings risks a breach, which effectively vetoes any investment-led strategy. The recent rate shock proved this at scale, compressing coverage across whole portfolios as floating-rate costs repriced and freezing strategic optionality overnight. The single most important takeaway: a mismatch between an ambitious growth thesis and a high leverage level is one of the most common ways private equity deals destroy value — the strategy and the structure have to fit each other.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. At high leverage, which value-creation levers are available and which are foreclosed, and why? How does the interest-coverage covenant act as an operational veto on certain strategies? And why did the recent rate shock eliminate strategic optionality across portfolios even though nobody added any debt? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The entry leverage ratio is the single decision that most constrains the GP's strategic options for the entire hold period. A GP who buys a business at 7x Debt/EBITDA and then writes a 100-day plan centred on heavy R&amp;D investment, transformational add-on M&amp;A, and geographic expansion has written an incoherent plan — the debt service requirement consumes the cash that would fund those initiatives. Understanding leverage constraints explains why PE businesses often make specific strategic choices (organic growth and cost efficiency rather than capital-intensive investment) that look suboptimal to outside observers but are rational given the capital structure. It also explains why the 2022-23 rate shock was so damaging: the ICR compression didn't just reduce profitability — it eliminated strategic optionality for entire portfolios simultaneously.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Leverage and value creation constraints describes how the debt-to-EBITDA ratio at LBO entry determines which value creation levers are operationally available — with high leverage forcing cash-preservation strategies and low leverage enabling investment-intensive transformational strategies.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you take out a mortgage for 95% of your house value. Every month, most of your income goes to servicing the mortgage. You cannot save, invest, renovate, or buy a second property. Your strategic options are constrained by the debt. If you find a way to earn more money (EBITDA growth), most of that goes to the mortgage before you see any. If interest rates rise (ICR shock), you're in immediate trouble.</p><p>Now imagine a mortgage at 50% of value. You have cash flow for renovations, savings, investment. You can be strategic. You can take calculated risks. The debt doesn't determine your every decision.</p><p>PE works the same way. High leverage forces a specific strategic mode: generate cash, cut costs, pay down debt. Low leverage enables a different mode: invest in growth, make acquisitions, expand geographically. The debt/EBITDA ratio at entry isn't just a financial metric — it's a strategic straitjacket or a strategic enabler, depending on the level.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Leverage is like carrying a backpack. At 30% pack weight (low leverage), you can run, climb, pivot, change direction quickly. At 70% pack weight (high leverage), you can still walk — and if you're carrying it on flat, predictable ground (stable EBITDA, low rates), you'll get where you're going. But you can't sprint if you need to, you can't take detours, and if the ground gets rough (macro shock), you're the first to fall. The pack determines what kind of journey you can make, not just how hard the journey is.</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>The Leverage-Strategy Matrix:</strong></p><p><strong>High Leverage Zone (&gt;6x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 1.8-2.5x (thin margin above covenant trigger) <em>Permitted strategic levers:</em> - Organic revenue growth (generates EBITDA to service debt; no capital required) - Cost reduction / margin improvement (generates FCF to pay down debt) - Working capital optimisation (releases cash within the existing business) - Pricing discipline (most capital-efficient value creation lever)</p><p><em>Constrained or prohibited levers:</em> - Transformational add-on M&amp;A (requires capital, integration costs, management distraction at a moment when the business cannot afford disruption) - R&amp;D investment or product development (requires sustained cash outflow before return) - Capital-intensive geographic expansion (capex and working capital requirements) - Significant headcount investment (payroll cost increases ICR risk)</p><p><em>Why constrained:</em> every £1 of EBITDA is needed to service debt. ICR covenants (typically 2.0-2.5x minimum) leave no room for EBITDA dips from investment cycles. Any strategic initiative that reduces short-term EBITDA — even if it enhances long-term EBITDA — risks covenant breach.</p><p><strong>Medium Leverage Zone (4-6x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 2.5-3.5x (meaningful headroom) <em>All organic levers available</em> plus: - Bolt-on add-on M&amp;A (modestly priced targets; synergy-driven) - Selective investment in product or technology (within FCF headroom) - Geographic expansion into adjacent markets (using operating cash flow)</p><p><em>Still constrained:</em> - Transformational M&amp;A (leverage would return to 6x+ zone) - Capital-intensive platform restructuring</p><p><strong>Low Leverage Zone (&lt;4x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 3.5x+ (substantial headroom) <em>Full strategic optionality:</em> - Transformational M&amp;A (leverage absorbs step-up temporarily) - R&amp;D and product investment cycles - Capital-intensive geographic build-outs - Management recruitment and development investment - Strategic partnership capital (equity stakes, JVs)</p><p><strong>The ICR Constraint Mechanism:</strong> Interest Coverage Ratio = EBITDA / Cash Interest Expense</p><p>At a credit covenant of 2.0x ICR: - If EBITDA is £100m and cash interest is £45m: ICR = 2.22x (marginal headroom) - Any strategic initiative that reduces EBITDA by more than £11m risks breach - This means: no initiative is permitted that cannot demonstrate EBITDA neutrality in the short-term</p><p>The SOFR shock of 2022-23 (0.05% → 5.33%) demonstrated this mechanically. For a portfolio company with £500m TLB at SOFR+400bps: interest expense rose from ~£20m (2021) to ~£47m (2023) — a £27m increase. ICR fell from ~5.0x to ~2.1x. The company, previously able to pursue an ambitious acquisition strategy, was now in covenant management mode with zero strategic optionality.</p><p><strong>Leverage vs. Entry Multiple Trade-Off:</strong> High leverage amplifies equity returns when deals succeed (Return Attribution Waterfall — see Return Attribution Waterfall). But leverage also constrains the operational strategy available to produce that success. The optimal leverage level is deal-specific: a highly cash-generative, low-cyclicality business (SaaS, healthcare services, regulated utilities) can sustain high leverage while executing its strategy; a capital-intensive, cyclical business (manufacturing, retail, hospitality) cannot.</p><p><strong>Sector Leverage Norms (pre-2022):</strong> | Sector | Typical Entry Leverage | Rationale | |---|---|---| | SaaS / Tech | 6-10x | High ARR predictability; low capex; cov-lite structures | | Healthcare services | 5-7x | Regulated revenue streams; cost-reimbursement models | | Business services | 5-7x | Asset-light; strong FCF conversion | | Manufacturing / Industrials | 4-6x | Cyclicality and capex requirements limit leverage headroom | | Retail | 3-5x | Structural headwinds; high operating leverage | | Real estate / Infrastructure | 8-12x | Long-duration asset-backed; inflation-linked revenues |</p><p><strong>Post-2022 Constraint Reset:</strong> Rising rates in 2022-23 effectively shifted all PE portfolio companies left on the leverage-strategy matrix — not because debt/EBITDA changed (it didn't: debt was fixed), but because ICR compressed as floating-rate interest costs rose. A company at 5x Debt/EBITDA with 2021 interest rates behaved like a 7x company by 2023 in terms of ICR constraint. This explains the widespread strategic paralysis in PE portfolios in 2022-24: GPs could not execute acquisition strategies, geographic expansions, or investment programmes they had planned at lower rates.</p>"}, "5": {"section": "Technical Explanation", "html": "<p><strong>The Leverage-Strategy Matrix:</strong></p><p><strong>High Leverage Zone (&gt;6x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 1.8-2.5x (thin margin above covenant trigger) <em>Permitted strategic levers:</em> - Organic revenue growth (generates EBITDA to service debt; no capital required) - Cost reduction / margin improvement (generates FCF to pay down debt) - Working capital optimisation (releases cash within the existing business) - Pricing discipline (most capital-efficient value creation lever)</p><p><em>Constrained or prohibited levers:</em> - Transformational add-on M&amp;A (requires capital, integration costs, management distraction at a moment when the business cannot afford disruption) - R&amp;D investment or product development (requires sustained cash outflow before return) - Capital-intensive geographic expansion (capex and working capital requirements) - Significant headcount investment (payroll cost increases ICR risk)</p><p><em>Why constrained:</em> every £1 of EBITDA is needed to service debt. ICR covenants (typically 2.0-2.5x minimum) leave no room for EBITDA dips from investment cycles. Any strategic initiative that reduces short-term EBITDA — even if it enhances long-term EBITDA — risks covenant breach.</p><p><strong>Medium Leverage Zone (4-6x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 2.5-3.5x (meaningful headroom) <em>All organic levers available</em> plus: - Bolt-on add-on M&amp;A (modestly priced targets; synergy-driven) - Selective investment in product or technology (within FCF headroom) - Geographic expansion into adjacent markets (using operating cash flow)</p><p><em>Still constrained:</em> - Transformational M&amp;A (leverage would return to 6x+ zone) - Capital-intensive platform restructuring</p><p><strong>Low Leverage Zone (&lt;4x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 3.5x+ (substantial headroom) <em>Full strategic optionality:</em> - Transformational M&amp;A (leverage absorbs step-up temporarily) - R&amp;D and product investment cycles - Capital-intensive geographic build-outs - Management recruitment and development investment - Strategic partnership capital (equity stakes, JVs)</p><p><strong>The ICR Constraint Mechanism:</strong> Interest Coverage Ratio = EBITDA / Cash Interest Expense</p><p>At a credit covenant of 2.0x ICR: - If EBITDA is £100m and cash interest is £45m: ICR = 2.22x (marginal headroom) - Any strategic initiative that reduces EBITDA by more than £11m risks breach - This means: no initiative is permitted that cannot demonstrate EBITDA neutrality in the short-term</p><p>The SOFR shock of 2022-23 (0.05% → 5.33%) demonstrated this mechanically. For a portfolio company with £500m TLB at SOFR+400bps: interest expense rose from ~£20m (2021) to ~£47m (2023) — a £27m increase. ICR fell from ~5.0x to ~2.1x. The company, previously able to pursue an ambitious acquisition strategy, was now in covenant management mode with zero strategic optionality.</p><p><strong>Leverage vs. Entry Multiple Trade-Off:</strong> High leverage amplifies equity returns when deals succeed (Return Attribution Waterfall — see Return Attribution Waterfall). But leverage also constrains the operational strategy available to produce that success. The optimal leverage level is deal-specific: a highly cash-generative, low-cyclicality business (SaaS, healthcare services, regulated utilities) can sustain high leverage while executing its strategy; a capital-intensive, cyclical business (manufacturing, retail, hospitality) cannot.</p><p><strong>Sector Leverage Norms (pre-2022):</strong> | Sector | Typical Entry Leverage | Rationale | |---|---|---| | SaaS / Tech | 6-10x | High ARR predictability; low capex; cov-lite structures | | Healthcare services | 5-7x | Regulated revenue streams; cost-reimbursement models | | Business services | 5-7x | Asset-light; strong FCF conversion | | Manufacturing / Industrials | 4-6x | Cyclicality and capex requirements limit leverage headroom | | Retail | 3-5x | Structural headwinds; high operating leverage | | Real estate / Infrastructure | 8-12x | Long-duration asset-backed; inflation-linked revenues |</p><p><strong>Post-2022 Constraint Reset:</strong> Rising rates in 2022-23 effectively shifted all PE portfolio companies left on the leverage-strategy matrix — not because debt/EBITDA changed (it didn't: debt was fixed), but because ICR compressed as floating-rate interest costs rose. A company at 5x Debt/EBITDA with 2021 interest rates behaved like a 7x company by 2023 in terms of ICR constraint. This explains the widespread strategic paralysis in PE portfolios in 2022-24: GPs could not execute acquisition strategies, geographic expansions, or investment programmes they had planned at lower rates.</p>"}, "6": {"section": "Technical Explanation", "html": "<p><strong>The Leverage-Strategy Matrix:</strong></p><p><strong>High Leverage Zone (&gt;6x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 1.8-2.5x (thin margin above covenant trigger) <em>Permitted strategic levers:</em> - Organic revenue growth (generates EBITDA to service debt; no capital required) - Cost reduction / margin improvement (generates FCF to pay down debt) - Working capital optimisation (releases cash within the existing business) - Pricing discipline (most capital-efficient value creation lever)</p><p><em>Constrained or prohibited levers:</em> - Transformational add-on M&amp;A (requires capital, integration costs, management distraction at a moment when the business cannot afford disruption) - R&amp;D investment or product development (requires sustained cash outflow before return) - Capital-intensive geographic expansion (capex and working capital requirements) - Significant headcount investment (payroll cost increases ICR risk)</p><p><em>Why constrained:</em> every £1 of EBITDA is needed to service debt. ICR covenants (typically 2.0-2.5x minimum) leave no room for EBITDA dips from investment cycles. Any strategic initiative that reduces short-term EBITDA — even if it enhances long-term EBITDA — risks covenant breach.</p><p><strong>Medium Leverage Zone (4-6x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 2.5-3.5x (meaningful headroom) <em>All organic levers available</em> plus: - Bolt-on add-on M&amp;A (modestly priced targets; synergy-driven) - Selective investment in product or technology (within FCF headroom) - Geographic expansion into adjacent markets (using operating cash flow)</p><p><em>Still constrained:</em> - Transformational M&amp;A (leverage would return to 6x+ zone) - Capital-intensive platform restructuring</p><p><strong>Low Leverage Zone (&lt;4x Debt/EBITDA):</strong> <em>ICR at entry:</em> typically 3.5x+ (substantial headroom) <em>Full strategic optionality:</em> - Transformational M&amp;A (leverage absorbs step-up temporarily) - R&amp;D and product investment cycles - Capital-intensive geographic build-outs - Management recruitment and development investment - Strategic partnership capital (equity stakes, JVs)</p><p><strong>The ICR Constraint Mechanism:</strong> Interest Coverage Ratio = EBITDA / Cash Interest Expense</p><p>At a credit covenant of 2.0x ICR: - If EBITDA is £100m and cash interest is £45m: ICR = 2.22x (marginal headroom) - Any strategic initiative that reduces EBITDA by more than £11m risks breach - This means: no initiative is permitted that cannot demonstrate EBITDA neutrality in the short-term</p><p>The SOFR shock of 2022-23 (0.05% → 5.33%) demonstrated this mechanically. For a portfolio company with £500m TLB at SOFR+400bps: interest expense rose from ~£20m (2021) to ~£47m (2023) — a £27m increase. ICR fell from ~5.0x to ~2.1x. The company, previously able to pursue an ambitious acquisition strategy, was now in covenant management mode with zero strategic optionality.</p><p><strong>Leverage vs. Entry Multiple Trade-Off:</strong> High leverage amplifies equity returns when deals succeed (Return Attribution Waterfall — see Return Attribution Waterfall). But leverage also constrains the operational strategy available to produce that success. The optimal leverage level is deal-specific: a highly cash-generative, low-cyclicality business (SaaS, healthcare services, regulated utilities) can sustain high leverage while executing its strategy; a capital-intensive, cyclical business (manufacturing, retail, hospitality) cannot.</p><p><strong>Sector Leverage Norms (pre-2022):</strong> | Sector | Typical Entry Leverage | Rationale | |---|---|---| | SaaS / Tech | 6-10x | High ARR predictability; low capex; cov-lite structures | | Healthcare services | 5-7x | Regulated revenue streams; cost-reimbursement models | | Business services | 5-7x | Asset-light; strong FCF conversion | | Manufacturing / Industrials | 4-6x | Cyclicality and capex requirements limit leverage headroom | | Retail | 3-5x | Structural headwinds; high operating leverage | | Real estate / Infrastructure | 8-12x | Long-duration asset-backed; inflation-linked revenues |</p><p><strong>Post-2022 Constraint Reset:</strong> Rising rates in 2022-23 effectively shifted all PE portfolio companies left on the leverage-strategy matrix — not because debt/EBITDA changed (it didn't: debt was fixed), but because ICR compressed as floating-rate interest costs rose. A company at 5x Debt/EBITDA with 2021 interest rates behaved like a 7x company by 2023 in terms of ICR constraint. This explains the widespread strategic paralysis in PE portfolios in 2022-24: GPs could not execute acquisition strategies, geographic expansions, or investment programmes they had planned at lower rates.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ol><li><strong>\"High leverage is always a negative\"</strong> — Not so. In businesses with stable, predictable cash flows (SaaS, healthcare services, regulated utilities), high leverage is perfectly manageable and amplifies equity returns without materially constraining operations.</li><li><strong>\"PE firms can choose their leverage at any time\"</strong> — Entry leverage is set at acquisition financing and cannot be easily changed during the hold. De-leveraging happens gradually through FCF. Re-leveraging (dividend recapitalisation) is possible but increases constraint.</li><li><strong>\"Cov-lite means leverage doesn't matter\"</strong> — Cov-lite removes the legal trigger of covenant breach, not the financial reality of insufficient cash. A cov-lite company with 1.5x ICR still cannot fund investment programmes — there is no cash.</li><li><strong>\"Management teams understand their leverage constraint\"</strong> — Not always. Management teams often underestimate how the leverage constraint will interact with their strategic ambitions until a rate shock or EBITDA miss makes it explicit.</li></ol>"}, "8": {"section": "Summary", "html": "<p>Leverage and value creation constraints describes how the Debt/EBITDA ratio at LBO entry determines operational strategy for the entire hold period. High leverage (&gt;6x) forces cash-preservation strategies — organic growth, cost reduction, working capital optimisation — because ICR headroom is too thin to permit investment-cycle EBITDA dips. Medium leverage (4-6x) allows bolt-on M&amp;A and selective investment. Low leverage (&lt;4x) enables transformational strategies, heavy M&amp;A, and growth investment. The binding constraint mechanism is the ICR covenant (EBITDA/cash interest): any initiative that reduces short-term EBITDA risks triggering a covenant breach. The 2022-23 SOFR shock demonstrated this at portfolio scale — companies at 7x leverage with thin ICR saw strategic optionality eliminated overnight as floating-rate interest costs doubled. Thesis-leverage mismatch (ambitious growth thesis at high leverage) is one of the most common sources of PE deal value destruction.</p>"}, "9": {"section": "Summary", "html": "<p>Leverage and value creation constraints describes how the Debt/EBITDA ratio at LBO entry determines operational strategy for the entire hold period. High leverage (&gt;6x) forces cash-preservation strategies — organic growth, cost reduction, working capital optimisation — because ICR headroom is too thin to permit investment-cycle EBITDA dips. Medium leverage (4-6x) allows bolt-on M&amp;A and selective investment. Low leverage (&lt;4x) enables transformational strategies, heavy M&amp;A, and growth investment. The binding constraint mechanism is the ICR covenant (EBITDA/cash interest): any initiative that reduces short-term EBITDA risks triggering a covenant breach. The 2022-23 SOFR shock demonstrated this at portfolio scale — companies at 7x leverage with thin ICR saw strategic optionality eliminated overnight as floating-rate interest costs doubled. Thesis-leverage mismatch (ambitious growth thesis at high leverage) is one of the most common sources of PE deal value destruction.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

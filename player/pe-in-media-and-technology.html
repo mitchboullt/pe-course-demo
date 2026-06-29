@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-in-media-and-technology", "title": "PE in Media and Technology", "draft_watermark": false, "estimated_runtime_sec": 420, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The same firm, opposite results", "on_screen_bullets": ["PE harm isn't universal", "Media: destruction; software: value", "What determines which playbook?"], "narration": "We close the societal-impact section with the lesson that makes the whole course's argument precise, because it shows PE producing opposite outcomes side by side. The thesis has never been that PE is simply harmful — it's that harm is the product of specific incentive structures applied to specific sector characteristics. Media and technology together form the clearest natural experiment for that claim. The same debt-loading playbook applied to traditional media produces employment destruction and democratic harm — the loss of local news. The same core PE logic applied to enterprise software produces above-market returns with relatively limited societal harm. Understanding why the same industry runs different playbooks in these two sub-sectors, and what determines which playbook applies, is what lets you make the calibrated argument rather than the slogan — PE is harmful when it loads debt onto declining businesses that serve communities, and value-creating when it applies operational discipline to recurring-revenue software.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Two opposite sub-sectors", "on_screen_bullets": ["Media: debt onto decline", "Software: discipline on recurring revenue", "Same logic, opposite outcomes"], "narration": "The definition. PE in media and technology spans two structurally opposite sub-sectors. In traditional media — newspapers, radio, local TV — PE debt-loading accelerated the destruction of journalism employment in a sector already under advertising-revenue pressure. In enterprise software, PE, and particularly Vista Equity Partners, developed a replicable value-creation model built on recurring revenue, pricing optimisation, and operating standardisation that generates strong returns without the workforce harm typical of industrial buyouts. Same firm, same core logic, opposite outcomes — and the difference is the sector, not the intent.", "est_sec": 34}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Decline vs stickiness", "on_screen_bullets": ["Media: cut to hold margin, then fail", "Software: raise prices on locked-in users", "Characteristics decide the playbook"], "narration": "Plain English. When PE buys a newspaper group, it's typically buying a cash-flowing business in structural decline, because print advertising is collapsing. So the playbook is: cut costs — journalists, printing, editorial offices — to hold margins as revenue falls, extract dividends while there's still cash, and exit or restructure before the debt becomes unserviceable. The communities that relied on those journalists lose local accountability reporting, and the fund, having taken its returns, moves on. When PE — specifically Vista — buys an enterprise software company, the playbook is the opposite: raise prices on sticky customers who face high switching costs, standardise operations across a portfolio of similar software firms, cross-sell between them, and exit at higher multiples. The customers here are businesses, far better positioned to negotiate or switch than a nursing-home resident or a local-news reader. The returns are strong and the harm is limited. And the key point is the difference is not that PE is good in tech and bad in media — it's that enterprise software has characteristics that make the operational-improvement playbook work, while traditional media has characteristics that make the extraction playbook close to inevitable.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Petrol station vs toll road", "on_screen_bullets": ["Media: station on an EV road", "Software: high-switching toll road", "Recurring cash flow is the asset"], "narration": "The mental model captures it in two images. Traditional-media PE is like buying a petrol station on a road that electric vehicles are steadily replacing: you can cut costs and hold margins briefly, but the structural revenue trend is irreversible, and the debt you loaded at acquisition eventually compounds beyond what the shrinking cash flows can service. Software PE is like buying a toll road with very high switching costs: the customers — trucks, not individuals — are locked in, you can gradually raise the tolls, and the underlying infrastructure, the code, barely depreciates. The operational-improvement playbook works in the second case precisely because the asset has defensible, recurring cash flows. Same buyer, same debt instinct — but one asset is wasting and the other is durable, and that difference determines everything downstream.", "est_sec": 40}, {"n": 5, "beat": "example", "visual": "table", "source_section": "Sub-Sector 1: Traditional Media — Newspapers, Radio, Local TV", "on_screen_title": "Media: iHeart and news deserts", "on_screen_bullets": ["Print ads $65bn → under $10bn", "iHeart ~$24bn buy, ~$20bn debt, 2018 Ch11", "~2,500 papers closed since 2005"], "narration": "Take the media side in detail. The structural context is brutal: US print advertising revenue fell from roughly sixty-five billion dollars in two-thousand to under ten billion by twenty-twenty, as digital platforms captured the classifieds and display markets — and PE entered during that decline, attracted by the still-significant cash flows at the moment of purchase. The playbook ran: leverage the acquisition, cut staff, sell the real estate like printing plants and offices, extract dividends while cash lasts, and slide into distress when revenue decline outruns cost-cutting. The canonical case is iHeartMedia, formerly Clear Channel: Bain Capital and Thomas H. Lee Partners bought the largest US radio broadcaster in two-thousand-eight for around twenty-four billion dollars, loading roughly twenty billion in debt at the very peak of the credit cycle — right before the financial crisis and the rise of streaming further eroded radio advertising — and it filed Chapter Eleven in March twenty-eighteen, restructuring about fourteen billion in debt, having cut on-air personalities and local news in favour of national syndication. The same pattern hit local newspapers, where firms like Alden Global Capital cut newsrooms by more than half while extracting dividends, helping create what researchers call news deserts — communities with no local coverage. Around two-and-a-half thousand US newspapers have closed since two-thousand-five, with PE and hedge-fund ownership linked to accelerated closures relative to other owners.", "est_sec": 60}, {"n": 6, "beat": "mechanics", "visual": "table", "source_section": "Sub-Sector 2: Enterprise Software — The Vista Equity Partners Model", "on_screen_title": "Software: the Vista model", "on_screen_bullets": ["Recurring revenue, high switching costs", "VCG standardisation, price escalation", "Buy-and-build, multiple expansion"], "narration": "Now the software side, the positive case. Enterprise software has characteristics that make the operational-improvement playbook genuinely effective. Recurring revenue: subscription and maintenance contracts produce predictable annual streams. High switching costs: businesses embed software deep into their workflows, with switching costs often three-to-five times the annual licence fee. Pricing power: captive customers can be systematically under-priced at acquisition and re-priced upward afterward. And fat margins: software gross margins of seventy-to-eighty percent with room to tighten operating spend. Vista Equity Partners, founded in two-thousand by Robert F. Smith and now managing around a hundred billion dollars, built the dominant model around these. The steps: buy enterprise software at ten-to-fifteen times earnings; deploy the in-house Vista Consulting Group to standardise sales methodology, customer-success metrics, pricing, and support across the portfolio; push systematic annual price increases on sticky bases; cross-sell across the customer bases of multiple portfolio companies; build platforms by acquiring competitors and adjacent products; and exit by IPO or sale at higher multiples, capturing real multiple expansion. Thoma Bravo runs a closely related model on mature enterprise software — Solera, Proofpoint, Sophos. The contrast with media is exact: recurring versus declining revenue, high versus low switching costs, pricing-and-efficiency versus cost-extraction as the value lever, and mixed-but-not-devastating versus systematic employment outcomes.", "est_sec": 62}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["PE accelerates, doesn't cause, media decline", "Software PE isn't harm-free", "Vista's model isn't universal"], "narration": "Three corrections that keep this calibrated. First, the claim that PE is killing journalism — more accurate to say advertising-revenue decline is killing journalism, and PE accelerates the timeline by loading debt that forces faster cost extraction; PE-backed ownership is associated with quicker employment cuts than comparable non-PE papers, but the structural cause is the digital-advertising disruption underneath. Second, the claim that software PE is harmless — software pricing power exercised on business customers does raise their costs, and for healthcare software like hospital records systems those increases can flow through to patients, while for education software they reach students and institutions, so the harm isn't zero, it's just less direct and less concentrated than essential-services PE. And third, the claim that Vista's model works everywhere — it works for mature enterprise software with high switching costs, and has been less successful in high-growth consumer software or categories where product differentiation matters more than operational efficiency. To recap the section's closing argument: PE in media and technology splits into two opposite cases, traditional media where debt-loading accelerated employment destruction and news-desert formation in an already-declining sector, and enterprise software where the Vista model creates genuine value on high-switching-cost business customers. The contrast proves the thesis's core claim — PE harm is sector-specific, driven by the interaction between debt-loading mechanics and sector characteristics, structural decline versus recurring revenue, captive versus negotiating customers.", "est_sec": 58}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The calibrated conclusion", "on_screen_bullets": ["Harm is sector-specific, not universal", "Decline + captivity = extraction", "Democratic harm: diffuse, hard to regulate"], "narration": "To recap, and to close the entire societal-impact section. PE in media and technology resolves the central question the whole section has been building toward — is PE harmful? — into its honest, calibrated answer: it depends on the interaction between the debt-loading mechanics and the characteristics of the sector. Where a business is in structural decline and its customers are captive or its losses are borne by a community — nursing homes, local news, manufactured housing — the extraction playbook becomes close to inevitable and the harm is real. Where the business has recurring revenue and customers who can negotiate — enterprise software — the operational-improvement playbook works and value is genuinely created. Media PE's democratic harm, the formation of news deserts, is less acute than essential-services harm but more diffuse and harder to regulate, precisely because there are no identifiable individual victims and First Amendment considerations constrain any ownership rules. That diffuseness is why it persists. With that, the societal-impact picture is complete — who is harmed, who gains, and exactly when each occurs. Next we turn to what can be done about it, opening the regulation section with the essential-services regulatory toolkit.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "The SAME PE debt-loading logic destroys value in newspapers but creates it in enterprise software. Name the specific sector characteristics that flip the outcome. Then: why is media PE's 'democratic harm' (news deserts) harder to regulate than nursing-home harm?", "narration": "Before the next lesson, reason it through. The same PE debt-loading logic destroys value in newspapers but creates it in enterprise software — name the specific sector characteristics, like revenue trajectory and switching costs, that flip the outcome. And why is media PE's democratic harm, the formation of news deserts, harder to regulate than nursing-home harm? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE in Media and Technology\n\n[hook] The same firm, opposite results\nWe close the societal-impact section with the lesson that makes the whole course's argument precise, because it shows PE producing opposite outcomes side by side. The thesis has never been that PE is simply harmful — it's that harm is the product of specific incentive structures applied to specific sector characteristics. Media and technology together form the clearest natural experiment for that claim. The same debt-loading playbook applied to traditional media produces employment destruction and democratic harm — the loss of local news. The same core PE logic applied to enterprise software produces above-market returns with relatively limited societal harm. Understanding why the same industry runs different playbooks in these two sub-sectors, and what determines which playbook applies, is what lets you make the calibrated argument rather than the slogan — PE is harmful when it loads debt onto declining businesses that serve communities, and value-creating when it applies operational discipline to recurring-revenue software.\n\n[definition] Two opposite sub-sectors\nThe definition. PE in media and technology spans two structurally opposite sub-sectors. In traditional media — newspapers, radio, local TV — PE debt-loading accelerated the destruction of journalism employment in a sector already under advertising-revenue pressure. In enterprise software, PE, and particularly Vista Equity Partners, developed a replicable value-creation model built on recurring revenue, pricing optimisation, and operating standardisation that generates strong returns without the workforce harm typical of industrial buyouts. Same firm, same core logic, opposite outcomes — and the difference is the sector, not the intent.\n\n[intuition] Decline vs stickiness\nPlain English. When PE buys a newspaper group, it's typically buying a cash-flowing business in structural decline, because print advertising is collapsing. So the playbook is: cut costs — journalists, printing, editorial offices — to hold margins as revenue falls, extract dividends while there's still cash, and exit or restructure before the debt becomes unserviceable. The communities that relied on those journalists lose local accountability reporting, and the fund, having taken its returns, moves on. When PE — specifically Vista — buys an enterprise software company, the playbook is the opposite: raise prices on sticky customers who face high switching costs, standardise operations across a portfolio of similar software firms, cross-sell between them, and exit at higher multiples. The customers here are businesses, far better positioned to negotiate or switch than a nursing-home resident or a local-news reader. The returns are strong and the harm is limited. And the key point is the difference is not that PE is good in tech and bad in media — it's that enterprise software has characteristics that make the operational-improvement playbook work, while traditional media has characteristics that make the extraction playbook close to inevitable.\n\n[intuition] Petrol station vs toll road\nThe mental model captures it in two images. Traditional-media PE is like buying a petrol station on a road that electric vehicles are steadily replacing: you can cut costs and hold margins briefly, but the structural revenue trend is irreversible, and the debt you loaded at acquisition eventually compounds beyond what the shrinking cash flows can service. Software PE is like buying a toll road with very high switching costs: the customers — trucks, not individuals — are locked in, you can gradually raise the tolls, and the underlying infrastructure, the code, barely depreciates. The operational-improvement playbook works in the second case precisely because the asset has defensible, recurring cash flows. Same buyer, same debt instinct — but one asset is wasting and the other is durable, and that difference determines everything downstream.\n\n[example] Media: iHeart and news deserts\nTake the media side in detail. The structural context is brutal: US print advertising revenue fell from roughly sixty-five billion dollars in two-thousand to under ten billion by twenty-twenty, as digital platforms captured the classifieds and display markets — and PE entered during that decline, attracted by the still-significant cash flows at the moment of purchase. The playbook ran: leverage the acquisition, cut staff, sell the real estate like printing plants and offices, extract dividends while cash lasts, and slide into distress when revenue decline outruns cost-cutting. The canonical case is iHeartMedia, formerly Clear Channel: Bain Capital and Thomas H. Lee Partners bought the largest US radio broadcaster in two-thousand-eight for around twenty-four billion dollars, loading roughly twenty billion in debt at the very peak of the credit cycle — right before the financial crisis and the rise of streaming further eroded radio advertising — and it filed Chapter Eleven in March twenty-eighteen, restructuring about fourteen billion in debt, having cut on-air personalities and local news in favour of national syndication. The same pattern hit local newspapers, where firms like Alden Global Capital cut newsrooms by more than half while extracting dividends, helping create what researchers call news deserts — communities with no local coverage. Around two-and-a-half thousand US newspapers have closed since two-thousand-five, with PE and hedge-fund ownership linked to accelerated closures relative to other owners.\n\n[mechanics] Software: the Vista model\nNow the software side, the positive case. Enterprise software has characteristics that make the operational-improvement playbook genuinely effective. Recurring revenue: subscription and maintenance contracts produce predictable annual streams. High switching costs: businesses embed software deep into their workflows, with switching costs often three-to-five times the annual licence fee. Pricing power: captive customers can be systematically under-priced at acquisition and re-priced upward afterward. And fat margins: software gross margins of seventy-to-eighty percent with room to tighten operating spend. Vista Equity Partners, founded in two-thousand by Robert F. Smith and now managing around a hundred billion dollars, built the dominant model around these. The steps: buy enterprise software at ten-to-fifteen times earnings; deploy the in-house Vista Consulting Group to standardise sales methodology, customer-success metrics, pricing, and support across the portfolio; push systematic annual price increases on sticky bases; cross-sell across the customer bases of multiple portfolio companies; build platforms by acquiring competitors and adjacent products; and exit by IPO or sale at higher multiples, capturing real multiple expansion. Thoma Bravo runs a closely related model on mature enterprise software — Solera, Proofpoint, Sophos. The contrast with media is exact: recurring versus declining revenue, high versus low switching costs, pricing-and-efficiency versus cost-extraction as the value lever, and mixed-but-not-devastating versus systematic employment outcomes.\n\n[pitfalls] What people get wrong\nThree corrections that keep this calibrated. First, the claim that PE is killing journalism — more accurate to say advertising-revenue decline is killing journalism, and PE accelerates the timeline by loading debt that forces faster cost extraction; PE-backed ownership is associated with quicker employment cuts than comparable non-PE papers, but the structural cause is the digital-advertising disruption underneath. Second, the claim that software PE is harmless — software pricing power exercised on business customers does raise their costs, and for healthcare software like hospital records systems those increases can flow through to patients, while for education software they reach students and institutions, so the harm isn't zero, it's just less direct and less concentrated than essential-services PE. And third, the claim that Vista's model works everywhere — it works for mature enterprise software with high switching costs, and has been less successful in high-growth consumer software or categories where product differentiation matters more than operational efficiency. To recap the section's closing argument: PE in media and technology splits into two opposite cases, traditional media where debt-loading accelerated employment destruction and news-desert formation in an already-declining sector, and enterprise software where the Vista model creates genuine value on high-switching-cost business customers. The contrast proves the thesis's core claim — PE harm is sector-specific, driven by the interaction between debt-loading mechanics and sector characteristics, structural decline versus recurring revenue, captive versus negotiating customers.\n\n[recap] The calibrated conclusion\nTo recap, and to close the entire societal-impact section. PE in media and technology resolves the central question the whole section has been building toward — is PE harmful? — into its honest, calibrated answer: it depends on the interaction between the debt-loading mechanics and the characteristics of the sector. Where a business is in structural decline and its customers are captive or its losses are borne by a community — nursing homes, local news, manufactured housing — the extraction playbook becomes close to inevitable and the harm is real. Where the business has recurring revenue and customers who can negotiate — enterprise software — the operational-improvement playbook works and value is genuinely created. Media PE's democratic harm, the formation of news deserts, is less acute than essential-services harm but more diffuse and harder to regulate, precisely because there are no identifiable individual victims and First Amendment considerations constrain any ownership rules. That diffuseness is why it persists. With that, the societal-impact picture is complete — who is harmed, who gains, and exactly when each occurs. Next we turn to what can be done about it, opening the regulation section with the essential-services regulatory toolkit.\n\nEnd-card question: The SAME PE debt-loading logic destroys value in newspapers but creates it in enterprise software. Name the specific sector characteristics that flip the outcome. Then: why is media PE's 'democratic harm' (news deserts) harder to regulate than nursing-home harm?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The course thesis holds that PE harm is not universal — it is the product of specific incentive structures applied to specific sector characteristics. Media and technology together provide the clearest natural experiment: the same debt-loading playbook applied to traditional media produces employment destruction and democratic harm (local news loss); the same core PE logic applied to enterprise software produces above-market returns and relatively limited societal harm. Understanding why the same industry uses different playbooks in these two sub-sectors — and what determines which playbook applies — completes the sector analysis needed to make the calibrated argument: PE is harmful when it loads debt onto structurally declining businesses that serve communities, and value-creating when it applies operational discipline to recurring-revenue software businesses.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE in media and technology spans two structurally opposite sub-sectors: traditional media (newspapers, radio, local TV) where PE debt-loading accelerated the destruction of journalism employment in sector already under advertising revenue pressure, and enterprise software where PE (particularly Vista Equity Partners) developed a replicable value creation model based on recurring revenue, pricing optimisation, and operating standardisation that generates strong returns without the workforce harm typical of industrial LBOs.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When PE buys a newspaper group, it is typically buying a cash-flowing business in structural decline (print advertising is collapsing). The PE playbook: cut costs (journalists, printing infrastructure, editorial offices) to maintain margins as revenue falls, extract dividends while possible, and exit or restructure before the debt becomes unserviceable. The communities that relied on those journalists lose local accountability journalism. The PE fund, having extracted its returns, moves on.</p><p>When PE — specifically Vista Equity Partners — buys an enterprise software company, the playbook is different: raise prices on sticky customers (high switching costs), standardise operations across a portfolio of similar software companies, cross-sell between portfolio companies, and exit at higher multiples. The customers (businesses, not individuals) are better positioned to negotiate or switch than nursing home patients or local newspaper readers. The returns are strong; the harm is limited.</p><p>The difference is not that PE is \"good\" in tech and \"bad\" in media. The difference is that enterprise software has characteristics (recurring revenue, high switching costs, captive business customers) that make the operational improvement playbook work, while traditional media has characteristics (structural revenue decline, no pricing power, community dependencies) that make the extraction playbook inevitable.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Traditional media PE is like buying a petrol station on a road that electric vehicles are replacing: you can cut costs and maintain margins briefly, but the structural revenue trend is irreversible. The debt you loaded at acquisition eventually compounds beyond what cash flows can service.</p><p>Software PE is like buying a toll road with very high switching costs: customers (trucks, not individuals) are locked in, you can gradually raise tolls, and the underlying infrastructure (code) barely depreciates. The operational improvement playbook works because the asset has defensible recurring cash flows.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>\"PE is killing journalism.\"</strong> — More accurate: advertising revenue decline is killing journalism; PE accelerates the timeline by loading debt that requires faster cost extraction. PE-backed ownership is associated with faster employment cuts than comparable non-PE-owned papers, but the structural cause is digital advertising disruption.</p><p><strong>\"Software PE is harmless.\"</strong> — Software pricing power exercised on business customers does raise costs for those businesses. For healthcare software (hospital EMR systems like Epic or smaller PE-backed competitors), price increases may flow through to patients. For education software, to students and institutions. The harm is not zero; it is less direct and less concentrated than in essential-services PE.</p><p><strong>\"Vista's model works everywhere.\"</strong> — Vista's standardisation model works for mature enterprise software with high switching costs. It has been less successful in high-growth SaaS, consumer software, or categories where product differentiation matters more than operational efficiency.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>PE in media and technology splits into two structurally opposite cases. In traditional media (newspapers, radio), PE debt-loading accelerated employment destruction and news desert formation in sectors already facing structural advertising revenue decline; iHeartMedia's $20bn Chapter 11 (2018) is the canonical case. In enterprise software, Vista Equity Partners developed a replicable value creation model using pricing optimisation, VCG standardisation, and buy-and-build consolidation on high-switching-cost business software customers. The contrast demonstrates the thesis's core claim: PE harm is sector-specific, driven by the interaction between debt-loading mechanics and sector characteristics (structural decline vs. recurring revenue; captive vs. negotiating customers). Media PE's democratic harm (news desert formation) is less acute than essential-services harm but more diffuse and harder to regulate because there are no identifiable victims and First Amendment considerations constrain ownership regulation.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lpa", "title": "LPA", "draft_watermark": false, "estimated_runtime_sec": 440, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "The most important document in PE", "on_screen_bullets": ["Everything lives inside it", "Committing = signing this", "Deviating = breach of duty"], "narration": "The LPA is the single most important document in private equity. Everything — management fees, carried interest, capital calls, waterfalls, clawbacks, LP consent rights, reporting obligations — exists within it or is subordinate to it. An institutional LP's entire decision to commit hundreds of millions of dollars ultimately comes down to a decision to sign this one document. And for the GP, the LPA defines the mandate they operate within; deviating from it is a breach of fiduciary duty. To understand the LPA is to understand the entire governance structure of a fund.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The master contract", "on_screen_bullets": ["Binds GP and all LPs", "Mandate, fees, distributions, rights", "Supreme for the fund's whole life"], "narration": "The definition. The Limited Partnership Agreement is the master legal contract governing every aspect of a private equity fund — it binds the GP and all LPs, defines the investment mandate, the fee economics, the distribution rules, and LP rights, and it remains the supreme document for the fund's entire life. Nothing in the fund overrides it.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The contract before the penny", "on_screen_bullets": ["What, how long, what GP gets paid", "How profits split, LP remedies", "150–300 pages, negotiated line-by-line"], "narration": "When you form a PE fund, you're forming a legal partnership between a manager — the GP — and many investors — the LPs. Before any investor commits a penny, everyone needs a contract answering every important question. What will the fund invest in — geography, sector, deal size? How long does it last — investment period plus fund life? What does the GP get paid — the management fee formula? How are profits divided — carried interest and waterfall? What can investors do if something goes wrong — key-man, removal, consent rights? Who must be consulted before big decisions — the advisory committee? And what information will investors receive? All of it lives in the LPA, which runs typically a hundred and fifty to three hundred pages for a major fund. It's drafted by the GP's lawyers, then negotiated line by line by each large LP's legal team. Critically, the LPA also defines what the LP cannot do: an LP is a passive investor, explicitly barred from directing investments or managing portfolio companies — and that passivity is exactly what preserves their limited liability, capping their loss at committed capital.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Constitution of a private nation", "on_screen_bullets": ["GP = elected government", "LPs = citizens with rights", "LPAC = constitutional court"], "narration": "The mental model: the LPA is the constitution of a small private nation. The GP is the elected government — it has executive authority to run day-to-day affairs, but only within the constitution. The LPs are the citizens — they have rights to information, to their profit share, and to a removal vote, but they cannot govern directly. The advisory committee, the LPAC, is like a constitutional court — consulted on conflicts and material decisions, but not running the government. And the key-man clause is the election trigger: if the key leaders resign, the government falls and the citizens vote on what happens next.", "est_sec": 44}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Inside the articles", "on_screen_bullets": ["5-yr investment period, 10+2 life", "Key-man suspends; no-fault removal 66.7–75%", "Side letters + MFN, the LPAC"], "narration": "Technically, a standard LPA is organised into articles — definitions, formation and term, capital commitments, the investment mandate, management fees, distributions and carried interest, the advisory committee, LP rights, reporting, and conflicts of interest. A few provisions do the heavy lifting. The investment period is typically five years from first close — the window for new investments; after it, the GP can only make follow-ons in existing companies. The fund life is the standard ten years from final close, with two one-year extensions available subject to approval. The key-man clause names two to four principals, and if a defined number depart within a set period, the investment period automatically suspends and LPs vote to continue, wind down, or renegotiate. No-fault removal lets LPs remove the GP without cause on a supermajority vote, typically sixty-six-point-seven or seventy-five percent of commitments — the nuclear option, on which the GP loses future fees though earned carry may survive. LP consent rights gate the big actions: amending the LPA, extending the period or life, removing the GP, approving conflicts. Side letters then modify terms for individual LPs — reduced fees for anchors, enhanced information, a most-favoured-nation clause that grants an LP the benefit of better terms given to others — but they cannot alter the fundamental economics for non-signatories. And the LPAC, five to ten large LPs, handles conflict approvals, valuation disputes, and waivers, without ever directing investments — because that would destroy LP passive status.", "est_sec": 70}, {"n": 6, "beat": "structure", "visual": "mermaid", "source_section": "Diagram", "on_screen_title": "The document hierarchy", "on_screen_bullets": ["LPA is supreme", "Side letters: one LP each", "LPAC advises, can't direct"], "mermaid": "flowchart TD\n  LPA[\"LPA — master contract<br/>binds GP + all LPs\"] --> SUB[\"Subscription agreement<br/>(LP admission)\"]\n  LPA --> SL[\"Side letters<br/>bilateral, one LP each\"]\n  LPA --> LPAC[\"LPAC<br/>advises on conflicts / waivers\"]\n  SL -. \"cannot override core economics\" .-> LPA\n  LPAC -. \"cannot direct investments\" .-> LPA", "narration": "Here's the hierarchy in one picture. The LPA is the master contract at the top, binding the GP and all LPs. Beneath it sit the subscription agreement that admits each LP, the side letters that bind one LP each, and the LPAC that advises on conflicts and waivers. Notice the two dashed constraints, because they're the whole point: a side letter cannot override the core economics, and the LPAC cannot direct investments. Each can modify or oversee at the edges, but neither can rewrite the fundamental economics or seize the GP's management authority. The supreme document stays supreme.", "est_sec": 40}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Apollo Fund IX, $24.7bn", "on_screen_bullets": ["1.5% then 1.0%, 20% carry, 8% pref", "Key-man: 2 of 5 within 12 months", "Anchor LPs submit 30–50 page markups"], "narration": "Take a real-scale example. When Apollo Global Management raised Apollo Fund Nine — twenty-four-point-seven billion dollars, in 2017 — the LPA reportedly ran over two hundred pages. The key negotiated provisions: a five-year investment period; a ten-plus-two-year life; a management fee of one-and-a-half percent on committed capital during the investment period, stepping down to one percent on net invested capital after; twenty percent carried interest; an eight percent preferred return, annually compounded, on a European waterfall; and a key-man clause that suspends the investment period if two of five named senior partners leave within twelve months. LPs of this size — pension funds, sovereign wealth funds — had legal teams spending weeks on the document, and anchor LPs like CalPERS or Ontario Teachers' would have submitted thirty-to-fifty-page markups. That's the LPA being fought over, term by term, before a dollar is committed.", "est_sec": 54}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Doesn't protect automatically", "GP can't amend unilaterally", "Side letters often disclosed (MFN)"], "narration": "Four corrections. First, the LPA does not protect LPs automatically — it only protects what it explicitly addresses; a badly negotiated LPA with weak key-man provisions and no carry escrow gives minimal protection. Second, LPs don't automatically get to see all portfolio-company financials — that depends entirely on the reporting provisions negotiated in the document. Third, the GP cannot modify the LPA unilaterally even if it claims the change is in the fund's interest — any amendment requires LP approval at the defined thresholds. And fourth, side letters are not secret — most modern LPAs include a most-favoured-nation provision requiring the GP to disclose the existence of side letters to all LPs.", "est_sec": 46}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The supreme document", "on_screen_bullets": ["Mandate, fees, waterfall, LP rights", "LPs passive but can remove the GP", "Side letters + LPAC at the edges"], "narration": "To recap. The LPA is the master legal contract of a PE fund, governing everything from the investment mandate to fee economics to LP rights, drafted by GP counsel and negotiated by LP counsel over months before first close. Its key provisions are the mandate, the fee formula, the waterfall, the key-man clause, no-fault removal, consent rights, the LPAC, and reporting. LPs are passive — they cannot direct investments, but they keep rights to information, to distributions, and ultimately to remove the GP — while side letters modify terms for individuals and the LPAC oversees conflicts without crossing into management. Next we sharpen exactly that division of power — the GP's rights and obligations versus the LP's.", "est_sec": 48}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why is the LPA the 'supreme' document of a PE fund, and what is the one thing an LP must never do — and why does doing it threaten their limited liability?", "narration": "Before the next lesson, answer both. Why is the LPA the supreme document of a PE fund — and what is the one thing an LP must never do, and why does crossing that line threaten their limited liability? Reason it out, then check the notes below."}, "quiz": [{"label": "Q1.", "question": "What is the LPA and why is it the supreme document of a PE fund?", "answer": "The LPA (Limited Partnership Agreement) is the master contract governing the GP-LP relationship. It is supreme because all other fund documents (side letters, subscription agreements) are subordinate to it and cannot contradict its fundamental provisions."}, {"label": "Q2.", "question": "What happens if a key man clause is triggered?", "answer": "The investment period is automatically suspended. LPs then vote to continue (with new team), wind down the fund, or negotiate amended terms. The GP cannot make new investments until resolved."}, {"label": "Q3.", "question": "What is the LPAC and what authority does it have?", "answer": "The LPAC is the Limited Partner Advisory Committee — a governance body of large LPs. It is consulted on conflicts of interest, valuation disputes, and material amendments, but cannot direct investment decisions. It advises rather than governs."}, {"label": "Q4.", "question": "Why can an LP not direct investment decisions even if they are the largest investor?", "answer": "Because LPs must remain \"passive\" to retain limited liability status. If an LP directs investments, they risk being reclassified as a general partner and becoming personally liable for fund obligations beyond committed capital."}, {"label": "Q5.", "question": "What is the difference between an LPA amendment and a side letter?", "answer": "An LPA amendment modifies the document for all LPs and requires a defined LP vote. A side letter is a bilateral agreement modifying terms only for a specific LP — it does not change the LPA itself."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LPA\n\n[hook] The most important document in PE\nThe LPA is the single most important document in private equity. Everything — management fees, carried interest, capital calls, waterfalls, clawbacks, LP consent rights, reporting obligations — exists within it or is subordinate to it. An institutional LP's entire decision to commit hundreds of millions of dollars ultimately comes down to a decision to sign this one document. And for the GP, the LPA defines the mandate they operate within; deviating from it is a breach of fiduciary duty. To understand the LPA is to understand the entire governance structure of a fund.\n\n[definition] The master contract\nThe definition. The Limited Partnership Agreement is the master legal contract governing every aspect of a private equity fund — it binds the GP and all LPs, defines the investment mandate, the fee economics, the distribution rules, and LP rights, and it remains the supreme document for the fund's entire life. Nothing in the fund overrides it.\n\n[intuition] The contract before the penny\nWhen you form a PE fund, you're forming a legal partnership between a manager — the GP — and many investors — the LPs. Before any investor commits a penny, everyone needs a contract answering every important question. What will the fund invest in — geography, sector, deal size? How long does it last — investment period plus fund life? What does the GP get paid — the management fee formula? How are profits divided — carried interest and waterfall? What can investors do if something goes wrong — key-man, removal, consent rights? Who must be consulted before big decisions — the advisory committee? And what information will investors receive? All of it lives in the LPA, which runs typically a hundred and fifty to three hundred pages for a major fund. It's drafted by the GP's lawyers, then negotiated line by line by each large LP's legal team. Critically, the LPA also defines what the LP cannot do: an LP is a passive investor, explicitly barred from directing investments or managing portfolio companies — and that passivity is exactly what preserves their limited liability, capping their loss at committed capital.\n\n[intuition] Constitution of a private nation\nThe mental model: the LPA is the constitution of a small private nation. The GP is the elected government — it has executive authority to run day-to-day affairs, but only within the constitution. The LPs are the citizens — they have rights to information, to their profit share, and to a removal vote, but they cannot govern directly. The advisory committee, the LPAC, is like a constitutional court — consulted on conflicts and material decisions, but not running the government. And the key-man clause is the election trigger: if the key leaders resign, the government falls and the citizens vote on what happens next.\n\n[mechanics] Inside the articles\nTechnically, a standard LPA is organised into articles — definitions, formation and term, capital commitments, the investment mandate, management fees, distributions and carried interest, the advisory committee, LP rights, reporting, and conflicts of interest. A few provisions do the heavy lifting. The investment period is typically five years from first close — the window for new investments; after it, the GP can only make follow-ons in existing companies. The fund life is the standard ten years from final close, with two one-year extensions available subject to approval. The key-man clause names two to four principals, and if a defined number depart within a set period, the investment period automatically suspends and LPs vote to continue, wind down, or renegotiate. No-fault removal lets LPs remove the GP without cause on a supermajority vote, typically sixty-six-point-seven or seventy-five percent of commitments — the nuclear option, on which the GP loses future fees though earned carry may survive. LP consent rights gate the big actions: amending the LPA, extending the period or life, removing the GP, approving conflicts. Side letters then modify terms for individual LPs — reduced fees for anchors, enhanced information, a most-favoured-nation clause that grants an LP the benefit of better terms given to others — but they cannot alter the fundamental economics for non-signatories. And the LPAC, five to ten large LPs, handles conflict approvals, valuation disputes, and waivers, without ever directing investments — because that would destroy LP passive status.\n\n[structure] The document hierarchy\nHere's the hierarchy in one picture. The LPA is the master contract at the top, binding the GP and all LPs. Beneath it sit the subscription agreement that admits each LP, the side letters that bind one LP each, and the LPAC that advises on conflicts and waivers. Notice the two dashed constraints, because they're the whole point: a side letter cannot override the core economics, and the LPAC cannot direct investments. Each can modify or oversee at the edges, but neither can rewrite the fundamental economics or seize the GP's management authority. The supreme document stays supreme.\n\n[worked-example] Apollo Fund IX, $24.7bn\nTake a real-scale example. When Apollo Global Management raised Apollo Fund Nine — twenty-four-point-seven billion dollars, in 2017 — the LPA reportedly ran over two hundred pages. The key negotiated provisions: a five-year investment period; a ten-plus-two-year life; a management fee of one-and-a-half percent on committed capital during the investment period, stepping down to one percent on net invested capital after; twenty percent carried interest; an eight percent preferred return, annually compounded, on a European waterfall; and a key-man clause that suspends the investment period if two of five named senior partners leave within twelve months. LPs of this size — pension funds, sovereign wealth funds — had legal teams spending weeks on the document, and anchor LPs like CalPERS or Ontario Teachers' would have submitted thirty-to-fifty-page markups. That's the LPA being fought over, term by term, before a dollar is committed.\n\n[pitfalls] What people get wrong\nFour corrections. First, the LPA does not protect LPs automatically — it only protects what it explicitly addresses; a badly negotiated LPA with weak key-man provisions and no carry escrow gives minimal protection. Second, LPs don't automatically get to see all portfolio-company financials — that depends entirely on the reporting provisions negotiated in the document. Third, the GP cannot modify the LPA unilaterally even if it claims the change is in the fund's interest — any amendment requires LP approval at the defined thresholds. And fourth, side letters are not secret — most modern LPAs include a most-favoured-nation provision requiring the GP to disclose the existence of side letters to all LPs.\n\n[recap] The supreme document\nTo recap. The LPA is the master legal contract of a PE fund, governing everything from the investment mandate to fee economics to LP rights, drafted by GP counsel and negotiated by LP counsel over months before first close. Its key provisions are the mandate, the fee formula, the waterfall, the key-man clause, no-fault removal, consent rights, the LPAC, and reporting. LPs are passive — they cannot direct investments, but they keep rights to information, to distributions, and ultimately to remove the GP — while side letters modify terms for individuals and the LPAC oversees conflicts without crossing into management. Next we sharpen exactly that division of power — the GP's rights and obligations versus the LP's.\n\nQ: What is the LPA and why is it the supreme document of a PE fund?\nA: The LPA (Limited Partnership Agreement) is the master contract governing the GP-LP relationship. It is supreme because all other fund documents (side letters, subscription agreements) are subordinate to it and cannot contradict its fundamental provisions.\nQ: What happens if a key man clause is triggered?\nA: The investment period is automatically suspended. LPs then vote to continue (with new team), wind down the fund, or negotiate amended terms. The GP cannot make new investments until resolved.\nQ: What is the LPAC and what authority does it have?\nA: The LPAC is the Limited Partner Advisory Committee — a governance body of large LPs. It is consulted on conflicts of interest, valuation disputes, and material amendments, but cannot direct investment decisions. It advises rather than governs.\nQ: Why can an LP not direct investment decisions even if they are the largest investor?\nA: Because LPs must remain \"passive\" to retain limited liability status. If an LP directs investments, they risk being reclassified as a general partner and becoming personally liable for fund obligations beyond committed capital.\nQ: What is the difference between an LPA amendment and a side letter?\nA: An LPA amendment modifies the document for all LPs and requires a defined LP vote. A side letter is a bilateral agreement modifying terms only for a specific LP — it does not change the LPA itself.\nEnd-card question: Why is the LPA the 'supreme' document of a PE fund, and what is the one thing an LP must never do — and why does doing it threaten their limited liability?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The LPA is the most important document in private equity. Everything — management fees, carried interest, capital calls, waterfalls, clawbacks, LP consent rights, reporting obligations — exists within or is subordinate to the LPA. An institutional LP's decision to commit capital is ultimately a decision to sign this document. For GPs, the LPA defines the mandate within which they operate; deviating from it is a breach of fiduciary duty. Understanding the LPA is understanding the entire governance structure of a PE fund.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The Limited Partnership Agreement (LPA) is the master legal contract governing every aspect of a private equity fund — it binds the GP and all LPs, defines the investment mandate, fee economics, distribution rules, and LP rights, and remains the supreme document for the fund's entire life.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When you form a PE fund, you are forming a legal partnership between a manager (the GP) and many investors (the LPs). Before any investor commits a penny, everyone needs a contract that answers every important question:</p><ul class='notelist'><li><strong>What will the fund invest in?</strong> (Geography, sector, deal size)</li><li><strong>How long does the fund last?</strong> (Investment period + fund life)</li><li><strong>What does the GP get paid?</strong> (Management fee formula)</li><li><strong>How are profits divided?</strong> (Carried interest and waterfall)</li><li><strong>What can investors do if something goes wrong?</strong> (LP rights — key man, removal, consent)</li><li><strong>Who has to be consulted before big decisions?</strong> (LPAC)</li><li><strong>What information will investors receive?</strong> (Reporting obligations)</li></ul><p>All of this lives in the LPA. It is typically 150-300 pages long for a major fund. It is drafted by the GP's lawyers, then negotiated line-by-line by each large LP's legal team. The final signed LPA is the constitution of the fund — it cannot be amended without LP approval.</p><p>### What the LP cannot do</p><p>An LP is a <em>passive</em> investor. The LPA explicitly prohibits LPs from directing investment decisions, managing portfolio companies, or interfering with the GP's day-to-day authority. This \"passive\" status is what gives LPs limited liability — their maximum loss is their committed capital. If an LP starts exercising management control, they risk losing limited liability status and becoming personally liable for fund obligations. This is a fundamental legal constraint.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>The LPA is the constitution of a small private nation. The GP is the elected government — it has executive authority to run day-to-day affairs within the constitution. The LPs are the citizens — they have rights (information, profit share, removal vote) but cannot govern directly. The LPAC is like a constitutional court — consulted on conflicts and material decisions, but not running the government. The key man clause is the election trigger — if key leaders resign, the government falls and citizens vote on what happens next.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Structure of the LPA</p><p>A standard LPA is organised into articles covering:</p><p><strong>Article 1 — Definitions</strong> All capitalised terms defined (Contributed Capital, Net Asset Value, Investment Period, etc.)</p><p><strong>Article 2 — Formation and Term</strong> Fund legal formation, domicile registration, commencement date, fund life (typically 10 years + 2 one-year extensions with LP consent)</p><p><strong>Article 3 — Capital Commitments and Contributions</strong> LP commitment amounts, capital call mechanics, notice periods (typically 10 business days), drawdown pro-rata across LPs, defaulting LP provisions</p><p><strong>Article 4 — Investment Mandate</strong> Geographic limits, sector focus, deal size range, diversification requirements, concentration limits (e.g., no more than 20% of fund in any single investment), co-investment policy, follow-on investment rights, recycling provisions</p><p><strong>Article 5 — Management Fees</strong> Fee calculation base (committed vs. invested capital), step-down schedule (typically reduces post-investment period), offsets (monitoring fees, deal fees reduce management fee)</p><p><strong>Article 6 — Distributions and Carried Interest</strong> The distribution waterfall — order and sequence of distributions, preferred return rate and compounding, GP catch-up, carried interest rate (typically 20%), European vs. American waterfall structure</p><p><strong>Article 7 — LP Advisory Committee (LPAC)</strong> Composition, voting thresholds, scope of consultation rights, conflict resolution procedures</p><p><strong>Article 8 — LP Rights and Protections</strong> Key man clause details, LP consent rights, no-fault removal provisions, transfer restrictions, information rights</p><p><strong>Article 9 — Reporting and Audit</strong> Quarterly reporting requirements, annual audited financial statements, portfolio company fair value methodology (typically IPEV guidelines), LPAC reporting</p><p><strong>Article 10 — Conflicts of Interest</strong> GP affiliates and related parties, co-investment allocation policy, GP cross-fund investment restrictions</p><p>### Key Provisions in Detail</p><p><strong>Investment Period</strong> Typically 5 years from first close (the period during which new investments can be made). After the investment period, the GP can only make follow-on investments in existing portfolio companies. Capital calls cease for new deals. The investment period can be suspended by key man clause trigger.</p><p><strong>Fund Life</strong> Standard 10 years from final close. Two 1-year extensions typically available with GP request and LPAC/LP approval. \"Evergreen\" structures with no fixed end date are emerging but remain non-standard.</p><p><strong>Key Man Clause</strong> Specifies which GP partners are \"key men\" (typically 2-4 named principals). If a defined number depart within a specified period, the investment period is automatically suspended. LPs then vote: (a) continue with new team, (b) wind down fund, (c) negotiate amended terms. The trigger event and resolution mechanism are heavily negotiated.</p><p><strong>No-Fault Removal</strong> LPs can remove the GP without cause with a supermajority vote — typically 66.7% or 75% of LP commitments. This is the nuclear option. Upon removal, the GP loses management fees going forward (though carry already earned may be protected). Extremely rare in practice but important as a backstop.</p><p><strong>LP Consent Rights</strong> Actions requiring LP majority or supermajority approval: - Amending the LPA - Extending the investment period or fund life - Removing the GP - Approving conflicts of interest - Transferring LP interests (GP right of first refusal typically applies)</p><p>### Side Letters vs. LPA</p><p>Side letters are bilateral agreements with individual LPs that modify LPA terms for that specific LP only. Common side letter provisions: - Reduced management fees for anchor investors (e.g., 1.5% instead of 2%) - Enhanced information rights (more detailed portfolio reporting) - Most Favoured Nation (MFN) clause — LP gets the benefit of any more favourable terms granted to another LP - Co-investment rights — LP gets the right to participate in deals alongside the fund - ERISA opt-out (for US pension fund LPs) - AIFMD side-pocket consent</p><p>Side letters cannot alter fundamental economics for non-signatories — they only bind the GP and the specific LP.</p><p>### The LPAC</p><p>The Limited Partner Advisory Committee is a governance body typically comprising 5-10 large LPs. Its role: - <strong>Conflict resolution</strong> — GP must seek LPAC approval for any transaction involving a conflict of interest (e.g., GP buying a portfolio company from its own fund) - <strong>Valuation disputes</strong> — LPAC can challenge NAV calculations - <strong>Material amendments</strong> — LPAC approval often required before full LP vote - <strong>Waiver requests</strong> — LPAC can grant waivers to LPA restrictions on a case-by-case basis - The LPAC does <strong>not</strong> direct investment decisions — this would compromise LP passive status</p>"}, "5": {"section": "Diagram", "html": "<p>The document hierarchy: the LPA is supreme; everything else is subordinate to it and cannot contradict its core terms.</p><p>Side letters and the LPAC sit <em>under</em> the LPA: each can modify or oversee at the edges, but neither can rewrite the fundamental economics or seize the GP's management authority.</p>"}, "6": {"section": "Real-World Example", "html": "<p>When <strong>Apollo Global Management</strong> raised Apollo Fund IX ($24.7B, 2017), the LPA ran to over 200 pages. Key negotiated provisions reportedly included: - Investment period: 5 years - Fund life: 10 + 2 years - Management fee: 1.5% on committed capital during investment period, 1.0% on net invested thereafter - Carried interest: 20% - Preferred return: 8% (annual compound, European waterfall) - Key man: Investment period suspends if two of five named senior partners leave within 12 months</p><p>LPs of this size (pension funds, sovereign wealth funds) would have had legal teams spending weeks reviewing the document. Anchor LPs like CalPERS or Ontario Teachers' would have submitted 30-50 page markups.</p>"}, "7": {"section": "Common Misconceptions", "html": "<ul class='notelist'><li><strong>\"The LPA protects LPs automatically.\"</strong> False. The LPA only protects what it explicitly addresses. A badly negotiated LPA with weak key man provisions and no carry escrow provides minimal LP protection.</li><li><strong>\"LPs have the right to see all portfolio company financials.\"</strong> Not automatically — this depends on the specific reporting provisions negotiated in the LPA.</li><li><strong>\"The GP can modify the LPA unilaterally if it's in the fund's interest.\"</strong> False. Any LPA amendment requires LP approval at defined thresholds.</li><li><strong>\"Side letters are secret.\"</strong> Often false — most modern LPAs include a most favoured nation (MFN) provision requiring GPs to disclose the existence of side letters to all LPs.</li></ul>"}, "8": {"section": "Summary", "html": "<p>The LPA is the master legal contract of a private equity fund, governing everything from investment mandate to fee economics to LP rights. It is drafted by GP counsel and negotiated by LP counsel over months before first close. Key provisions include: investment mandate, management fee formula, distribution waterfall, key man clause, no-fault removal rights, LP consent rights, LPAC structure, and reporting obligations. LPs are passive investors — they cannot direct investments, but they retain rights to information, distributions, and ultimately to remove the GP. Side letters modify terms for individual LPs without amending the LPA itself. The LPAC provides governance oversight on conflicts and material decisions without directing investment activity.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

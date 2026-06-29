@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "partnership-tax-fundamentals-for-pe-funds", "title": "Partnership Tax Fundamentals for PE Funds", "draft_watermark": false, "estimated_runtime_sec": 360, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Why PE is a partnership", "on_screen_bullets": ["Funds are limited partnerships", "That choice is deliberate", "It shapes every tax outcome"], "narration": "Almost every private equity fund you will ever encounter is organised as a limited partnership, and that is not an accident of habit — it is a deliberate tax choice that shapes everything downstream. The annual tax statement an investor receives from a fund, the rate the general partner pays on carried interest, the way a sovereign wealth fund or pension plan is taxed on its share — all of it traces back to one structural decision: use a partnership, not a corporation. So this foundation lesson answers why. Get this right and the rest of fund taxation becomes readable. Miss it, and the tax documents are just a wall of numbers with no story behind them.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A pass-through system", "on_screen_bullets": ["Fund itself pays no tax", "Partners taxed on their share", "Character preserved through"], "narration": "Here is the definition to anchor everything. Partnership tax is a pass-through system. The partnership itself pays no income tax. Instead, each partner is taxed on their allocable share of the fund's income, gain, loss, deduction, and credit. And crucially, the character of each item is preserved as it passes through — a long-term capital gain stays a long-term capital gain, interest stays interest, ordinary income stays ordinary income. Each partner then receives an annual statement reporting their slice of every category. Two ideas do all the work here: no entity-level tax, and character preservation. Hold both, because almost every consequence in fund taxation falls out of them.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The transparent pipe", "on_screen_bullets": ["Income flows through unchanged", "Fund keeps nothing", "Compare: corporate double tax"], "narration": "Picture the fund as a transparent pipe. At one end, portfolio companies generate income, capital gains, and losses. At the other end, investors report those items on their own returns. The pipe itself keeps nothing and pays nothing — it passes everything through, and it passes it through with its colour intact. Capital-gain water comes out the far end still coloured as capital gain; ordinary-income water comes out still ordinary. Now contrast a corporation. A corporation pays its own income tax on its earnings, and then pays dividends to shareholders who are taxed again on those dividends. That is two layers of tax on the same money. The partnership form collapses that to a single layer, at the partner's own rate, preserving the original character. That single-versus-double distinction is the whole reason the structure exists.", "est_sec": 52}, {"n": 4, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The statutory backbone", "on_screen_bullets": ["No tax at entity level", "Character set at fund level", "Allocations need economic effect"], "narration": "Let me give you the statutory backbone, because three rules carry it. The first establishes that a partnership is simply not subject to income tax at the entity level — everything flows to the partners. The second is the character-preservation rule: the character of each item is determined at the fund level and flows through unchanged, so a long-term gain earned by the fund is a long-term gain on the investor's return, not magically converted into ordinary income by passing through. And the third governs how items are split among partners — the partnership agreement decides the allocations, but those allocations must have what the rules call substantial economic effect. If an allocation has no real economic consequence, the tax authority ignores it and reallocates according to each partner's genuine interest in the partnership. That economic-effect requirement is what keeps the allocation flexibility honest, and it is the bridge to the capital-account mechanics we cover separately.", "est_sec": 54}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Why not a corporation", "on_screen_bullets": ["Corporate form kills the rate", "Double tax doubles the bill", "Carry needs profits-interest form"], "narration": "Now see concretely why a corporation would be fatal to the model. In a corporation, every dollar of earnings — whether it came from a long-held company sale or from interest — is converted into corporate earnings, taxed first at the corporate rate, and then taxed again as a dividend when distributed. The preferential rate on a multi-year capital gain simply vanishes. Work the numbers on carry and the effect is stark: the favourable capital-gains rate on a general partner's carried interest would roughly double once you stack corporate tax and dividend tax on the same income — landing at essentially ordinary-income levels. The partnership form preserves the capital-gain character so that both the general partner on carry and the investors on their gains pay the lower rate once. Add that partnerships uniquely accommodate a huge international investor base, multiple economic classes, and carried interest structured as a profits interest, and the limited partnership is the only structure that does all of this at once.", "est_sec": 56}, {"n": 6, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Character survives the chain", "on_screen_bullets": ["Primary fund exits a company", "Gain flows to the secondary fund", "Arrives as capital gain"], "narration": "Follow a real chain, because pass-through often runs through more than one layer. A primary buyout fund sells a portfolio company after a multi-year hold, generating a large long-term capital gain. A secondary fund that owns a slice of that primary fund is allocated its proportionate share — say a couple of percent — and receives a tax statement showing that amount as long-term capital gain. The secondary fund is itself a pass-through, so it aggregates this alongside the allocations from all the other primary funds it holds, and re-issues statements to its own investors — pension funds, sovereign wealth funds, endowments. At every step the character is preserved: the capital gain that began with a company sale arrives on the ultimate investor's return still as a capital gain — not as a dividend, not as ordinary income, not as compensation. The fund layers aggregate and split the flow; they never recolour it.", "est_sec": 52}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four traps to avoid", "on_screen_bullets": ["Fund doesn't pay the tax", "No cash can still mean tax", "Character sets the rate"], "narration": "Four misconceptions trip people up, and each is worth nailing. First, that the fund pays tax on its income — it does not; tax is paid by the partners on their share. Second, that distributions are taxable income — usually not; a cash distribution is generally a return of capital that reduces your basis, and is only taxable to the extent it exceeds that basis. Third, and the most painful in practice: that if you receive no cash, you owe no tax. False — this is phantom income. A statement showing a million of capital gain creates a tax bill even if zero cash was distributed, because you are taxed on your distributive share regardless of whether it was paid out. And fourth, that character does not matter because income is income — it matters enormously, because character sets the rate, and the entire carried-interest advantage rests on capital-gain character surviving the pass-through.", "est_sec": 52}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The foundation in one breath", "on_screen_bullets": ["Transparent entity, one tax layer", "Character preserved end to end", "Read activity behind the numbers"], "narration": "So to summarise the foundation: private equity funds use limited partnerships because partnerships are tax-transparent — the fund pays no income tax, and every item flows to partners with its character intact, so a company-sale gain reaches the investor as a capital gain rather than as ordinary income or a dividend. The fund files its return and issues each partner an annual statement, which for a multi-layer structure is both an input and an output as allocations are received and then re-issued. The deeper lesson is this: any line on a partner's tax statement is a window into fund activity — what exited, what income was earned, what deductions arose — and the partnership structure passes that activity, with its tax character, straight through. Read the activity behind the number, and the whole system becomes legible.", "est_sec": 48}, {"n": 9, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Why no entity-level tax?", "What is character preservation?", "Why not a corporation?"], "narration": "Before you move on, answer these from memory. Why does a partnership pay no tax at the entity level, and where is the tax paid instead? What does character preservation mean, and why does it determine the rate on carried interest? And why would corporate form destroy the capital-gain advantage that the partnership form protects? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Partnership Tax Fundamentals for PE Funds\n\n[hook] Why PE is a partnership\nAlmost every private equity fund you will ever encounter is organised as a limited partnership, and that is not an accident of habit — it is a deliberate tax choice that shapes everything downstream. The annual tax statement an investor receives from a fund, the rate the general partner pays on carried interest, the way a sovereign wealth fund or pension plan is taxed on its share — all of it traces back to one structural decision: use a partnership, not a corporation. So this foundation lesson answers why. Get this right and the rest of fund taxation becomes readable. Miss it, and the tax documents are just a wall of numbers with no story behind them.\n\n[definition] A pass-through system\nHere is the definition to anchor everything. Partnership tax is a pass-through system. The partnership itself pays no income tax. Instead, each partner is taxed on their allocable share of the fund's income, gain, loss, deduction, and credit. And crucially, the character of each item is preserved as it passes through — a long-term capital gain stays a long-term capital gain, interest stays interest, ordinary income stays ordinary income. Each partner then receives an annual statement reporting their slice of every category. Two ideas do all the work here: no entity-level tax, and character preservation. Hold both, because almost every consequence in fund taxation falls out of them.\n\n[intuition] The transparent pipe\nPicture the fund as a transparent pipe. At one end, portfolio companies generate income, capital gains, and losses. At the other end, investors report those items on their own returns. The pipe itself keeps nothing and pays nothing — it passes everything through, and it passes it through with its colour intact. Capital-gain water comes out the far end still coloured as capital gain; ordinary-income water comes out still ordinary. Now contrast a corporation. A corporation pays its own income tax on its earnings, and then pays dividends to shareholders who are taxed again on those dividends. That is two layers of tax on the same money. The partnership form collapses that to a single layer, at the partner's own rate, preserving the original character. That single-versus-double distinction is the whole reason the structure exists.\n\n[mechanics] The statutory backbone\nLet me give you the statutory backbone, because three rules carry it. The first establishes that a partnership is simply not subject to income tax at the entity level — everything flows to the partners. The second is the character-preservation rule: the character of each item is determined at the fund level and flows through unchanged, so a long-term gain earned by the fund is a long-term gain on the investor's return, not magically converted into ordinary income by passing through. And the third governs how items are split among partners — the partnership agreement decides the allocations, but those allocations must have what the rules call substantial economic effect. If an allocation has no real economic consequence, the tax authority ignores it and reallocates according to each partner's genuine interest in the partnership. That economic-effect requirement is what keeps the allocation flexibility honest, and it is the bridge to the capital-account mechanics we cover separately.\n\n[mechanics] Why not a corporation\nNow see concretely why a corporation would be fatal to the model. In a corporation, every dollar of earnings — whether it came from a long-held company sale or from interest — is converted into corporate earnings, taxed first at the corporate rate, and then taxed again as a dividend when distributed. The preferential rate on a multi-year capital gain simply vanishes. Work the numbers on carry and the effect is stark: the favourable capital-gains rate on a general partner's carried interest would roughly double once you stack corporate tax and dividend tax on the same income — landing at essentially ordinary-income levels. The partnership form preserves the capital-gain character so that both the general partner on carry and the investors on their gains pay the lower rate once. Add that partnerships uniquely accommodate a huge international investor base, multiple economic classes, and carried interest structured as a profits interest, and the limited partnership is the only structure that does all of this at once.\n\n[example] Character survives the chain\nFollow a real chain, because pass-through often runs through more than one layer. A primary buyout fund sells a portfolio company after a multi-year hold, generating a large long-term capital gain. A secondary fund that owns a slice of that primary fund is allocated its proportionate share — say a couple of percent — and receives a tax statement showing that amount as long-term capital gain. The secondary fund is itself a pass-through, so it aggregates this alongside the allocations from all the other primary funds it holds, and re-issues statements to its own investors — pension funds, sovereign wealth funds, endowments. At every step the character is preserved: the capital gain that began with a company sale arrives on the ultimate investor's return still as a capital gain — not as a dividend, not as ordinary income, not as compensation. The fund layers aggregate and split the flow; they never recolour it.\n\n[application] Four traps to avoid\nFour misconceptions trip people up, and each is worth nailing. First, that the fund pays tax on its income — it does not; tax is paid by the partners on their share. Second, that distributions are taxable income — usually not; a cash distribution is generally a return of capital that reduces your basis, and is only taxable to the extent it exceeds that basis. Third, and the most painful in practice: that if you receive no cash, you owe no tax. False — this is phantom income. A statement showing a million of capital gain creates a tax bill even if zero cash was distributed, because you are taxed on your distributive share regardless of whether it was paid out. And fourth, that character does not matter because income is income — it matters enormously, because character sets the rate, and the entire carried-interest advantage rests on capital-gain character surviving the pass-through.\n\n[recap] The foundation in one breath\nSo to summarise the foundation: private equity funds use limited partnerships because partnerships are tax-transparent — the fund pays no income tax, and every item flows to partners with its character intact, so a company-sale gain reaches the investor as a capital gain rather than as ordinary income or a dividend. The fund files its return and issues each partner an annual statement, which for a multi-layer structure is both an input and an output as allocations are received and then re-issued. The deeper lesson is this: any line on a partner's tax statement is a window into fund activity — what exited, what income was earned, what deductions arose — and the partnership structure passes that activity, with its tax character, straight through. Read the activity behind the number, and the whole system becomes legible.\n\n[end_card] Test yourself\nBefore you move on, answer these from memory. Why does a partnership pay no tax at the entity level, and where is the tax paid instead? What does character preservation mean, and why does it determine the rate on carried interest? And why would corporate form destroy the capital-gain advantage that the partnership form protects? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Every K-1 that CVC Secondary Partners receives from KKR, Apollo, and Blackstone exists because PE funds are organised as limited partnerships — pass-through entities. Understanding why PE uses partnerships, and how the pass-through system works, is the foundation for understanding what every K-1 box means and why it carries the tax character it does.</p><p>Without this foundation, K-1 data is a set of boxes with numbers. With it, every box is a window into the fund's activity: what exits occurred, what income was earned, what deductions were created, and how each dollar flows to an LP's tax return.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Partnership tax is a pass-through system under IRC Subchapter K in which the partnership itself pays no income tax — instead, each partner is taxed on their allocable share of the fund's income, gain, loss, deduction, and credit, with the character of each item (capital gain, ordinary income, interest) preserved through the pass-through and reported to partners via Schedule K-1.</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a PE fund as a transparent pipe. On one end, portfolio companies generate income, capital gains, and losses. On the other end, LPs report those items on their own tax returns. The fund itself — the pipe — doesn't keep any of it. It passes everything through.</p><p>This is pass-through taxation: the entity is transparent for tax purposes. The government doesn't tax the fund; it taxes the partners directly on their share of whatever the fund earned.</p><p>Contrast this with a corporation. A corporation pays its own corporate income tax at 21%, then pays dividends to shareholders, who pay tax again on those dividends. Two rounds of tax on the same money. PE funds avoid this by using partnership form — one round of tax, at the partner level, at the partner's own rate, preserving the original income character.</p><p><strong>The data pipeline analogy (for CVC):</strong> The fund is a data pipeline. Portfolio companies produce income events — sales, dividends, interest. Those events travel through the fund's accounting system. The fund's tax return (Form 1065) aggregates and categorises them by income type. The fund then issues a K-1 to each LP — a personalised output showing that LP's proportionate share of each category. CVC receives these K-1s, aggregates them across all its fund positions, and issues its own K-1s to CVC's investors. Two levels of the same pipeline.</p>"}, "3": {"section": "Technical Explanation", "html": "<p>### The Statutory Framework</p><p><strong>§701 — Non-taxability at entity level:</strong> The foundational rule: \"A partnership as such shall not be subject to the income tax imposed by this chapter.\" The fund pays no entity-level income tax. All income, gain, loss, deduction, and credit flows to the partners.</p><p><strong>§702 — Distributive share and character preservation:</strong> Partners are taxed on their \"distributive share\" of the partnership's items. §702(b) is the character preservation rule: the character of each item is determined at the partnership level and flows through unchanged. A long-term capital gain earned by the fund is a long-term capital gain on the LP's return. It does not convert to ordinary income by passing through the partnership.</p><p>This character preservation is why PE fund K-1s show Box 9a (long-term capital gains) rather than Box 1 (ordinary income) for portfolio company exits held longer than one year. The LTCG character from the portfolio company sale is preserved all the way to the LP's tax return.</p><p><strong>§703 — Partnership income computation:</strong> The partnership computes income similarly to an individual, except it cannot take deductions that are personal in nature. Net income is then allocated to partners and reported via K-1.</p><p><strong>§704 — Partner's distributive share:</strong> The partnership agreement governs how income, gain, loss, and deduction is allocated among partners. Allocations must have \"substantial economic effect\" to be respected by the IRS. If an allocation lacks economic effect, the IRS reallocates according to the partner's interest in the partnership — potentially producing results inconsistent with the LPA. See Capital Account Mechanics in Partnership Tax for the economic effect test.</p><p>### Why PE Funds Use Partnerships (Not Corporations)</p><p>| Issue | Partnership (PE Fund) | C-Corporation | |---|---|---| | Entity-level tax | None (§701) | 21% corporate rate | | Double taxation | No — one layer at partner level | Yes — corporate tax + dividend tax | | Character preservation | Yes — LTCG stays LTCG (§702(b)) | No — all income becomes corporate earnings, then qualified dividends | | Allocation flexibility | High — LPA can customise per §704 | Low — must follow share ownership ratios | | Carried interest structure | Feasible as a profits interest (no tax on grant) | Would trigger compensation income at ordinary rates | | Foreign LP treaty access | Treaty rates apply directly to LP | Corporate withholding layer blocks treaty benefits | | Tax-exempt LP UBIT access | §512(b) exemptions available for passive items | Corporate dividend is UBIT-exempt but 21% already paid inside |</p><p>The character preservation point is the critical one: in a C-corp, all earnings (regardless of whether they came from LTCG exits or interest income) convert to corporate earnings taxed at 21%, then distribute as qualified dividends taxed at 20%. The preferential LTCG rate on a 7-year portfolio company hold is eliminated. For GPs earning 20% carry, corporate form would convert the 23.8% LTCG tax rate into 40.8% total tax (21% corporate + 23.8% on qualified dividends) — identical to ordinary income rates. Partnerships preserve the LTCG character so GPs pay 23.8% on carry and LPs pay 23.8% on their LTCG share.</p><p>### The Form 1065 → K-1 Chain</p><p><strong>Form 1065</strong> is the partnership's annual income tax return. Every PE fund partnership files a Form 1065 for each tax year. It reports: - Total fund income by category (total LTCG, total ordinary income, total interest, etc.) - Total deductions - Allocations per partner - Schedules for each income category</p><p><strong>Schedule K</strong> (attached to Form 1065): Aggregates all items before allocation.</p><p><strong>Schedule K-1</strong> (issued to each partner): The individual partner's output — their share of every income category. This is what CVC receives from KKR, Apollo, and Blackstone. This is what CVC issues to its own LPs.</p><p><strong>The two-level K-1 chain at CVC:</strong></p><p>CVC receives approximately 40 K-1s from underlying primary funds. CVC's own Form 1065 aggregates those 40 K-1s, adds CVC-level items (CVC's own management fees, fund expenses), and re-issues K-1s to CVC's investors. This is CVC's core tax compliance function: K-1 aggregation and pass-through.</p><p>### Book vs. Tax (Primer)</p><p>A partnership maintains parallel accounting systems:</p><p><strong>Book:</strong> Tracks economic value using fair market values. Required for §704(b) economic effect. Governs liquidating distributions.</p><p><strong>Tax:</strong> Tracks historic cost basis. Governs what appears on the K-1 and on partners' tax returns.</p><p>These two systems start identical at fund formation but diverge over time due to depreciation differences, contributions of appreciated property (§704(c)), and revaluations when new partners join. The capital account shown on your K-1 is the tax capital account — it may not equal your economic interest in the fund.</p><p>See Capital Account Mechanics in Partnership Tax for the full mechanics.</p><p>### Outside Basis (Brief Primer)</p><p>The LP's <strong>outside basis</strong> is their tax basis in their partnership interest — distinct from the fund's basis in its assets (\"inside basis\"). Outside basis determines: - Whether a distribution is taxable (taxable only if it exceeds outside basis) - Whether allocated losses can be deducted (limited to outside basis) - Gain or loss on selling the LP interest</p><p>Outside basis = contributions + income allocations − loss allocations − distributions + share of partnership debt (§752).</p><p>The debt inclusion (§752) is the key difference from the capital account: if the PE fund has a NAV loan or subscription credit line, each LP's outside basis includes their allocable share of that debt.</p><p>For secondary transactions — when CVC buys an LP interest — outside basis starts at the purchase price (§742). The interaction with the fund's existing inside basis is the §754/§743(b) issue. See Capital Account Mechanics in Partnership Tax.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Statutory Framework</p><p><strong>§701 — Non-taxability at entity level:</strong> The foundational rule: \"A partnership as such shall not be subject to the income tax imposed by this chapter.\" The fund pays no entity-level income tax. All income, gain, loss, deduction, and credit flows to the partners.</p><p><strong>§702 — Distributive share and character preservation:</strong> Partners are taxed on their \"distributive share\" of the partnership's items. §702(b) is the character preservation rule: the character of each item is determined at the partnership level and flows through unchanged. A long-term capital gain earned by the fund is a long-term capital gain on the LP's return. It does not convert to ordinary income by passing through the partnership.</p><p>This character preservation is why PE fund K-1s show Box 9a (long-term capital gains) rather than Box 1 (ordinary income) for portfolio company exits held longer than one year. The LTCG character from the portfolio company sale is preserved all the way to the LP's tax return.</p><p><strong>§703 — Partnership income computation:</strong> The partnership computes income similarly to an individual, except it cannot take deductions that are personal in nature. Net income is then allocated to partners and reported via K-1.</p><p><strong>§704 — Partner's distributive share:</strong> The partnership agreement governs how income, gain, loss, and deduction is allocated among partners. Allocations must have \"substantial economic effect\" to be respected by the IRS. If an allocation lacks economic effect, the IRS reallocates according to the partner's interest in the partnership — potentially producing results inconsistent with the LPA. See Capital Account Mechanics in Partnership Tax for the economic effect test.</p><p>### Why PE Funds Use Partnerships (Not Corporations)</p><p>| Issue | Partnership (PE Fund) | C-Corporation | |---|---|---| | Entity-level tax | None (§701) | 21% corporate rate | | Double taxation | No — one layer at partner level | Yes — corporate tax + dividend tax | | Character preservation | Yes — LTCG stays LTCG (§702(b)) | No — all income becomes corporate earnings, then qualified dividends | | Allocation flexibility | High — LPA can customise per §704 | Low — must follow share ownership ratios | | Carried interest structure | Feasible as a profits interest (no tax on grant) | Would trigger compensation income at ordinary rates | | Foreign LP treaty access | Treaty rates apply directly to LP | Corporate withholding layer blocks treaty benefits | | Tax-exempt LP UBIT access | §512(b) exemptions available for passive items | Corporate dividend is UBIT-exempt but 21% already paid inside |</p><p>The character preservation point is the critical one: in a C-corp, all earnings (regardless of whether they came from LTCG exits or interest income) convert to corporate earnings taxed at 21%, then distribute as qualified dividends taxed at 20%. The preferential LTCG rate on a 7-year portfolio company hold is eliminated. For GPs earning 20% carry, corporate form would convert the 23.8% LTCG tax rate into 40.8% total tax (21% corporate + 23.8% on qualified dividends) — identical to ordinary income rates. Partnerships preserve the LTCG character so GPs pay 23.8% on carry and LPs pay 23.8% on their LTCG share.</p><p>### The Form 1065 → K-1 Chain</p><p><strong>Form 1065</strong> is the partnership's annual income tax return. Every PE fund partnership files a Form 1065 for each tax year. It reports: - Total fund income by category (total LTCG, total ordinary income, total interest, etc.) - Total deductions - Allocations per partner - Schedules for each income category</p><p><strong>Schedule K</strong> (attached to Form 1065): Aggregates all items before allocation.</p><p><strong>Schedule K-1</strong> (issued to each partner): The individual partner's output — their share of every income category. This is what CVC receives from KKR, Apollo, and Blackstone. This is what CVC issues to its own LPs.</p><p><strong>The two-level K-1 chain at CVC:</strong></p><p>CVC receives approximately 40 K-1s from underlying primary funds. CVC's own Form 1065 aggregates those 40 K-1s, adds CVC-level items (CVC's own management fees, fund expenses), and re-issues K-1s to CVC's investors. This is CVC's core tax compliance function: K-1 aggregation and pass-through.</p><p>### Book vs. Tax (Primer)</p><p>A partnership maintains parallel accounting systems:</p><p><strong>Book:</strong> Tracks economic value using fair market values. Required for §704(b) economic effect. Governs liquidating distributions.</p><p><strong>Tax:</strong> Tracks historic cost basis. Governs what appears on the K-1 and on partners' tax returns.</p><p>These two systems start identical at fund formation but diverge over time due to depreciation differences, contributions of appreciated property (§704(c)), and revaluations when new partners join. The capital account shown on your K-1 is the tax capital account — it may not equal your economic interest in the fund.</p><p>See Capital Account Mechanics in Partnership Tax for the full mechanics.</p><p>### Outside Basis (Brief Primer)</p><p>The LP's <strong>outside basis</strong> is their tax basis in their partnership interest — distinct from the fund's basis in its assets (\"inside basis\"). Outside basis determines: - Whether a distribution is taxable (taxable only if it exceeds outside basis) - Whether allocated losses can be deducted (limited to outside basis) - Gain or loss on selling the LP interest</p><p>Outside basis = contributions + income allocations − loss allocations − distributions + share of partnership debt (§752).</p><p>The debt inclusion (§752) is the key difference from the capital account: if the PE fund has a NAV loan or subscription credit line, each LP's outside basis includes their allocable share of that debt.</p><p>For secondary transactions — when CVC buys an LP interest — outside basis starts at the purchase price (§742). The interaction with the fund's existing inside basis is the §754/§743(b) issue. See Capital Account Mechanics in Partnership Tax.</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>CVC Secondary Partners' K-1 from KKR Fund XIII:</strong></p><p>KKR Fund XIII sells a portfolio company in Q3 2025, generating $500m realised gain after a 6-year hold. Gain is LTCG. CVC owns 2% of KKR Fund XIII via a secondary purchase.</p><p>KKR allocates 2% to CVC: $10m LTCG. KKR files Form 1065 and issues CVC a K-1: Box 9a — $10m long-term capital gain.</p><p>CVC's tax team inputs this K-1 alongside ~39 others from other primary funds. CVC's Form 1065 aggregates all inputs. CVC issues K-1s to its own LPs — say, a Canadian pension fund holds 5% of CVC: that LP receives Box 9a $500k LTCG on CVC's K-1.</p><p>The Canadian pension fund's US filing reports $500k LTCG, subject to §1446 ECI withholding analysis (LTCG from a fund without USRPI assets is typically not ECI), and treaty rate determination on any applicable withholding.</p><p>Character preserved at every step: $500m LTCG from a KKR portfolio company sale arrives at the Canadian pension fund's tax return as LTCG — not as ordinary income, not as dividends, not as compensation.</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>\"The fund pays tax on its income.\"</strong> False. §701 states the fund pays no income tax. Tax is paid at the partner level on the partner's distributive share.</p><p><strong>\"Distributions are taxable income.\"</strong> Usually false. A cash distribution is not taxable income unless it exceeds the partner's outside basis. Distributions reduce basis; they are a return of capital until basis reaches zero.</p><p><strong>\"If I don't receive a distribution, I don't owe tax.\"</strong> False. Phantom income: partners are taxed on their distributive share regardless of distribution. A K-1 showing $1m of LTCG creates a tax obligation regardless of whether $0 cash was received.</p><p><strong>\"Character doesn't matter — income is income.\"</strong> False. The character of income determines the applicable tax rate. Box 9a LTCG at 23.8% is fundamentally different from Box 1 ordinary income at 40.8% for high-income taxpayers. The entire carried interest tax advantage depends on character preservation.</p>"}, "7": {"section": "Summary", "html": "<p>PE funds use limited partnership structures because partnerships are tax-transparent: the fund pays no income tax (§701), and each item of income, gain, loss, and deduction flows to partners with its character intact (§702(b)). A LTCG from a portfolio company exit arrives on the LP's return as LTCG — not as ordinary income or dividends. The fund files Form 1065 annually and issues Schedule K-1 to each partner. For CVC Secondary Partners, the K-1 is both input (K-1s received from ~40 primary funds) and output (K-1s issued to CVC's own LPs). Understanding any K-1 line item requires understanding the underlying fund activity that produced it — and the partnership structure passes that activity, with its tax character, directly through.</p>"}, "8": {"section": "Summary", "html": "<p>PE funds use limited partnership structures because partnerships are tax-transparent: the fund pays no income tax (§701), and each item of income, gain, loss, and deduction flows to partners with its character intact (§702(b)). A LTCG from a portfolio company exit arrives on the LP's return as LTCG — not as ordinary income or dividends. The fund files Form 1065 annually and issues Schedule K-1 to each partner. For CVC Secondary Partners, the K-1 is both input (K-1s received from ~40 primary funds) and output (K-1s issued to CVC's own LPs). Understanding any K-1 line item requires understanding the underlying fund activity that produced it — and the partnership structure passes that activity, with its tax character, directly through.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

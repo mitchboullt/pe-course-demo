@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "lbo-transaction-structure", "title": "LBO Transaction Structure", "draft_watermark": false, "estimated_runtime_sec": 450, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Not just paperwork", "on_screen_bullets": ["Who owns what", "Where the debt sits", "How proceeds flow at exit"], "narration": "When you hear about the legal structure of a buyout, it's tempting to file it under boring paperwork. Don't. The structure tells you who owns what, all the way from the fund down to the operating business; where the debt sits, and therefore who is exposed to it; how equity, debt, and management interests share the same vehicle; and why each layer exists at all. It determines liability, tax efficiency, debt-service obligations, and exactly how cash flows out at exit. Every party — the fund, management, the lenders, the advisers — cares intensely about how it's drawn. So let's draw it.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The acquisition architecture", "on_screen_bullets": ["A NewCo between fund and target", "Equity and debt injected at close", "Legal + financial scaffolding"], "narration": "The definition. The LBO transaction structure is the legal and financial architecture through which a PE firm acquires a target — typically by creating a new holding entity, NewCo or BidCo, that sits between the fund and the target, and into which both the equity and the debt are injected at the moment of closing. It's the scaffolding that makes the buyout work.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Why build a NewCo?", "on_screen_bullets": ["A fresh, empty company", "Takes equity + borrows debt", "Buys 100% of the target"], "narration": "In plain terms: when a PE firm buys a company, it doesn't write a cheque straight from the fund to the sellers. Instead it spins up a brand-new, empty company — call it NewCo — built specifically for this one acquisition. NewCo takes in the equity from the fund, and sometimes from the management team; it borrows the debt from the lenders; and it uses the two together to buy a hundred percent of the target. After closing, NewCo owns the target, and the debt sits inside or just above the target, because the target's assets and cash flows are what secure those loans. It's the same instinct as setting up a limited company to buy a property portfolio — you don't put the mortgage in your own name if you can route it through a vehicle.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Russian nesting dolls", "on_screen_bullets": ["Fund → HoldCo → BidCo → OpCo", "Equity in, debt on inner dolls", "Exit proceeds flow back out"], "narration": "The cleanest mental model is a Russian nesting doll. The outermost doll is the PE fund. Inside it sits HoldCo. Inside that, BidCo. And inside that, the operating business. Equity flows inward, from the fund into the holding companies. Debt attaches to the inner dolls, secured against the assets they contain. And at exit, everything flows back outward: the operating business is sold, the proceeds pay off the debt first — the innermost dolls — and whatever remains flows up to the equity holders at the top. Each layer is there for a reason: tax efficiency, legal liability protection, or structuring security for the lenders.", "est_sec": 48}, {"n": 5, "beat": "mechanics", "visual": "diagram", "source_section": "Diagram", "on_screen_title": "The acquisition chain", "on_screen_bullets": ["Senior debt at BidCo", "Mezz/PIK at MidCo", "Management rolls in at MidCo"], "mermaid": "flowchart TD\n  FUND[\"PE Fund (LP)\"] -->|equity| HOLD[\"HoldCo / TopCo\"]\n  HOLD -->|equity + shareholder loans| MID[\"MidCo<br/>(subordinated / PIK debt sits here)\"]\n  MID -->|equity| BID[\"BidCo / NewCo<br/>senior debt drawn here · legal acquirer (signs SPA)\"]\n  BID -->|acquires 100% of shares| OP[\"Target (OpCo)<br/>operating assets secure the debt\"]\n  MGMT[\"Management\"] -->|rollover equity / MIP| MID", "narration": "Here's the chain in full. At the top, the PE fund injects equity into HoldCo, also called TopCo — the entity the fund owns. HoldCo passes equity, often alongside shareholder loans, down into MidCo, and MidCo is typically where the subordinated and PIK debt sits. MidCo then capitalises BidCo — also called NewCo — and BidCo is where the senior debt is drawn and which is the legal acquirer that actually signs the purchase agreement. BidCo buys a hundred percent of the shares of the target, the operating company, whose assets secure the debt. And notice where management comes in: the management team rolls its equity in, and receives its incentive plan, at the MidCo level — so it sits alongside the sponsor's equity. The governing principle is simple: debt flows down to the lowest level it can, against the operating assets, while equity sits at the top.", "est_sec": 60}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Why the layers exist", "on_screen_bullets": ["Debt pushed to lowest level", "Each layer = tax / legal / security", "Structural subordination by design"], "narration": "Why so many layers? Each one earns its place. Senior lenders want their debt as close to the operating assets as possible — at BidCo, right above the company — so they have first claim. Junior and PIK lenders sit a level up at MidCo, which is exactly what makes them subordinated: they're structurally further from the assets, so in a wind-down the senior debt is satisfied first. Equity sits at the very top, at HoldCo, last in line and last to be paid — which is the price of getting all the upside. Cross-border deals often add more layers still, for tax and regulatory reasons. But the logic never changes: push the debt down to the lowest level possible, secured against the operating assets, and keep the equity up top.", "est_sec": 54}, {"n": 7, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Burger King, 2010", "on_screen_bullets": ["~$4bn take-private", "NewCo: 'BKC Holdings'", "Standard LBO scaffolding"], "narration": "A real example: the two thousand ten take-private of Burger King, a roughly four-billion-dollar deal. It shows the standard structure in action. A new acquisition vehicle — BKC Holdings — was created specifically to hold the company, exactly the NewCo of our diagram. The sponsor's equity went in at the top, the acquisition debt was drawn at the vehicle that bought the shares, and the debt was secured against Burger King's own assets and cash flows. The brand you order fries from is the operating company at the bottom of the chain; everything above it — the holding entities, the debt, the equity — is the scaffolding that made the buyout possible. Strip away the famous name and it's the nesting doll we just drew.", "est_sec": 52}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["The fund doesn't sign — BidCo does", "Layers aren't 'overcomplication'", "Where debt sits = who's exposed"], "narration": "Two things people get wrong. First, the fund is not the legal buyer — BidCo, the NewCo, is the entity that signs the purchase agreement and takes on the debt. That separation is deliberate: it ring-fences the fund's other investments from this deal's liabilities. Second, the stack of holding companies isn't lawyers over-engineering for the sake of it. Each layer places debt and equity at precisely the right level for tax, for lender security, and for liability protection. If you ever want to know who actually bears the risk in a buyout, don't read the headline — trace where in this chain the debt sits and who owns the layer above it.", "est_sec": 48}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Equity up, debt down", "on_screen_bullets": ["Fund → HoldCo → BidCo → target", "Senior low, junior higher, equity top", "Exit: debt repaid first, then equity"], "narration": "To recap. An LBO is built through a chain of entities: the fund owns HoldCo, which owns MidCo, which owns BidCo, which buys the operating company. Senior debt sits low, near the assets at BidCo; junior and PIK debt sits a level up at MidCo; management rolls in alongside; and equity sits at the very top. The rule that explains the whole picture is equity up, debt down. At exit, the order reverses the deal: the company is sold, debt is repaid from the bottom up, and what's left flows out to the equity holders. With the structure clear, we can look next at the table that sizes every one of these pieces — sources and uses of funds.", "est_sec": 46}], "end_card": {"quiz_label": "Q1", "question_on_screen": "In the HoldCo–MidCo–BidCo–OpCo chain, where is senior debt drawn, where does subordinated/PIK debt sit, and why are they at different levels?", "narration": "Before the next lesson, place the debt yourself. In the chain from HoldCo down to the operating company, where is the senior debt drawn, where does the subordinated and PIK debt sit — and why are they deliberately at different levels? Work it out, then check the notes below."}, "quiz": [{"label": "Q1 (Diagram recall):", "question": "Draw (or write out) the basic entity structure of an LBO from PE fund to target company. Label each entity and what it holds.", "answer": "PE Fund → HoldCo (equity) → MidCo (may hold sub-debt) → BidCo/NewCo (draws senior debt, acquires target) → Target Company (operating business, assets secure debt)."}, {"label": "Q2 (Short answer):", "question": "Why is the debt pushed down to BidCo / the target level rather than held at the PE fund level?", "answer": "Because the target's assets and cash flows are what secure the loans. Lenders need a claim against the operating business. Additionally, keeping debt away from the PE fund protects the fund from legal liability if the target defaults."}, {"label": "Q3 (True/False):", "question": "In an LBO, \"closing\" and \"signing\" always happen on the same day.", "answer": "False. There is typically a gap between signing the SPA and closing the transaction, during which regulatory approvals are obtained, financing is finalised, and conditions precedent are satisfied."}, {"label": "Q4 (Multiple choice):", "question": "The \"lead arranger\" in an LBO is primarily responsible for:\n- A) Valuing the target company\n- B) Underwriting the acquisition debt and syndicating it to other lenders\n- C) Negotiating the Share Purchase Agreement\n- D) Managing the target company post-acquisition", "answer": "**B** — underwriting the acquisition debt and syndicating it to other lenders."}, {"label": "Q5 (Concept):", "question": "What is \"management rollover equity\" and why do PE firms want it?", "answer": "Management rollover equity is when members of the target's management team invest their own money into the new holding structure (at or alongside the PE fund's equity). PE firms want it because it aligns management's financial interests with the success of the deal — management only get rich if the business grows and the exit is successful."}]};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: LBO Transaction Structure\n\n[hook] Not just paperwork\nWhen you hear about the legal structure of a buyout, it's tempting to file it under boring paperwork. Don't. The structure tells you who owns what, all the way from the fund down to the operating business; where the debt sits, and therefore who is exposed to it; how equity, debt, and management interests share the same vehicle; and why each layer exists at all. It determines liability, tax efficiency, debt-service obligations, and exactly how cash flows out at exit. Every party — the fund, management, the lenders, the advisers — cares intensely about how it's drawn. So let's draw it.\n\n[definition] The acquisition architecture\nThe definition. The LBO transaction structure is the legal and financial architecture through which a PE firm acquires a target — typically by creating a new holding entity, NewCo or BidCo, that sits between the fund and the target, and into which both the equity and the debt are injected at the moment of closing. It's the scaffolding that makes the buyout work.\n\n[intuition] Why build a NewCo?\nIn plain terms: when a PE firm buys a company, it doesn't write a cheque straight from the fund to the sellers. Instead it spins up a brand-new, empty company — call it NewCo — built specifically for this one acquisition. NewCo takes in the equity from the fund, and sometimes from the management team; it borrows the debt from the lenders; and it uses the two together to buy a hundred percent of the target. After closing, NewCo owns the target, and the debt sits inside or just above the target, because the target's assets and cash flows are what secure those loans. It's the same instinct as setting up a limited company to buy a property portfolio — you don't put the mortgage in your own name if you can route it through a vehicle.\n\n[intuition] Russian nesting dolls\nThe cleanest mental model is a Russian nesting doll. The outermost doll is the PE fund. Inside it sits HoldCo. Inside that, BidCo. And inside that, the operating business. Equity flows inward, from the fund into the holding companies. Debt attaches to the inner dolls, secured against the assets they contain. And at exit, everything flows back outward: the operating business is sold, the proceeds pay off the debt first — the innermost dolls — and whatever remains flows up to the equity holders at the top. Each layer is there for a reason: tax efficiency, legal liability protection, or structuring security for the lenders.\n\n[mechanics] The acquisition chain\nHere's the chain in full. At the top, the PE fund injects equity into HoldCo, also called TopCo — the entity the fund owns. HoldCo passes equity, often alongside shareholder loans, down into MidCo, and MidCo is typically where the subordinated and PIK debt sits. MidCo then capitalises BidCo — also called NewCo — and BidCo is where the senior debt is drawn and which is the legal acquirer that actually signs the purchase agreement. BidCo buys a hundred percent of the shares of the target, the operating company, whose assets secure the debt. And notice where management comes in: the management team rolls its equity in, and receives its incentive plan, at the MidCo level — so it sits alongside the sponsor's equity. The governing principle is simple: debt flows down to the lowest level it can, against the operating assets, while equity sits at the top.\n\n[mechanics] Why the layers exist\nWhy so many layers? Each one earns its place. Senior lenders want their debt as close to the operating assets as possible — at BidCo, right above the company — so they have first claim. Junior and PIK lenders sit a level up at MidCo, which is exactly what makes them subordinated: they're structurally further from the assets, so in a wind-down the senior debt is satisfied first. Equity sits at the very top, at HoldCo, last in line and last to be paid — which is the price of getting all the upside. Cross-border deals often add more layers still, for tax and regulatory reasons. But the logic never changes: push the debt down to the lowest level possible, secured against the operating assets, and keep the equity up top.\n\n[worked-example] Burger King, 2010\nA real example: the two thousand ten take-private of Burger King, a roughly four-billion-dollar deal. It shows the standard structure in action. A new acquisition vehicle — BKC Holdings — was created specifically to hold the company, exactly the NewCo of our diagram. The sponsor's equity went in at the top, the acquisition debt was drawn at the vehicle that bought the shares, and the debt was secured against Burger King's own assets and cash flows. The brand you order fries from is the operating company at the bottom of the chain; everything above it — the holding entities, the debt, the equity — is the scaffolding that made the buyout possible. Strip away the famous name and it's the nesting doll we just drew.\n\n[pitfalls] What people get wrong\nTwo things people get wrong. First, the fund is not the legal buyer — BidCo, the NewCo, is the entity that signs the purchase agreement and takes on the debt. That separation is deliberate: it ring-fences the fund's other investments from this deal's liabilities. Second, the stack of holding companies isn't lawyers over-engineering for the sake of it. Each layer places debt and equity at precisely the right level for tax, for lender security, and for liability protection. If you ever want to know who actually bears the risk in a buyout, don't read the headline — trace where in this chain the debt sits and who owns the layer above it.\n\n[recap] Equity up, debt down\nTo recap. An LBO is built through a chain of entities: the fund owns HoldCo, which owns MidCo, which owns BidCo, which buys the operating company. Senior debt sits low, near the assets at BidCo; junior and PIK debt sits a level up at MidCo; management rolls in alongside; and equity sits at the very top. The rule that explains the whole picture is equity up, debt down. At exit, the order reverses the deal: the company is sold, debt is repaid from the bottom up, and what's left flows out to the equity holders. With the structure clear, we can look next at the table that sizes every one of these pieces — sources and uses of funds.\n\nQ: Draw (or write out) the basic entity structure of an LBO from PE fund to target company. Label each entity and what it holds.\nA: PE Fund → HoldCo (equity) → MidCo (may hold sub-debt) → BidCo/NewCo (draws senior debt, acquires target) → Target Company (operating business, assets secure debt).\nQ: Why is the debt pushed down to BidCo / the target level rather than held at the PE fund level?\nA: Because the target's assets and cash flows are what secure the loans. Lenders need a claim against the operating business. Additionally, keeping debt away from the PE fund protects the fund from legal liability if the target defaults.\nQ: In an LBO, \"closing\" and \"signing\" always happen on the same day.\nA: False. There is typically a gap between signing the SPA and closing the transaction, during which regulatory approvals are obtained, financing is finalised, and conditions precedent are satisfied.\nQ: The \"lead arranger\" in an LBO is primarily responsible for:\n- A) Valuing the target company\n- B) Underwriting the acquisition debt and syndicating it to other lenders\n- C) Negotiating the Share Purchase Agreement\n- D) Managing the target company post-acquisition\nA: **B** — underwriting the acquisition debt and syndicating it to other lenders.\nQ: What is \"management rollover equity\" and why do PE firms want it?\nA: Management rollover equity is when members of the target's management team invest their own money into the new holding structure (at or alongside the PE fund's equity). PE firms want it because it aligns management's financial interests with the success of the deal — management only get rich if the business grows and the exit is successful.\nEnd-card question: In the HoldCo–MidCo–BidCo–OpCo chain, where is senior debt drawn, where does subordinated/PIK debt sit, and why are they at different levels?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Understanding the transaction structure tells you: - <strong>Who owns what</strong> — the legal chain from the PE fund down to the operating business - <strong>Where the debt sits</strong> — and therefore who is exposed to it - <strong>How equity, debt, and management interests interact</strong> in the same vehicle - <strong>Why the structure looks the way it does</strong> — each layer has tax, legal, and regulatory logic</p><p>The structure is not bureaucratic paperwork. It determines liability, tax efficiency, debt service obligations, and how proceeds flow at exit. Every deal participant — PE fund, management, lenders, advisors — cares deeply about how the structure is drawn up.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The LBO transaction structure is the legal and financial architecture through which a private equity firm acquires a target company — typically by creating a new holding entity (\"NewCo\" or \"Bidco\") that sits between the PE fund and the target, and into which both equity and debt are injected at close.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When a PE firm buys a company, it does not simply write a cheque from its fund account directly to the sellers. Instead, it creates a brand-new empty company — call it NewCo — specifically for this acquisition. NewCo is the vehicle that:</p><ol><li>Takes in the equity from the PE fund (and sometimes from the management team)</li><li>Borrows the debt from lenders</li><li>Uses those combined funds to buy 100% of the target company</li></ol><p>After the deal closes, NewCo owns the target. The debt sits inside (or is pushed down to) the target company, because the target's assets and cash flows are what secure the loans.</p><p>Think of it like setting up a new limited company to buy a property portfolio. You would not put the mortgage in your personal name if you could help it — you would create a vehicle, inject equity into it, borrow through it, and let the rental income service the debt. The same logic applies here, with added layers for tax efficiency and legal protection.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Picture a Russian nesting doll (matryoshka). The outermost doll is the PE fund. Inside it is HoldCo. Inside that is BidCo. Inside that is the operating business.</p><p>Equity flows inward (from fund to holding companies) and debt is attached to the inner dolls, secured against the assets they contain. Proceeds at exit flow outward: the operating business is sold, proceeds pay off debt first (innermost dolls), and what remains flows upward to the equity holders at the top.</p><p>Each \"layer\" in the structure has a specific purpose: tax efficiency, legal liability protection, or lender security structuring.</p><p>---</p>"}, "4": {"section": "Diagram", "html": "<p>Equity flows down from the fund; debt attaches at the lowest levels, secured on the operating assets. At exit, proceeds repay debt first and flow back up to equity.</p><p>This is <em>structural subordination</em> in one picture: senior debt at BidCo has a direct claim on OpCo's assets, while MidCo debt must look through BidCo's equity to reach them.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p><strong>The acquisition chain:</strong></p><p>In practice, simpler structures may have just one or two holding entities. More complex structures (especially cross-border deals) add layers for tax and regulatory reasons. The key principle is that <strong>debt flows down to the lowest level possible</strong>, secured against the operating assets, while <strong>equity sits at the top</strong>.</p><p><strong>Key structural elements:</strong></p><p><strong>1. NewCo / BidCo</strong> A newly incorporated entity, often in a tax-efficient jurisdiction. It is the legal acquirer of the target company's shares. Senior lenders take a security package over BidCo's assets and shares.</p><p><strong>2. Equity injection</strong> The PE fund contributes its equity via a capital call to its own investors (the LPs). This equity flows into HoldCo and down to BidCo. See Capital Calls and GP-LP Fund Structure.</p><p><strong>3. Debt</strong> Senior debt (term loans, RCF) is drawn at BidCo level. Subordinated debt or PIK notes may sit at MidCo or HoldCo level. This structural subordination is one mechanism lenders use to define priority of repayment.</p><p><strong>4. Management rollover / co-investment</strong> Existing management of the target often retain or are given equity in the structure — typically at a lower level (e.g., a \"Juco\" or MidCo level) or through a separate Management Incentive Plan (MIP). They invest a meaningful personal amount to align interests. See Management Incentive Plans.</p><p><strong>5. Share Purchase Agreement (SPA)</strong> The legal contract through which BidCo acquires 100% of the target's shares from the sellers. It governs reps and warranties, conditions precedent, price adjustments, and completion mechanics.</p><p><strong>6. Security package</strong> Lenders receive a package of security over the assets of the group: share pledges, fixed and floating charges over assets, bank account charges, and sometimes real estate mortgages. This is their protection in a default.</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>Bain Capital, TPG, and Goldman Sachs: Burger King Acquisition (2010)</strong></p><p>In 2010, a consortium led by 3G Capital (and including Bain Capital and TPG as earlier investors) took Burger King private in a $4 billion LBO. [needs-verification on exact consortium composition]</p><p>The deal illustrates standard LBO structural features: - A new acquisition vehicle (BKC Holdings, Inc.) was created to hold the operating entity - The deal was financed with approximately $2.4B of debt (senior secured term loans and notes) and ~$1.4B of equity - The management team (including the CEO) rolled equity alongside the sponsors - The lead investment bank arranged and syndicated the debt to institutional investors</p><p>3G Capital subsequently merged Burger King with Tim Hortons in 2014 as part of a buy-and-build strategy, demonstrating how the holding structure can be used for subsequent acquisitions.</p><p><strong>What the structure achieved:</strong> - Legal separation of the PE fund from the operating debt (fund not liable if BK defaults) - Management alignment through equity co-investment - Tax-efficient holding structure through the Cayman / Delaware entity chain [needs-verification on specific jurisdictions]</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"The PE fund owns the target company directly\"</strong> Reality: There is always at least one holding entity between the PE fund and the target. This is essential for legal liability protection, tax structuring, and lender security purposes.</p><p><strong>Misconception 2: \"Management rollover means management keeps their existing shares\"</strong> Reality: In most LBOs, the target is taken private (existing shares are acquired by BidCo). Management then re-invest in the new holding structure, typically at a different level and with different share class terms (ordinary shares, sweet equity, options). The MIP is structured to incentivise future growth, not merely preserve existing ownership.</p><p><strong>Misconception 3: \"The lead arranger bank lends all the debt\"</strong> Reality: The lead arranger typically underwrites (commits to provide) the full debt but immediately begins syndicating it to other institutional lenders — CLOs, hedge funds, insurance companies, pension funds. By the time the deal closes, the bank often holds a smaller portion (or none) of the final debt.</p><p><strong>Misconception 4: \"Signing and closing happen simultaneously\"</strong> Reality: In most transactions there is a gap between signing (when the SPA is executed) and closing (when consideration is paid and shares transfer). This gap exists to satisfy regulatory approvals (e.g., competition clearance) and financing conditions. It creates risk — deals can fall apart in this window.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>In an LBO, the PE firm creates a chain of new legal entities — typically HoldCo, MidCo, and BidCo — through which equity flows down from the fund and debt is drawn from lenders. BidCo (or \"NewCo\") is the legal acquirer of the target company's shares. The debt is secured against the operating business's assets and cash flows, not against the PE fund itself. Management co-invest equity alongside the sponsor to align incentives. The deal is formally committed at signing of the SPA, but money only changes hands at closing — after regulatory approvals and financing conditions are met. The lead arranger bank underwrites the debt and syndicates it to institutional investors before close.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

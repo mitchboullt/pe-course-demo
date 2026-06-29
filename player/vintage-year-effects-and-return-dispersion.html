@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "vintage-year-effects-and-return-dispersion", "title": "Vintage Year Effects and Return Dispersion", "draft_watermark": false, "estimated_runtime_sec": 326, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "When did they invest?", "on_screen_bullets": ["LPs compare same-vintage peers", "Many still anchor on raw IRR", "Timing masquerades as skill"], "narration": "Sophisticated investors know to compare a manager's fund against peers of the same vintage — yet many still anchor on the raw headline return when judging a manager, and that is a serious mistake. The year a fund deployed its capital shapes its returns enormously, often more than the manager's skill does. Understanding this is essential for three things: correctly separating macro luck from genuine manager skill, structuring a commitment programme to manage timing risk, and pricing fund positions on the secondary market. A fund that deployed at a credit peak, just before a downturn, experienced a fundamentally different world than one that deployed into a recovery at attractive valuations — and that difference shows up in the returns regardless of how good the managers were. This lesson is about seeing the year behind the number.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Macro stamped on returns", "on_screen_bullets": ["Credit, entry price, exit market", "Explains much of the dispersion", "Skill smaller than it looks"], "narration": "Here is the definition. Vintage-year effects are the systematic variation in fund returns driven by the macroeconomic conditions — credit availability, entry valuations, and exit-market conditions — at the time the capital was invested. They explain a substantial fraction of the dispersion in returns across funds, which means that manager skill is significantly smaller than raw return differentials suggest. Peak-credit cohorts can underperform earlier, cheaper cohorts by a wide margin in return terms — not because those managers executed worse, but because they bought at the top with expensive leverage. So the headline number blends two very different things: the environment the fund was handed, and what the manager did with it. The whole point of vintage analysis is to strip out the first to reveal the second.", "est_sec": 48}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Two identical firms", "on_screen_bullets": ["Same skill, different years", "One cheap entry, one peak", "Returns diverge sharply"], "narration": "Picture two private equity firms with identical operating capabilities. The first raised and deployed its fund in a calm period after a downturn — low entry multiples, cheap debt, a strong market when it came time to sell. The second raised and deployed at a credit peak, hit a financial crisis midway through, and faced a depressed market when it needed to exit. The first shows a strong double-digit return; the second shows a mediocre one. Was the first firm twice as skilled? Not necessarily. Much of that gap is simply the vintage — the macro conditions at entry and exit. The first got cheap debt and low prices; the second got expensive debt and high prices, then a crisis on top. The correction is to compare each fund only to peers that deployed in the same environment. That vintage adjustment is what separates skill from luck, and without it you are crediting or blaming managers for the weather.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Judging the winemaker", "on_screen_bullets": ["Harvest year shapes the wine", "Compare within the same year", "Skill is above your cohort"], "narration": "The cleanest analogy is judging winemakers without knowing the harvest year. A winemaker who produced a superb wine in an excellent harvest year looks like a genius; the very same winemaker, working a difficult harvest, looks merely average. To actually judge the winemaker, you have to compare them to their peers working the same harvest — same weather, same grapes — not to winemakers in different years who enjoyed better or worse conditions. Manager skill in private equity is exactly this: it is the manager's performance above their vintage cohort, not their absolute number. A return that has not been vintage-adjusted is just the combined effect of skill and weather mashed together. So whenever you see a raw return, your first instinct should be to ask what the harvest year was like — because half the story is the conditions, not the craft.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Three mechanisms", "on_screen_bullets": ["Credit conditions at entry", "Entry multiples paid", "Exit market at the end"], "narration": "Three mechanisms produce vintage-year effects. First, credit conditions at entry: when leverage is cheap and abundant, more of it is available, which amplifies returns for any given level of operational improvement; when credit is expensive and tight, that amplification shrinks. Second, entry multiples: peak-cycle funds pay high prices for businesses, which mechanically compresses return potential, while trough-cycle funds buy the same kind of business far more cheaply and start with more upside. Third, exit-market conditions: the multiple a fund can sell at, several years after entry, is heavily shaped by the macro cycle at that later moment — and the availability of exit routes, whether trade sales or public listings, depends on the appetite of the market in those exit years. None of these three is really about the individual deal; all three are about the environment. And there is an important corollary here: research finds that private-equity leverage tracks credit-market conditions more than deal-specific fundamentals — funds tend to use the maximum leverage available at the time, so a peak-vintage fund is not more reckless than a trough-vintage one, it simply faced a different credit market.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "How big is the effect", "on_screen_bullets": ["Roughly a fifth to a third", "Persistence adds more", "Rest is deal-specific"], "narration": "How much does the vintage actually explain? Research that decomposes the dispersion in fund returns finds that vintage-year effects account for something on the order of a fifth to a third of the variation across funds. Manager persistence — whether a firm's earlier funds predict its later ones — explains a further meaningful chunk, and the remainder reflects portfolio-company-specific factors and pure execution differences. The practical implication is blunt: if one fund returned a strong number and another a weaker one, but they were several vintage years apart, a large part of that gap is the vintage, not evidence that one manager is more skilled. This is exactly why comparing absolute returns across different vintage years is so misleading, and why the entire discipline of vintage-adjusted benchmarking exists. The headline gap is real, but most of it may simply be that one fund was handed a better hand of cards.", "est_sec": 52}, {"n": 7, "beat": "example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Same year, opposite fates", "on_screen_bullets": ["Two huge peak-vintage deals", "One went bankrupt", "One thrived on execution"], "narration": "Here is the lesson made vivid by two famous megadeals struck in the same peak year, under identical credit conditions and entry-pricing environments. One was an enormous energy buyout whose thesis rested on commodity prices staying high; a supply revolution made that thesis wrong, and the company eventually collapsed into bankruptcy — a total loss. The other was an enormous hospitality buyout, also entered at a high price with heavy leverage, also caught by the financial crisis mid-hold; but its thesis rested on improving operations, and disciplined execution sustained its cash flows through the crisis and into a highly profitable exit years later. Same vintage, same macro headwinds, opposite outcomes. And that is precisely the point: the vintage compressed the ceiling and the floor for both — both faced a hard environment — but the divergence between them was manager execution, not the vintage. The vintage set the conditions; the skill, or its absence, determined who survived them.", "est_sec": 54}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four traps", "on_screen_bullets": ["High return isn't always skill", "Low return isn't always weakness", "Secondaries must price vintage"], "narration": "Four misconceptions to correct. First, that a high absolute return means a skilled manager — in a favourable vintage, that may be mostly macro tailwind, so you need the vintage-adjusted comparison. Second, that a low return means a poor manager — a fund showing a modest number in a brutal vintage may actually rank top of its cohort, implying above-median skill at navigating a hard environment. Third, that the public-market-equivalent comparison resolves the vintage issue entirely — it helps, by comparing to public markets over the same period, but private-equity entry timing and pricing differ from public valuations, so the public-market and vintage-cohort adjustments capture different things and you really want both. And fourth, that secondary pricing can ignore vintage — it cannot; for an early-life fund, the remaining vintage-risk profile is a central pricing input, because a fund that deployed just before a rate shock faces very different prospects than one that deployed into a recovery, even at the same headline value.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Separate skill from weather", "on_screen_bullets": ["Vintage explains much dispersion", "Adjust to find true alpha", "Primary input for LPs and secondaries"], "narration": "So to summarise: vintage-year effects — the systematic return variation driven by credit conditions, entry multiples, and exit-market timing at the moment of deployment — explain roughly a fifth to a third of the dispersion in returns across funds. Peak-credit cohorts have underperformed cheaper, earlier cohorts by a wide margin, largely because expensive leverage inflated entry prices without improving the underlying businesses. Vintage-adjusted benchmarking — ranking each fund against peers that deployed in the same environment, supplemented by public-market comparison — is what separates genuine manager skill from macro luck. And for due diligence, secondary pricing, and commitment pacing, the vintage is a primary input, not a footnote. The reflex to carry forward: when you see a return, your first question is always what year did this capital go to work, because the answer is half the story.", "est_sec": 50}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Name the three mechanisms", "Why compare within a vintage?", "Same year, why diverge?"], "narration": "Before you finish, answer these from memory. What are the three mechanisms through which the vintage year shapes returns? Why must you compare a fund only to peers from the same vintage rather than to its raw absolute return? And when two megadeals struck in the same vintage year end up with opposite outcomes, what does that divergence actually measure? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Vintage Year Effects and Return Dispersion\n\n[hook] When did they invest?\nSophisticated investors know to compare a manager's fund against peers of the same vintage — yet many still anchor on the raw headline return when judging a manager, and that is a serious mistake. The year a fund deployed its capital shapes its returns enormously, often more than the manager's skill does. Understanding this is essential for three things: correctly separating macro luck from genuine manager skill, structuring a commitment programme to manage timing risk, and pricing fund positions on the secondary market. A fund that deployed at a credit peak, just before a downturn, experienced a fundamentally different world than one that deployed into a recovery at attractive valuations — and that difference shows up in the returns regardless of how good the managers were. This lesson is about seeing the year behind the number.\n\n[definition] Macro stamped on returns\nHere is the definition. Vintage-year effects are the systematic variation in fund returns driven by the macroeconomic conditions — credit availability, entry valuations, and exit-market conditions — at the time the capital was invested. They explain a substantial fraction of the dispersion in returns across funds, which means that manager skill is significantly smaller than raw return differentials suggest. Peak-credit cohorts can underperform earlier, cheaper cohorts by a wide margin in return terms — not because those managers executed worse, but because they bought at the top with expensive leverage. So the headline number blends two very different things: the environment the fund was handed, and what the manager did with it. The whole point of vintage analysis is to strip out the first to reveal the second.\n\n[intuition] Two identical firms\nPicture two private equity firms with identical operating capabilities. The first raised and deployed its fund in a calm period after a downturn — low entry multiples, cheap debt, a strong market when it came time to sell. The second raised and deployed at a credit peak, hit a financial crisis midway through, and faced a depressed market when it needed to exit. The first shows a strong double-digit return; the second shows a mediocre one. Was the first firm twice as skilled? Not necessarily. Much of that gap is simply the vintage — the macro conditions at entry and exit. The first got cheap debt and low prices; the second got expensive debt and high prices, then a crisis on top. The correction is to compare each fund only to peers that deployed in the same environment. That vintage adjustment is what separates skill from luck, and without it you are crediting or blaming managers for the weather.\n\n[intuition] Judging the winemaker\nThe cleanest analogy is judging winemakers without knowing the harvest year. A winemaker who produced a superb wine in an excellent harvest year looks like a genius; the very same winemaker, working a difficult harvest, looks merely average. To actually judge the winemaker, you have to compare them to their peers working the same harvest — same weather, same grapes — not to winemakers in different years who enjoyed better or worse conditions. Manager skill in private equity is exactly this: it is the manager's performance above their vintage cohort, not their absolute number. A return that has not been vintage-adjusted is just the combined effect of skill and weather mashed together. So whenever you see a raw return, your first instinct should be to ask what the harvest year was like — because half the story is the conditions, not the craft.\n\n[mechanics] Three mechanisms\nThree mechanisms produce vintage-year effects. First, credit conditions at entry: when leverage is cheap and abundant, more of it is available, which amplifies returns for any given level of operational improvement; when credit is expensive and tight, that amplification shrinks. Second, entry multiples: peak-cycle funds pay high prices for businesses, which mechanically compresses return potential, while trough-cycle funds buy the same kind of business far more cheaply and start with more upside. Third, exit-market conditions: the multiple a fund can sell at, several years after entry, is heavily shaped by the macro cycle at that later moment — and the availability of exit routes, whether trade sales or public listings, depends on the appetite of the market in those exit years. None of these three is really about the individual deal; all three are about the environment. And there is an important corollary here: research finds that private-equity leverage tracks credit-market conditions more than deal-specific fundamentals — funds tend to use the maximum leverage available at the time, so a peak-vintage fund is not more reckless than a trough-vintage one, it simply faced a different credit market.\n\n[mechanics] How big is the effect\nHow much does the vintage actually explain? Research that decomposes the dispersion in fund returns finds that vintage-year effects account for something on the order of a fifth to a third of the variation across funds. Manager persistence — whether a firm's earlier funds predict its later ones — explains a further meaningful chunk, and the remainder reflects portfolio-company-specific factors and pure execution differences. The practical implication is blunt: if one fund returned a strong number and another a weaker one, but they were several vintage years apart, a large part of that gap is the vintage, not evidence that one manager is more skilled. This is exactly why comparing absolute returns across different vintage years is so misleading, and why the entire discipline of vintage-adjusted benchmarking exists. The headline gap is real, but most of it may simply be that one fund was handed a better hand of cards.\n\n[example] Same year, opposite fates\nHere is the lesson made vivid by two famous megadeals struck in the same peak year, under identical credit conditions and entry-pricing environments. One was an enormous energy buyout whose thesis rested on commodity prices staying high; a supply revolution made that thesis wrong, and the company eventually collapsed into bankruptcy — a total loss. The other was an enormous hospitality buyout, also entered at a high price with heavy leverage, also caught by the financial crisis mid-hold; but its thesis rested on improving operations, and disciplined execution sustained its cash flows through the crisis and into a highly profitable exit years later. Same vintage, same macro headwinds, opposite outcomes. And that is precisely the point: the vintage compressed the ceiling and the floor for both — both faced a hard environment — but the divergence between them was manager execution, not the vintage. The vintage set the conditions; the skill, or its absence, determined who survived them.\n\n[application] Four traps\nFour misconceptions to correct. First, that a high absolute return means a skilled manager — in a favourable vintage, that may be mostly macro tailwind, so you need the vintage-adjusted comparison. Second, that a low return means a poor manager — a fund showing a modest number in a brutal vintage may actually rank top of its cohort, implying above-median skill at navigating a hard environment. Third, that the public-market-equivalent comparison resolves the vintage issue entirely — it helps, by comparing to public markets over the same period, but private-equity entry timing and pricing differ from public valuations, so the public-market and vintage-cohort adjustments capture different things and you really want both. And fourth, that secondary pricing can ignore vintage — it cannot; for an early-life fund, the remaining vintage-risk profile is a central pricing input, because a fund that deployed just before a rate shock faces very different prospects than one that deployed into a recovery, even at the same headline value.\n\n[recap] Separate skill from weather\nSo to summarise: vintage-year effects — the systematic return variation driven by credit conditions, entry multiples, and exit-market timing at the moment of deployment — explain roughly a fifth to a third of the dispersion in returns across funds. Peak-credit cohorts have underperformed cheaper, earlier cohorts by a wide margin, largely because expensive leverage inflated entry prices without improving the underlying businesses. Vintage-adjusted benchmarking — ranking each fund against peers that deployed in the same environment, supplemented by public-market comparison — is what separates genuine manager skill from macro luck. And for due diligence, secondary pricing, and commitment pacing, the vintage is a primary input, not a footnote. The reflex to carry forward: when you see a return, your first question is always what year did this capital go to work, because the answer is half the story.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What are the three mechanisms through which the vintage year shapes returns? Why must you compare a fund only to peers from the same vintage rather than to its raw absolute return? And when two megadeals struck in the same vintage year end up with opposite outcomes, what does that divergence actually measure? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>LP due diligence standard practice involves comparing a GP's fund returns to peer funds of the same vintage — but many LPs still anchor on absolute IRR figures when evaluating managers. Understanding vintage year effects is essential for: (1) correctly attributing PE returns between macro beta and GP alpha; (2) structuring LP pacing programmes to account for vintage year risk; (3) evaluating secondary market pricing of fund interests at different vintage stages. For an LP's K-1 pipeline, the vintage year of the underlying funds determines the macro environment those investments experienced — a 2007-vintage fund (like KKR's investment in Energy Future Holdings) experienced peak-leverage entry and GFC exit markets, producing structurally different K-1 character than a 2012-vintage fund entering post-GFC at attractive valuations.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Vintage year effects — the systematic variation in PE fund returns driven by macroeconomic conditions (credit availability, entry multiples, and exit market conditions) at the time of investment — explain a substantial fraction of PE return dispersion across funds, meaning that GP alpha (skill-based outperformance) is significantly smaller than raw return differentials suggest, with the 2006-2008 vintage cohorts underperforming 2002-2005 vintages by 20-30 IRR percentage points due to peak-credit entry pricing rather than inferior GP execution.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine two PE firms, each with 15 years of track record and identical operating capabilities. Firm A raised its flagship fund in 2003 and deployed capital in 2003-2006 (post-dot-com, low entry multiples, strong exit market). Firm B raised its flagship fund in 2007 and deployed in 2007-2010 (peak leverage, GFC mid-deployment, depressed exit market). Firm A shows 20%+ net IRR. Firm B shows 10% net IRR.</p><p>Was Firm A twice as skilled as Firm B? Not necessarily. Much of the return difference was the vintage year: the macro conditions at entry and exit. Firm A got cheap debt and low entry multiples; Firm B got expensive debt and high entry multiples, then faced a credit crisis mid-fund.</p><p>Vintage year adjustment — comparing funds only to peers deployed in the same macro environment — is the correction that separates skill from luck.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Vintage year effect is like trying to evaluate winemakers based on bottle prices without knowing the harvest year. A Burgundy winemaker who produced great 2010 wine (excellent vintage conditions) looks like a genius; the same winemaker with a 2013 harvest (difficult conditions) looks mediocre. Judging the winemaker requires comparing them to their peers in the same harvest year — not to winemakers in different years with better or worse weather.</p><p>GP alpha in PE is the winemaker's skill above their vintage cohort peers. Vintage-year-unadjusted IRR is just the combined effect of skill AND weather.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### What Vintage Year Effects Are</p><p><strong>Definition:</strong> The vintage year of a PE fund is the year the fund's first investment was made (in some methodologies, the fund close year). Vintage year effects are the systematic differences in fund performance explained by:</p><ol><li><strong>Credit conditions at entry:</strong> How cheap was leverage? Low base rates + tight credit spreads → high leverage available → higher returns at any given operational improvement level (leverage amplification effect)</li><li><strong>Entry multiples:</strong> What EV/EBITDA were funds paying? High entry multiples (2007: 9-10x; 2021: 12-13x) compress return potential relative to low-multiple vintages (2002-2003: 6-7x)</li><li><strong>Exit market conditions:</strong> What multiples were acquirers paying when the fund was exiting? Exit multiples 3-5 years after entry are partially determined by the macro cycle at exit</li><li><strong>M&amp;A activity and IPO window:</strong> Exit routes available during the fund's typical exit window (years 4-7) depend on corporate M&amp;A appetite and IPO market conditions at that time</li></ol><p>### The Axelson et al. Finding</p><p>Axelson, Strömberg, and Weisbach (2013) documented that PE leverage ratios track credit market conditions more closely than deal fundamentals. Their finding: PE funds use maximum available leverage at any given time, rather than calibrating leverage to deal-specific risk. This means:</p><ul class='notelist'><li>High-vintage years (2006-2008) used maximum leverage because credit was cheap and abundant</li><li>Returns in those vintages are structurally lower because entry prices (paid with cheap leverage) were high</li><li>The debt service burden per unit of EBITDA was higher, leaving less margin for operational error</li></ul><p>The implication: PE leverage is endogenous to credit markets, not to individual deal quality. A 2007-vintage fund deploying at 7-8x EBITDA leverage is not more aggressive than a 2003-vintage fund at 5-6x — both are using the maximum available from credit markets at the time.</p><p>### Historical Vintage Return Dispersion</p><p><strong>2002-2005 vintages (post-dot-com, pre-peak):</strong> - Entry multiples: 6-7x EV/EBITDA - Leverage: 4.5-5.5x EBITDA - Exit conditions: Strong M&amp;A market 2005-2007, strong IPO window - Performance: Upper-quartile funds: 25%+ net IRR; median: 15-18% net IRR - Representative case: KKR's Alliance Boots (2007, acquired at 2006 terms) — see The 2000s Mega-Buyout Era (2002–2007)</p><p><strong>2006-2008 vintages (peak credit, pre-GFC):</strong> - Entry multiples: 9-10x EV/EBITDA - Leverage: 6-7.5x EBITDA - Exit conditions: GFC closed exit market 2008-2011; slow recovery - Performance: Upper-quartile funds: 12-15% net IRR; median: 7-10% net IRR; many sub-scale funds returned &lt;1.0x MOIC - Representative case: KKR/TPG Energy Future Holdings (2007, $43bn, Chapter 11 2014) — see Energy Future Holdings Case Study - Note: Strong execution could partially overcome vintage drag (Blackstone's Hilton Hotels — 2007 vintage, $14bn profit, survived via operational excellence and post-GFC recovery)</p><p><strong>2009-2012 vintages (post-GFC recovery):</strong> - Entry multiples: 6-8x EV/EBITDA - Leverage: 4.5-5.5x EBITDA initially; rising through 2012 - Exit conditions: Improving from 2012; strong M&amp;A 2012-2015 - Performance: Among the strongest post-2000 vintage cohort - Macro tailwind: Buying distressed/recovering assets at post-GFC multiples with post-GFC debt pricing</p><p><strong>2019-2021 vintages (zero-rate peak):</strong> - Entry multiples: 11-13x EV/EBITDA - Leverage: 6-7.5x EBITDA (cov-lite); historically elevated - Exit conditions: Rising rates from 2022; M&amp;A freeze; IPO market closed - Performance: Expected to be impaired; many funds extending hold periods - See: The Post-2022 PE Market Reset</p><p>### Quantifying the Vintage Effect</p><p>Harris, Jenkinson and Kaplan (2014) estimated that vintage year effects explain approximately 20-30% of cross-fund return variance. GP skill (measured by persistence — whether a GP's fund 1 performance predicts fund 2 performance, see Return Persistence in PE) explains another 15-20%. The remaining variance reflects portfolio company-specific factors and execution differences.</p><p><strong>Practical implication:</strong> If a 2006-vintage fund produced 12% net IRR and a 2003-vintage fund produced 20% net IRR, the 8-point differential is largely (but not entirely) the vintage effect, not evidence of superior skill by the 2003-vintage GP.</p><p>### Vintage-Adjusted Benchmarking Methodology</p><p>Cambridge Associates and other benchmark providers construct vintage-year peer groups to address this:</p><p><strong>Vintage year quartile analysis:</strong> - Funds are grouped by vintage year (±1 year to create meaningful cohorts) - Upper quartile (Q1), median (Q2 boundary), lower quartile (Q3) benchmarks set within vintage year groups - A fund at Q1 in its vintage year cohort is more informative than a fund showing 15% absolute IRR</p><p><strong>PME (Public Market Equivalent) approach:</strong> PME benchmarks (see PME Analysis) compare PE returns to public market alternatives over the same investment period. A 2007-vintage fund at 12% IRR may compare favourably to the S&amp;P 500's returns over the same 2007-2014 period (which included the GFC drawdown). PME adjusts for the macro environment experienced by both PE and public markets simultaneously.</p><p><strong>Limitations of vintage-year adjustment:</strong> - Vintage year cohorts are small (5-15 funds per year in large-cap buyout), creating statistical noise - GPs who chose not to deploy capital in peak years (2007, 2021) are not in the vintage cohort — survivorship issue - Same vintage funds may deploy capital over 3-5 years, facing different conditions within the stated vintage - CVC Secondary Partners acquires LP interests at various points in fund lives — secondary pricing must assess where in the vintage cycle the fund sits</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### What Vintage Year Effects Are</p><p><strong>Definition:</strong> The vintage year of a PE fund is the year the fund's first investment was made (in some methodologies, the fund close year). Vintage year effects are the systematic differences in fund performance explained by:</p><ol><li><strong>Credit conditions at entry:</strong> How cheap was leverage? Low base rates + tight credit spreads → high leverage available → higher returns at any given operational improvement level (leverage amplification effect)</li><li><strong>Entry multiples:</strong> What EV/EBITDA were funds paying? High entry multiples (2007: 9-10x; 2021: 12-13x) compress return potential relative to low-multiple vintages (2002-2003: 6-7x)</li><li><strong>Exit market conditions:</strong> What multiples were acquirers paying when the fund was exiting? Exit multiples 3-5 years after entry are partially determined by the macro cycle at exit</li><li><strong>M&amp;A activity and IPO window:</strong> Exit routes available during the fund's typical exit window (years 4-7) depend on corporate M&amp;A appetite and IPO market conditions at that time</li></ol><p>### The Axelson et al. Finding</p><p>Axelson, Strömberg, and Weisbach (2013) documented that PE leverage ratios track credit market conditions more closely than deal fundamentals. Their finding: PE funds use maximum available leverage at any given time, rather than calibrating leverage to deal-specific risk. This means:</p><ul class='notelist'><li>High-vintage years (2006-2008) used maximum leverage because credit was cheap and abundant</li><li>Returns in those vintages are structurally lower because entry prices (paid with cheap leverage) were high</li><li>The debt service burden per unit of EBITDA was higher, leaving less margin for operational error</li></ul><p>The implication: PE leverage is endogenous to credit markets, not to individual deal quality. A 2007-vintage fund deploying at 7-8x EBITDA leverage is not more aggressive than a 2003-vintage fund at 5-6x — both are using the maximum available from credit markets at the time.</p><p>### Historical Vintage Return Dispersion</p><p><strong>2002-2005 vintages (post-dot-com, pre-peak):</strong> - Entry multiples: 6-7x EV/EBITDA - Leverage: 4.5-5.5x EBITDA - Exit conditions: Strong M&amp;A market 2005-2007, strong IPO window - Performance: Upper-quartile funds: 25%+ net IRR; median: 15-18% net IRR - Representative case: KKR's Alliance Boots (2007, acquired at 2006 terms) — see The 2000s Mega-Buyout Era (2002–2007)</p><p><strong>2006-2008 vintages (peak credit, pre-GFC):</strong> - Entry multiples: 9-10x EV/EBITDA - Leverage: 6-7.5x EBITDA - Exit conditions: GFC closed exit market 2008-2011; slow recovery - Performance: Upper-quartile funds: 12-15% net IRR; median: 7-10% net IRR; many sub-scale funds returned &lt;1.0x MOIC - Representative case: KKR/TPG Energy Future Holdings (2007, $43bn, Chapter 11 2014) — see Energy Future Holdings Case Study - Note: Strong execution could partially overcome vintage drag (Blackstone's Hilton Hotels — 2007 vintage, $14bn profit, survived via operational excellence and post-GFC recovery)</p><p><strong>2009-2012 vintages (post-GFC recovery):</strong> - Entry multiples: 6-8x EV/EBITDA - Leverage: 4.5-5.5x EBITDA initially; rising through 2012 - Exit conditions: Improving from 2012; strong M&amp;A 2012-2015 - Performance: Among the strongest post-2000 vintage cohort - Macro tailwind: Buying distressed/recovering assets at post-GFC multiples with post-GFC debt pricing</p><p><strong>2019-2021 vintages (zero-rate peak):</strong> - Entry multiples: 11-13x EV/EBITDA - Leverage: 6-7.5x EBITDA (cov-lite); historically elevated - Exit conditions: Rising rates from 2022; M&amp;A freeze; IPO market closed - Performance: Expected to be impaired; many funds extending hold periods - See: The Post-2022 PE Market Reset</p><p>### Quantifying the Vintage Effect</p><p>Harris, Jenkinson and Kaplan (2014) estimated that vintage year effects explain approximately 20-30% of cross-fund return variance. GP skill (measured by persistence — whether a GP's fund 1 performance predicts fund 2 performance, see Return Persistence in PE) explains another 15-20%. The remaining variance reflects portfolio company-specific factors and execution differences.</p><p><strong>Practical implication:</strong> If a 2006-vintage fund produced 12% net IRR and a 2003-vintage fund produced 20% net IRR, the 8-point differential is largely (but not entirely) the vintage effect, not evidence of superior skill by the 2003-vintage GP.</p><p>### Vintage-Adjusted Benchmarking Methodology</p><p>Cambridge Associates and other benchmark providers construct vintage-year peer groups to address this:</p><p><strong>Vintage year quartile analysis:</strong> - Funds are grouped by vintage year (±1 year to create meaningful cohorts) - Upper quartile (Q1), median (Q2 boundary), lower quartile (Q3) benchmarks set within vintage year groups - A fund at Q1 in its vintage year cohort is more informative than a fund showing 15% absolute IRR</p><p><strong>PME (Public Market Equivalent) approach:</strong> PME benchmarks (see PME Analysis) compare PE returns to public market alternatives over the same investment period. A 2007-vintage fund at 12% IRR may compare favourably to the S&amp;P 500's returns over the same 2007-2014 period (which included the GFC drawdown). PME adjusts for the macro environment experienced by both PE and public markets simultaneously.</p><p><strong>Limitations of vintage-year adjustment:</strong> - Vintage year cohorts are small (5-15 funds per year in large-cap buyout), creating statistical noise - GPs who chose not to deploy capital in peak years (2007, 2021) are not in the vintage cohort — survivorship issue - Same vintage funds may deploy capital over 3-5 years, facing different conditions within the stated vintage - CVC Secondary Partners acquires LP interests at various points in fund lives — secondary pricing must assess where in the vintage cycle the fund sits</p><p>---</p>"}, "6": {"section": "Real-World Example", "html": "<p><strong>KKR Energy Future Holdings vs. Blackstone Hilton Hotels — Same Vintage, Different Outcomes</strong></p><p>Both acquired in 2007 (same vintage year, same credit conditions, same entry multiple environment):</p><ul class='notelist'><li><strong>KKR/TPG Energy Future Holdings (2007, $43bn):</strong> Thesis rested on continued high natural gas prices. Shale gas revolution made thesis wrong. Chapter 11 in 2014. Total loss of approximately $8bn. Vintage effect + wrong thesis = total failure.</li></ul><ul class='notelist'><li><strong>Blackstone Hilton Hotels (2007, $26bn):</strong> High leverage entry, GFC mid-hold. Thesis rested on improving hotel operations and RevPAR growth. Operational execution (Hilton loyalty programme, revenue management) sustained cash flows through GFC. Full exit by 2018 — approximately $14bn profit. Same vintage, surviving through operational excellence and thesis resilience.</li></ul><p><strong>The lesson:</strong> Vintage effects compress the ceiling and floor of achievable returns (a 2007-vintage fund facing GFC needs exceptional execution to produce 2003-vintage-comparable returns). But exceptional execution within a vintage cohort is the visible component of GP alpha. EFH and Hilton are both 2007-vintage — their divergence is GP execution, not vintage year.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>\"High absolute IRR means a GP is skilled.\"</strong> — High absolute IRR in a favourable vintage year (2003, 2009, 2012) may reflect macro beta more than GP alpha. Vintage-year-adjusted comparison is required.</p><p><strong>\"Low IRR means a GP is poor.\"</strong> — A 2007-vintage fund showing 10% IRR may be Q1 in its vintage cohort, implying above-median skill at managing through a difficult environment.</p><p><strong>\"PME benchmarking resolves vintage year issues.\"</strong> — PME compares to public markets over the same period, which partially controls for macroeconomic conditions. But PE entry timing and PE entry multiples differ from public market valuations, meaning PME-adjusted and vintage-year-adjusted comparisons capture different things. Both are needed.</p><p><strong>\"Secondary pricing should ignore vintage year.\"</strong> — Secondary buyers (CVC) price LP interests at a discount to NAV. For early-life funds (years 1-3), the vintage year is a key pricing input: a 2020-vintage fund entering a 2022+ rate-shock environment faces different return prospects than a 2009-vintage fund entering the post-GFC recovery.</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>Vintage year effects — systematic return variation driven by credit conditions, entry multiples, and exit market timing at the time of fund deployment — explain approximately 20-30% of cross-fund PE return dispersion. The 2006-2008 vintage cohort underperformed 2002-2005 by 10-20 IRR percentage points (median), largely because peak-credit leverage inflated entry prices without improving underlying business quality. Vintage-adjusted benchmarking (Cambridge Associates vintage cohort quartile ranking; PME benchmarking) is necessary to separate GP alpha from macro beta. For LP due diligence, secondary market pricing, and fund pacing, vintage year is a primary input — CVC Secondary Partners must model the remaining vintage year risk profile of each position it acquires.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>Vintage year effects — systematic return variation driven by credit conditions, entry multiples, and exit market timing at the time of fund deployment — explain approximately 20-30% of cross-fund PE return dispersion. The 2006-2008 vintage cohort underperformed 2002-2005 by 10-20 IRR percentage points (median), largely because peak-credit leverage inflated entry prices without improving underlying business quality. Vintage-adjusted benchmarking (Cambridge Associates vintage cohort quartile ranking; PME benchmarking) is necessary to separate GP alpha from macro beta. For LP due diligence, secondary market pricing, and fund pacing, vintage year is a primary input — CVC Secondary Partners must model the remaining vintage year risk profile of each position it acquires.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

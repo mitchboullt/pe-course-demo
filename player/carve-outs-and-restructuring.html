@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "carve-outs-and-restructuring", "title": "Carve-Outs and Restructuring", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Buy a business and build a company", "on_screen_bullets": ["~20–30% of deal flow", "Less competitive — complexity scares buyers", "Different playbook entirely"], "narration": "Carve-outs are roughly twenty to thirty percent of PE deal flow by count, and a higher share by value — one of the most consistently available deal types, because large corporations are forever re-evaluating their portfolio of businesses. They matter for four reasons. They're often less competitive than standalone auctions, because many PE buyers lack the operational expertise to manage the separation, so a GP with carve-out capability accesses deal flow others avoid. The complexity creates pricing opportunity, because corporate sellers frequently misprice these assets. The hundred-day plan is fundamentally different — you must first build the infrastructure the parent provided before any value creation begins. And concepts like TUPE, transitional service agreements, and stranded costs are unique to carve-outs and central to execution. This is the deal type that separates a team that's done carve-outs from one that's only done clean buyouts.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Buying an embedded division", "on_screen_bullets": ["A unit from a corporate parent", "Make it a standalone entity", "Own systems, team, relationships"], "narration": "The definition. A carve-out is a PE acquisition of a division, subsidiary, or business unit from a larger corporate parent — where the core challenge is not just buying the business but transforming it from an embedded corporate division into a fully independent, standalone operating entity with its own systems, management team, and commercial relationships. You're acquiring a business and building a company around it at the same time.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Tesco sells the bakery", "on_screen_bullets": ["Used Tesco's IT, HR, finance, brand", "Never filed standalone accounts", "Must build a whole company around it"], "narration": "Imagine a supermarket chain — Tesco — owns a food-manufacturing unit, its own-brand bakery, that's been part of Tesco for thirty years. The bakery uses Tesco's IT systems, payroll, finance team, legal department, and brand; its results are just a line in Tesco's group accounts, and it has never filed standalone accounts. Now Tesco sells it to a PE firm. The firm isn't just buying a bakery — it's buying a bakery deeply enmeshed in Tesco's infrastructure. To make it independent, the firm must extract the bakery's financial history from the group accounts, set up its own IT systems, build its own HR, payroll, legal, and finance functions, transfer employees across with all their rights intact, and negotiate an agreement where Tesco keeps providing services during the transition. None of this happens in a standard acquisition — when you buy a standalone company, it already has its own systems, team, and brand. The complexity is the trade-off for what's often a more attractive deal: a motivated seller, assets a distracted parent may have underinvested or underpriced, and a standalone company that can be dramatically more efficient than the bureaucratic division it replaces.", "est_sec": 62}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Adopting a dependent child", "on_screen_bullets": ["Comes with character, but no bank account", "Run it AND build its independent life", "TSA = old family helps for 6 months"], "narration": "The mental model: a carve-out is like adopting a child from a large family. The child arrives with their own character, habits, and friends — the business's products, customers, employees — but they've been part of a family that handled everything centrally: meals, transport, school registration. They have no separate bank account, no independent identity document, no idea how to run a household. Your job as the adoptive parent — the PE owner — is to do three things at once: care for the child, that's running the business operationally; build their independent life, the standalone systems, management, and governance; and manage the handover from the biological family — the transitional service agreement, where the old family keeps doing the school run for six months while you set up your own routine. A clean buyout, by contrast, is adopting an adult who already has their own apartment and bank account.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Five carve-out challenges", "on_screen_bullets": ["Carve-out accounting + stranded costs", "TSAs (6–24 months), TUPE transfers", "Day 1 readiness or chaos"], "narration": "Technically, first understand why corporates divest: strategic refocus, back-to-core, like GE shedding divisions; regulatory or antitrust-mandated divestiture; financial distress and deleveraging; activist pressure to unwind a conglomerate discount; or simple management bandwidth, where a peripheral division never gets the focus it needs. Then come the five structural challenges unique to carve-outs. One, carve-out accounting: the division has never been standalone, so its financials are carved out of the parent's consolidated accounts, full of shared-service allocations and intercompany transactions at non-market prices — and diligence must rebuild the P&L to standalone reality, which almost always reveals a higher cost base than the allocated one. Two, transitional service agreements: after close the parent keeps providing IT, payroll, HR, finance, and logistics for a defined period, typically six to twenty-four months per service, and the quality of that TSA is a major deal risk — too short or too costly and the business is disrupted before its own infrastructure is ready. Three, stranded costs: costs the parent bore but that aren't visible in the allocated P&L — a standalone ERP implementation costing anywhere from half a million to five million, independent board and audit, lost group purchasing power, and brand licensing — all of which mean true standalone EBITDA is lower than the allocated EBITDA in the seller's pack. Four, TUPE — the transfer-of-undertakings regulations — under which employees who work mainly in the business transfer automatically at close, with all their existing terms intact, sometimes carrying defined-benefit pension deficits running to tens of millions, and which the buyer cannot change unilaterally on day one. And five, Day 1 readiness: the standalone entity must be legally and operationally able to trade from the moment of completion — legal entities, funded bank accounts, working IT, insurance, regulatory approvals, key supplier contracts — because a carve-out that fails Day 1, payroll not run, systems down, can create operational chaos that destroys value in the very first week.", "est_sec": 78}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "KKR / Upfield, €6.8bn", "on_screen_bullets": ["Unilever spreads: Flora, Becel, etc.", "70+ countries, 40+ TSA categories", "Thesis: premiumise plant-based, standalone focus"], "narration": "Take KKR's 2017 acquisition of Unilever's global spreads business — Flora, Becel, I Can't Believe It's Not Butter, Country Crock — for about six-point-eight billion euros, rebranded as Upfield: one of the largest carve-outs in European consumer-goods history. Why did Unilever divest? It was refocusing on high-growth, high-margin categories, and spreads — margarine and butter alternatives — were in structural decline in Western markets, non-core and consuming management attention Unilever wanted elsewhere. The complexity was immense. Carve-out accounting: the business had been embedded in Unilever for decades, so diligence had to rebuild a standalone P&L, stripping out Unilever allocations and adding market-rate costs. TSAs: Unilever operated in seventy-plus countries, and KKR negotiated a comprehensive agreement covering roughly fifty service categories across forty-plus countries, projected to run up to twenty-four months in complex markets. Brand: critically, the Unilever name was not acquired — the business owned its product brands but had to de-link from Unilever's corporate identity, a multi-year exercise. TUPE: employees across forty-plus countries transferred on existing terms, and KKR inherited defined-benefit pension obligations in multiple countries, specifically negotiated in the SPA. And Day 1: KKR pre-established Upfield as a standalone entity, with bank accounts, payroll, and an interim CFO and COO operational from close. The value thesis was the classic carve-out playbook — premiumise toward plant-based spreads, strip out the corporate overhead, invest the R&D Unilever never gave the category, and apply management focus a distracted parent couldn't. Upfield became one of the world's largest plant-based food companies, with revenues around three billion.", "est_sec": 76}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Carve-out ≠ low quality", "TUPE allows lawful redundancy", "Standalone EBITDA is not simple subtraction"], "narration": "Four corrections. First, carve-out targets aren't lower quality just because the parent was selling — many are high-quality assets simply non-core to the seller's strategy; Unilever's spreads business was a globally recognised brand with billions in revenue, not a distressed asset, and strategic non-core disposals can be among the best PE opportunities. Second, TUPE doesn't permanently prevent restructuring — it blocks unilateral changes to terms at the moment of transfer, but the new owner can make genuine redundancies afterward for economic, technical, or organisational reasons, following proper process; it's a process requirement, not a permanent freeze. Third, standalone EBITDA is not just allocated EBITDA minus corporate overheads — it requires removing allocations that won't exist, adding market-rate costs for services the parent provided cheaply, stripping out intercompany revenues that won't persist, repricing intercompany inputs, and adjusting for the one-off separation programme; each adjustment needs judgment and verification. And fourth, the hundred-day plan doesn't really start at Day 1 — the first months are consumed by infrastructure build-out, and operational improvement usually can't begin in earnest until six to twelve months in; in a carve-out the hundred-day plan is more honestly a twelve-month plan with infrastructure first.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Acquire and build at once", "on_screen_bullets": ["Five challenges define the deal", "Standalone EBITDA < allocated EBITDA", "KKR/Upfield: the playbook at scale"], "narration": "To recap. A corporate carve-out is the acquisition of a division from a larger parent — fundamentally different from a clean buyout because the firm must simultaneously acquire a business and build the independent infrastructure the parent used to provide. The five unique challenges: carve-out accounting, rebuilding a standalone P&L; transitional service agreements, managing the parent's continued service during the handover; stranded costs, quantifying the EBITDA hit of paying market rates for services once provided at cost; TUPE, managing the automatic transfer of employees with their existing rights; and Day 1 readiness, ensuring the new entity can legally and operationally trade from completion. KKR and Upfield shows it at scale — seventy-plus countries, forty-plus service categories, brand separation, pension transfers, a multi-year IT programme — all while running a global foods business through a leadership transition. That closes the exits and advanced structures module with the last topic — deal negotiation dynamics — turning everything we've learned into binding terms.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name three of the five structural challenges unique to a carve-out. Why is standalone EBITDA almost always lower than the allocated EBITDA shown in the seller's pack?", "narration": "Before the next lesson, answer both. Name three of the five structural challenges unique to a carve-out — and explain why a carved-out division's true standalone EBITDA is almost always lower than the allocated EBITDA that appears in the seller's financial pack. Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Carve-Outs and Restructuring\n\n[hook] Buy a business and build a company\nCarve-outs are roughly twenty to thirty percent of PE deal flow by count, and a higher share by value — one of the most consistently available deal types, because large corporations are forever re-evaluating their portfolio of businesses. They matter for four reasons. They're often less competitive than standalone auctions, because many PE buyers lack the operational expertise to manage the separation, so a GP with carve-out capability accesses deal flow others avoid. The complexity creates pricing opportunity, because corporate sellers frequently misprice these assets. The hundred-day plan is fundamentally different — you must first build the infrastructure the parent provided before any value creation begins. And concepts like TUPE, transitional service agreements, and stranded costs are unique to carve-outs and central to execution. This is the deal type that separates a team that's done carve-outs from one that's only done clean buyouts.\n\n[definition] Buying an embedded division\nThe definition. A carve-out is a PE acquisition of a division, subsidiary, or business unit from a larger corporate parent — where the core challenge is not just buying the business but transforming it from an embedded corporate division into a fully independent, standalone operating entity with its own systems, management team, and commercial relationships. You're acquiring a business and building a company around it at the same time.\n\n[intuition] Tesco sells the bakery\nImagine a supermarket chain — Tesco — owns a food-manufacturing unit, its own-brand bakery, that's been part of Tesco for thirty years. The bakery uses Tesco's IT systems, payroll, finance team, legal department, and brand; its results are just a line in Tesco's group accounts, and it has never filed standalone accounts. Now Tesco sells it to a PE firm. The firm isn't just buying a bakery — it's buying a bakery deeply enmeshed in Tesco's infrastructure. To make it independent, the firm must extract the bakery's financial history from the group accounts, set up its own IT systems, build its own HR, payroll, legal, and finance functions, transfer employees across with all their rights intact, and negotiate an agreement where Tesco keeps providing services during the transition. None of this happens in a standard acquisition — when you buy a standalone company, it already has its own systems, team, and brand. The complexity is the trade-off for what's often a more attractive deal: a motivated seller, assets a distracted parent may have underinvested or underpriced, and a standalone company that can be dramatically more efficient than the bureaucratic division it replaces.\n\n[intuition] Adopting a dependent child\nThe mental model: a carve-out is like adopting a child from a large family. The child arrives with their own character, habits, and friends — the business's products, customers, employees — but they've been part of a family that handled everything centrally: meals, transport, school registration. They have no separate bank account, no independent identity document, no idea how to run a household. Your job as the adoptive parent — the PE owner — is to do three things at once: care for the child, that's running the business operationally; build their independent life, the standalone systems, management, and governance; and manage the handover from the biological family — the transitional service agreement, where the old family keeps doing the school run for six months while you set up your own routine. A clean buyout, by contrast, is adopting an adult who already has their own apartment and bank account.\n\n[mechanics] Five carve-out challenges\nTechnically, first understand why corporates divest: strategic refocus, back-to-core, like GE shedding divisions; regulatory or antitrust-mandated divestiture; financial distress and deleveraging; activist pressure to unwind a conglomerate discount; or simple management bandwidth, where a peripheral division never gets the focus it needs. Then come the five structural challenges unique to carve-outs. One, carve-out accounting: the division has never been standalone, so its financials are carved out of the parent's consolidated accounts, full of shared-service allocations and intercompany transactions at non-market prices — and diligence must rebuild the P&L to standalone reality, which almost always reveals a higher cost base than the allocated one. Two, transitional service agreements: after close the parent keeps providing IT, payroll, HR, finance, and logistics for a defined period, typically six to twenty-four months per service, and the quality of that TSA is a major deal risk — too short or too costly and the business is disrupted before its own infrastructure is ready. Three, stranded costs: costs the parent bore but that aren't visible in the allocated P&L — a standalone ERP implementation costing anywhere from half a million to five million, independent board and audit, lost group purchasing power, and brand licensing — all of which mean true standalone EBITDA is lower than the allocated EBITDA in the seller's pack. Four, TUPE — the transfer-of-undertakings regulations — under which employees who work mainly in the business transfer automatically at close, with all their existing terms intact, sometimes carrying defined-benefit pension deficits running to tens of millions, and which the buyer cannot change unilaterally on day one. And five, Day 1 readiness: the standalone entity must be legally and operationally able to trade from the moment of completion — legal entities, funded bank accounts, working IT, insurance, regulatory approvals, key supplier contracts — because a carve-out that fails Day 1, payroll not run, systems down, can create operational chaos that destroys value in the very first week.\n\n[worked-example] KKR / Upfield, €6.8bn\nTake KKR's 2017 acquisition of Unilever's global spreads business — Flora, Becel, I Can't Believe It's Not Butter, Country Crock — for about six-point-eight billion euros, rebranded as Upfield: one of the largest carve-outs in European consumer-goods history. Why did Unilever divest? It was refocusing on high-growth, high-margin categories, and spreads — margarine and butter alternatives — were in structural decline in Western markets, non-core and consuming management attention Unilever wanted elsewhere. The complexity was immense. Carve-out accounting: the business had been embedded in Unilever for decades, so diligence had to rebuild a standalone P&L, stripping out Unilever allocations and adding market-rate costs. TSAs: Unilever operated in seventy-plus countries, and KKR negotiated a comprehensive agreement covering roughly fifty service categories across forty-plus countries, projected to run up to twenty-four months in complex markets. Brand: critically, the Unilever name was not acquired — the business owned its product brands but had to de-link from Unilever's corporate identity, a multi-year exercise. TUPE: employees across forty-plus countries transferred on existing terms, and KKR inherited defined-benefit pension obligations in multiple countries, specifically negotiated in the SPA. And Day 1: KKR pre-established Upfield as a standalone entity, with bank accounts, payroll, and an interim CFO and COO operational from close. The value thesis was the classic carve-out playbook — premiumise toward plant-based spreads, strip out the corporate overhead, invest the R&D Unilever never gave the category, and apply management focus a distracted parent couldn't. Upfield became one of the world's largest plant-based food companies, with revenues around three billion.\n\n[pitfalls] What people get wrong\nFour corrections. First, carve-out targets aren't lower quality just because the parent was selling — many are high-quality assets simply non-core to the seller's strategy; Unilever's spreads business was a globally recognised brand with billions in revenue, not a distressed asset, and strategic non-core disposals can be among the best PE opportunities. Second, TUPE doesn't permanently prevent restructuring — it blocks unilateral changes to terms at the moment of transfer, but the new owner can make genuine redundancies afterward for economic, technical, or organisational reasons, following proper process; it's a process requirement, not a permanent freeze. Third, standalone EBITDA is not just allocated EBITDA minus corporate overheads — it requires removing allocations that won't exist, adding market-rate costs for services the parent provided cheaply, stripping out intercompany revenues that won't persist, repricing intercompany inputs, and adjusting for the one-off separation programme; each adjustment needs judgment and verification. And fourth, the hundred-day plan doesn't really start at Day 1 — the first months are consumed by infrastructure build-out, and operational improvement usually can't begin in earnest until six to twelve months in; in a carve-out the hundred-day plan is more honestly a twelve-month plan with infrastructure first.\n\n[recap] Acquire and build at once\nTo recap. A corporate carve-out is the acquisition of a division from a larger parent — fundamentally different from a clean buyout because the firm must simultaneously acquire a business and build the independent infrastructure the parent used to provide. The five unique challenges: carve-out accounting, rebuilding a standalone P&L; transitional service agreements, managing the parent's continued service during the handover; stranded costs, quantifying the EBITDA hit of paying market rates for services once provided at cost; TUPE, managing the automatic transfer of employees with their existing rights; and Day 1 readiness, ensuring the new entity can legally and operationally trade from completion. KKR and Upfield shows it at scale — seventy-plus countries, forty-plus service categories, brand separation, pension transfers, a multi-year IT programme — all while running a global foods business through a leadership transition. That closes the exits and advanced structures module with the last topic — deal negotiation dynamics — turning everything we've learned into binding terms.\n\nEnd-card question: Name three of the five structural challenges unique to a carve-out. Why is standalone EBITDA almost always lower than the allocated EBITDA shown in the seller's pack?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Carve-outs represent approximately 20–30% of PE deal flow by count and a higher proportion by value — they are one of the most consistently available deal types because large corporations continuously re-evaluate their portfolio of businesses. [needs-verification on exact market share] Understanding carve-outs matters for four reasons:</p><ol><li><strong>Deal sourcing advantage.</strong> Carve-outs are often less competitive than standalone company auctions because many PE buyers lack the operational expertise to manage the separation complexity. A GP with carve-out capability accesses deal flow that competitors avoid.</li></ol><ol><li><strong>The complexity creates pricing opportunity.</strong> Corporate sellers frequently misprice carve-out assets (either high, due to internal allocation models that understate true cost, or low, due to haste or regulatory requirement to divest). A GP with superior carve-out analytics can identify and price this mispricing.</li></ol><ol><li><strong>The 100-Day Plan is fundamentally different.</strong> A clean PE acquisition focuses on operational improvement from Day 1. A carve-out must first build the operational infrastructure that the parent previously provided — IT systems, HR, payroll, legal, finance — before any value creation can begin. This requires a different playbook.</li></ol><ol><li><strong>TUPE, TSAs, and stranded costs are concepts unique to carve-outs</strong> that do not appear in standard PE education but are central to deal execution. These are the details that distinguish a deal team that has done carve-outs from one that has only done standard buyouts.</li></ol><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>A carve-out is a PE acquisition of a division, subsidiary, or business unit from a larger corporate parent — where the core challenge is not just buying the business but transforming it from an embedded corporate division into a fully independent, standalone operating entity with its own systems, management team, and commercial relationships.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine a large supermarket chain (Tesco) that owns a food manufacturing unit (Tesco's own-brand bakery). The bakery has operated as part of Tesco for 30 years — it uses Tesco's IT systems, HR payroll, finance team, legal department, and brand. The bakery's financial results appear as a line in Tesco's group accounts; it has never filed its own standalone accounts.</p><p>Now Tesco decides to sell the bakery to a PE firm. The PE firm isn't just buying a bakery — they are buying a bakery that is deeply enmeshed in Tesco's corporate infrastructure. To make the bakery operate independently, the PE firm must: - Extract the bakery's financial history from Tesco's group accounts (carve-out accounting) - Set up separate IT systems for the bakery (Tesco won't let them use Tesco's systems forever) - Build the bakery's own HR, payroll, legal, and finance functions - Transfer employees from Tesco to the new entity (with all their existing employment rights intact — TUPE) - Negotiate a Transitional Service Agreement (TSA) where Tesco continues providing services during the transition period</p><p><strong>None of this happens in a standard company acquisition.</strong> When you buy a standalone company, it already has its own systems, team, and brand. When you buy a division from a corporate parent, you are simultaneously acquiring a business AND building an entirely new company around it.</p><p>The carve-out complexity is the trade-off for what is often a more attractive acquisition: the seller is motivated (corporate disposals are often driven by strategic need), the assets may be underinvested or underpriced by a distracted corporate parent, and the standalone company can be dramatically more efficient than the bureaucratic division it replaces.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>A carve-out is like adopting a child from a large family and giving them a new home. The child comes with their existing character, habits, school arrangements, and friends (the business's products, customers, employees). But they've been part of a family that handled everything centrally — meals, transport, school registration — and they have no separate bank account, no independent identity document, and no idea how to manage a household.</p><p>Your job as the adoptive parent (PE owner) is to simultaneously: - Care for the child (run the business operationally) - Build their independent life (standalone systems, management team, governance) - Manage the handover from the biological family (TSA: old family keeps helping with school run for 6 months while you set up your own routine)</p><p>A clean PE acquisition is like adopting an adult with their own apartment, bank account, and fully independent life. The carve-out is the child still dependent on the family infrastructure.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Why Corporations Divest Divisions</p><p>Understanding why the seller is divesting is critical to evaluating the asset's attractiveness:</p><p><strong>1. Strategic refocus (\"Back to core\"):</strong> The most common reason. A diversified conglomerate decides to refocus on its core competency and sells peripheral businesses. Example: GE's systematic disposal of GE Capital, GE appliances, GE lighting, and other divisions from 2015 onwards as it returned to industrial focus. These disposals are often high-quality assets that simply don't belong in the parent's strategic portfolio — the division may be well-run and profitable.</p><p><strong>2. Regulatory / antitrust divestiture:</strong> A corporate merger requires regulators to mandate the sale of specific overlapping divisions. The timing is usually compressed, the seller is motivated by legal obligation, and the price may be attractive. Example: Unilever's divesting of specific brands after the Hellmann's / Knorr merger discussion with Kraft Heinz required regulatory clearance.</p><p><strong>3. Financial distress / deleveraging:</strong> A highly leveraged parent needs cash and sells a profitable division at potentially depressed prices. The distress timeline creates pricing opportunities for well-prepared buyers. Example: General Motors selling various divisions during its 2009 bankruptcy to raise cash.</p><p><strong>4. Activist investor pressure:</strong> Activist shareholders demand the sale of underperforming or non-core divisions to unlock \"conglomerate discount.\" The parent is often reluctant — creating a motivated but slow seller.</p><p><strong>5. Management focus / bandwidth:</strong> The parent's management cannot adequately invest time and capital in a peripheral division. Under PE ownership with focused management attention, the division typically performs better — the PE thesis is essentially \"give this business the management focus it couldn't get as part of a large corporate.\"</p><p>---</p><p>### The Five Structural Challenges Unique to Carve-Outs</p><p><strong>Challenge 1 — Carve-Out Accounting (No Standalone Financials)</strong></p><p>The most immediate financial challenge: the division being sold has never operated as a standalone entity. Its historical financial statements are \"carved out\" from the parent's consolidated accounts — they include: - Shared service allocations (a portion of corporate headquarters costs allocated to the division using headcount, revenue, or asset-based formulae) - Intercompany transactions (revenue from selling to sister divisions, costs of purchasing from sister divisions, often at non-market prices) - Transfer pricing (tax-optimised pricing for intercompany transactions that does not reflect market prices)</p><p>FDD on a carve-out must: 1. Rebuild the P&amp;L to reflect standalone reality — remove allocations that will not exist post-close, add back market-rate costs for services the parent provided internally 2. Identify and reclassify intercompany revenues and costs to external market rates 3. Model the \"standalone cost base\" — the true cost structure when the business must source all services independently</p><p><strong>The standalone cost base is almost always higher than the allocated cost base.</strong> Corporate parents allocate shared service costs at cost (no profit markup); the standalone business must purchase those services from third parties at market rates. The difference is \"stranded cost\" — costs that inflate the standalone EBITDA relative to the allocated EBITDA.</p><p><strong>Challenge 2 — Transitional Service Agreements (TSAs)</strong></p><p>After close, the parent continues to provide services (IT systems access, payroll processing, HR systems, legal support, finance shared services, logistics infrastructure) to the carved-out entity for a defined transition period. These services are governed by a TSA — a detailed contract specifying: - Which services are provided - The duration (typically 6–24 months per service) - The cost (typically at cost + small mark-up, or at arm's length market rate) - The transition milestones that trigger termination of each service</p><p><strong>TSA quality varies enormously and is a major deal risk.</strong> A well-structured TSA gives the carve-out business adequate time to build standalone capability without paying an onerous premium. A poorly structured TSA — with short durations, excessive cost, or inadequate scope — can cause operational disruption if the standalone infrastructure is not ready when services are withdrawn.</p><p><strong>The GP's objective:</strong> negotiate the most favourable TSA terms possible (long duration, cost-recovery pricing, strong service level commitments) while simultaneously planning to exit TSA services as quickly as possible (every TSA service is a dependency on the seller — who may be a competitor).</p><p><strong>Challenge 3 — Stranded Costs</strong></p><p>Beyond TSA services, carve-outs face \"stranded costs\" — costs that will not be borne by the parent post-sale but are not currently visible in the division's allocated P&amp;L.</p><p><strong>Types of stranded costs:</strong> - IT infrastructure: the division uses the parent's ERP system (e.g., SAP instance) which is paid for centrally; post-close, the standalone company must purchase its own ERP implementation (one-time cost of £500k–£5m) and pay ongoing licensing fees - Corporate governance: the parent provided directors, audit committee members, company secretarial services; the standalone company must pay board members, auditors, and company secretaries independently - Purchasing power: the parent negotiated group rates for everything from insurance to stationery; the standalone company loses this scale and pays more - Brand: if the division used the parent's brand, post-close it must either licence it (cost) or build a new brand (significant cost and revenue risk)</p><p><strong>FDD must model the full stranded cost programme.</strong> A common carve-out FDD failure is identifying that standalone EBITDA will be lower than allocated EBITDA due to stranded costs but failing to quantify the magnitude. The LBO model must reflect the true standalone EBITDA, not the allocated EBITDA that appeared in the seller's financial pack.</p><p><strong>Challenge 4 — TUPE (Transfer of Undertakings, Protection of Employment Regulations)</strong></p><p>TUPE is UK law (with equivalents in EU and other jurisdictions) that protects employees when the business or undertaking they work for transfers to a new owner.</p><p><strong>Key TUPE principles:</strong> - Employees who work \"wholly or mainly\" in the transferring business automatically transfer to the new employer at the moment of close - They transfer with all their existing contractual terms and conditions (salary, holiday entitlement, notice periods, pension contributions) — the buyer cannot change these unilaterally - The seller must inform and consult with employees (or their representatives) about the transfer before close - Collective agreements (trade union agreements) transfer with the employees</p><p><strong>TUPE implications for carve-outs:</strong> 1. <strong>Cost certainty</strong>: the buyer cannot reduce employment costs by changing employee terms on Day 1. Any restructuring of employment terms must be through lawful redundancy processes (with statutory redundancy pay, notice, and often enhanced terms negotiated with unions) 2. <strong>Pension obligations</strong>: defined benefit pension liabilities may transfer with employees — one of the most complex carve-out risks; DB pensions can have deficits running to tens of millions 3. <strong>Consultation timeline</strong>: TUPE consultation must start before close — the PE firm often participates in the consultation process before legal completion 4. <strong>\"Automatic\" transfer without consent</strong>: employees cannot be retained by the seller if they fall within the scope of TUPE. If the division's IT director falls within TUPE scope, they transfer to the buyer even if the buyer would have preferred to hire a different person</p><p><strong>Challenge 5 — Day 1 Readiness</strong></p><p>The most operationally complex challenge: the carved-out entity must be ready to operate as a fully independent company from the moment legal completion occurs.</p><p>Day 1 readiness requires: - <strong>Legal entities established</strong>: new holding company structure, trading entity, employee company, all registered before close - <strong>Bank accounts operational</strong>: the new company's bank accounts open and funded, payroll processed from the correct legal entity - <strong>IT systems operational</strong>: email, ERP, HR system, payroll system — either on TSA from parent or new standalone systems - <strong>Regulatory approvals in place</strong>: FCA authorisation (if financial services), environmental permits transferred to new entity, operating licences - <strong>Insurance in place</strong>: the parent's insurance expires at close; standalone D&amp;O, property, liability, professional indemnity must be in force from Day 1 - <strong>Key supplier contracts signed</strong>: critical suppliers must have direct contracts with the new entity, not just the parent</p><p>A carve-out that fails Day 1 readiness (payroll not processed, systems down, bank accounts not funded) can create operational chaos that damages customer relationships, triggers employee departures, and destroys value in the first week of ownership.</p><p>---</p><p>### Carve-Out Diligence — Additional Workstreams</p><p>Beyond standard CDD, FDD, LDD, and MTA, carve-out diligence requires:</p><p><strong>Separation Cost Modelling:</strong> Full quantification of all costs to establish the standalone infrastructure: IT systems implementation, HR system setup, office lease (if previously in parent's premises), management hiring, brand costs, and working capital requirements during transition.</p><p><strong>TSA Review:</strong> Detailed negotiation and modelling of each TSA service line: what services, what duration, what cost, what happens at TSA exit (who builds what infrastructure in what timeline).</p><p><strong>Intercompany Revenue / Cost Analysis:</strong> Mapping all intercompany transactions: sales from the division to sister units (revenue that may not be arm's-length and may not transfer), purchases from sister units (will now need to be sourced from third parties), and shared cost allocations.</p><p><strong>TUPE / Employment Law Due Diligence:</strong> Specific to each jurisdiction: which employees transfer, on what terms, what consultation obligations exist, are there DB pension deficits that transfer?</p><p><strong>Day 1 Readiness Assessment:</strong> Detailed planning of what must be in place before Day 1 — used to negotiate the TSA and to inform the 100-Day Plan.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### KKR's Acquisition of Upfield (formerly Unilever's Spreads Business, 2017, €6.8bn)</p><p>In 2017, KKR acquired Unilever's global spreads business — including the Flora, Becel, I Can't Believe It's Not Butter!, and Country Crock brands — for €6.8bn, rebranding the business as Upfield. This was one of the largest carve-outs in European consumer goods history.</p><p><strong>Why Unilever divested:</strong> Unilever had committed to focusing on high-growth, high-margin categories (personal care, premium food). The spreads business — margarines and butter alternatives — was in structural volume decline in Western markets as consumers shifted to olive oil and butter. It was non-core to Unilever's strategic agenda, consuming management attention and capital that Unilever wanted to redirect.</p><p><strong>The carve-out complexity:</strong></p><p><em>Carve-out accounting:</em> The spreads business had operated embedded within Unilever for decades. Its P&amp;L included significant Unilever shared service allocations (R&amp;D costs, supply chain infrastructure, marketing overhead, regional management). FDD had to rebuild a standalone P&amp;L — stripping out Unilever allocations and adding back market-rate costs for services the business would need to source independently.</p><p><em>TSA complexity:</em> Unilever operated in 70+ countries; the spreads business operated in most of them using Unilever's local entities, IT systems, HR platforms, and distribution networks. KKR negotiated a comprehensive TSA covering approximately 50 different service categories across 40+ countries — IT systems, HR and payroll, logistics, finance shared services, and regulatory licence maintenance. The TSA was projected to run for up to 24 months in complex markets.</p><p><em>Brand licensing:</em> Critically, the Unilever brand name was NOT acquired — the spreads business owned the Flora, Becel, and other product brand names, but needed to de-link from Unilever's corporate identity (packaging, corporate email domains, Unilever-linked supplier relationships). This was a multi-year brand separation exercise.</p><p><em>TUPE and employment:</em> Employees across 40+ countries transferred with their existing terms and conditions. In each country, the relevant employment transfer regulations applied (TUPE in the UK, similar legislation in EU member states). KKR inherited defined benefit pension obligations in multiple countries — a significant liability that was specifically negotiated in the SPA.</p><p><em>Day 1 readiness:</em> KKR pre-established Upfield as a standalone legal entity before close. Bank accounts, payroll systems, and interim management (CFO and COO hired pre-close) were operational from Day 1.</p><p><strong>The value creation thesis:</strong></p><p>The spreads business under Unilever had been underinvested — treated as a declining cash cow. KKR's thesis: under focused PE ownership with dedicated management and capital: 1. <strong>Premiumisation</strong>: shift the portfolio toward premium plant-based spreads (Flora Plant, Proactiv variants) which command higher margins and are aligned with health and sustainability trends 2. <strong>Cost discipline</strong>: remove Unilever corporate overheads and allocations; right-size the standalone cost base; eliminate below-the-line spending that benefited Unilever but not the spreads business 3. <strong>Innovation investment</strong>: Unilever had allocated minimal R&amp;D to the spreads category; standalone Upfield could prioritise product innovation 4. <strong>Geographic optimisation</strong>: exit markets where the business was subscale and unprofitable; focus capital on core markets</p><p><strong>The outcome:</strong> Upfield became one of the world's largest plant-based food companies, with revenues of approximately €3bn. The business completed a refinancing in 2020 and has been maintained as a standalone company. The full exit has not yet occurred as of the note date, but the plant-based food category has grown significantly — validating the investment thesis even if execution complexity was material. [needs-verification on current status]</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Carve-out targets are lower quality because the parent was selling them.\"</strong> Not necessarily. Many carve-outs involve high-quality assets that are simply non-core to the corporate seller's strategy. The spreads business KKR acquired from Unilever was a globally recognised consumer brand with billions in revenue — not a distressed asset. Strategic non-core disposals can be among the highest-quality PE deal opportunities, particularly when the corporate seller has been underinvesting in the division.</p><p><strong>Misconception 2: \"TUPE prevents the buyer from restructuring the workforce.\"</strong> TUPE prevents unilateral changes to employee terms at the moment of transfer. It does not prevent the new owner from making employees redundant for \"economic, technical, or organisational\" reasons (ETO reasons) post-transfer — as long as the redundancy is genuine and follows proper process (consultation, statutory redundancy pay, notice periods). TUPE creates a process requirement, not a permanent restriction.</p><p><strong>Misconception 3: \"Standalone EBITDA is just allocated EBITDA minus corporate overheads.\"</strong> The adjustment is significantly more complex. Standalone EBITDA requires: (1) removing allocations that won't exist; (2) adding back market-rate costs for services the parent provided at below-market internal prices; (3) removing intercompany revenues (sales to sister divisions) that won't persist; (4) adding market-rate costs for inputs previously purchased from sister units at internal transfer prices; (5) adjusting for the separation cost programme (one-time costs that affect the LTM EBITDA bridge). Each adjustment requires both judgment and verification.</p><p><strong>Misconception 4: \"The 100-Day Plan starts from Day 1.\"</strong> In a carve-out, the first 100 days are heavily consumed by infrastructure build-out — IT systems, management hiring, governance establishment, TSA management. The operational improvement programme (pricing, cost reduction, growth) typically cannot begin in earnest until 6–12 months post-close, once the standalone infrastructure is stable. The \"100-Day Plan\" in a carve-out context is more accurately a \"12-Month Plan\" with infrastructure build-out as the primary objective in Phase 1 and operational improvement as Phase 2.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>A corporate carve-out is the acquisition of a division or subsidiary from a larger corporate parent — a fundamentally different transaction from a clean buyout because the PE firm must simultaneously acquire a business and build the independent operational infrastructure that the parent previously provided. The five structural challenges unique to carve-outs are: (1) carve-out accounting — rebuilding standalone P&amp;L from allocated divisional accounts; (2) Transitional Service Agreements — managing the parent's continued service provision during the transition; (3) stranded costs — quantifying the EBITDA impact of paying market rates for services previously provided at cost; (4) TUPE — managing the automatic transfer of employees with existing contractual rights; (5) Day 1 readiness — ensuring the new standalone entity can operate legally and operationally from the moment of close.</p><p>The KKR/Upfield acquisition of Unilever's spreads business (2017, €6.8bn) illustrates carve-out complexity at scale: 70+ country operations, 40+ TSA service categories, brand separation from Unilever, defined benefit pension transfer obligations, and a multi-year IT separation programme — all executed while managing one of the world's largest consumer foods businesses through a leadership transition. The value creation thesis — premiumisation toward plant-based spreads, standalone efficiency gains, and management focus that the corporate parent could not provide — is the classic carve-out playbook applied to a global consumer brand.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

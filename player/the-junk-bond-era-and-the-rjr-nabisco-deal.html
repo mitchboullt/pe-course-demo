@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "the-junk-bond-era-and-the-rjr-nabisco-deal", "title": "The Junk Bond Era and the RJR Nabisco Deal", "draft_watermark": false, "estimated_runtime_sec": 435, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Where the debt stack came from", "on_screen_bullets": ["Milken built the financing, 1978–89", "KKR bought RJR Nabisco", "PE's first regulatory reckoning"], "narration": "Everything in the modern LBO debt stack — high-yield bonds, senior secured loans, leverage ratios, covenant-lite structures — traces its lineage to the financing market Michael Milken built between 1978 and 1989. This isn't background; it's the explanatory foundation for why today's capital stack looks the way it does. Three things make this era non-optional. KKR, one of the largest firms in PE today, is the firm that bought RJR Nabisco — the same institution, scaled up. Every current controversy about PE — debt-loading, management enrichment, systemic risk, regulatory adequacy — was present in fully visible form in this decade, so the pattern here decodes all the later ones. And the founding evidence for PE's central dispute — does it create value or primarily redistribute wealth upward — begins right here, and it is not clean in either direction, which is exactly what the thesis predicts.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "A liquid market for junk", "on_screen_bullets": ["Milken at Drexel, c.1978–90", "Removed the LBO size constraint", "Culminated in RJR Nabisco"], "narration": "The definition. The junk bond era, roughly 1978 to 1990, was the period in which Michael Milken at Drexel Burnham Lambert created a liquid market for sub-investment-grade debt, removing the size constraint from leveraged buyouts and enabling the billion-dollar transactions — culminating in KKR's roughly thirty-one-point-four-billion-dollar acquisition of RJR Nabisco in 1989 — that defined modern private equity's ambitions, its excesses, and its first major regulatory reckoning.", "est_sec": 36}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Not the borrower — the distribution", "on_screen_bullets": ["One bank → ten thousand investors", "Tradeable made it acceptable", "But it can fund what shouldn't be"], "narration": "Before Milken, the size of an LBO was essentially set by how much a bank would lend — and banks lend conservatively, wanting established companies, stable cash flows, and modest leverage of three or four times. So LBOs were limited to mid-sized businesses a single bank could finance. Milken's insight was that the problem wasn't the borrower; it was the distribution mechanism. A single bank could only advance so much because it held the risk on its own books. But what if, instead of one cautious bank, you sold the debt to ten thousand investors, each taking a small slice and each compensated with a higher interest rate? The aggregate capital available would dwarf any bank's lending limit. So he created a liquid public market for bonds issued by companies banks would not finance, and by making those bonds tradeable he made them acceptable — investors who feared being locked in could sell, and that sellability made them willing to buy. The result was a financing amplifier: a deal capped at two billion by bank lending became a fifteen-billion deal once you could sell the debt to thousands. The catch — and this is what the collapse was about — is that a public debt market can fund deals that shouldn't be funded, because small-slice bond buyers have less ability and sometimes less incentive to underwrite carefully than a bank lending its own balance sheet.", "est_sec": 58}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "A distributed network", "on_screen_bullets": ["Thousands of nodes, not one bank", "Highly confident letter = routing protocol", "Crash = network failure, S&Ls burned"], "narration": "The mental model: think of Milken's operation as a distributed network. Before him, the high-yield pipe had low bandwidth — banks could only advance so much while holding risk — and poor addressability — they only reached borrowers they already knew. Milken built a distributed network, the same architectural shift that made the internet more powerful than point-to-point phone calls: instead of one bank deciding whether to lend, he assembled thousands of buyers, each taking a small slice, with aggregate capacity that dwarfed any single bank. His famous highly-confident letter was the network's routing protocol — before confirming a bid he could ping the network in hours and know whether the capacity existed to route the financing, giving his bidders a decisive speed and certainty advantage. The crash was a network failure: too many low-quality packets, overleveraged deals with insufficient earnings coverage, flooded the network at once. And the S&L crisis was the upstream damage — the routers that had been carrying too much junk traffic caught fire and had to be replaced at public expense. But the architecture survived: after Drexel failed, other banks rebuilt their own high-yield desks, and the distributed financing market Milken proved viable became the structural basis of every major LBO since.", "est_sec": 56}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The machine and the raiders", "on_screen_bullets": ["Hickman 1958: junk underpriced", "S&L buyers post Garn-St. Germain", "Pickens, Icahn, Perelman/Revlon $1.8bn"], "narration": "Technically, Milken's edge began with an academic study almost no one had read — Braddock Hickman's 1958 work showing that portfolios of lower-rated, higher-yielding bonds had actually outperformed investment-grade bonds on a risk-adjusted basis, because the high yields more than compensated for the higher defaults: junk was systematically underpriced. Milken built his entire career on that mispricing — so his contribution was genuine financial analysis applied to a real market inefficiency; the instrument itself was legitimate, and the later fraud was separable from the economic insight. He joined Drexel in 1973, and in 1978 relocated his whole high-yield operation to Beverly Hills — into the same time zone as his most important buyers, the West Coast savings-and-loans, and away from Wall Street's oversight culture. His buyer network was the genius: after the Garn-St. Germain deregulation of 1982 let S&Ls chase higher yields, institutions like Columbia Savings and Lincoln Savings bought his bonds at twelve-to-sixteen percent coupons, alongside insurers and specialist high-yield funds. His key structural innovation was the highly-confident letter — a reputational guarantee that Drexel could raise the debt, which let acquirers make binding bids before financing was secured, inverting the traditional sequence and handing Drexel-backed bidders a decisive auction advantage. Once the network could absorb billion-dollar offerings, it enabled not just friendly LBOs but hostile takeovers — Boone Pickens at Gulf Oil, Carl Icahn at TWA, and Ron Perelman using one-point-eight billion of Milken-financed debt to seize Revlon in 1985. The industry defence was the conglomerate-discount argument: 1980s conglomerates genuinely destroyed value by combining unrelated businesses, so raiders were correcting a real capital-allocation failure — which is exactly one side of PE's founding dispute.", "est_sec": 70}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "RJR Nabisco, board room to barbarians", "on_screen_bullets": ["Johnson MBO $17 → KKR wins $109", "~$31.4bn EV, closed Jan 1989", "1990: junk crashes, returns disappoint"], "narration": "The full RJR story runs from board room to barbarians. On October 20th, 1988, CEO Ross Johnson announced he and Shearson Lehman wanted to take the company private at seventeen dollars a share — the stock, in the fifties, rocketed above seventy as the market priced a bidding war. His motive was partly the roughly hundred million he stood to earn and partly genuine frustration that tobacco-litigation fears were masking the food division's value. Henry Kravis of KKR, fresh off large deals, saw the largest buyout target that had ever existed and entered. The special committee ran a two-stage auction through November, documented in extraordinary detail in Barbarians at the Gate, with Milken as the silent power whose financing let KKR keep matching and surpassing management. At the final bids on December 1st, management offered about a hundred-twelve dollars a share but padded with hard-to-value PIK notes and preference securities; KKR offered about a hundred-nine, mostly cash; Forstmann Little a hundred-five. The committee chose KKR at the lower nominal price — the securities in management's bid were worth materially less than face, KKR had Drexel's financing certainty, and awarding the company to the conflicted management team was politically untenable. The deal closed January 31st, 1989, at roughly thirty-one-point-four billion enterprise value, with about two billion of KKR equity, over five billion of junk bonds, and fourteen-to-fifteen billion of senior bank debt. Then it slowly disappointed: the 1990 junk-bond collapse locked KKR into expensive fixed coupons through maximum stress; tobacco litigation escalated toward the 1998 Master Settlement; KKR was forced to break the conglomerate back apart, spinning off Nabisco; and it exited across the 1990s for returns that were positive but well below its other deals. Brilliant auction execution, mediocre investment outcome.", "est_sec": 72}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Junk bonds aren't inherently fraud", "Milken built, didn't invent, the market", "S&L crisis had many causes"], "narration": "Several corrections. First, junk bonds are not inherently fraudulent instruments — a below-investment-grade bond paying a higher yield for higher risk is entirely legitimate and mainstream today; Milken's fraud was in the trading arrangements around the bonds — inside information, manipulation, falsified records — not in the bonds themselves. Second, Milken did not create the junk-bond market from nothing — fallen-angel bonds had traded illiquidly for decades; he built the liquid market: the distribution network, the buyer relationships, the highly-confident letter, the primary-issuance machine — he was a market builder, not an inventor. Third, KKR did not make extraordinary profits on RJR — it's famous for scale and cultural impact, not returns, which were positive but below target. Fourth, the junk-bond collapse did not end leveraged finance — it ended Drexel's monopoly and froze the market temporarily, but within three to five years it recovered and diversified across many banks, and today's LBOs use the same instruments, now funded by CLOs rather than S&Ls. And fifth, the S&L crisis was not caused by PE alone — it had many causes: interest-rate deregulation, the premature lifting of investment restrictions, individual fraud, and real-estate speculation; junk bonds were one contributing factor among several, and attributing the whole crisis to PE overstates the link.", "est_sec": 58}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Value and harm, same architecture", "on_screen_bullets": ["Milken removed the size ceiling", "RICO, $600m fine, Drexel Ch11 1990", "S&L bailout ~$132bn on taxpayers"], "narration": "To recap. The junk-bond era was when Milken solved the financing constraint that had capped LBO scale — building a liquid market for sub-investment-grade debt on Hickman's 1958 insight, distributed through S&Ls and insurers, operationalised through the highly-confident letter. Billion-dollar deals became possible, then ten-billion, then RJR Nabisco's roughly thirty-one billion. The collapse was equally defining: Milken was charged under RICO on ninety-eight counts, pleaded guilty to six, paid six hundred million in fines, and served about twenty-two months; Drexel paid six hundred fifty million and filed for bankruptcy in February 1990; default rates hit around ten percent in 1990; and FIRREA forced S&Ls to dump their junk holdings into a collapsing market. The S&L crisis — partly driven by that junk exposure — cost taxpayers roughly a hundred-thirty-two billion, the founding case for the argument that PE-adjacent innovation can privatise gains while socialising losses. But the instrument survived and became permanent. The junk-bond era is the thesis in miniature — genuine value creation and genuine systemic harm, both produced by the same incentive architecture in a market without adequate governance. Next we follow the parallel scandal that brought the era down — Ivan Boesky and insider trading.", "est_sec": 60}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Milken's real innovation was not the junk bond instrument itself — what was it, and why did it remove the size ceiling on LBOs? Why did KKR win RJR Nabisco at $109 over management's nominally higher $112 bid?", "narration": "Before the next lesson, answer both. Milken's real innovation was not the junk bond instrument itself — so what was it, and how did it remove the size ceiling on leveraged buyouts? And why did KKR win RJR Nabisco at a hundred-nine dollars a share over management's nominally higher hundred-twelve bid? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The Junk Bond Era and the RJR Nabisco Deal\n\n[hook] Where the debt stack came from\nEverything in the modern LBO debt stack — high-yield bonds, senior secured loans, leverage ratios, covenant-lite structures — traces its lineage to the financing market Michael Milken built between 1978 and 1989. This isn't background; it's the explanatory foundation for why today's capital stack looks the way it does. Three things make this era non-optional. KKR, one of the largest firms in PE today, is the firm that bought RJR Nabisco — the same institution, scaled up. Every current controversy about PE — debt-loading, management enrichment, systemic risk, regulatory adequacy — was present in fully visible form in this decade, so the pattern here decodes all the later ones. And the founding evidence for PE's central dispute — does it create value or primarily redistribute wealth upward — begins right here, and it is not clean in either direction, which is exactly what the thesis predicts.\n\n[definition] A liquid market for junk\nThe definition. The junk bond era, roughly 1978 to 1990, was the period in which Michael Milken at Drexel Burnham Lambert created a liquid market for sub-investment-grade debt, removing the size constraint from leveraged buyouts and enabling the billion-dollar transactions — culminating in KKR's roughly thirty-one-point-four-billion-dollar acquisition of RJR Nabisco in 1989 — that defined modern private equity's ambitions, its excesses, and its first major regulatory reckoning.\n\n[intuition] Not the borrower — the distribution\nBefore Milken, the size of an LBO was essentially set by how much a bank would lend — and banks lend conservatively, wanting established companies, stable cash flows, and modest leverage of three or four times. So LBOs were limited to mid-sized businesses a single bank could finance. Milken's insight was that the problem wasn't the borrower; it was the distribution mechanism. A single bank could only advance so much because it held the risk on its own books. But what if, instead of one cautious bank, you sold the debt to ten thousand investors, each taking a small slice and each compensated with a higher interest rate? The aggregate capital available would dwarf any bank's lending limit. So he created a liquid public market for bonds issued by companies banks would not finance, and by making those bonds tradeable he made them acceptable — investors who feared being locked in could sell, and that sellability made them willing to buy. The result was a financing amplifier: a deal capped at two billion by bank lending became a fifteen-billion deal once you could sell the debt to thousands. The catch — and this is what the collapse was about — is that a public debt market can fund deals that shouldn't be funded, because small-slice bond buyers have less ability and sometimes less incentive to underwrite carefully than a bank lending its own balance sheet.\n\n[intuition] A distributed network\nThe mental model: think of Milken's operation as a distributed network. Before him, the high-yield pipe had low bandwidth — banks could only advance so much while holding risk — and poor addressability — they only reached borrowers they already knew. Milken built a distributed network, the same architectural shift that made the internet more powerful than point-to-point phone calls: instead of one bank deciding whether to lend, he assembled thousands of buyers, each taking a small slice, with aggregate capacity that dwarfed any single bank. His famous highly-confident letter was the network's routing protocol — before confirming a bid he could ping the network in hours and know whether the capacity existed to route the financing, giving his bidders a decisive speed and certainty advantage. The crash was a network failure: too many low-quality packets, overleveraged deals with insufficient earnings coverage, flooded the network at once. And the S&L crisis was the upstream damage — the routers that had been carrying too much junk traffic caught fire and had to be replaced at public expense. But the architecture survived: after Drexel failed, other banks rebuilt their own high-yield desks, and the distributed financing market Milken proved viable became the structural basis of every major LBO since.\n\n[mechanics] The machine and the raiders\nTechnically, Milken's edge began with an academic study almost no one had read — Braddock Hickman's 1958 work showing that portfolios of lower-rated, higher-yielding bonds had actually outperformed investment-grade bonds on a risk-adjusted basis, because the high yields more than compensated for the higher defaults: junk was systematically underpriced. Milken built his entire career on that mispricing — so his contribution was genuine financial analysis applied to a real market inefficiency; the instrument itself was legitimate, and the later fraud was separable from the economic insight. He joined Drexel in 1973, and in 1978 relocated his whole high-yield operation to Beverly Hills — into the same time zone as his most important buyers, the West Coast savings-and-loans, and away from Wall Street's oversight culture. His buyer network was the genius: after the Garn-St. Germain deregulation of 1982 let S&Ls chase higher yields, institutions like Columbia Savings and Lincoln Savings bought his bonds at twelve-to-sixteen percent coupons, alongside insurers and specialist high-yield funds. His key structural innovation was the highly-confident letter — a reputational guarantee that Drexel could raise the debt, which let acquirers make binding bids before financing was secured, inverting the traditional sequence and handing Drexel-backed bidders a decisive auction advantage. Once the network could absorb billion-dollar offerings, it enabled not just friendly LBOs but hostile takeovers — Boone Pickens at Gulf Oil, Carl Icahn at TWA, and Ron Perelman using one-point-eight billion of Milken-financed debt to seize Revlon in 1985. The industry defence was the conglomerate-discount argument: 1980s conglomerates genuinely destroyed value by combining unrelated businesses, so raiders were correcting a real capital-allocation failure — which is exactly one side of PE's founding dispute.\n\n[worked-example] RJR Nabisco, board room to barbarians\nThe full RJR story runs from board room to barbarians. On October 20th, 1988, CEO Ross Johnson announced he and Shearson Lehman wanted to take the company private at seventeen dollars a share — the stock, in the fifties, rocketed above seventy as the market priced a bidding war. His motive was partly the roughly hundred million he stood to earn and partly genuine frustration that tobacco-litigation fears were masking the food division's value. Henry Kravis of KKR, fresh off large deals, saw the largest buyout target that had ever existed and entered. The special committee ran a two-stage auction through November, documented in extraordinary detail in Barbarians at the Gate, with Milken as the silent power whose financing let KKR keep matching and surpassing management. At the final bids on December 1st, management offered about a hundred-twelve dollars a share but padded with hard-to-value PIK notes and preference securities; KKR offered about a hundred-nine, mostly cash; Forstmann Little a hundred-five. The committee chose KKR at the lower nominal price — the securities in management's bid were worth materially less than face, KKR had Drexel's financing certainty, and awarding the company to the conflicted management team was politically untenable. The deal closed January 31st, 1989, at roughly thirty-one-point-four billion enterprise value, with about two billion of KKR equity, over five billion of junk bonds, and fourteen-to-fifteen billion of senior bank debt. Then it slowly disappointed: the 1990 junk-bond collapse locked KKR into expensive fixed coupons through maximum stress; tobacco litigation escalated toward the 1998 Master Settlement; KKR was forced to break the conglomerate back apart, spinning off Nabisco; and it exited across the 1990s for returns that were positive but well below its other deals. Brilliant auction execution, mediocre investment outcome.\n\n[pitfalls] What people get wrong\nSeveral corrections. First, junk bonds are not inherently fraudulent instruments — a below-investment-grade bond paying a higher yield for higher risk is entirely legitimate and mainstream today; Milken's fraud was in the trading arrangements around the bonds — inside information, manipulation, falsified records — not in the bonds themselves. Second, Milken did not create the junk-bond market from nothing — fallen-angel bonds had traded illiquidly for decades; he built the liquid market: the distribution network, the buyer relationships, the highly-confident letter, the primary-issuance machine — he was a market builder, not an inventor. Third, KKR did not make extraordinary profits on RJR — it's famous for scale and cultural impact, not returns, which were positive but below target. Fourth, the junk-bond collapse did not end leveraged finance — it ended Drexel's monopoly and froze the market temporarily, but within three to five years it recovered and diversified across many banks, and today's LBOs use the same instruments, now funded by CLOs rather than S&Ls. And fifth, the S&L crisis was not caused by PE alone — it had many causes: interest-rate deregulation, the premature lifting of investment restrictions, individual fraud, and real-estate speculation; junk bonds were one contributing factor among several, and attributing the whole crisis to PE overstates the link.\n\n[recap] Value and harm, same architecture\nTo recap. The junk-bond era was when Milken solved the financing constraint that had capped LBO scale — building a liquid market for sub-investment-grade debt on Hickman's 1958 insight, distributed through S&Ls and insurers, operationalised through the highly-confident letter. Billion-dollar deals became possible, then ten-billion, then RJR Nabisco's roughly thirty-one billion. The collapse was equally defining: Milken was charged under RICO on ninety-eight counts, pleaded guilty to six, paid six hundred million in fines, and served about twenty-two months; Drexel paid six hundred fifty million and filed for bankruptcy in February 1990; default rates hit around ten percent in 1990; and FIRREA forced S&Ls to dump their junk holdings into a collapsing market. The S&L crisis — partly driven by that junk exposure — cost taxpayers roughly a hundred-thirty-two billion, the founding case for the argument that PE-adjacent innovation can privatise gains while socialising losses. But the instrument survived and became permanent. The junk-bond era is the thesis in miniature — genuine value creation and genuine systemic harm, both produced by the same incentive architecture in a market without adequate governance. Next we follow the parallel scandal that brought the era down — Ivan Boesky and insider trading.\n\nEnd-card question: Milken's real innovation was not the junk bond instrument itself — what was it, and why did it remove the size ceiling on LBOs? Why did KKR win RJR Nabisco at $109 over management's nominally higher $112 bid?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Everything in the vault's technical domain on LBO debt — High Yield Bonds in LBOs, LBO Debt and Capital Structure, Leverage Ratio in LBOs, Covenant-Lite Structures — traces its lineage to the financing market Milken built between 1978 and 1989. Understanding this era is not historical background; it is the explanatory foundation for why today's LBO capital stack looks the way it does.</p><p>For the learner specifically, three connections make this non-optional:</p><p><strong>1. KKR — the firm whose K-1 allocations you process — is the firm that bought RJR Nabisco.</strong> When CVC Secondary Partners holds LP positions in KKR Fund XI, XII, or XIII, it is investing in the same institution — the same brand, the same founding partners' successors — that executed the most famous LBO in history. The firms that produce your daily data are not abstractions; they were built in this era.</p><p><strong>2. The thesis's \"read history as evidence\" reasoning mode requires this case.</strong> Every current controversy about PE — debt-loading, management enrichment, systemic risk, regulatory adequacy — was present in fully visible form in the junk bond era. The learner who understands this period can decode any subsequent PE controversy by recognising the pattern.</p><p><strong>3. The thesis's live dispute #1 begins here.</strong> \"Does PE create value or primarily redistribute wealth upward?\" has its founding evidence in this decade: on one side, the genuine unlocking of undervalued conglomerates and the democratisation of capital access; on the other, the S&amp;L crisis, Milken's fraud, and a generation of overleveraged companies that failed. The case is not clean in either direction — which is exactly what the thesis predicts.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The junk bond era (c. 1978–1990) was the period in which Michael Milken at Drexel Burnham Lambert created a liquid market for sub-investment-grade debt, removing the size constraint from leveraged buyouts and enabling the billion-dollar transactions — culminating in KKR's $31.4 billion acquisition of RJR Nabisco in 1989 — that defined modern private equity's ambitions, excesses, and first major regulatory reckoning.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Before Michael Milken, the size of a leveraged buyout was essentially determined by how much a bank was willing to lend. Banks lend conservatively: they want established companies, stable cash flows, and modest leverage ratios (typically 3–4× EBITDA). This meant LBOs were limited to mid-sized businesses that a single bank or consortium could finance without taking excessive risk onto their own balance sheet.</p><p>Milken's insight was that the <em>problem was not the borrower</em> — it was the <em>distribution mechanism.</em> A single bank could only advance so much because it had to hold the risk on its books. But what if instead of one cautious bank, you could sell the debt to ten thousand investors — each taking a small slice of the risk, each compensated with a higher interest rate for doing so? The aggregate capital available would be far larger than any bank's lending limit.</p><p>This is exactly what Milken did. He created a liquid <em>public market</em> for bonds issued by companies that banks would not finance — companies with too much debt, uncertain futures, or credit ratings below investment grade. By making these bonds <em>tradeable</em>, he made them <em>acceptable</em>: investors who worried about being locked in could sell. That sellability made them willing to buy in the first place. And once investors were willing to buy, companies that could never access the public bond market suddenly could.</p><p>The result was a financing amplifier. Using the data pipeline analogy: before Milken, the LBO pipeline had a throughput cap determined by bank lending capacity. Milken replaced the single-bank pipe with a bond market that could process financing at ten times the throughput. A $2 billion deal limited by bank lending became a $15 billion deal once you could sell the debt to thousands of buyers.</p><p>The catch — and this is what the era's collapse was about — is that a public debt market can fund deals that <em>shouldn't be funded.</em> Banks, lending from their own balance sheets, have strong incentives to underwrite carefully. Bond investors, buying small slices of a large deal, have less ability (and sometimes less incentive) to evaluate whether the debt is truly serviceable. When the market is hot and everyone is buying, this discipline erodes. When the market turns, the overleveraged deals that the market funded at peak enthusiasm become the restructurings and bankruptcies that define the hangover.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of Milken's operation using the data pipeline analogy.</p><p>Before Milken, the high-yield debt \"pipe\" had two problems: <strong>low bandwidth</strong> (banks could only advance so much because they kept risk on their balance sheets) and <strong>poor addressability</strong> (banks could only reach the borrowers they already knew, applying conservative credit standards that excluded whole categories of companies).</p><p>Milken built a <strong>distributed network</strong> — the same architectural shift that made the internet more powerful than point-to-point phone calls. Instead of one bank (one node) deciding whether to lend, he assembled thousands of buyers (thousands of nodes). Each node took a small slice of risk; the aggregate capacity of the network dwarfed any single bank.</p><p>The highly confident letter was the <strong>network's routing protocol</strong>: before confirming an acquisition bid, Milken could \"ping\" his network in hours and know whether sufficient capacity existed to route the financing. This gave KKR and other Drexel-backed bidders a speed and certainty advantage analogous to having a faster, more reliable internet connection than your competitor.</p><p>The crash was a <strong>network failure</strong>: too many low-quality packets (overleveraged deals with insufficient EBITDA coverage) flooded the network simultaneously. The S&amp;L crisis was the <strong>upstream damage</strong> — the routers (S&amp;L balance sheets) that had been routing too much junk traffic caught fire and had to be replaced by the government at public expense.</p><p>The lasting innovation: after Drexel failed, the network architecture survived. Other investment banks rebuilt their own high-yield desks (Merrill Lynch, Deutsche Bank, Goldman Sachs, Citigroup). The distributed financing market that Milken proved was viable became the structural basis for every major LBO completed since.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Stage 1: The Academic Foundation — What Milken Read</p><p>Michael Milken's approach to high-yield bonds was grounded in an academic study almost no one in mainstream finance had read. In 1958, the National Bureau of Economic Research published W. Braddock Hickman's <em>Corporate Bond Quality and Investor Experience</em> — a comprehensive study of corporate bonds issued in the United States between 1900 and 1943. [needs-verification on exact publication details]</p><p>Hickman's finding was counterintuitive: portfolios of lower-rated, higher-yielding bonds had <em>outperformed</em> investment-grade bonds on a risk-adjusted basis over the study period. The yields on sub-investment-grade bonds were high enough to more than compensate for the higher default rates. Investment-grade bonds were, in effect, overpriced relative to actual performance — and junk bonds were underpriced.</p><p>Milken, studying finance at the Wharton School and later Berkeley in the late 1960s, encountered Hickman's work and built his entire career around its implication: that the market was systematically mispricing the risk on low-rated bonds, creating an exploitable opportunity for investors who understood the empirical default data. [needs-verification on Milken's educational institutions and specific use of Hickman]</p><p>This is important for the learner because it shows that Milken's contribution was not primarily criminal creativity — it was genuine financial analysis applied to a market inefficiency. The instrument itself was legitimate. The subsequent fraud was separable from the underlying economic insight.</p><p>---</p><p>### Stage 2: Building the Drexel Machine (1973–1984)</p><p>Milken joined Drexel Burnham Lambert (formed from the merger of Drexel Firestone and Burnham &amp; Company) in 1973. He was assigned to the bond trading desk and quickly demonstrated his ability to find buyers for bonds that mainstream institutional investors avoided. [needs-verification on exact date Milken joined Drexel]</p><p><strong>The Beverly Hills operation</strong> In 1978, Milken made an unusual decision for a Wall Street banker: he relocated his entire high-yield operation from New York to Beverly Hills, California. The reasons were partly personal (his family), but the move had structural consequences. Beverly Hills placed Milken's desk in the same timezone as the West Coast savings and loan institutions — his most important buyers — and physically separated his operation from the oversight culture of Wall Street. The Beverly Hills office became the centre of the high-yield universe: deals were sourced, financed, and distributed from there. [needs-verification on exact year of Beverly Hills move]</p><p><strong>The buyer ecosystem</strong> Milken's genius was building a <em>buyer network</em> before building the issuance machine. His primary buyers were:</p><ul class='notelist'><li><strong>Savings and loan institutions (S&amp;Ls):</strong> After the S&amp;L deregulation of the early 1980s (the Garn-St. Germain Act, 1982), S&amp;Ls were permitted to invest in assets beyond traditional home mortgages — and faced pressure to earn yields high enough to cover the interest rates they were paying depositors. High-yield bonds, offering 12–16% coupons in a market where 30-year Treasuries yielded 10–14%, solved the S&amp;L yield problem. Key buyers included Columbia Savings &amp; Loan, Lincoln Savings (Charles Keating), and Executive Life Insurance. [needs-verification on specific S&amp;L names]</li><li><strong>Insurance companies:</strong> Particularly those with guaranteed investment contracts (GICs) that required high yields to fund their liability obligations.</li><li><strong>Savings banks and thrifts:</strong> Similar dynamic to S&amp;Ls.</li><li><strong>Mutual funds and high-yield bond funds:</strong> A cottage industry of specialist high-yield fund managers developed to serve retail investors seeking higher yields.</li></ul><p><strong>The highly confident letter</strong> Milken's single most important structural innovation was the <em>highly confident letter</em> — a document in which Drexel would state it was \"highly confident\" it could raise the debt financing necessary to complete a specific acquisition. This was not a firm commitment; it was a reputational guarantee. But in the context of a bidding auction for a company, it was sufficient: the letter told the target's board that the bidder had a credible financing source.</p><p>The practical effect: acquirers could make binding bids on companies <em>before</em> the financing was secured. This inverted the traditional sequence (arrange financing, then bid) and gave Drexel-backed acquirers a decisive advantage in competitive auctions. Competing bidders without access to Drexel's network either had to secure financing first (slower, less flexible) or bid without financing certainty (risking deal failure). [needs-verification on exact legal status and wording of highly confident letters]</p><p>---</p><p>### Stage 3: The Hostile Takeover Wave (1984–1988)</p><p>Once Milken's buyer network was large enough to absorb billion-dollar bond offerings, the junk bond market enabled not just friendly LBOs but <em>hostile takeovers</em> — acquisitions the target's management opposed. Before junk bonds, hostile acquisitions were limited by what a raider could finance on their personal balance sheet or through traditional bank debt. With Milken's financing, any company was in principle takeable.</p><p>The wave of corporate raiders that followed used Milken's financing to target underperforming conglomerates:</p><ul class='notelist'><li><strong>T. Boone Pickens</strong> targeted Gulf Oil ($13+ billion) and Phillips Petroleum. Gulf was ultimately acquired by Chevron; Pickens and his investors earned large profits from greenmail payments and the premium at which Chevron acquired Gulf. [needs-verification on exact transaction details]</li><li><strong>Carl Icahn</strong> pursued TWA and various industrial companies, using the threat of Milken financing to force management to take actions that improved shareholder value — or pay greenmail to buy Icahn out.</li><li><strong>Ron Perelman</strong> used $1.8 billion in Milken-financed debt to acquire Revlon in 1985 through his vehicle Pantry Pride — the first paradigmatic hostile LBO where a raider acquired a major consumer brand against management's wishes. [needs-verification on exact deal structure]</li></ul><p><strong>The conglomerate discount argument</strong> The academic and industry defence of this wave was that 1980s conglomerates were genuinely destroying value by combining unrelated businesses under a single management team that could not run them efficiently. The theory of the \"conglomerate discount\" — that diversified companies trade at a valuation below the sum of their parts — was well-established. PE and raiders, by forcing breakup or focused management, were arguably <em>creating</em> value by correcting a genuine capital allocation failure in public markets.</p><p>This is one side of live dispute #1 in the thesis: the takeover wave was not purely predatory — it was in part a genuine governance correction for management entrenchment and conglomerate inefficiency. [needs-verification on empirical support for conglomerate discount in 1980s]</p><p>---</p><p>### Stage 4: The RJR Nabisco Deal — The Apotheosis (1988–1989)</p><p>The leveraged buyout of RJR Nabisco is the single most documented, most cited, and most culturally significant transaction in private equity history. Its importance is not primarily financial (the returns were mediocre) but structural and political: it demonstrated the absolute limit of what PE could accomplish with Milken's financing, and it triggered the public and regulatory attention that defined PE's political environment for the following decade.</p><p><strong>The target</strong> RJR Nabisco was formed in 1985 through the merger of R.J. Reynolds Tobacco (Camel, Winston cigarettes) with Nabisco (Oreos, Ritz Crackers, among other consumer food brands). The combination was the creation of F. Ross Johnson, who became CEO. Johnson was known for extraordinary corporate excess: a fleet of private jets (the \"RJR Air Force\"), celebrity endorsements (Jack Nicklaus, Frank Gifford, Don Meredith on the payroll), and a management culture that prioritised perquisites over shareholder returns. [needs-verification on specific celebrity names and endorsements]</p><p>The fundamental problem with RJR Nabisco from a valuation perspective: the tobacco division's litigation overhang depressed the stock price. Tobacco was highly cash-generative but increasingly facing class-action litigation risk. Investors discounted the tobacco business, which meant the food business (genuinely valuable) was also being discounted by association. The company's sum-of-parts value was estimated to be significantly higher than its public market trading price.</p><p><strong>The management buyout proposal</strong> On October 20, 1988, F. Ross Johnson and his team — backed by Shearson Lehman Hutton (an investment bank subsidiary of American Express) — proposed to take RJR Nabisco private in a management buyout at $17 per share, subsequently raised to $20.60 per share. At the prevailing share count, this implied total transaction value of approximately $18–20 billion. [needs-verification on exact initial bid and share count]</p><p>Johnson's motivation was partly financial: he stood to earn approximately $100 million from his equity participation in the deal — a figure that, when it became public, generated significant outrage. Critics argued that Johnson was using inside knowledge of the company's true value to enrich himself at the expense of public shareholders who lacked that information. This critique became central to the subsequent public debate about management conflicts in PE transactions.</p><p><strong>The board's decision to run an auction</strong> RJR Nabisco's board, advised by its special committee, decided the management buyout proposal represented a conflict of interest and established an auction process. Investment banks Dillon Read and Lazard Frères were appointed to advise the special committee and run the auction. [needs-verification on specific advisors and process structure]</p><p>The auction attracted four serious bidders:</p><p>| Bidder | Backing | Approach | |---|---|---| | F. Ross Johnson / Management | Shearson Lehman Hutton + Salomon Brothers | Management-led; Johnson would run company post-acquisition | | KKR (Henry Kravis, George Roberts) | Drexel Burnham Lambert junk bond financing | Pure financial buyer; no operating role for management | | Forstmann Little (Ted Forstmann) | Investment-grade bridge financing (explicitly anti-junk-bond) | \"Clean\" deal; Forstmann publicly criticised junk bonds as \"wampum\" | | First Boston-led consortium | Various | Withdrew early in the process |</p><p>Ted Forstmann's position is worth noting. He argued publicly that junk bond financing was reckless — that the leverage ratios being achieved by Milken's machine were unsustainable, that the S&amp;L buyers of junk bonds were taking on risks they didn't understand, and that the industry was heading for a crisis. He was right, but his insistence on investment-grade financing meant his bids were consistently lower and his timing constraints greater than KKR's. [needs-verification on Forstmann's specific public statements]</p><p><strong>The bidding process</strong> The auction ran through November 1988 with multiple rounds. KKR's first bid was approximately $90/share; by early November KKR had raised it to $94. The management group raised its own offers in response. By late November the bids were converging at levels far above the pre-announcement price.</p><p><em>Final first-round bids (approximately November 18, 1988):</em> - Management/Shearson: approximately $100/share - KKR: approximately $98/share - Forstmann Little: approximately $95/share</p><p><em>Final bids (December 1, 1988):</em> - Management/Shearson/Salomon: approximately $112/share (but a significant portion in securities — preference shares, reset notes — rather than cash) - KKR: approximately $109/share (primarily cash and KKR-issued notes) - Forstmann Little: approximately $105/share</p><p><strong>Why KKR won at the lower price</strong> This is the most instructive detail of the entire transaction. The special committee chose KKR's bid of $109 over management's nominally higher $112 bid. The reasons:</p><ol><li><strong>Security value uncertainty.</strong> Management's $112 included PIK notes and preference securities whose value was difficult to assess. Analysts and the special committee concluded the securities component was worth materially less than its face value — potentially making management's \"effective\" bid lower than $109 in cash-equivalent terms.</li><li><strong>Financing certainty.</strong> KKR had Drexel's highly confident letter for the bulk of its debt financing. Management's consortium had more complex, less certain financing arrangements.</li><li><strong>Conflict of interest.</strong> The board was uncomfortable awarding the company to the management team that had created the auction — the perception of management using inside knowledge to enrich themselves was politically difficult, regardless of bid level.</li><li><strong>Execution certainty.</strong> KKR had a track record of closing deals it bid for. [needs-verification on specific board deliberations]</li></ol><p><strong>The deal structure</strong> - <strong>Total enterprise value:</strong> approximately $31.4 billion at $109/share [needs-verification — commonly cited as $25 billion equity value + assumed debt] - <strong>Equity:</strong> approximately $2 billion from KKR plus co-investors (management retained a small equity stake) - <strong>Junk bond financing:</strong> in excess of $5 billion via Drexel (the largest single high-yield bond financing of its time) - <strong>Senior bank debt:</strong> approximately $14–15 billion from a bank consortium (the senior, first-lien majority of the debt) - The deal closed on January 31, 1989</p><p><strong>The returns disappointment</strong> RJR Nabisco did not generate the returns KKR's investors expected. The reasons compounded over the early 1990s:</p><ol><li><strong>Tobacco litigation.</strong> Starting in the early 1990s, the tobacco industry faced massive class-action lawsuits and attorney general litigation across US states, culminating in the 1998 Master Settlement Agreement requiring the industry to pay approximately $206 billion over 25 years. [needs-verification on exact MSA figure] This liability overhang made the company extremely difficult to sell or take public.</li><li><strong>Junk bond market collapse.</strong> The bonds KKR had issued to finance RJR paid high fixed coupons. After the junk bond market collapsed in 1989–1990, refinancing those bonds at better rates was impossible — KKR was locked in to expensive fixed costs throughout the period of maximum financial stress.</li><li><strong>Operating challenges.</strong> The food and tobacco businesses required capital investment that was difficult to fund given the heavy debt service obligations.</li><li><strong>Forced disposals.</strong> KKR sold off the food businesses (Nabisco became a standalone company; RJ Reynolds returned to a pure tobacco entity) — effectively unwinding the merger that Johnson had created and acknowledging the conglomerate had never added value.</li></ol><p>KKR exited its RJR position through a series of transactions across the early-to-mid 1990s, reportedly generating returns that were positive but significantly below the multiples KKR's other deals produced in the same era. [needs-verification on specific exit timeline and returns] The deal remains a case study in the difference between transaction execution (KKR ran a brilliant auction process) and investment success (the underlying thesis was undermined by events outside the model).</p><p>---</p><p>### Stage 5: The Ivan Boesky Connection and Milken's Prosecution</p><p>The unravelling of Milken and Drexel began not from the junk bond market itself but from the parallel insider trading scandal surrounding arbitrageur Ivan Boesky.</p><p><strong>Ivan Boesky and risk arbitrage</strong> Ivan Boesky ran one of the most successful risk arbitrage operations on Wall Street in the early-to-mid 1980s. Risk arbitrage (or merger arbitrage) involves buying shares of announced acquisition targets at a discount to the announced deal price, betting the deal will close. The margin depends on how quickly the deal closes and whether the deal price holds.</p><p>Boesky's edge — which he didn't advertise — was that he sometimes had prior knowledge of which companies were about to be acquired. That knowledge came from a network of relationships with investment bankers, including Milken. In November 1986, Boesky agreed to settle SEC charges of insider trading, paying $100 million in disgorgement and penalties — then the largest securities law settlement in history. As part of the settlement, Boesky agreed to cooperate with prosecutors and name his sources. [needs-verification on exact settlement date and terms]</p><p><strong>The Milken investigation</strong> Boesky's cooperation implicated Milken in a pattern of trading arrangements: Milken would pass information about upcoming junk bond financings or LBO transactions; Boesky would buy positions in the affected securities and profit; the proceeds would be shared or offset through fictitious bond transactions. [needs-verification on specific alleged arrangements] This was not merely insider trading — it involved the systematic manipulation of prices and records across multiple securities transactions.</p><p>In March 1989, a federal grand jury indicted Milken on 98 counts of racketeering and securities fraud under the RICO (Racketeer Influenced and Corrupt Organizations) statute — a statute originally designed for organised crime prosecution. The use of RICO was significant: it allowed prosecutors to charge Milken not just for individual transactions but for participating in an enterprise whose pattern of activities constituted a criminal conspiracy. The RICO charge carried potential penalties far exceeding standard securities fraud, and it enabled the government to seek forfeiture of Milken's assets. [needs-verification on exact indictment date and count details]</p><p><strong>The RICO controversy</strong> The use of RICO against Milken was — and remains — contested. Critics argued it was prosecutorial overreach: RICO was designed for the Mafia, not for Wall Street bankers whose actions, however unethical, were arguably closer to professional fraud than organised crime. Defenders argued that the systematic, organised nature of Milken's activities — the network of relationships, the coordinated trading arrangements, the deliberate concealment in accounting records — was precisely what RICO was designed to reach. This debate has direct relevance to every subsequent attempt to apply aggressive regulatory tools to financial misconduct.</p><p><strong>Milken's guilty plea (1990)</strong> In April 1990, Milken pleaded guilty to six of the 98 counts, admitting to securities fraud and related charges. He paid $600 million in fines and restitution — the largest securities-law penalty in history at that point. In November 1990, he was sentenced to ten years in prison; he served approximately 22 months before early release. [needs-verification on plea date, exact counts, and release conditions]</p><p>---</p><p>### Stage 6: Drexel's Collapse and the Market's End</p><p><strong>Drexel Burnham Lambert bankruptcy (February 1990)</strong> Drexel itself faced criminal RICO charges as a firm in 1989. Rather than contest charges that could have suspended its operating licence, Drexel entered a plea agreement in which it admitted to six counts of securities fraud, agreed to pay $650 million in penalties, and submitted to oversight. [needs-verification on exact terms of Drexel plea]</p><p>Without Milken (indicted, then awaiting prosecution), and with the junk bond market collapsing, Drexel could no longer perform its core function — originating and distributing high-yield financings. The firm's revenue collapsed. In February 1990, Drexel Burnham Lambert filed for Chapter 11 bankruptcy protection. The firm that had built and dominated the high-yield bond market for over a decade ceased to exist. [needs-verification on exact bankruptcy date — commonly cited as February 13, 1990]</p><p><strong>The market collapse</strong> The junk bond market did not collapse because of Milken's prosecution alone — the fundamentals had deteriorated. The boom years of 1986–1988 had produced a massive increase in junk bond issuance at leverage ratios that assumed continued economic growth. When growth slowed in 1989 and the recession hit in 1990, default rates spiked to levels the market had not priced. High-yield bond default rates reached approximately 10% in 1990 — versus historical averages of 2–3%. [needs-verification on default rate figures]</p><p>The simultaneous impact of Drexel's absence (as the primary market maker, its exit from the market removed liquidity), rising defaults, and the S&amp;L crisis (forcing distressed selling of junk bond portfolios) produced a severe market dislocation. Junk bond prices fell dramatically; the spreads over Treasury bonds widened from approximately 400 basis points to over 1,000 basis points at the peak of the dislocation. [needs-verification on spread data]</p><p>---</p><p>### Stage 7: The S&amp;L Crisis — The Systemic Consequence</p><p>The S&amp;L crisis of the late 1980s and early 1990s was directly connected to the junk bond era and represents its most significant systemic consequence.</p><p><strong>The S&amp;L deregulation trap</strong> S&amp;Ls (savings and loan institutions, also called thrifts) were originally chartered to take deposits and make home mortgage loans. Their business model was simple: borrow short (from depositors) and lend long (30-year mortgages). This worked when interest rates were stable. When rates rose sharply in the late 1970s and early 1980s, S&amp;Ls found themselves paying 12–14% to depositors while holding 6–8% mortgages on their books — a ruinous spread.</p><p>The political response was deregulation: the Garn-St. Germain Act (1982) allowed S&amp;Ls to invest in a broader range of assets including commercial real estate, junk bonds, and consumer lending, in theory allowing them to earn their way out of their interest rate problem. For S&amp;Ls with weak management and inadequate regulatory oversight, deregulation created an opportunity for recklessness: bet depositors' money on high-yield assets, knowing that FSLIC (federal deposit insurance) would cover depositor losses if the bets failed. [needs-verification on exact Garn-St. Germain provisions and their effects]</p><p><strong>The junk bond-S&amp;L feedback loop</strong> Milken's buyer network depended heavily on S&amp;Ls. Columbia Savings &amp; Loan, Executive Life Insurance, and Lincoln Savings (controlled by Charles Keating, who had a direct relationship with Milken) were among the largest buyers of junk bonds. When the junk bond market collapsed in 1989–1990, these institutions faced catastrophic losses on their junk bond portfolios simultaneously with losses on commercial real estate. [needs-verification on which specific S&amp;Ls held the largest junk bond positions]</p><p>The result: over 1,000 S&amp;L institutions failed during the crisis. The federal bailout through the Resolution Trust Corporation (RTC) — established to manage the assets of failed S&amp;Ls — cost approximately $132 billion in direct federal expenditure (with broader estimates including long-term costs ranging higher). American taxpayers bore the cost of the risk-taking that Milken's buyer network had facilitated. [needs-verification on exact RTC/S&amp;L crisis cost estimates]</p><p><strong>FIRREA (1989)</strong> The Financial Institutions Reform, Recovery, and Enforcement Act (1989) was the legislative response to the S&amp;L crisis. Among its provisions: S&amp;Ls were <em>required to divest their junk bond holdings</em> by a specific date. This mandatory selling, hitting the market simultaneously with the organic market collapse, significantly deepened the junk bond price dislocation. FIRREA also established the RTC and substantially increased the regulatory capital requirements for thrifts. [needs-verification on exact FIRREA junk bond divestiture deadline and provisions]</p><p>The S&amp;L crisis is the first major example in PE history of what the thesis describes as an externality: the benefits of PE-adjacent financial innovation (the financing of LBOs and corporate acquisitions) flowed to shareholders, GPs, and deal professionals; the costs of the resulting systemic failure (the S&amp;L bailout) were borne by taxpayers who had no role in, and received no benefit from, the transactions in question.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p>### The Full RJR Nabisco Story — From Board Room to Barbarians</p><p><strong>October 20, 1988 — The Announcement</strong> F. Ross Johnson, CEO of RJR Nabisco, walks into a board meeting and announces that he and Shearson Lehman Hutton want to take the company private in a management buyout. His initial bid: $17/share. The stock had been trading in the $50s; after the announcement it rockets above $70 as the market prices in a bidding war.</p><p>Johnson's motivation was not just the $100 million he stood to earn. The management team had been frustrated for years that the tobacco litigation overhang was preventing the market from recognising the food division's value. An LBO would allow management to restructure the company privately, away from public market scrutiny, and profit from the improvement.</p><p><strong>Henry Kravis Enters</strong> Henry Kravis of KKR learned of the process and immediately saw the opportunity. KKR had completed the $8.7bn Beatrice Companies deal in 1985 and several subsequent large transactions. RJR Nabisco was the largest buyout target that had ever existed — a challenge that appealed to KKR's competitive instincts and validated Milken's financing at its maximum possible scale.</p><p><strong>The Auction</strong> The special committee ran a two-stage auction through November 1988. The atmosphere, as documented in extraordinary detail by Burrough and Helyar in <em>Barbarians at the Gate</em>, was characterised by: - Investment bankers competing to join the winning syndicate (fees on a $30bn+ deal were extraordinary — estimated at several hundred million dollars across all advisors) - Bidders using information asymmetries aggressively (management had insider knowledge of the company's value; KKR was working purely from public information) - Milken as the silent power: his ability to finance KKR's bids was the critical variable that allowed KKR to match and eventually surpass management's offers</p><p><strong>December 1, 1988 — The Final Bids</strong> Management (backed by Shearson and Salomon Brothers): $112/share, but with significant PIK notes and preference securities in the consideration. KKR: $109/share, primarily in cash with some notes. Forstmann Little: $105/share.</p><p>The special committee chose KKR. Ted Forstmann was furious. Johnson was publicly humiliated — outbid for his own company, and with his $100M payday exposed to the press in ways that destroyed his reputation. [needs-verification on Johnson's final financial outcome]</p><p><strong>The Transaction Closes — January 31, 1989</strong> KKR acquired RJR Nabisco for approximately $31.4 billion, financed with one of the largest junk bond financings ever completed. The deal captured the cover of every major newspaper and magazine. \"Barbarians at the Gate\" — the book Burrough and Helyar published in 1989 — became a bestseller and was adapted into an HBO film in 1993. The term \"barbarians at the gate\" entered the language as a synonym for PE's rapacious ambition.</p><p><strong>The Subsequent Years — A Slow Disappointment</strong> 1990: Junk bond market collapses. Drexel bankrupt. RJR carrying massive interest burden. 1991–1993: Tobacco litigation escalates. Refinancing the junk bonds at better rates impossible. 1995: KKR takes RJR public again (IPO), selling down part of its stake but remaining a large holder. 1999: RJR spins off Nabisco. The two companies KKR had paid $31bn to put together are separated; the conglomerate logic is explicitly abandoned. Mid-1990s to early 2000s: KKR exits remaining positions.</p><p>The total return to KKR's LPs on the RJR investment was reportedly modest — positive, but well below the 20–25%+ IRRs that defined KKR's other successful transactions. [needs-verification on specific return figures]</p><p><strong>For the learner processing KKR K-1s</strong> Every time a K-1 allocation from a KKR fund flows through CVC Secondary Partners' tax records, it reflects income, gain, or loss from investments made by the same firm — KKR — whose most famous and defining transaction was the RJR Nabisco deal. The institutional identity of the firm you process data for was forged in this period. KKR today manages approximately $500+ billion in assets. [needs-verification on current KKR AUM] It began with a $120,000 founding stake and proved itself on family-owned businesses. The scale of the modern institution is the compounded result of thirty years of fund-raising, deal-making, and institutional capital accumulation that started with the decisions made between 1976 and 1989.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Junk bonds are inherently fraudulent instruments.\"</strong> The instrument — a bond with a below-investment-grade credit rating offering a higher yield to compensate for higher default risk — is entirely legitimate. High-yield bonds are a mainstream, heavily-traded, and valuable component of corporate finance today. Milken's fraud was in the <em>trading arrangements</em> around the bonds (using inside information, market manipulation, falsifying records), not in the bonds themselves. Conflating the fraud with the instrument is like blaming the telephone because someone used it to plan a crime.</p><p><strong>Misconception 2: \"Milken created the junk bond market from nothing.\"</strong> Milken created the <em>liquid market</em> for high-yield bonds. The instruments existed before him — \"fallen angels\" (originally investment-grade bonds that were downgraded) had been traded, illiquidly, for decades. Milken's contribution was the <em>distribution network, the buyer relationships, the highly confident letter, and the primary issuance machine</em> that turned a thin, illiquid secondary market into a deep, liquid, primary-issuance market. The distinction matters: he was a market <em>builder</em>, not a market <em>inventor</em>.</p><p><strong>Misconception 3: \"KKR made extraordinary profits on RJR Nabisco.\"</strong> RJR Nabisco is famous because of its scale and cultural impact, not its returns. KKR generated positive but below-target returns on the investment. The deal is cited not as a financial success but as a demonstration of scale and ambition — and as a cautionary tale about the difference between executing a transaction brilliantly and generating exceptional LP returns from it.</p><p><strong>Misconception 4: \"The junk bond collapse ended leveraged finance.\"</strong> The collapse ended Drexel's monopoly and temporarily froze the junk bond market. Within three to five years, the market had recovered and diversified across multiple investment banks. Today's leveraged buyout market uses the same instruments Milken pioneered, issued through the same market structure he proved was viable — just with more participants, better regulation, and different buyers (CLOs rather than S&amp;Ls).</p><p><strong>Misconception 5: \"The S&amp;L crisis was caused by PE.\"</strong> The S&amp;L crisis had multiple causes: interest rate deregulation, premature lifting of investment restrictions (Garn-St. Germain), fraud at individual institutions (Charles Keating's Lincoln Savings is the most notorious case), and commercial real estate speculation. Junk bonds were <em>one of several</em> contributing factors — the S&amp;L institutions that bought large junk bond portfolios suffered when the market collapsed, but many S&amp;Ls failed from real estate losses alone. Attributing the entire S&amp;L crisis to PE or junk bonds overstates the causal connection.</p><p><strong>Misconception 6: \"The management team (Johnson) was the victim in the RJR deal.\"</strong> Johnson's management team initiated the process and held material inside information about the company's value relative to its market price. While Johnson ultimately lost the auction to KKR, the framing of management as victims misses the more important dynamic: the special committee's decision to run an auction was the correct governance response to the conflict of interest that management's own buyout bid had created. The real victims, if any, were the public shareholders whose returns were capped by the deal structure — though they received a significant premium over the pre-announcement price.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The junk bond era (c. 1978–1990) was the period when Michael Milken at Drexel Burnham Lambert solved the financing constraint that had limited LBO scale. By building a liquid public market for sub-investment-grade debt — grounded in the empirical insight of Hickman's 1958 study, distributed through a network of S&amp;Ls, insurance companies, and specialist funds, and operationalised through the \"highly confident letter\" — Milken removed the size ceiling from leveraged acquisitions. Billion-dollar deals became possible; then ten-billion-dollar deals; then, in the case of RJR Nabisco, the thirty-billion-dollar apotheosis.</p><p>The RJR Nabisco deal (1988–1989) — in which KKR acquired the tobacco and food conglomerate for approximately $31.4 billion, winning at $109/share over management's nominally higher $112 bid because KKR's financing was more certain and management's conflict of interest was politically untenable — demonstrated the absolute limit of PE's reach. It also generated, through Burrough and Helyar's <em>Barbarians at the Gate</em>, the public cultural image of PE that has shaped every subsequent political debate about the industry.</p><p>The collapse was equally defining. Milken's prosecution (98 RICO counts, guilty plea to six, $600M fine, 22 months served) ended Drexel's monopoly. The junk bond market's price dislocation, accelerated by FIRREA's requirement that S&amp;Ls divest their portfolios, produced a severe but temporary freeze. The S&amp;L crisis — caused partly by S&amp;Ls' heavy junk bond exposure — cost taxpayers approximately $132 billion and established the founding case for the thesis's argument that PE-adjacent financial innovation can privatise gains while socialising losses.</p><p>What survived the collapse was the instrument itself: the high-yield bond market re-emerged, distributed across multiple investment banks, and became a permanent structural feature of leveraged finance. The KKR, Blackstone, Apollo, and Carlyle funds whose K-1 allocations flow through CVC Secondary Partners' tax records today finance their buyouts through the high-yield bond market Milken built, now regulated, diversified, and mainstream.</p><p>The junk bond era is the thesis in miniature: genuine value creation and genuine systemic harm, both produced by the same incentive architecture, in a market operating without adequate governance. Understanding this is not historical curiosity — it is the pattern you use to read every subsequent PE controversy as it unfolds.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

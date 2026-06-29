@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "covenant-lite-structures", "title": "Covenant-Lite Structures", "draft_watermark": false, "estimated_runtime_sec": 420, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Who holds the leash", "on_screen_bullets": ["Dominant in large-cap since 2012", "Shifts power sponsor-ward", "Live debate under rising rates"], "narration": "Covenant-lite has become the dominant structure in large-cap LBO financing since 2012, and it's about far more than deal mechanics — it's about the balance of power between PE sponsors and their lenders, and how the industry managed to shift standard market practice so decisively in its own favour. This is also a live debate right now: after the rate rises of 2022, how cov-lite loans perform under stress directly affects how PE deals are structured and whether they survive a downturn. This lesson is the capstone of the debt module — it explains who really holds the leash in modern leveraged finance.", "est_sec": 46}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Maintenance out, incurrence in", "on_screen_bullets": ["No quarterly financial tests", "Triggers only on borrower action", "Freedom for the sponsor, blindness for lenders"], "narration": "The definition. Covenant-lite, or cov-lite, loan structures replace quarterly-tested financial maintenance covenants with incurrence-only covenants. That gives PE sponsors the operational freedom to manage distress on their own terms — but it strips lenders of their early-warning signals and their workout leverage. The lender can no longer act just because the numbers got worse; it can only act if the borrower actively does something prohibited.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The mortgage with no check-ups", "on_screen_bullets": ["Traditional: quarterly income tests", "Cov-lite: act only if I do something", "Income can fall — bank can't intervene"], "narration": "When a bank gives you a traditional mortgage, it insists on regular check-ups: every quarter it reviews your finances, and if your income falls below a set level relative to your payment, it can demand early repayment. Those recurring tests are maintenance covenants, and they protect the lender. Now imagine you negotiated differently: I will not breach anything unless I actually miss a payment, try to take on more debt, sell the house without telling you, or go bankrupt. The bank can't intervene just because your income fell — only if you take a specifically prohibited action. That's covenant-lite. In LBOs, cov-lite term loan Bs replaced the quarterly financial tests with these incurrence-only covenants, so a sponsor can steer a deteriorating company without lenders forcing a sale at the worst possible moment. Lenders accept it because they want the yield and the fees on big LBO deals.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The inspector who can't inspect", "on_screen_bullets": ["Maintenance = quarterly inspections", "Cov-lite = act only on specific triggers", "No gun to the head in a downturn"], "narration": "Another way to see it. Picture a building inspector who checks your house every three months; if they find cracks or failing wiring they can force you to fix it immediately or move out. That's a maintenance covenant — regular testing, immediate rights on breach. Now picture an inspector who can't do quarterly visits at all, and can only act if you knock down a load-bearing wall, add a floor without a permit, or miss a mortgage payment. As long as you simply live in the house, even while it quietly deteriorates, they can't touch you. That's cov-lite. For PE this is enormously valuable: if revenues dip in a downturn, a maintenance covenant might trigger lender intervention at exactly the wrong moment and force a fire sale. With cov-lite, the sponsor has time and operational control to manage a recovery without a gun to their head.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Two covenant species", "on_screen_bullets": ["Maintenance: tested by the clock", "Incurrence: tested on an action", "~85–90% of US loans cov-lite by 2022"], "narration": "Mechanically there are two covenant species. Maintenance covenants, in traditional loans, are tested quarterly — triggered automatically by the passage of time. Fail the test, say leverage exceeds five-and-a-half times, and the lender can declare an event of default and accelerate the loan. The common ones are a maximum leverage ratio, a minimum interest coverage ratio, a minimum EBITDA, and a maximum capex. Incurrence covenants, in cov-lite loans, are tested only when the borrower takes a specific action — incurring new debt, paying a dividend, making an investment — and the test simply blocks that action unless the ratio is satisfied at that moment. The passage of time triggers nothing; deteriorating performance alone gives lenders no rights. Cov-lite emerged and dominated after 2012 because yield-hungry institutional investors — CLOs and credit funds — competed for term-loan-B paper and accepted weaker terms, while sponsors, as repeat clients, pushed for borrower-friendly documents. By 2022 roughly eighty-five to ninety percent of new US institutional leveraged loans were cov-lite. One important hybrid is the springing covenant: the term loan B is fully cov-lite, but the revolver carries a maintenance covenant that only springs into effect once the revolver is drawn beyond a threshold, often thirty-five or forty percent of commitments — preserving the bank's protection precisely when it's actually funding liquidity.", "est_sec": 64}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "Cov-lite under the 2022 rate shock", "on_screen_bullets": ["$300m TLB, SOFR+375", "Interest $11.55m → $27m", "ICR 3.9x → 1.67x, no breach"], "narration": "Watch what cov-lite did when rates jumped. Take a three-hundred-million term loan B at SOFR plus three-seventy-five. In 2021, with SOFR near zero, the all-in rate was about three-point-eight-five percent — interest of roughly eleven-and-a-half million a year. By 2023, with SOFR above five percent, the rate was about nine percent — interest of twenty-seven million. That fifteen-and-a-half-million jump, on a company with maybe forty-five million of EBITDA, compressed interest coverage from about three-point-nine times to one-point-six-seven times. In a traditional structure that might have tripped a leverage or coverage covenant and handed lenders the keys. Under cov-lite, lenders had no intervention rights despite the dramatic deterioration. Look at the table: at six-point-seven times leverage and one-point-six-seven coverage, a leverage covenant set at six times would breach in year zero — an instant event of default. The cov-lite company has no breach at all; the sponsor manages operations through the dip, and if EBITDA recovers by year three, the company is never in technical distress. Whether the absence of that early intervention is good or bad for the system overall is exactly the live debate.", "est_sec": 62}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["'Lite' ≠ no covenants", "Default evidence is mixed", "Lenders accept it voluntarily"], "narration": "Four corrections. First, cov-lite does not mean no covenants — it removes the quarterly financial maintenance tests, but incurrence covenants, events of default, and reporting requirements all remain; lite refers only to the financial-monitoring regime. Second, it's not settled that cov-lite loans default more often — they may show lower technical default rates, because lenders can't trigger a default via a covenant test, but potentially deeper payment defaults in severe downturns because no one intervened early; the counterfactual is genuinely unclear. Third, sponsors don't always prefer cov-lite — some accept maintenance covenants in exchange for cheaper pricing, and mid-market deals often keep them because the smaller lender base insists. And fourth, it's not simply PE winning at lenders' expense — lenders accept cov-lite voluntarily because yield-hungry capital is competing for the same high-spread paper; the terms reflect supply and demand in the credit market, not coercion.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Freedom now, deeper distress later", "on_screen_bullets": ["Maintenance → incurrence", "Springing covenant on the RCF", "Distress arrives faster when it comes"], "narration": "To recap. Cov-lite structures replace quarterly maintenance covenants — leverage and coverage tests — with incurrence-only covenants that trigger solely on specific borrower actions, giving sponsors freedom to steer a struggling company without a forced sale at the trough. They became dominant in institutional term loan Bs after 2012, driven by excess investor demand for yield and sponsor market power, with the springing covenant preserving partial testing on the revolver when banks actually fund liquidity. The trade-off is real: lenders lose their early warning and their workout leverage, so distress, when it finally arrives, tends to be deeper and faster. That completes our tour of the LBO capital structure — every tranche, top to bottom. Next we change gears entirely and open the due-diligence module, beginning with commercial due diligence.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A cov-lite TLB and a traditionally-covenanted TLB both see ICR fall from 3.9x to 1.67x. What can the lender do in each case — and what does the sponsor gain and lose under cov-lite?", "narration": "Before the next lesson, reason it through. Two identical companies see coverage collapse from three-point-nine to one-point-six-seven times — one financed cov-lite, one with traditional maintenance covenants. What can each lender actually do, and what does the sponsor gain, and give up, under cov-lite? Work it out, then check the notes below.", "_skeleton_quiz": "empty"}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Covenant-Lite Structures\n\n[hook] Who holds the leash\nCovenant-lite has become the dominant structure in large-cap LBO financing since 2012, and it's about far more than deal mechanics — it's about the balance of power between PE sponsors and their lenders, and how the industry managed to shift standard market practice so decisively in its own favour. This is also a live debate right now: after the rate rises of 2022, how cov-lite loans perform under stress directly affects how PE deals are structured and whether they survive a downturn. This lesson is the capstone of the debt module — it explains who really holds the leash in modern leveraged finance.\n\n[definition] Maintenance out, incurrence in\nThe definition. Covenant-lite, or cov-lite, loan structures replace quarterly-tested financial maintenance covenants with incurrence-only covenants. That gives PE sponsors the operational freedom to manage distress on their own terms — but it strips lenders of their early-warning signals and their workout leverage. The lender can no longer act just because the numbers got worse; it can only act if the borrower actively does something prohibited.\n\n[intuition] The mortgage with no check-ups\nWhen a bank gives you a traditional mortgage, it insists on regular check-ups: every quarter it reviews your finances, and if your income falls below a set level relative to your payment, it can demand early repayment. Those recurring tests are maintenance covenants, and they protect the lender. Now imagine you negotiated differently: I will not breach anything unless I actually miss a payment, try to take on more debt, sell the house without telling you, or go bankrupt. The bank can't intervene just because your income fell — only if you take a specifically prohibited action. That's covenant-lite. In LBOs, cov-lite term loan Bs replaced the quarterly financial tests with these incurrence-only covenants, so a sponsor can steer a deteriorating company without lenders forcing a sale at the worst possible moment. Lenders accept it because they want the yield and the fees on big LBO deals.\n\n[intuition] The inspector who can't inspect\nAnother way to see it. Picture a building inspector who checks your house every three months; if they find cracks or failing wiring they can force you to fix it immediately or move out. That's a maintenance covenant — regular testing, immediate rights on breach. Now picture an inspector who can't do quarterly visits at all, and can only act if you knock down a load-bearing wall, add a floor without a permit, or miss a mortgage payment. As long as you simply live in the house, even while it quietly deteriorates, they can't touch you. That's cov-lite. For PE this is enormously valuable: if revenues dip in a downturn, a maintenance covenant might trigger lender intervention at exactly the wrong moment and force a fire sale. With cov-lite, the sponsor has time and operational control to manage a recovery without a gun to their head.\n\n[mechanics] Two covenant species\nMechanically there are two covenant species. Maintenance covenants, in traditional loans, are tested quarterly — triggered automatically by the passage of time. Fail the test, say leverage exceeds five-and-a-half times, and the lender can declare an event of default and accelerate the loan. The common ones are a maximum leverage ratio, a minimum interest coverage ratio, a minimum EBITDA, and a maximum capex. Incurrence covenants, in cov-lite loans, are tested only when the borrower takes a specific action — incurring new debt, paying a dividend, making an investment — and the test simply blocks that action unless the ratio is satisfied at that moment. The passage of time triggers nothing; deteriorating performance alone gives lenders no rights. Cov-lite emerged and dominated after 2012 because yield-hungry institutional investors — CLOs and credit funds — competed for term-loan-B paper and accepted weaker terms, while sponsors, as repeat clients, pushed for borrower-friendly documents. By 2022 roughly eighty-five to ninety percent of new US institutional leveraged loans were cov-lite. One important hybrid is the springing covenant: the term loan B is fully cov-lite, but the revolver carries a maintenance covenant that only springs into effect once the revolver is drawn beyond a threshold, often thirty-five or forty percent of commitments — preserving the bank's protection precisely when it's actually funding liquidity.\n\n[worked-example] Cov-lite under the 2022 rate shock\nWatch what cov-lite did when rates jumped. Take a three-hundred-million term loan B at SOFR plus three-seventy-five. In 2021, with SOFR near zero, the all-in rate was about three-point-eight-five percent — interest of roughly eleven-and-a-half million a year. By 2023, with SOFR above five percent, the rate was about nine percent — interest of twenty-seven million. That fifteen-and-a-half-million jump, on a company with maybe forty-five million of EBITDA, compressed interest coverage from about three-point-nine times to one-point-six-seven times. In a traditional structure that might have tripped a leverage or coverage covenant and handed lenders the keys. Under cov-lite, lenders had no intervention rights despite the dramatic deterioration. Look at the table: at six-point-seven times leverage and one-point-six-seven coverage, a leverage covenant set at six times would breach in year zero — an instant event of default. The cov-lite company has no breach at all; the sponsor manages operations through the dip, and if EBITDA recovers by year three, the company is never in technical distress. Whether the absence of that early intervention is good or bad for the system overall is exactly the live debate.\n\n[pitfalls] What people get wrong\nFour corrections. First, cov-lite does not mean no covenants — it removes the quarterly financial maintenance tests, but incurrence covenants, events of default, and reporting requirements all remain; lite refers only to the financial-monitoring regime. Second, it's not settled that cov-lite loans default more often — they may show lower technical default rates, because lenders can't trigger a default via a covenant test, but potentially deeper payment defaults in severe downturns because no one intervened early; the counterfactual is genuinely unclear. Third, sponsors don't always prefer cov-lite — some accept maintenance covenants in exchange for cheaper pricing, and mid-market deals often keep them because the smaller lender base insists. And fourth, it's not simply PE winning at lenders' expense — lenders accept cov-lite voluntarily because yield-hungry capital is competing for the same high-spread paper; the terms reflect supply and demand in the credit market, not coercion.\n\n[recap] Freedom now, deeper distress later\nTo recap. Cov-lite structures replace quarterly maintenance covenants — leverage and coverage tests — with incurrence-only covenants that trigger solely on specific borrower actions, giving sponsors freedom to steer a struggling company without a forced sale at the trough. They became dominant in institutional term loan Bs after 2012, driven by excess investor demand for yield and sponsor market power, with the springing covenant preserving partial testing on the revolver when banks actually fund liquidity. The trade-off is real: lenders lose their early warning and their workout leverage, so distress, when it finally arrives, tends to be deeper and faster. That completes our tour of the LBO capital structure — every tranche, top to bottom. Next we change gears entirely and open the due-diligence module, beginning with commercial due diligence.\n\nEnd-card question: A cov-lite TLB and a traditionally-covenanted TLB both see ICR fall from 3.9x to 1.67x. What can the lender do in each case — and what does the sponsor gain and lose under cov-lite?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Cov-lite has become the dominant structure in large-cap LBO financing since 2012. Understanding cov-lite is essential not just for deal mechanics, but for understanding the balance of power between PE sponsors and lenders — and why the PE industry was able to shift standard market practice so significantly. Post-2022 rate rises and covenant-lite performance under stress are live debates in leveraged finance that directly affect how PE deals are structured and how they survive downturns.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Covenant-lite (cov-lite) loan structures replace quarterly-tested financial maintenance covenants with incurrence-only covenants — giving PE sponsors operational freedom to manage distress on their own terms, but stripping lenders of early warning signals and workout leverage.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When a bank lends you money on a traditional mortgage, it insists on regular check-ups: \"We'll review your finances every quarter. If your income falls below a certain level relative to your mortgage payment, we have the right to demand early repayment.\" These regular financial tests are maintenance covenants — they protect the lender.</p><p>Now imagine you negotiated the mortgage differently: \"I will not breach any covenants unless I actually miss a payment, try to take on more debt, sell my house without telling you, or declare bankruptcy.\" The bank cannot intervene just because your income has fallen — it can only act if you do something specifically prohibited. That is a covenant-lite structure.</p><p>In LBO financing, covenant-lite (cov-lite) Term Loan Bs replaced quarterly financial tests with these \"incurrence-only\" covenants — triggering only when the borrower (PE-backed company) takes a specific action. The result: PE sponsors can manage a deteriorating company without lenders forcing a sale at the worst possible time. Lenders, in exchange, accept this because they want the higher yield and fee income from large LBO deals.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Imagine you hire a building inspector to check your house every three months. If they find problems (cracks in the wall, failing wiring), they can force you to fix them immediately or vacate the house. That is a <strong>maintenance covenant</strong> — regular testing, immediate intervention rights on breach.</p><p>Now imagine you negotiated differently: the inspector cannot conduct quarterly inspections. They can only act if you try to knock down a load-bearing wall, add a new floor without a permit, or miss a mortgage payment entirely. As long as you just live in the house (even if it's quietly deteriorating), they cannot touch you. That is a <strong>covenant-lite</strong> structure — the lender can only intervene on specific triggering actions.</p><p>This is enormously valuable for PE. If a company's revenues decline in a downturn, a maintenance covenant might trigger lender intervention at the worst possible moment — forcing a fire sale. With cov-lite, the PE sponsor has time and operational control to manage the recovery without a gun to their head.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>The two types of covenants:</strong></p><p><strong>1. Maintenance covenants (traditional loans):</strong> - Tested quarterly (or semi-annually) — automatically triggered by the passage of time - If the test is failed (e.g., leverage ratio exceeds 5.5x), lender has the right to declare an event of default - Event of default = lender can accelerate the loan (demand immediate repayment) - Gives lenders an \"early warning\" mechanism and workout leverage before actual payment default</p><p>Common financial maintenance covenants in traditional loans: - <strong>Maximum leverage ratio</strong> (Total Debt / EBITDA ≤ 5.5x) - <strong>Minimum ICR</strong> (EBITDA / Cash Interest ≥ 2.0x) - <strong>Minimum EBITDA</strong> (EBITDA ≥ $X per quarter) - <strong>Maximum capex</strong> (capital expenditure ≤ $Y per year)</p><p><strong>2. Incurrence covenants (cov-lite loans):</strong> - Only tested when the borrower takes a specific action - The borrower can only take that action if the covenant is satisfied at the time - Passage of time does not trigger testing — deteriorating financial performance alone does not give lenders intervention rights - The covenant is tested \"on incurrence\" — at the moment of the action</p><p>Common incurrence covenants in cov-lite TLBs: - <strong>Debt incurrence test:</strong> Cannot incur additional debt if leverage would exceed X.x times EBITDA after incurrence - <strong>Restricted payments test:</strong> Cannot pay dividends or return capital to equity if leverage exceeds Y.yx - <strong>Investment test:</strong> Cannot make certain investments if leverage is above Z.zx - <strong>Asset sale proceeds test:</strong> Must offer to repay debt with a percentage of material asset sale proceeds</p><p><strong>Why cov-lite emerged and dominated (post-2012):</strong></p><p>The cov-lite trend reflects a fundamental market dynamic: 1. Institutional investors (CLOs, credit funds) competing for TLB allocations accepted weaker terms in exchange for access to attractive-yielding paper 2. PE sponsors (as repeat large clients of investment banks) used their market power to push for more borrower-friendly terms 3. Low interest rate environment (2012-2021) increased demand for yield — investors accepted structural concessions to access higher-spread paper 4. Academic and regulatory analysis suggested cov-lite loans did not materially increase default rates (though recovery rates may differ)</p><p>By 2022, approximately 85-90% of new institutional leveraged loans in the US were cov-lite.</p><p><strong>The springing covenant:</strong> A common hybrid: the TLB is cov-lite, but the RCF has a financial maintenance covenant that only \"springs\" into effect when the RCF is drawn above a threshold (e.g., 35% or 40% of commitments). This preserves the bank's protection for when it is actually providing liquidity, while keeping the TLB fully cov-lite.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>Cov-lite performance post-2022 rate rises:</strong></p><p>Following the rapid SOFR increase from ~0.05% (2021) to 5.25%+ (2023), many LBO companies saw cash interest expense roughly double on their floating-rate TLBs. Example:</p><p>A cov-lite TLB of $300M at SOFR+375bps: - 2021: total rate 0.10% + 3.75% = 3.85%, interest = $11.55M/year - 2023: total rate 5.25% + 3.75% = 9.0%, interest = $27M/year</p><p>The $15.45M increase in annual interest — on a company with perhaps $45M EBITDA — compressed ICR from approximately 3.9x to 1.67x.</p><p>In a traditional covenant structure, this might have triggered a leverage or ICR covenant breach (depending on debt/EBITDA levels). In a cov-lite structure, lenders had no intervention rights despite the dramatic change in coverage.</p><p>Result: PE sponsors had the ability to manage these companies operationally — some succeeded (EBITDA grew to compensate), others deferred distress by using PIK provisions or negotiating amendments voluntarily. The counterfactual (forced sales under traditional covenant structure) would have created enormous volumes of distressed transactions in 2022-2023. [needs-verification on aggregate market impact]</p><p><strong>Illustration: traditional vs. cov-lite in the same scenario</strong></p><p>Same company, $300M TLB, $45M EBITDA:</p><p>| Year | EBITDA | Debt | Leverage | Interest (9%) | ICR | |---|---|---|---|---|---| | 0 | $45M | $300M | 6.7x | $27M | 1.67x | | 1 | $42M | $297M | 7.1x | $26.7M | 1.57x | | 2 | $38M | $294M | 7.7x | $26.5M | 1.43x |</p><p>Traditional (leverage ≤ 6.0x covenant): breach in Year 0 itself — instant event of default. Cov-lite: no breach. PE manages operations through Years 1 and 2. If EBITDA recovers to $50M by Year 3, the company is never in technical distress.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Cov-lite means no covenants.\"</strong> Wrong. Cov-lite removes financial maintenance covenants (quarterly tests). Incurrence covenants, events of default, reporting requirements, and other protective provisions remain. \"Lite\" refers specifically to the financial monitoring regime.</p><p><strong>Misconception 2: \"Cov-lite loans default more frequently.\"</strong> The evidence is mixed. Cov-lite loans may have lower technical default rates (because lenders cannot trigger defaults via covenant tests) but potentially higher payment default rates in severe downturns (because lenders had no early intervention). The counterfactual is genuinely unclear.</p><p><strong>Misconception 3: \"PE sponsors always prefer cov-lite.\"</strong> Generally yes, for operational flexibility. But some PE sponsors accept maintenance covenants in exchange for lower pricing — the negotiation is a trade-off between cost and control. Mid-market deals often have maintenance covenants because the lender base (smaller credit funds, banks) insists.</p><p><strong>Misconception 4: \"Cov-lite protects PE at the expense of lenders.\"</strong> In the short term, yes. But lenders accept cov-lite voluntarily (they could refuse to participate). They do so because yield-hungry investors are competing for the same high-spread loans. The bargaining power dynamic reflects supply (lender capital seeking deployment) and demand (PE deal flow) in the credit markets.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>Covenant-lite loan structures replace quarterly-tested financial maintenance covenants (leverage ratio, ICR) with incurrence-only covenants that trigger only when the borrower takes specific actions. The shift gives PE sponsors operational freedom to manage a deteriorating company without lender-forced sales at cyclical troughs. Cov-lite became dominant in institutional TLBs post-2012 — driven by excess investor demand for leveraged loan yield, PE sponsor market power, and the broader trend toward HY-bond-like documentation in the loan market. The trade-off: lenders lose early warning signals and workout leverage; distress, when it does arrive, tends to be deeper and faster. The springing covenant on RCFs preserves partial financial testing when banks are actually providing liquidity. Post-2022, the performance of cov-lite loans under rising rates and economic stress is an active area of market analysis and regulatory concern.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

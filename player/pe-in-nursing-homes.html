@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pe-in-nursing-homes", "title": "PE in Nursing Homes", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Where the harm is measurable", "on_screen_bullets": ["Harm measured in lives lost", "Mechanism traces to LBO economics", "Reform won, then unwound"], "narration": "Nursing homes are the highest-stakes sector for the distributional critique of private equity, because here the harm is measurable in lives lost, the mechanism is traceable directly to leveraged-buyout economics, and the policy response — together with its defeat — is the clearest single illustration of the whole cycle. The sector sits at the intersection of three threads we'll pull on. The distribution question: productivity gains, meaning operating-cost reductions, do not pass to residents or care workers. The regulatory question: a federal staffing rule was written specifically in response to documented PE harm — and then erased. And the historical pattern: nursing homes show the full arc, from boom-era buyout, to operational extraction, to public harm documentation, to regulatory correction, to industry-funded reversal. This lesson walks that arc from the inside.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "The headline finding", "on_screen_bullets": ["PE ownership linked to higher mortality", "10–13% rise, short-term deaths", "Driven by staffing reductions"], "narration": "The definition. Private-equity ownership of nursing homes is associated with a ten-to-thirteen-percent increase in short-term mortality among residents, driven by staffing-ratio reductions that are the direct consequence of leveraged-buyout cost-cutting mechanics. That finding comes from Gupta and co-authors in twenty-twenty-one, and it is not a model or a projection — it is an empirical estimate from Medicare administrative data, which we'll unpack scene by scene.", "est_sec": 32}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Why staffing is the lever", "on_screen_bullets": ["Debt, interest, 5–7 year exit", "Staffing is the biggest cost", "Cut RNs, harm follows"], "narration": "Here's the plain-English version. When a PE firm buys a nursing-home chain, the buyout mechanics create immediate pressure: high debt, high interest payments, and a five-to-seven-year exit horizon. The largest operating cost at a nursing home is staffing, so the fastest way to improve margins is to reduce the staff-to-resident ratio. The problem is that nursing homes care for medically vulnerable people, and staffing levels directly determine care quality. Cut the registered nurses per resident, and more residents develop pressure sores, infections, and fall-related injuries — outcomes that are preventable with adequate staffing, and that can be fatal. Gupta and colleagues documented exactly this: PE-owned homes cut staffing, and residents died at higher rates. The ten-to-thirteen-percent figure is a difference-in-differences estimate drawn from hundreds of PE acquisitions in the Medicare data.", "est_sec": 46}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "No market feedback", "on_screen_bullets": ["Restaurant: cut cooks, lose customers", "Nursing home: no exit, no signal", "PE keeps the saving, patient bears cost"], "narration": "The mental model. Imagine buying a restaurant with borrowed money. The biggest cost is kitchen staff, so you cut three line cooks to improve margins. In a restaurant the consequence is slower service and worse food — customers complain and leave, and you lose revenue. The market provides feedback that disciplines the cut. In a nursing home, the consequence is undetected medical deterioration in patients who cannot advocate for themselves, whose families may not notice subtle decline, and who are covered by government insurance that pays regardless of quality. There is no market feedback mechanism. The patient has no exit option, no information access, and no pricing power. So the market discipline that would normally punish a quality cut simply does not operate — the firm captures the cost reduction, and the patient bears the consequence. That broken feedback loop is the structural heart of the whole sector.", "est_sec": 46}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "The Gupta study and the arithmetic", "on_screen_bullets": ["~1,400 PE deals, Medicare data", "Diff-in-diff vs matched controls", "RN hours cut, deficiencies up"], "narration": "Technically, the evidence rests on the Gupta, Howell, Yannelis and Gupta study, published as a National Bureau working paper in twenty-twenty-one and later in the Journal of Finance. The dataset links Medicare and Medicaid cost reports and clinical assessments across roughly eighteen thousand nursing homes, with about fourteen hundred PE acquisitions identified. The method is difference-in-differences: outcomes at PE-acquired facilities versus matched controls, before and after acquisition, matching on size, prior quality, payer mix, and geography. Four findings stand out. Mortality rose ten-to-thirteen percent in the ninety days after admission. Nursing-staff hours per resident-day fell, concentrated specifically in registered-nurse hours — the highest-skilled and most expensive category. Inspection deficiency citations rose. And cost per resident-day actually increased — not from care investment, but from management fees, consulting charges, and related-party transactions. Now the arithmetic behind it. Revenue is set by government payers, so PE cannot simply raise prices; the only major lever is cost, and staffing is sixty-five to seventy percent of cost. To lift margin from seven percent to twelve, the firm must cut roughly seven-to-eight percent of the labour base, and it does so by cutting the most expensive layer — the RNs. Lower RN ratios mean less monitoring of deteriorating residents, which means more undetected sepsis, aspiration pneumonia, pressure ulcers, falls, and medication errors — and higher mortality. On top of that sit related-party extractions: sale-leaseback of the buildings to a REIT at above-market rents, management fees from parent to operating company, and shared-services charges — each pulling cash out of direct care.", "est_sec": 74}, {"n": 6, "beat": "example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "ManorCare and Carlyle", "on_screen_bullets": ["$6.3bn LBO, 2007, ~50,000 beds", "Real estate sold off, ~$500m rent", "Chapter 11 in 2018"], "narration": "The paradigm case is HCR ManorCare and Carlyle. In two-thousand-seven Carlyle bought ManorCare, then the second-largest US nursing-home chain, for six-point-three billion dollars, with around four-and-a-half billion of that in debt — about two hundred eighty homes and fifty thousand beds. Carlyle then sold ManorCare's real estate to a REIT in twenty-eleven for roughly three-point-two billion. That sale-leaseback transferred the asset value out to the deal while saddling the operating company with annual lease payments of about five hundred million dollars — a permanent cash drain layered on top of the existing debt service. Quality ratings declined, and in twenty-eighteen ManorCare filed for Chapter Eleven bankruptcy — by which point Carlyle had already recouped most of its equity through the real-estate transaction. A Senate Finance Committee investigation that year found staffing below the sector average, deficiency citations above it, and value extracted through real estate and management fees while the company declined. The same template appears abroad: Blackstone's Southern Cross Healthcare in the UK used sale-leaseback, then collapsed into administration in twenty-eleven, leaving thirty-one thousand residents needing alternative care — which is its own lesson later in this section.", "est_sec": 58}, {"n": 7, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The rule that was erased", "on_screen_bullets": ["2024: 0.55 RN hrs, 24/7 RN", "Vacated Apr 2025, court ruling", "Moratorium + repeal by Feb 2026"], "narration": "Now the regulatory arc, which is the part most people get wrong. Pre-twenty-twenty-four staffing rules dated from the nineteen-eighty-seven Nursing Home Reform Act, with a statutory floor of only eight hours a day of RN coverage and no per-resident RN ratio — a regulatory gap the PE model exploited. In April twenty-twenty-four CMS finalised a new staffing rule: a minimum of zero-point-five-five RN hours per resident per day, three-point-four-eight total nurse hours, and at least one registered nurse on site twenty-four seven. By CMS's own estimate, about seventy-nine percent of homes fell below the new RN minimum, and PE-owned facilities — which had specifically cut RN hours — faced disproportionate compliance costs. Then the rule was defeated within about eighteen months, in a textbook capture sequence. In April twenty-twenty-five a federal court in the Northern District of Texas vacated the core minimums, holding that CMS had exceeded its statutory authority. In July twenty-twenty-five the One Big Beautiful Bill Act imposed a ten-year moratorium barring enforcement through twenty-thirty-four. The government dropped its appeal in September. And in December twenty-twenty-five CMS formally repealed the minimums, effective February twenty-twenty-six, leaving only a weaker acuity-based facility-assessment duty. The practical upshot has flipped: as of twenty-twenty-six there is no binding federal RN-ratio floor, so the central cost-cutting lever Gupta identified is, once again, federally unconstrained.", "est_sec": 70}, {"n": 8, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Diff-in-diff rules out selection", "Cost rose while quality fell", "The rule never bound"], "narration": "Four corrections before we recap. First, this is not just correlation from PE buying already-bad homes — the difference-in-differences design controls for pre-existing quality, and the deterioration appears after acquisition, not before. Second, PE does not bring net operational investment here: cost per resident-day rose while quality fell, because the extra spending was related-party charges and financial-engineering overhead, not care. Third, the harm is not universal to every PE-owned home — counter-evidence from Huang and Bowblis finds mixed quality effects, suggesting the damage concentrates in the most heavily financially-engineered deals rather than spreading evenly. And fourth, the staffing rule did not fix the problem — it never took binding effect and was repealed; even on paper it ignored the financial engineering, sale-leasebacks and related-party fees that staffing rules don't touch. This is the vault's clearest governance-trap case: a reform that cleared the highest evidentiary bar in the PE-harm literature, was won, and was then erased by industry-funded litigation and a legislative moratorium before it ever bound — the lesson being that durable reform needs statutory, capture-resistant grounding, not administrative rulemaking. Next we follow this same broken feedback loop into a sector with even fewer guardrails — assisted living and memory care.", "est_sec": 56}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Why is staffing the primary EBITDA lever in a PE-owned nursing home — and why does cutting it raise mortality when the same cut at a restaurant would just lose customers? Then: name the three steps that erased the 2024 CMS staffing rule.", "narration": "Before the next lesson, reason through both. Why is staffing the primary margin lever in a PE-owned nursing home, and why does cutting it raise mortality when the same cut at a restaurant would only cost you customers? And then name the three steps — court, Congress, and agency — that erased the twenty-twenty-four staffing rule. Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PE in Nursing Homes\n\n[hook] Where the harm is measurable\nNursing homes are the highest-stakes sector for the distributional critique of private equity, because here the harm is measurable in lives lost, the mechanism is traceable directly to leveraged-buyout economics, and the policy response — together with its defeat — is the clearest single illustration of the whole cycle. The sector sits at the intersection of three threads we'll pull on. The distribution question: productivity gains, meaning operating-cost reductions, do not pass to residents or care workers. The regulatory question: a federal staffing rule was written specifically in response to documented PE harm — and then erased. And the historical pattern: nursing homes show the full arc, from boom-era buyout, to operational extraction, to public harm documentation, to regulatory correction, to industry-funded reversal. This lesson walks that arc from the inside.\n\n[definition] The headline finding\nThe definition. Private-equity ownership of nursing homes is associated with a ten-to-thirteen-percent increase in short-term mortality among residents, driven by staffing-ratio reductions that are the direct consequence of leveraged-buyout cost-cutting mechanics. That finding comes from Gupta and co-authors in twenty-twenty-one, and it is not a model or a projection — it is an empirical estimate from Medicare administrative data, which we'll unpack scene by scene.\n\n[intuition] Why staffing is the lever\nHere's the plain-English version. When a PE firm buys a nursing-home chain, the buyout mechanics create immediate pressure: high debt, high interest payments, and a five-to-seven-year exit horizon. The largest operating cost at a nursing home is staffing, so the fastest way to improve margins is to reduce the staff-to-resident ratio. The problem is that nursing homes care for medically vulnerable people, and staffing levels directly determine care quality. Cut the registered nurses per resident, and more residents develop pressure sores, infections, and fall-related injuries — outcomes that are preventable with adequate staffing, and that can be fatal. Gupta and colleagues documented exactly this: PE-owned homes cut staffing, and residents died at higher rates. The ten-to-thirteen-percent figure is a difference-in-differences estimate drawn from hundreds of PE acquisitions in the Medicare data.\n\n[intuition] No market feedback\nThe mental model. Imagine buying a restaurant with borrowed money. The biggest cost is kitchen staff, so you cut three line cooks to improve margins. In a restaurant the consequence is slower service and worse food — customers complain and leave, and you lose revenue. The market provides feedback that disciplines the cut. In a nursing home, the consequence is undetected medical deterioration in patients who cannot advocate for themselves, whose families may not notice subtle decline, and who are covered by government insurance that pays regardless of quality. There is no market feedback mechanism. The patient has no exit option, no information access, and no pricing power. So the market discipline that would normally punish a quality cut simply does not operate — the firm captures the cost reduction, and the patient bears the consequence. That broken feedback loop is the structural heart of the whole sector.\n\n[mechanics] The Gupta study and the arithmetic\nTechnically, the evidence rests on the Gupta, Howell, Yannelis and Gupta study, published as a National Bureau working paper in twenty-twenty-one and later in the Journal of Finance. The dataset links Medicare and Medicaid cost reports and clinical assessments across roughly eighteen thousand nursing homes, with about fourteen hundred PE acquisitions identified. The method is difference-in-differences: outcomes at PE-acquired facilities versus matched controls, before and after acquisition, matching on size, prior quality, payer mix, and geography. Four findings stand out. Mortality rose ten-to-thirteen percent in the ninety days after admission. Nursing-staff hours per resident-day fell, concentrated specifically in registered-nurse hours — the highest-skilled and most expensive category. Inspection deficiency citations rose. And cost per resident-day actually increased — not from care investment, but from management fees, consulting charges, and related-party transactions. Now the arithmetic behind it. Revenue is set by government payers, so PE cannot simply raise prices; the only major lever is cost, and staffing is sixty-five to seventy percent of cost. To lift margin from seven percent to twelve, the firm must cut roughly seven-to-eight percent of the labour base, and it does so by cutting the most expensive layer — the RNs. Lower RN ratios mean less monitoring of deteriorating residents, which means more undetected sepsis, aspiration pneumonia, pressure ulcers, falls, and medication errors — and higher mortality. On top of that sit related-party extractions: sale-leaseback of the buildings to a REIT at above-market rents, management fees from parent to operating company, and shared-services charges — each pulling cash out of direct care.\n\n[example] ManorCare and Carlyle\nThe paradigm case is HCR ManorCare and Carlyle. In two-thousand-seven Carlyle bought ManorCare, then the second-largest US nursing-home chain, for six-point-three billion dollars, with around four-and-a-half billion of that in debt — about two hundred eighty homes and fifty thousand beds. Carlyle then sold ManorCare's real estate to a REIT in twenty-eleven for roughly three-point-two billion. That sale-leaseback transferred the asset value out to the deal while saddling the operating company with annual lease payments of about five hundred million dollars — a permanent cash drain layered on top of the existing debt service. Quality ratings declined, and in twenty-eighteen ManorCare filed for Chapter Eleven bankruptcy — by which point Carlyle had already recouped most of its equity through the real-estate transaction. A Senate Finance Committee investigation that year found staffing below the sector average, deficiency citations above it, and value extracted through real estate and management fees while the company declined. The same template appears abroad: Blackstone's Southern Cross Healthcare in the UK used sale-leaseback, then collapsed into administration in twenty-eleven, leaving thirty-one thousand residents needing alternative care — which is its own lesson later in this section.\n\n[mechanics] The rule that was erased\nNow the regulatory arc, which is the part most people get wrong. Pre-twenty-twenty-four staffing rules dated from the nineteen-eighty-seven Nursing Home Reform Act, with a statutory floor of only eight hours a day of RN coverage and no per-resident RN ratio — a regulatory gap the PE model exploited. In April twenty-twenty-four CMS finalised a new staffing rule: a minimum of zero-point-five-five RN hours per resident per day, three-point-four-eight total nurse hours, and at least one registered nurse on site twenty-four seven. By CMS's own estimate, about seventy-nine percent of homes fell below the new RN minimum, and PE-owned facilities — which had specifically cut RN hours — faced disproportionate compliance costs. Then the rule was defeated within about eighteen months, in a textbook capture sequence. In April twenty-twenty-five a federal court in the Northern District of Texas vacated the core minimums, holding that CMS had exceeded its statutory authority. In July twenty-twenty-five the One Big Beautiful Bill Act imposed a ten-year moratorium barring enforcement through twenty-thirty-four. The government dropped its appeal in September. And in December twenty-twenty-five CMS formally repealed the minimums, effective February twenty-twenty-six, leaving only a weaker acuity-based facility-assessment duty. The practical upshot has flipped: as of twenty-twenty-six there is no binding federal RN-ratio floor, so the central cost-cutting lever Gupta identified is, once again, federally unconstrained.\n\n[pitfalls] What people get wrong\nFour corrections before we recap. First, this is not just correlation from PE buying already-bad homes — the difference-in-differences design controls for pre-existing quality, and the deterioration appears after acquisition, not before. Second, PE does not bring net operational investment here: cost per resident-day rose while quality fell, because the extra spending was related-party charges and financial-engineering overhead, not care. Third, the harm is not universal to every PE-owned home — counter-evidence from Huang and Bowblis finds mixed quality effects, suggesting the damage concentrates in the most heavily financially-engineered deals rather than spreading evenly. And fourth, the staffing rule did not fix the problem — it never took binding effect and was repealed; even on paper it ignored the financial engineering, sale-leasebacks and related-party fees that staffing rules don't touch. This is the vault's clearest governance-trap case: a reform that cleared the highest evidentiary bar in the PE-harm literature, was won, and was then erased by industry-funded litigation and a legislative moratorium before it ever bound — the lesson being that durable reform needs statutory, capture-resistant grounding, not administrative rulemaking. Next we follow this same broken feedback loop into a sector with even fewer guardrails — assisted living and memory care.\n\nEnd-card question: Why is staffing the primary EBITDA lever in a PE-owned nursing home — and why does cutting it raise mortality when the same cut at a restaurant would just lose customers? Then: name the three steps that erased the 2024 CMS staffing rule.";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>Nursing homes are the highest-stakes sector for PE distributional critique: the harm is measurable in lives lost, the mechanism is mechanistically traceable to LBO economics, and the regulatory response (the CMS 2024 staffing rule) — together with its <strong>defeat in 2025</strong> — represents the single clearest illustration in the vault of both PE-specific policy intervention <em>and</em> the capture/governance-trap dynamic that unwinds it. The sector sits at the intersection of all three conceptual threads:</p><ol><li><strong>Distribution Question</strong> — productivity gains (operating cost reduction) do not pass to residents or care workers</li><li><strong>Regulatory Question</strong> — the CMS 2024 staffing rule was the regulatory response to documented PE harm; its court vacatur (Apr 2025), the One Big Beautiful Bill Act's 10-year moratorium (Jul 2025), and CMS's formal repeal (Dec 2025) are the regulatory-capture counter-response</li><li><strong>Historical Pattern</strong> — nursing homes illustrate the <em>full</em> cycle: boom-era LBO → operational extraction → public harm documentation → regulatory correction → industry-funded legal/legislative reversal</li></ol><p>For Mitch at CVC Secondary Partners: any LP book at a healthcare-focused fund will include nursing home exposure. Understanding the regulatory and reputational risk — and the mechanism of harm — is essential to pricing and diligence.</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PE ownership of nursing homes is associated with a 10–13% increase in short-term mortality among residents, driven by staffing ratio reductions that are the direct consequence of leveraged buyout cost-cutting mechanics (Gupta et al. 2021).</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>When a PE firm buys a nursing home chain, the LBO mechanics create immediate pressure: high debt, high interest payments, and a 5-7 year exit horizon. The largest operating cost at a nursing home is staffing. The fastest way to improve EBITDA margins is to reduce staff-to-resident ratios.</p><p>The problem: nursing homes care for medically vulnerable people. Staffing levels directly determine care quality. Reduce registered nurses per resident and more residents develop pressure sores, infections, and fall-related injuries. These outcomes — preventable with adequate staffing — can be fatal.</p><p>Gupta et al. (2021) documented this empirically: PE-owned nursing homes cut staffing, and residents died at higher rates. The 10–13% mortality figure is not a prediction or a model — it is a difference-in-differences estimate from Medicare administrative data covering hundreds of PE acquisitions.</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Imagine buying a restaurant using borrowed money. The largest operating cost is kitchen staff. You cut three line cooks to reduce costs and improve margins. In a restaurant, the consequence is slower service and lower food quality — customers complain and you lose revenue. The market mechanism provides feedback.</p><p>In a nursing home, the consequence is undetected medical deterioration in patients who cannot advocate for themselves, whose family members may not notice subtle care quality decline, and who are covered by government insurance that pays regardless of quality. There is no market feedback mechanism. The harm is real but politically and legally lagged. PE captures the cost reduction; patients bear the consequence.</p><p>The key difference from a restaurant: the nursing home patient has no exit option, no information access, and no pricing power. Market mechanisms that would normally discipline quality decline do not operate.</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The Gupta et al. (2021) Study</p><p><strong>Full citation:</strong> Gupta, Atul, Sabrina T. Howell, Constantine Yannelis, and Abhinav Gupta (2021). \"Does Private Equity Investment in Healthcare Benefit Patients? Evidence from Nursing Homes.\" National Bureau of Economic Research Working Paper 28474. <em>Journal of Finance</em> (2023).</p><p><strong>Dataset:</strong> - Medicare and Medicaid cost reports + MDS (Minimum Data Set) clinical assessments - ~18,000 nursing homes, 1991–2010 - PE ownership identified through facility acquisition records linked to PE deal databases - Sample: ~1,400 PE acquisitions of nursing home facilities</p><p><strong>Methodology:</strong> - Difference-in-differences: comparing outcomes at PE-acquired facilities vs. matched control facilities before and after PE acquisition - Matching on: facility size, pre-existing quality metrics, payer mix, geography, ownership type - Outcome variables: 90-day mortality after admission, inspection deficiencies, staffing ratios, cost per resident-day</p><p><strong>Primary findings:</strong> 1. <strong>Mortality: +10–13% increase in 90-day post-admission mortality at PE-acquired facilities</strong> vs. matched controls, post-acquisition 2. <strong>Staffing: significant reduction in total nursing staff hours per resident-day</strong>, concentrated in Registered Nurse (RN) hours — the highest-skilled and most expensive category 3. <strong>Deficiencies: increase in CMS inspection deficiency citations</strong> at PE-acquired facilities 4. <strong>Cost per resident-day: increases post-PE acquisition</strong> — not because quality improved, but because PE operations include management fees, consulting charges, and related-party transactions that inflate costs without improving care 5. <strong>Medicare revenue extraction: PE-acquired facilities show higher rates of Medicare billing at premium rates</strong> — PE homes specialise in capturing higher-acuity, higher-reimbursement patients while reducing care quality</p><p><strong>Effect size interpretation:</strong> 10–13% mortality increase means: if a control facility has 100 deaths per 1,000 admissions in 90 days, a matched PE-acquired facility would have 110–113 deaths per 1,000 admissions after acquisition. At the scale of PE nursing home ownership (~1,500–1,800 PE-owned facilities in the US), this implies several thousand additional deaths per year [needs-verification — exact extrapolation depends on facility size, patient volume, and the precise temporal scope of the PE ownership effect].</p><p>### The Mechanism: LBO Arithmetic Meets Care Quality</p><p><strong>Step 1: Acquisition economics</strong> A typical nursing home chain LBO: - Revenue: predominantly Medicare + Medicaid reimbursement (government-set rates) - Revenue growth is constrained: government payers set rates; PE cannot simply raise prices - Cost structure: ~65-70% staff costs; remaining ~30-35% is building, supplies, food, corporate overhead - EBITDA margin pre-PE: ~5–10% (thin margins, regulated revenue)</p><p><strong>Step 2: Lever of value creation</strong> With revenue constrained by government reimbursement rates, the primary lever available to PE is cost reduction. And the dominant cost is staff. To improve EBITDA from 7% to 12% (a realistic PE target), the firm must reduce staff costs. In a business with 65-70% staff costs, a 5pp margin improvement requires cutting ~7-8% of the labour cost base.</p><p><strong>Step 3: Staffing mechanics</strong> - Registered Nurses (RNs): highest-cost, highest-skill, most regulated - Licensed Practical Nurses (LPNs): medium cost - Certified Nursing Assistants (CNAs): lowest cost, highest volume - Gupta et al. found PE-acquired homes cut RN hours specifically — maximising cost reduction per unit of staffing reduction - CMS minimum staffing standards (pre-2024) were set in 1987 and did not specify RN-per-resident ratios; this created regulatory arbitrage</p><p><strong>Step 4: Harm transmission</strong> Lower RN ratios → reduced monitoring of deteriorating residents → higher rates of undetected or unmanaged: sepsis, aspiration pneumonia, pressure ulcers, falls, medication errors → higher 90-day mortality</p><p><strong>Step 5: Related-party extraction</strong> In addition to staffing cuts, Gupta et al. documented systematic related-party transactions at PE-owned homes: - Property sale-leaseback (sell the building to a REIT, lease it back at above-market rates — the REIT may be PE-affiliated) - Management fee charges from PE parent to operating entity - Shared-services charges between portfolio company and PE firm</p><p>These transactions extract value from the operating entity into PE-adjacent vehicles, further reducing resources available for direct care.</p><p>### The ManorCare / Carlyle Case</p><p><strong>The acquisition:</strong> - 2007: Carlyle Group acquired HCR ManorCare (then the second-largest US nursing home chain) for $6.3bn - Leverage: ~$4.5bn in debt; high LTV consistent with 2006-07 credit bubble - ManorCare had ~280 nursing homes and ~50,000 beds</p><p><strong>Post-acquisition operational trajectory:</strong> - Carlyle implemented staffing cuts and sold ManorCare's real estate to a REIT (Quality Care Properties) in 2011 for ~$3.2bn - The sale-leaseback transferred asset value to Carlyle while saddling the operating company with annual lease payments of ~$500m — a structural cash drain on top of existing debt service - ManorCare's CMS quality ratings declined post-acquisition</p><p><strong>2018 bankruptcy:</strong> - ManorCare filed Chapter 11 in 2018 - Carlyle had already recouped most of its equity investment via the 2011 REIT transaction - 50,000 beds continued operating through bankruptcy; employees (many on thin margins) faced uncertainty - The Senate Finance Committee investigated ManorCare/Carlyle in 2018</p><p><strong>Senate Finance Committee (2018):</strong> - Investigation found systematic decline in care quality at Carlyle-owned ManorCare facilities - Staff-to-resident ratios below sector average - CMS deficiency citations above sector average - Finding: Carlyle extracted value through real estate transactions and management fees while ManorCare declined</p><p>### Regulatory Response and Its Reversal: the CMS Staffing Rule, 2024–2026</p><p><strong>Background:</strong> Pre-2024 CMS staffing requirements dated from the 1987 Nursing Home Reform Act. Requirements were set as total nurse hours per resident-day, with minimal RN-specific requirements (and an explicit statutory floor of only <strong>8 hours/day</strong> of RN coverage). The rule had not been updated to reflect evidence on staffing-quality relationships.</p><p><strong>CMS 2024 Staffing Rule (Final Rule, April 2024):</strong> 1. <strong>Minimum RN staffing:</strong> 0.55 RN hours per resident per day (previously: no explicit RN floor) 2. <strong>Total nursing staffing:</strong> 3.48 total nurse hours per resident per day (incl. 2.45 nurse-aide HPRD) 3. <strong>24/7 RN requirement:</strong> At least one RN on-site 24 hours/day, 7 days/week (previously: 8 hours/day) 4. <strong>Phased implementation:</strong> 2-5 years for full compliance, with rural and low-acuity facility exemptions 5. <strong>Facility assessment:</strong> a separate, acuity-based requirement to staff to residents' actual needs</p><p>At finalisation, <strong>~79% of nursing homes fell below the new RN minimum</strong> (CMS's own estimate), PE-owned facilities — which had specifically reduced RN hours (per Gupta et al.) — faced disproportionate compliance costs, and industry compliance-cost estimates ran to <strong>$6–8bn/year</strong>. CMS acknowledged a binding RN-pipeline (workforce) constraint as well as a cost constraint.</p><p><strong>The rule was then defeated within ~18 months — a textbook capture sequence:</strong> 1. <strong>Litigation (Apr 7, 2025):</strong> In <em>AHCA v. Kennedy (HHS)</em>, the US District Court for the Northern District of Texas (Judge Kacsmaryk) <strong>vacated</strong> the core staffing minimums, holding that CMS exceeded its statutory authority — Congress had specified 8 hours/day of RN coverage, and CMS could not administratively raise that to 24/7 or impose new HPRD ratios. (HHS briefly appealed to the 5th Circuit on Jun 23, 2025.) 2. <strong>Legislation (Jul 4, 2025):</strong> The <strong>One Big Beautiful Bill Act</strong> (Public Law 119-21, §71111) imposed a <strong>10-year moratorium</strong> (through 2034) barring CMS from implementing, administering, or enforcing the §483.35 staffing standards. 3. <strong>Appeal withdrawn (Sep 2025):</strong> DOJ dropped the government's appeals, leaving the district-court vacatur to stand. 4. <strong>Formal repeal (Dec 2, 2025):</strong> CMS issued an interim final rule <strong>repealing</strong> the 0.55 RN / 2.45 NA / 3.48 total HPRD minimums and the 24/7 RN mandate, <strong>effective Feb 2, 2026</strong>. Only the weaker, acuity-based <strong>facility assessment</strong> requirement survives.</p><p><strong>Why the reversal matters for PE:</strong> The CMS 2024 rule <em>would have</em> structurally disrupted the PE value-creation mechanism in nursing homes — if staffing ratios cannot be cut (and must in fact rise), the primary EBITDA lever disappears. Its defeat <strong>restores that lever</strong>: the central cost-reduction mechanism Gupta et al. identified is, as of 2026, legally unconstrained again at the federal level. For diligence and pricing, the practical implication has flipped — there is <em>no binding federal RN-ratio floor</em> on the PE cost-cutting thesis (only state minimums, the surviving facility-assessment duty, and reputational/litigation risk). The episode is the vault's clearest worked example of the <strong>governance trap</strong>: the reform cleared an extraordinary evidentiary bar, then was unwound by industry-funded litigation plus a legislative moratorium before it ever bound.</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>ManorCare/Carlyle:</strong> Described above — the paradigm case.</p><p><strong>Kindred Healthcare (Humana/WCAS/TPG):</strong> - Kindred acquired through a PE-backed leveraged recap process - Staffing complaints and CMS deficiency citations above sector average - Used as counterpoint: Kindred transitioned some operations to home health (lower regulatory risk), illustrating that PE adapts to regulatory environment</p><p><strong>Southern Cross Healthcare (UK, Blackstone):</strong> - UK equivalent case study - Blackstone acquired Southern Cross (UK nursing home chain), implemented sale-leaseback of properties, extracted value via rent obligations - Southern Cross entered administration in 2011 — leaving 31,000 residents needing alternative care - No comparable mortality study to Gupta et al. in UK; but operational and financial trajectory directly parallel</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### The Gupta et al. (2021) Study</p><p><strong>Full citation:</strong> Gupta, Atul, Sabrina T. Howell, Constantine Yannelis, and Abhinav Gupta (2021). \"Does Private Equity Investment in Healthcare Benefit Patients? Evidence from Nursing Homes.\" National Bureau of Economic Research Working Paper 28474. <em>Journal of Finance</em> (2023).</p><p><strong>Dataset:</strong> - Medicare and Medicaid cost reports + MDS (Minimum Data Set) clinical assessments - ~18,000 nursing homes, 1991–2010 - PE ownership identified through facility acquisition records linked to PE deal databases - Sample: ~1,400 PE acquisitions of nursing home facilities</p><p><strong>Methodology:</strong> - Difference-in-differences: comparing outcomes at PE-acquired facilities vs. matched control facilities before and after PE acquisition - Matching on: facility size, pre-existing quality metrics, payer mix, geography, ownership type - Outcome variables: 90-day mortality after admission, inspection deficiencies, staffing ratios, cost per resident-day</p><p><strong>Primary findings:</strong> 1. <strong>Mortality: +10–13% increase in 90-day post-admission mortality at PE-acquired facilities</strong> vs. matched controls, post-acquisition 2. <strong>Staffing: significant reduction in total nursing staff hours per resident-day</strong>, concentrated in Registered Nurse (RN) hours — the highest-skilled and most expensive category 3. <strong>Deficiencies: increase in CMS inspection deficiency citations</strong> at PE-acquired facilities 4. <strong>Cost per resident-day: increases post-PE acquisition</strong> — not because quality improved, but because PE operations include management fees, consulting charges, and related-party transactions that inflate costs without improving care 5. <strong>Medicare revenue extraction: PE-acquired facilities show higher rates of Medicare billing at premium rates</strong> — PE homes specialise in capturing higher-acuity, higher-reimbursement patients while reducing care quality</p><p><strong>Effect size interpretation:</strong> 10–13% mortality increase means: if a control facility has 100 deaths per 1,000 admissions in 90 days, a matched PE-acquired facility would have 110–113 deaths per 1,000 admissions after acquisition. At the scale of PE nursing home ownership (~1,500–1,800 PE-owned facilities in the US), this implies several thousand additional deaths per year [needs-verification — exact extrapolation depends on facility size, patient volume, and the precise temporal scope of the PE ownership effect].</p><p>### The Mechanism: LBO Arithmetic Meets Care Quality</p><p><strong>Step 1: Acquisition economics</strong> A typical nursing home chain LBO: - Revenue: predominantly Medicare + Medicaid reimbursement (government-set rates) - Revenue growth is constrained: government payers set rates; PE cannot simply raise prices - Cost structure: ~65-70% staff costs; remaining ~30-35% is building, supplies, food, corporate overhead - EBITDA margin pre-PE: ~5–10% (thin margins, regulated revenue)</p><p><strong>Step 2: Lever of value creation</strong> With revenue constrained by government reimbursement rates, the primary lever available to PE is cost reduction. And the dominant cost is staff. To improve EBITDA from 7% to 12% (a realistic PE target), the firm must reduce staff costs. In a business with 65-70% staff costs, a 5pp margin improvement requires cutting ~7-8% of the labour cost base.</p><p><strong>Step 3: Staffing mechanics</strong> - Registered Nurses (RNs): highest-cost, highest-skill, most regulated - Licensed Practical Nurses (LPNs): medium cost - Certified Nursing Assistants (CNAs): lowest cost, highest volume - Gupta et al. found PE-acquired homes cut RN hours specifically — maximising cost reduction per unit of staffing reduction - CMS minimum staffing standards (pre-2024) were set in 1987 and did not specify RN-per-resident ratios; this created regulatory arbitrage</p><p><strong>Step 4: Harm transmission</strong> Lower RN ratios → reduced monitoring of deteriorating residents → higher rates of undetected or unmanaged: sepsis, aspiration pneumonia, pressure ulcers, falls, medication errors → higher 90-day mortality</p><p><strong>Step 5: Related-party extraction</strong> In addition to staffing cuts, Gupta et al. documented systematic related-party transactions at PE-owned homes: - Property sale-leaseback (sell the building to a REIT, lease it back at above-market rates — the REIT may be PE-affiliated) - Management fee charges from PE parent to operating entity - Shared-services charges between portfolio company and PE firm</p><p>These transactions extract value from the operating entity into PE-adjacent vehicles, further reducing resources available for direct care.</p><p>### The ManorCare / Carlyle Case</p><p><strong>The acquisition:</strong> - 2007: Carlyle Group acquired HCR ManorCare (then the second-largest US nursing home chain) for $6.3bn - Leverage: ~$4.5bn in debt; high LTV consistent with 2006-07 credit bubble - ManorCare had ~280 nursing homes and ~50,000 beds</p><p><strong>Post-acquisition operational trajectory:</strong> - Carlyle implemented staffing cuts and sold ManorCare's real estate to a REIT (Quality Care Properties) in 2011 for ~$3.2bn - The sale-leaseback transferred asset value to Carlyle while saddling the operating company with annual lease payments of ~$500m — a structural cash drain on top of existing debt service - ManorCare's CMS quality ratings declined post-acquisition</p><p><strong>2018 bankruptcy:</strong> - ManorCare filed Chapter 11 in 2018 - Carlyle had already recouped most of its equity investment via the 2011 REIT transaction - 50,000 beds continued operating through bankruptcy; employees (many on thin margins) faced uncertainty - The Senate Finance Committee investigated ManorCare/Carlyle in 2018</p><p><strong>Senate Finance Committee (2018):</strong> - Investigation found systematic decline in care quality at Carlyle-owned ManorCare facilities - Staff-to-resident ratios below sector average - CMS deficiency citations above sector average - Finding: Carlyle extracted value through real estate transactions and management fees while ManorCare declined</p><p>### Regulatory Response and Its Reversal: the CMS Staffing Rule, 2024–2026</p><p><strong>Background:</strong> Pre-2024 CMS staffing requirements dated from the 1987 Nursing Home Reform Act. Requirements were set as total nurse hours per resident-day, with minimal RN-specific requirements (and an explicit statutory floor of only <strong>8 hours/day</strong> of RN coverage). The rule had not been updated to reflect evidence on staffing-quality relationships.</p><p><strong>CMS 2024 Staffing Rule (Final Rule, April 2024):</strong> 1. <strong>Minimum RN staffing:</strong> 0.55 RN hours per resident per day (previously: no explicit RN floor) 2. <strong>Total nursing staffing:</strong> 3.48 total nurse hours per resident per day (incl. 2.45 nurse-aide HPRD) 3. <strong>24/7 RN requirement:</strong> At least one RN on-site 24 hours/day, 7 days/week (previously: 8 hours/day) 4. <strong>Phased implementation:</strong> 2-5 years for full compliance, with rural and low-acuity facility exemptions 5. <strong>Facility assessment:</strong> a separate, acuity-based requirement to staff to residents' actual needs</p><p>At finalisation, <strong>~79% of nursing homes fell below the new RN minimum</strong> (CMS's own estimate), PE-owned facilities — which had specifically reduced RN hours (per Gupta et al.) — faced disproportionate compliance costs, and industry compliance-cost estimates ran to <strong>$6–8bn/year</strong>. CMS acknowledged a binding RN-pipeline (workforce) constraint as well as a cost constraint.</p><p><strong>The rule was then defeated within ~18 months — a textbook capture sequence:</strong> 1. <strong>Litigation (Apr 7, 2025):</strong> In <em>AHCA v. Kennedy (HHS)</em>, the US District Court for the Northern District of Texas (Judge Kacsmaryk) <strong>vacated</strong> the core staffing minimums, holding that CMS exceeded its statutory authority — Congress had specified 8 hours/day of RN coverage, and CMS could not administratively raise that to 24/7 or impose new HPRD ratios. (HHS briefly appealed to the 5th Circuit on Jun 23, 2025.) 2. <strong>Legislation (Jul 4, 2025):</strong> The <strong>One Big Beautiful Bill Act</strong> (Public Law 119-21, §71111) imposed a <strong>10-year moratorium</strong> (through 2034) barring CMS from implementing, administering, or enforcing the §483.35 staffing standards. 3. <strong>Appeal withdrawn (Sep 2025):</strong> DOJ dropped the government's appeals, leaving the district-court vacatur to stand. 4. <strong>Formal repeal (Dec 2, 2025):</strong> CMS issued an interim final rule <strong>repealing</strong> the 0.55 RN / 2.45 NA / 3.48 total HPRD minimums and the 24/7 RN mandate, <strong>effective Feb 2, 2026</strong>. Only the weaker, acuity-based <strong>facility assessment</strong> requirement survives.</p><p><strong>Why the reversal matters for PE:</strong> The CMS 2024 rule <em>would have</em> structurally disrupted the PE value-creation mechanism in nursing homes — if staffing ratios cannot be cut (and must in fact rise), the primary EBITDA lever disappears. Its defeat <strong>restores that lever</strong>: the central cost-reduction mechanism Gupta et al. identified is, as of 2026, legally unconstrained again at the federal level. For diligence and pricing, the practical implication has flipped — there is <em>no binding federal RN-ratio floor</em> on the PE cost-cutting thesis (only state minimums, the surviving facility-assessment duty, and reputational/litigation risk). The episode is the vault's clearest worked example of the <strong>governance trap</strong>: the reform cleared an extraordinary evidentiary bar, then was unwound by industry-funded litigation plus a legislative moratorium before it ever bound.</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PE nursing homes are the only ones with quality problems.\"</strong> Correction: Non-PE nursing homes also have quality problems; the question is whether PE ownership systematically <em>worsens</em> quality relative to the counterfactual. Gupta et al.'s difference-in-differences design answers this: yes, controlling for pre-existing quality.</p><p><strong>Misconception 2: \"The Gupta finding is just correlation — PE buys underperforming homes.\"</strong> Correction: Difference-in-differences design controls for pre-existing facility quality. PE-acquired homes show deterioration <em>after</em> acquisition, not before. The design specifically addresses selection bias.</p><p><strong>Misconception 3: \"PE brings better management and investment capital.\"</strong> Correction: Gupta et al. found cost per resident-day <em>increased</em> at PE-acquired homes — but quality declined. The increased costs reflect related-party charges and financial engineering overhead, not care investment. PE does not bring net operational investment; it extracts net value.</p><p><strong>Misconception 4: \"The CMS 2024 rule fixed the problem.\"</strong> Correction: The rule never took binding effect and was repealed. It was always a necessary-but-not-sufficient remedy — (a) implementation was phased over years; (b) RN workforce supply constrained compliance; (c) financial engineering (sale-leaseback, related-party fees) is not addressed by staffing rules at all — and then (d) the legal/legislative challenge that \"could weaken the rule\" instead <strong>eliminated</strong> it: court vacatur (Apr 2025), a 10-year statutory moratorium (Jul 2025), and CMS repeal (Dec 2025, effective Feb 2026). As of 2026 there is no binding federal RN-ratio floor; the harm mechanism Gupta et al. identified is federally unconstrained again.</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

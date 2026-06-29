@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "synthesis-lp-and-gp-incentive-alignment", "title": "Synthesis: LP and GP Incentive Alignment", "draft_watermark": false, "estimated_runtime_sec": 430, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Core Connection", "on_screen_title": "Five points of divergence", "on_screen_bullets": ["Principal-agent, not natural alignment", "Five structural divergences", "Each has a governance mechanism"], "narration": "The GP-LP relationship is not naturally aligned. It's a principal-agent relationship — the LP entrusts capital to the GP over a decade, without day-to-day oversight, based on a contract and a track record. The fee and carry structure is designed to make interests appear aligned, but the structure contains five distinct points where GP and LP interests structurally diverge. One, AUM versus return — the GP's firm revenue scales with fund size; LP returns generally do not. Two, carry timing versus capital preservation — GPs maximise the present value of carry by distributing early; LPs prefer whole-fund certainty. Three, risk-appetite asymmetry — carry is a call option, so the GP bears no proportional downside. Four, co-investment information asymmetry — GPs control which deals are offered and to whom. And five, track-record presentation versus genuine skill — GPs control what performance data is disclosed and how. For each divergence the industry has engineered a governance mechanism, but each mechanism has a failure mode. The synthesis: the five divergences interact and compound, so only an LP who understands how they combine can build a commitment that's genuinely, not cosmetically, aligned.", "est_sec": 58}, {"n": 2, "beat": "intuition", "visual": "slide", "source_section": "Why This Relationship Matters", "on_screen_title": "'We get rich when you do'", "on_screen_bullets": ["True only in the ideal case", "Real world has none of it perfectly", "How severe, not whether"], "narration": "The conventional PE narrative is that carried interest aligns the GP with the LP — we only get rich when you get rich. That's true, but only in an idealised scenario with no information asymmetry, a whole-fund waterfall, robust enforcement, accurate track records, and fairly distributed co-investments. The real world contains none of those conditions perfectly. Each of the five divergences exists in every PE relationship to some degree; the question is never whether they exist, but how severe they are in a specific fund. Mastering this synthesis lets you build an LP due-diligence framework that evaluates alignment on all five dimensions at once rather than just the headline fee; identify interaction effects, where one divergence conceals or amplifies another; negotiate from knowledge of which terms reduce which divergence and which mechanisms are merely cosmetic; and distinguish a genuinely well-aligned GP from a competent one who has simply learned to present alignment without delivering it.", "est_sec": 50}, {"n": 3, "beat": "mechanics", "visual": "table", "source_section": "Concept Map: Five Divergences and Their Mechanisms", "on_screen_title": "Mechanism and failure mode", "on_screen_bullets": ["Each divergence has a fix", "Each fix has a failure mode", "And they compound"], "narration": "The concept map pairs each divergence with its governance mechanism and that mechanism's failure mode. Divergence one, AUM versus return: the fix is LPA caps on successor-fund timing and LPAC size approval, but the failure mode is that the GP controls pipeline visibility and raises the next fund before the prior fund's performance is even known. Divergence two, carry timing: the fix is a European waterfall plus an escrowed clawback plus subscription-line disclosure, but American waterfalls are still common, escrows can be thin, and GP-led secondaries let a GP crystallise carry via a continuation vehicle without a true arms-length exit. Divergence three, risk asymmetry: the fix is a meaningful GP commitment plus concentration and leverage caps, but a one-percent commitment, however large in dollars, is immaterial against the present value of future carry streams, so the GP is incentivised toward portfolio risk. Divergence four, co-investment asymmetry: the fix is ILPA co-invest principles — equal access, advance notice, no cherry-picking — but the GP controls the pipeline entirely, so the LP can see what was offered, never what was withheld; fair process is unverifiable from the LP's side. And divergence five, track record: the fix is ILPA reporting standards, audited net IRR, DPI, and PME, but those standards are voluntary and self-reported. The interaction layer is what most people miss: an inflated track record enables a larger fund, whose fee income subsidises a weak clawback, while a growing LP base lets the GP offer selective co-investments that create LP tiers, which maintains the large relationships that provide governance cover for the whole structure.", "est_sec": 66}, {"n": 4, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "Midland diligences Fund IV", "on_screen_bullets": ["Headline: 24% gross, 19% net, 2.4x", "AUM up each fund, returns down", "Adjusted net IRR 19% → 15.8%"], "narration": "Watch an LP work all five divergences. Midland Pension, sixty billion in assets, committed a hundred million to Northern Capital Fund Three, a one-and-a-half-billion 2018 vintage now in year seven. Northern is raising Fund Four at two-and-a-half billion and invites Midland to commit a hundred fifty million. The headline looks strong: Fund Three at twenty-four percent gross IRR, nineteen net, two-point-four gross MOIC. Midland's team works each divergence. On AUM versus return, the pattern is damning: Fund One, four hundred million, returned three-point-one times; Fund Two, eight hundred million, two-point-seven; Fund Three, one-and-a-half billion, two-point-four — each fund larger and each return lower, exactly the fund-size decay the research predicts, while the GP earns more fees on each. On carry timing, Fund Three ran eight-month subscription lines, and adjusting for them the net IRR falls from nineteen to about fifteen-point-eight; it uses an American waterfall, the first three realised deals already paid the GP forty-two million in carry, but deals four and five are marked at zero-point-nine and zero-point-seven times cost — at those marks the fund's true carry should be about thirty-one million, so the GP has been overpaid eleven million, against an escrow of only eight, a three-million shortfall recoverable only by litigation.", "est_sec": 66}, {"n": 5, "beat": "worked-example", "visual": "table", "source_section": "How They Interact in Practice", "on_screen_title": "The best deal hid everything", "on_screen_bullets": ["GP commit 0.4%; Deal 3 = 22%, 4.2x", "Ex-best-deal: 1.8x; team has left", "Midland: not £150m — £75m conditional"], "narration": "Now the last three divergences, and they converge on one deal. On risk asymmetry: the GP's commitment to Fund Three was just six million — zero-point-four percent, below the standard one — and the largest position, Deal Three, was twenty-two percent of the fund, above the twenty-percent limit, allowed by an LPAC waiver that Midland, not being on the LPAC, never saw. On co-investment asymmetry: Northern offered Midland two of its nine co-investments, returning a respectable two-point-four-five times blended at zero carry — but its three largest LPs, each committing two-fifty million-plus, were offered six co-investments including Deal Three at four-point-two times; Midland was never offered Deal Three and can't even verify this without surveying other LPs, who rarely share. And on track record, the whole picture collapses: Deal Three, that twenty-two-percent position, returned four-point-two times and made the entire track record — strip it out and the rest of Fund Three returned just one-point-eight times gross, about twelve percent net; the DPI is only zero-point-six-three, so most of the value is still unrealised marks; the PME shows only modest outperformance; and, decisively, both partners who led the top deals left in 2022 and 2023, so Fund Four is run by two former associates with no personally-attributed realised record. Midland's composite verdict: declining returns hidden by one departed-team deal, an underfunded clawback, a thin GP commitment, co-invest tiering, and a track record that evaporates without its best deal. Its decision: do not commit at a hundred fifty million; if the relationship justifies anything, offer seventy-five million, conditional on a European waterfall, thirty-percent escrow, a one-and-a-half-percent GP commitment, an LPAC seat, pro-rata co-invest rights, and a hard two-billion size cap.", "est_sec": 72}, {"n": 6, "beat": "pitfalls", "visual": "slide", "source_section": "What People Miss By Studying These Separately", "on_screen_title": "What siloed study misses", "on_screen_bullets": ["Strong record can hide all five", "Absence of evidence ≠ evidence of absence", "Clawback ≠ European waterfall"], "narration": "Four things people miss. First, a strong track record proves GP quality — but a single track-record number contains all five divergences at once: it can mean repeatable skill, or one exceptional deal by a departed partner plus subscription-line inflation plus untested marks plus a cherry-picked vintage; without decomposing the other four divergences you can't tell which story is true. Second, co-investments simply improve LP returns — they save carry, yes, but they're also how GPs differentiate between LPs, and an LP offered two adequate co-invests while preferred LPs got six superior ones has a blended return that looks like access but isn't the same programme; the absence of evidence, you weren't offered Deal Three, is not evidence of absence. Third, the clawback makes the American waterfall safe enough — no, recovering clawed-back money requires sufficient escrow, a solvent GP entity, partners who haven't dispersed the cash, and an LP willing to litigate; a European waterfall makes all of that unnecessary, so treating a clawback as equivalent systematically overestimates protection, especially when GPs hit financial pressure at wind-down. And fourth, the five divergences are independent risks — they're not; they amplify each other into a system where the GP's interests are genuinely and substantially misaligned with a typical LP's, even though every individual term looks reasonable on its face.", "est_sec": 62}, {"n": 7, "beat": "worked-example", "visual": "table", "source_section": "Practical Example: The Genuine Alignment Benchmark", "on_screen_title": "Genuine vs cosmetic alignment", "on_screen_bullets": ["Five observable signals", "Size cap, Euro waterfall, 2%+ commit", "Pro-rata co-invest, full attribution"], "narration": "So what does genuine alignment actually look like? Five observable signals, each addressing one divergence. On AUM: fund size held flat or grew modestly, with a voluntary hard cap on the next fund — the cosmetic version grows fifty percent or more with no cap. On carry timing: a European waterfall, thirty-percent escrow, subscription lines under ninety days with dual IRR reporting — versus an American waterfall, twenty-percent escrow, and lines up to twelve months. On risk asymmetry: a GP commitment of two percent or more, concentration waivers needing a supermajority, partners investing personal capital alongside — versus a sub-one-percent commitment and waivers passing on a simple majority. On co-investment: deals offered pro-rata to commitment size with ex-post return disclosure of everything offered, following the ILPA process — versus co-invest purely at GP discretion with no disclosure. And on track record: attribution by partner, net IRR adjusted for subscription lines, DPI alongside TVPI, PME provided, full deal-level data — versus a gross-IRR headline, undisclosed line inflation, a TVPI forty-percent-plus unrealised, and selective data. An LP who insists on all five signals will reject some GPs with strong headline track records — and that is the correct outcome, because headline performance and genuine alignment are simply not the same thing.", "est_sec": 62}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Substance over appearance", "on_screen_bullets": ["Five divergences persist past '2 and 20'", "DPI is the single best question", "Five signals prove real alignment"], "narration": "To recap. The GP-LP relationship has five structural points of divergence that persist despite the carried-interest alignment mechanism — AUM versus return, carry timing, risk asymmetry, co-investment selectivity, and track-record opacity — all enabled by the information asymmetry and passivity of the fund structure. The clawback only partly addresses carry timing, and only when properly escrowed and enforced; co-investments appear to benefit LPs but carry a selection bias that favours the GP's largest allocators; and track-record analysis is the LP's primary defence, but only when applied rigorously, with subscription-line adjustment, DPI weighting, PME benchmarking, and team-continuity analysis. The single most powerful question an LP can ask is simply, what is the DPI — because DPI is a fact while TVPI is an opinion. Genuine alignment isn't proved by two-and-twenty with an eight-percent hurdle; it's proved by five observable signals, and LPs who accept the headline without the evidence accept the appearance of alignment in place of its substance. That completes the fund-economics synthesis pair. Next we turn to the exit decision framework — how route, timing, and structure interact.", "est_sec": 54}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name the five structural GP–LP divergences. In the Midland/Northern Capital case, how did a single 4.2x deal simultaneously hide the AUM, track-record, and co-investment divergences — and what is the single most revealing question an LP can ask?", "narration": "Before the next lesson, answer all three. Name the five structural divergences between GP and LP interests. In the Midland and Northern Capital case, how did one four-point-two-times deal simultaneously mask the AUM, track-record, and co-investment divergences at once? And what is the single most revealing question an LP can ask about a track record? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Synthesis: LP and GP Incentive Alignment\n\n[hook] Five points of divergence\nThe GP-LP relationship is not naturally aligned. It's a principal-agent relationship — the LP entrusts capital to the GP over a decade, without day-to-day oversight, based on a contract and a track record. The fee and carry structure is designed to make interests appear aligned, but the structure contains five distinct points where GP and LP interests structurally diverge. One, AUM versus return — the GP's firm revenue scales with fund size; LP returns generally do not. Two, carry timing versus capital preservation — GPs maximise the present value of carry by distributing early; LPs prefer whole-fund certainty. Three, risk-appetite asymmetry — carry is a call option, so the GP bears no proportional downside. Four, co-investment information asymmetry — GPs control which deals are offered and to whom. And five, track-record presentation versus genuine skill — GPs control what performance data is disclosed and how. For each divergence the industry has engineered a governance mechanism, but each mechanism has a failure mode. The synthesis: the five divergences interact and compound, so only an LP who understands how they combine can build a commitment that's genuinely, not cosmetically, aligned.\n\n[intuition] 'We get rich when you do'\nThe conventional PE narrative is that carried interest aligns the GP with the LP — we only get rich when you get rich. That's true, but only in an idealised scenario with no information asymmetry, a whole-fund waterfall, robust enforcement, accurate track records, and fairly distributed co-investments. The real world contains none of those conditions perfectly. Each of the five divergences exists in every PE relationship to some degree; the question is never whether they exist, but how severe they are in a specific fund. Mastering this synthesis lets you build an LP due-diligence framework that evaluates alignment on all five dimensions at once rather than just the headline fee; identify interaction effects, where one divergence conceals or amplifies another; negotiate from knowledge of which terms reduce which divergence and which mechanisms are merely cosmetic; and distinguish a genuinely well-aligned GP from a competent one who has simply learned to present alignment without delivering it.\n\n[mechanics] Mechanism and failure mode\nThe concept map pairs each divergence with its governance mechanism and that mechanism's failure mode. Divergence one, AUM versus return: the fix is LPA caps on successor-fund timing and LPAC size approval, but the failure mode is that the GP controls pipeline visibility and raises the next fund before the prior fund's performance is even known. Divergence two, carry timing: the fix is a European waterfall plus an escrowed clawback plus subscription-line disclosure, but American waterfalls are still common, escrows can be thin, and GP-led secondaries let a GP crystallise carry via a continuation vehicle without a true arms-length exit. Divergence three, risk asymmetry: the fix is a meaningful GP commitment plus concentration and leverage caps, but a one-percent commitment, however large in dollars, is immaterial against the present value of future carry streams, so the GP is incentivised toward portfolio risk. Divergence four, co-investment asymmetry: the fix is ILPA co-invest principles — equal access, advance notice, no cherry-picking — but the GP controls the pipeline entirely, so the LP can see what was offered, never what was withheld; fair process is unverifiable from the LP's side. And divergence five, track record: the fix is ILPA reporting standards, audited net IRR, DPI, and PME, but those standards are voluntary and self-reported. The interaction layer is what most people miss: an inflated track record enables a larger fund, whose fee income subsidises a weak clawback, while a growing LP base lets the GP offer selective co-investments that create LP tiers, which maintains the large relationships that provide governance cover for the whole structure.\n\n[worked-example] Midland diligences Fund IV\nWatch an LP work all five divergences. Midland Pension, sixty billion in assets, committed a hundred million to Northern Capital Fund Three, a one-and-a-half-billion 2018 vintage now in year seven. Northern is raising Fund Four at two-and-a-half billion and invites Midland to commit a hundred fifty million. The headline looks strong: Fund Three at twenty-four percent gross IRR, nineteen net, two-point-four gross MOIC. Midland's team works each divergence. On AUM versus return, the pattern is damning: Fund One, four hundred million, returned three-point-one times; Fund Two, eight hundred million, two-point-seven; Fund Three, one-and-a-half billion, two-point-four — each fund larger and each return lower, exactly the fund-size decay the research predicts, while the GP earns more fees on each. On carry timing, Fund Three ran eight-month subscription lines, and adjusting for them the net IRR falls from nineteen to about fifteen-point-eight; it uses an American waterfall, the first three realised deals already paid the GP forty-two million in carry, but deals four and five are marked at zero-point-nine and zero-point-seven times cost — at those marks the fund's true carry should be about thirty-one million, so the GP has been overpaid eleven million, against an escrow of only eight, a three-million shortfall recoverable only by litigation.\n\n[worked-example] The best deal hid everything\nNow the last three divergences, and they converge on one deal. On risk asymmetry: the GP's commitment to Fund Three was just six million — zero-point-four percent, below the standard one — and the largest position, Deal Three, was twenty-two percent of the fund, above the twenty-percent limit, allowed by an LPAC waiver that Midland, not being on the LPAC, never saw. On co-investment asymmetry: Northern offered Midland two of its nine co-investments, returning a respectable two-point-four-five times blended at zero carry — but its three largest LPs, each committing two-fifty million-plus, were offered six co-investments including Deal Three at four-point-two times; Midland was never offered Deal Three and can't even verify this without surveying other LPs, who rarely share. And on track record, the whole picture collapses: Deal Three, that twenty-two-percent position, returned four-point-two times and made the entire track record — strip it out and the rest of Fund Three returned just one-point-eight times gross, about twelve percent net; the DPI is only zero-point-six-three, so most of the value is still unrealised marks; the PME shows only modest outperformance; and, decisively, both partners who led the top deals left in 2022 and 2023, so Fund Four is run by two former associates with no personally-attributed realised record. Midland's composite verdict: declining returns hidden by one departed-team deal, an underfunded clawback, a thin GP commitment, co-invest tiering, and a track record that evaporates without its best deal. Its decision: do not commit at a hundred fifty million; if the relationship justifies anything, offer seventy-five million, conditional on a European waterfall, thirty-percent escrow, a one-and-a-half-percent GP commitment, an LPAC seat, pro-rata co-invest rights, and a hard two-billion size cap.\n\n[pitfalls] What siloed study misses\nFour things people miss. First, a strong track record proves GP quality — but a single track-record number contains all five divergences at once: it can mean repeatable skill, or one exceptional deal by a departed partner plus subscription-line inflation plus untested marks plus a cherry-picked vintage; without decomposing the other four divergences you can't tell which story is true. Second, co-investments simply improve LP returns — they save carry, yes, but they're also how GPs differentiate between LPs, and an LP offered two adequate co-invests while preferred LPs got six superior ones has a blended return that looks like access but isn't the same programme; the absence of evidence, you weren't offered Deal Three, is not evidence of absence. Third, the clawback makes the American waterfall safe enough — no, recovering clawed-back money requires sufficient escrow, a solvent GP entity, partners who haven't dispersed the cash, and an LP willing to litigate; a European waterfall makes all of that unnecessary, so treating a clawback as equivalent systematically overestimates protection, especially when GPs hit financial pressure at wind-down. And fourth, the five divergences are independent risks — they're not; they amplify each other into a system where the GP's interests are genuinely and substantially misaligned with a typical LP's, even though every individual term looks reasonable on its face.\n\n[worked-example] Genuine vs cosmetic alignment\nSo what does genuine alignment actually look like? Five observable signals, each addressing one divergence. On AUM: fund size held flat or grew modestly, with a voluntary hard cap on the next fund — the cosmetic version grows fifty percent or more with no cap. On carry timing: a European waterfall, thirty-percent escrow, subscription lines under ninety days with dual IRR reporting — versus an American waterfall, twenty-percent escrow, and lines up to twelve months. On risk asymmetry: a GP commitment of two percent or more, concentration waivers needing a supermajority, partners investing personal capital alongside — versus a sub-one-percent commitment and waivers passing on a simple majority. On co-investment: deals offered pro-rata to commitment size with ex-post return disclosure of everything offered, following the ILPA process — versus co-invest purely at GP discretion with no disclosure. And on track record: attribution by partner, net IRR adjusted for subscription lines, DPI alongside TVPI, PME provided, full deal-level data — versus a gross-IRR headline, undisclosed line inflation, a TVPI forty-percent-plus unrealised, and selective data. An LP who insists on all five signals will reject some GPs with strong headline track records — and that is the correct outcome, because headline performance and genuine alignment are simply not the same thing.\n\n[recap] Substance over appearance\nTo recap. The GP-LP relationship has five structural points of divergence that persist despite the carried-interest alignment mechanism — AUM versus return, carry timing, risk asymmetry, co-investment selectivity, and track-record opacity — all enabled by the information asymmetry and passivity of the fund structure. The clawback only partly addresses carry timing, and only when properly escrowed and enforced; co-investments appear to benefit LPs but carry a selection bias that favours the GP's largest allocators; and track-record analysis is the LP's primary defence, but only when applied rigorously, with subscription-line adjustment, DPI weighting, PME benchmarking, and team-continuity analysis. The single most powerful question an LP can ask is simply, what is the DPI — because DPI is a fact while TVPI is an opinion. Genuine alignment isn't proved by two-and-twenty with an eight-percent hurdle; it's proved by five observable signals, and LPs who accept the headline without the evidence accept the appearance of alignment in place of its substance. That completes the fund-economics synthesis pair. Next we turn to the exit decision framework — how route, timing, and structure interact.\n\nEnd-card question: Name the five structural GP–LP divergences. In the Midland/Northern Capital case, how did a single 4.2x deal simultaneously hide the AUM, track-record, and co-investment divergences — and what is the single most revealing question an LP can ask?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Core Connection", "html": "<p>The GP-LP relationship is not naturally aligned. It is a principal-agent relationship — the LP (principal) entrusts capital to the GP (agent) over a decade, without day-to-day oversight, based on a contract and a track record. The fee and carry structure is designed to make the interests appear aligned. But the structure contains five distinct points where GP and LP interests structurally diverge, each arising from a different feature of the relationship.</p><p>The five structural divergences are:</p><ol><li><strong>AUM vs. return</strong> — the GP's firm revenue scales with fund size; LP returns generally do not</li><li><strong>Carry timing vs. capital preservation</strong> — GPs maximise the NPV of carry by distributing early; LPs prefer whole-fund performance certainty</li><li><strong>Risk appetite asymmetry</strong> — carry is a call option; the GP bears no proportional downside</li><li><strong>Co-investment information asymmetry</strong> — GPs control which deals are offered and to whom</li><li><strong>Track record presentation vs. genuine skill</strong> — GPs control what performance data is disclosed and how</li></ol><p>For each divergence, the PE industry has engineered a governance mechanism: the European waterfall, the clawback, the hurdle rate, co-investment principles, and ILPA reporting standards. But each mechanism has a failure mode — a condition under which it provides the appearance of protection without the substance.</p><p>The synthesis: <strong>the five divergences interact and compound. An LP who understands each in isolation is better protected than one who knows none, but an LP who understands how they interact is the only one who can build a fund commitment structure that is genuinely, not cosmetically, aligned.</strong></p><p>---</p>"}, "1": {"section": "Why This Relationship Matters", "html": "<p>The conventional PE narrative is that carried interest aligns the GP with the LP: \"we only get rich when you get rich.\" This is true — in an idealised scenario with no information asymmetry, a whole-fund waterfall, robust enforcement, accurate track records, and fairly distributed co-investments.</p><p>The real world contains none of those conditions perfectly. Each divergence listed above exists in every PE relationship to varying degrees. The question is not whether they exist but how severe they are in any specific fund.</p><p>Understanding this synthesis lets you:</p><ul class='notelist'><li><strong>Build an LP due diligence framework</strong> that evaluates alignment on all five dimensions simultaneously, not just the headline fee structure</li><li><strong>Identify interaction effects</strong> — where one divergence conceals or amplifies another (inflated track records enable AUM growth; AUM growth increases the incentive to inflate track records)</li><li><strong>Negotiate from a position of knowledge</strong> — knowing which specific terms reduce which specific divergence, and which governance mechanisms are merely cosmetic</li><li><strong>Distinguish a genuinely well-aligned GP</strong> from a competent GP who has learned to present alignment without delivering it</li></ul><p>---</p>"}, "2": {"section": "Concept Map: Five Divergences and Their Mechanisms", "html": "<p>---</p>"}, "3": {"section": "How They Interact in Practice", "html": "<p><strong>Scenario: Midland Pension Fund evaluates re-up to Northern Capital Group Fund IV</strong></p><p>Midland Pension Fund manages £60B in assets. They committed £100M to Northern Capital Fund III (£1.5B fund, vintage 2018). Fund III is now in Year 7. Northern Capital is raising Fund IV (target: £2.5B). The GP invites Midland to commit £150M.</p><p><strong>What Northern Capital presents:</strong></p><p>| Metric | Value | |---|---| | Fund III Gross IRR | 24% | | Fund III Net IRR | 19% | | Fund III Gross MOIC | 2.4x | | Fund IV target | £2.5B (+67% from Fund III) |</p><p>The headline looks strong. Midland's due diligence team works through each divergence.</p><p>---</p><p><strong>Working each divergence:</strong></p><p><strong>Divergence 1 — AUM growth pattern:</strong> - Fund I (£400M): 3.1x gross MOIC - Fund II (£800M): 2.7x gross MOIC - Fund III (£1.5B): 2.4x gross MOIC (2 deals unrealised) - Fund IV target: £2.5B</p><p>Each fund has been larger and produced lower returns. This is consistent with the research finding that returns decline with fund size as GPs struggle to deploy more capital into the same deal quality. The GP earns more management fees on each successive fund regardless.</p><p><em>LP action:</em> Request hard cap at £2B in Fund IV LPA. Review whether Fund III investment period is truly complete before Fund IV begins investing.</p><p>---</p><p><strong>Divergence 2 — Carry timing and clawback:</strong> - Fund III used subscription credit lines averaging 8 months. Adjusting for the line, net IRR falls from 19% to ~15.8% [illustrative]. - Fund III uses an American waterfall. Deals 1-3 (all realised) distributed £42M in carry to the GP. - Deals 4 and 5 (still unrealised) are currently marked at 0.9x and 0.7x cost respectively. Combined, these represent 28% of Fund III NAV. - If Deals 4-5 exit at current marks, total fund carry should be approximately £31M. The GP has received £42M — a potential clawback of £11M. - Current escrow: £8M (20% holdback). Shortfall: £3M. The escrow is insufficient to cover the clawback without litigation.</p><p><em>LP action:</em> Require European waterfall in Fund IV. Require 30% escrow with individual partner indemnification. Request subscription line usage be reported separately from IRR with and without line adjustment.</p><p>---</p><p><strong>Divergence 3 — Risk asymmetry:</strong> - GP partner commitment to Fund III: £6M (0.4%). Below standard 1%. - Largest Fund III position (Deal 3): 22% of fund by value. LPA said 20% limit. A waiver was granted by the LPAC (Midland is not an LPAC member). - Deal 3 is the 4.2x realised winner that made the track record. Without it, Fund III returns 1.8x gross MOIC. - The partners who led Deal 3 have since left Northern Capital.</p><p><em>LP action:</em> Require 1.5% GP commitment in Fund IV. Require Midland LPAC seat (at £150M commitment, this should be achievable). Hard 20% concentration limit with no LPAC waiver ability.</p><p>---</p><p><strong>Divergence 4 — Co-investment information asymmetry:</strong> - Northern Capital offered Midland 2 co-investments in Fund III (from a total of 9 co-investments offered to all LPs). - Midland's 2 co-investments: Deal A (2.8x gross MOIC), Deal B (2.1x gross MOIC). Average: 2.45x at zero carry — significant fee saving. - However, Northern Capital's 3 largest LP commitments (each £250M+, vs. Midland's £100M) were offered 6 co-investments including Deal 3 (4.2x gross MOIC). Midland was not offered Deal 3. - Midland cannot verify this unless they survey other LPs — and most PE LPs do not share co-investment information.</p><p><em>LP action:</em> Negotiate co-investment right in Fund IV LPA (not just informal access). Require that co-investments be offered pro-rata to committing LPs based on fund commitment size. Track which deals are offered, which declined, and request ex-post return data on all co-investments offered (not just accepted ones) to identify selection bias over time.</p><p>---</p><p><strong>Divergence 5 — Track record analysis:</strong> - Adjusting for subscription line: net IRR 19% → ~15.8% - Adjusting for best deal removal (Deal 3 was 22% of fund, returned 4.2x): remaining portfolio IRR ~12% net - DPI: 0.63x (63% of capital returned, 37% still unrealised) - PME vs. FTSE All-Share equivalent: net IRR of 15.8% vs. PME of 14.2% — modest outperformance, not exceptional [illustrative] - Team continuity: both partners responsible for Deal 2 and Deal 3 (the top performers by attribution) left in 2022 and 2023 respectively. Fund IV team is led by two partners who were associates during Fund III and have no personally attributed realised track record.</p><p><em>LP action:</em> Request attribution data (which partner led which deal). Do not accept GPentity track record as equivalent to team track record when key personnel have departed. Require separate IRR calculation excluding subscription line inflation.</p><p>---</p><p><strong>Midland's composite picture:</strong></p><p>| Divergence | Headline | Adjusted Reality | Governance Gap | |---|---|---|---| | AUM vs. return | Fund IV = \"scaled platform\" | Returns declining with fund size | No hard cap negotiated | | Carry timing | 19% net IRR | ~15.8% adjusted; £11M clawback exposure | Underfunded escrow; American waterfall | | Risk asymmetry | \"Aligned GP\" | 0.4% GP commit; best deal not led by current team | No LPAC seat; no concentration enforcement | | Co-investment | \"Preferred LP access\" | Best deal not offered to Midland | No pro-rata right in LPA | | Track record | \"Best fund ever\" | 1.8x ex-best-deal; different team going forward | No team attribution disclosure |</p><p><strong>Midland's decision:</strong> Do not commit at £150M under current terms. If strategic importance of the GP relationship justifies a smaller commitment, offer £75M conditional on: European waterfall, 30% escrow, 1.5% GP commitment, LPAC seat, co-investment pro-rata right, and a hard size cap at £2B.</p><p>---</p>"}, "4": {"section": "How They Interact in Practice", "html": "<p><strong>Scenario: Midland Pension Fund evaluates re-up to Northern Capital Group Fund IV</strong></p><p>Midland Pension Fund manages £60B in assets. They committed £100M to Northern Capital Fund III (£1.5B fund, vintage 2018). Fund III is now in Year 7. Northern Capital is raising Fund IV (target: £2.5B). The GP invites Midland to commit £150M.</p><p><strong>What Northern Capital presents:</strong></p><p>| Metric | Value | |---|---| | Fund III Gross IRR | 24% | | Fund III Net IRR | 19% | | Fund III Gross MOIC | 2.4x | | Fund IV target | £2.5B (+67% from Fund III) |</p><p>The headline looks strong. Midland's due diligence team works through each divergence.</p><p>---</p><p><strong>Working each divergence:</strong></p><p><strong>Divergence 1 — AUM growth pattern:</strong> - Fund I (£400M): 3.1x gross MOIC - Fund II (£800M): 2.7x gross MOIC - Fund III (£1.5B): 2.4x gross MOIC (2 deals unrealised) - Fund IV target: £2.5B</p><p>Each fund has been larger and produced lower returns. This is consistent with the research finding that returns decline with fund size as GPs struggle to deploy more capital into the same deal quality. The GP earns more management fees on each successive fund regardless.</p><p><em>LP action:</em> Request hard cap at £2B in Fund IV LPA. Review whether Fund III investment period is truly complete before Fund IV begins investing.</p><p>---</p><p><strong>Divergence 2 — Carry timing and clawback:</strong> - Fund III used subscription credit lines averaging 8 months. Adjusting for the line, net IRR falls from 19% to ~15.8% [illustrative]. - Fund III uses an American waterfall. Deals 1-3 (all realised) distributed £42M in carry to the GP. - Deals 4 and 5 (still unrealised) are currently marked at 0.9x and 0.7x cost respectively. Combined, these represent 28% of Fund III NAV. - If Deals 4-5 exit at current marks, total fund carry should be approximately £31M. The GP has received £42M — a potential clawback of £11M. - Current escrow: £8M (20% holdback). Shortfall: £3M. The escrow is insufficient to cover the clawback without litigation.</p><p><em>LP action:</em> Require European waterfall in Fund IV. Require 30% escrow with individual partner indemnification. Request subscription line usage be reported separately from IRR with and without line adjustment.</p><p>---</p><p><strong>Divergence 3 — Risk asymmetry:</strong> - GP partner commitment to Fund III: £6M (0.4%). Below standard 1%. - Largest Fund III position (Deal 3): 22% of fund by value. LPA said 20% limit. A waiver was granted by the LPAC (Midland is not an LPAC member). - Deal 3 is the 4.2x realised winner that made the track record. Without it, Fund III returns 1.8x gross MOIC. - The partners who led Deal 3 have since left Northern Capital.</p><p><em>LP action:</em> Require 1.5% GP commitment in Fund IV. Require Midland LPAC seat (at £150M commitment, this should be achievable). Hard 20% concentration limit with no LPAC waiver ability.</p><p>---</p><p><strong>Divergence 4 — Co-investment information asymmetry:</strong> - Northern Capital offered Midland 2 co-investments in Fund III (from a total of 9 co-investments offered to all LPs). - Midland's 2 co-investments: Deal A (2.8x gross MOIC), Deal B (2.1x gross MOIC). Average: 2.45x at zero carry — significant fee saving. - However, Northern Capital's 3 largest LP commitments (each £250M+, vs. Midland's £100M) were offered 6 co-investments including Deal 3 (4.2x gross MOIC). Midland was not offered Deal 3. - Midland cannot verify this unless they survey other LPs — and most PE LPs do not share co-investment information.</p><p><em>LP action:</em> Negotiate co-investment right in Fund IV LPA (not just informal access). Require that co-investments be offered pro-rata to committing LPs based on fund commitment size. Track which deals are offered, which declined, and request ex-post return data on all co-investments offered (not just accepted ones) to identify selection bias over time.</p><p>---</p><p><strong>Divergence 5 — Track record analysis:</strong> - Adjusting for subscription line: net IRR 19% → ~15.8% - Adjusting for best deal removal (Deal 3 was 22% of fund, returned 4.2x): remaining portfolio IRR ~12% net - DPI: 0.63x (63% of capital returned, 37% still unrealised) - PME vs. FTSE All-Share equivalent: net IRR of 15.8% vs. PME of 14.2% — modest outperformance, not exceptional [illustrative] - Team continuity: both partners responsible for Deal 2 and Deal 3 (the top performers by attribution) left in 2022 and 2023 respectively. Fund IV team is led by two partners who were associates during Fund III and have no personally attributed realised track record.</p><p><em>LP action:</em> Request attribution data (which partner led which deal). Do not accept GPentity track record as equivalent to team track record when key personnel have departed. Require separate IRR calculation excluding subscription line inflation.</p><p>---</p><p><strong>Midland's composite picture:</strong></p><p>| Divergence | Headline | Adjusted Reality | Governance Gap | |---|---|---|---| | AUM vs. return | Fund IV = \"scaled platform\" | Returns declining with fund size | No hard cap negotiated | | Carry timing | 19% net IRR | ~15.8% adjusted; £11M clawback exposure | Underfunded escrow; American waterfall | | Risk asymmetry | \"Aligned GP\" | 0.4% GP commit; best deal not led by current team | No LPAC seat; no concentration enforcement | | Co-investment | \"Preferred LP access\" | Best deal not offered to Midland | No pro-rata right in LPA | | Track record | \"Best fund ever\" | 1.8x ex-best-deal; different team going forward | No team attribution disclosure |</p><p><strong>Midland's decision:</strong> Do not commit at £150M under current terms. If strategic importance of the GP relationship justifies a smaller commitment, offer £75M conditional on: European waterfall, 30% escrow, 1.5% GP commitment, LPAC seat, co-investment pro-rata right, and a hard size cap at £2B.</p><p>---</p>"}, "5": {"section": "What People Miss By Studying These Separately", "html": "<p>### 1. \"A strong track record proves GP quality.\"</p><p>Track records are the primary input to LP decisions, but they contain all five divergences simultaneously. The same track record number can represent: genuine repeatable skill + appropriate risk-taking + accurate reporting + consistent team. Or it can represent: one exceptional deal by a departed partner + subscription line inflation + TVPI marks that haven't been tested by exit + a GP selecting their best fund vintage for marketing. Studying track record analysis without understanding the other four divergences leaves LPs unable to decompose which story is actually true.</p><p>### 2. \"Co-investments improve LP returns — that's the whole story.\"</p><p>Co-Investment Economics shows that co-investments save carry — a real and significant benefit. But co-investments are also the mechanism by which GPs differentiate between LPs in their portfolio. An LP who receives two adequate co-investments while the GP's preferred LPs received six superior ones has a blended net return that looks like they benefited from co-invest access — but they didn't access the same co-invest programme their larger LP peers did. The absence of evidence (you weren't offered Deal 3) is not evidence of absence (Deal 3 wasn't an available co-invest). Only by understanding the co-invest offering process, not just the co-invest economics, can LPs assess whether they are receiving genuine preferential access or simply being placated.</p><p>### 3. \"The clawback makes the American waterfall safe enough.\"</p><p>The clawback and the waterfall type are often treated as substitutes: \"we use an American waterfall but have a robust clawback.\" This understates the problem. A clawback is a contractual right to recover money. Recovering that money requires: (a) the escrow is sufficient, (b) the GP entity has assets, (c) individual partners haven't dispersed the carry through personal spending or investment, and (d) the LP is willing to litigate to enforce it. A European waterfall makes none of this necessary — carry is only paid when the outcome is known. Treating the clawback as equivalent protection to a European waterfall systematically overestimates LP protection in American waterfall funds, especially when GPs face financial pressure at fund wind-down.</p><p>### 4. \"The five divergences are independent risks to manage separately.\"</p><p>The most important feature of this synthesis: the five divergences amplify each other. A GP with an inflated track record (Divergence 5) more easily raises a larger fund (Divergence 1), which means they have more management fee income to subsidise the under-funded clawback (Divergence 2), and they use their growing LP base to offer selective co-investments that further differentiate preferred from non-preferred LPs (Divergence 4), which in turn allows them to maintain relationships with large LPs who have less incentive to challenge governance terms (Divergences 1-3). None of these moves is individually illegal — each is a rational GP behaviour. But together they constitute a system where the GP's interests are genuinely and substantially misaligned with a typical LP's, despite every individual term appearing reasonable on its face.</p><p>---</p>"}, "6": {"section": "Practical Example: The Genuine Alignment Benchmark", "html": "<p>A GP with genuine alignment has the following observable characteristics — each directly addressing one of the five structural divergences:</p><p>| Divergence | Observable Signal of Genuine Alignment | Observable Signal of Cosmetic Alignment | |---|---|---| | AUM vs. return | Fund size stayed flat or grew modestly; GP voluntarily hard-capped Fund IV | Fund size grew &gt;50% from prior fund; no size cap in LPA | | Carry timing | European waterfall; 30% escrow; subscription lines &lt;90 days with dual IRR reporting | American waterfall; 20% escrow; subscription lines up to 12 months | | Risk asymmetry | GP commitment 2%+; LPAC concentration waiver requires supermajority; partners invest personal capital pari passu | GP commitment &lt;1%; LPAC can waive concentration limits with simple majority | | Co-investment | Co-invest offered pro-rata to LP commitment size; ex-post return disclosure of all co-investments offered; ILPA process | Co-invest offered at GP discretion; no obligation to offer pro-rata; no ex-post disclosure | | Track record | Attribution by partner provided; net IRR adjusted for subscription lines; DPI reported alongside TVPI; PME provided; full deal-level data available | Gross IRR headline; subscription line inflation undisclosed; TVPI with 40%+ unrealised; no PME; selective deal-level data |</p><p>An LP who requires all five signals of genuine alignment will reject some GPs with strong headline track records. That is the correct outcome of this analysis — headline performance and genuine alignment are not the same thing.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The GP-LP relationship has five structural points of divergence that persist despite the carried interest alignment mechanism. GP-LP Fund Structure establishes the information asymmetry and passivity that makes all five possible. Management Fees and Carried Interest creates AUM and carry-timing incentives. Clawback Provisions partially addresses carry timing but only when properly escrowed and enforced. Co-Investment Economics appears to benefit LPs but contains a selection bias that disproportionately benefits the GP's largest and most favoured allocators. Track Record Analysis by LPs is the LP's primary defence against all five divergences — but only when applied rigorously, with subscription line adjustment, DPI weighting, PME benchmarking, and team continuity analysis.</p><p>Genuine alignment is not proved by \"2 and 20 with an 8% hurdle.\" It is proved by five observable signals: a size-capped fund with a European waterfall, a 2%+ GP commitment, co-investments offered pro-rata with ex-post disclosure, and a track record presented at net IRR with full attribution. LPs who accept the headline without the evidence accept the appearance of alignment in place of its substance.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

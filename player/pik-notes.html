@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "pik-notes", "title": "PIK Notes", "draft_watermark": false, "estimated_runtime_sec": 405, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Pay nothing now — owe more later", "on_screen_bullets": ["Cash scarce early; lenders still need paying", "PIK defers the cash", "True cost >> the stated rate"], "narration": "PIK notes expose a fundamental tension in LBO financing: cash is scarce in the early years of ownership, yet lenders still need to be compensated for their risk. PIK solves it by deferring the cash payments entirely — but the compounding mechanic means the total cost of PIK debt is dramatically higher than its stated rate suggests. Understanding PIK is essential to modelling returns accurately, and to recognising when sponsors are using financial engineering to bridge a gap that cash flow can't yet support. It's the most seductive and most dangerous instrument in the stack.", "est_sec": 44}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Interest paid in more debt", "on_screen_bullets": ["No cash interest", "Balance compounds over time", "Cash now, bigger bill later"], "narration": "The definition. PIK — payment-in-kind — notes are debt instruments where interest is paid not in cash but by issuing additional debt, causing the principal balance to compound over time. They preserve cash in the near term at the cost of a growing future repayment obligation. Instead of writing an interest cheque, the company simply adds the interest to what it owes — and that pile grows.", "est_sec": 38}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "The friend who adds it on", "on_screen_bullets": ["Borrow £100, don't pay the £10", "Add it: owe £110, then £121", "After 5 yrs ≈ £161, no cash paid"], "narration": "Imagine you borrow a hundred pounds from a friend. Instead of paying ten pounds interest each year, your friend says: you don't need to pay me in cash — just add the ten to what you owe me. After year one, you owe a hundred and ten. After year two, you owe a hundred and twenty-one — because now you're paying interest on a hundred and ten, not a hundred. After five years you owe about a hundred and sixty-one — even though you've never handed over a single penny in cash along the way. That's exactly how a PIK note works: the company borrows, and instead of paying cash interest, it issues more debt, so the balance grows — or accretes — at the stated rate. The benefit is obvious early on; the cost arrives all at once at the end.", "est_sec": 52}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Snowball, or the minimum-payment trap", "on_screen_bullets": ["Compounds on itself, grows faster", "2–3x original after 7–8 yrs", "Escape only by exiting and repaying"], "narration": "PIK interest is like a snowball rolling downhill. At first it's small — a modest accretion each year. But because the interest compounds on itself, the ball grows faster and faster, and after seven or eight years a PIK note can be two to three times its original size. Another way to see it: PIK is like the credit-card minimum-payment trap. You're not paying down the debt — you're adding to it every period. But unlike a credit card, where you could choose to pay more, in a PIK structure the deferral is explicit and contractual; the only way to escape is to exit the company and repay the whole thing at once. The sponsor's bet is that the company's equity value will grow faster than the PIK compounds — and that bet doesn't always pay off.", "est_sec": 52}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "How a 15% PIK accretes", "on_screen_bullets": ["$100m → $115m → $132.25m", "$152.09m → $174.9m → $201.1m", "Doubles in 5 years, zero cash"], "narration": "Watch a hundred-million PIK note at a fifteen percent rate accrete. End of year one: a hundred times one-point-one-five — a hundred and fifteen million. Year two: a hundred and fifteen times one-point-one-five — a hundred and thirty-two-point-two-five. Year three: a hundred and fifty-two-point-zero-nine. Year four: a hundred and seventy-four-point-nine. And year five: two hundred and one-point-one million. The company has paid nothing in cash over five years, but it now owes two hundred and one million — double the original loan. That's the PIK trap: if the equity value hasn't grown proportionally, the PIK has quietly consumed the equity. And note the pricing — PIK typically carries one to three percentage points more than an equivalent cash-interest instrument, the premium lenders demand for waiting and for the compounding risk they're taking on.", "est_sec": 58}, {"n": 6, "beat": "worked-example", "visual": "slide", "source_section": "Real-World Example", "on_screen_title": "Why a sponsor reaches for PIK", "on_screen_bullets": ["Early cash flow can't service it", "Bet: equity grows faster than PIK", "Bridges a gap cash can't cover"], "narration": "Why does a sponsor reach for PIK at all, given the cost? Because in the early years the company's cash flow simply can't service another cash-paying tranche — the senior interest and the operations already absorb it. PIK lets the deal carry more leverage without choking on cash interest, on the wager that by exit the equity will have grown faster than the PIK compounded. Picture our hundred-million note at fifteen percent: if the company's value triples over five years, the two-hundred-and-one-million PIK repayment is comfortably covered and the equity still wins handsomely. But if the value merely doubles, that compounding PIK can claim most or all of the equity gain — the sponsor did all the operational work and the PIK ate the reward. That asymmetry is the whole story: PIK is cheap on cash today and ruinous on equity tomorrow if growth disappoints.", "est_sec": 58}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["Stated rate understates true cost", "Excluded from ICR covenants", "It silently grows total debt"], "narration": "Three corrections. First, the stated rate dramatically understates the true cost — a fifteen percent PIK that doubles the balance in five years has cost you the original principal again, and reading it as merely a fifteen percent coupon misses the compounding entirely. Second, recall from the coverage lesson that PIK is usually excluded from the interest coverage covenant — because no cash leaves the company, the ICR test looks healthy while total debt is quietly compounding, so a covenant-compliant company can still be sliding toward a PIK trap. And third — the same point from the debt-schedule lesson — PIK silently grows total debt: a company can be sweeping its term loan B down impressively while the PIK balance climbs above it, so always sum every tranche, including the accreting PIK, to see the real leverage.", "est_sec": 56}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Deferred, compounding, dangerous", "on_screen_bullets": ["No cash now; balance compounds", "Premium of 1–3pp over cash", "Cheap today, can eat the equity"], "narration": "To recap. PIK notes pay interest by issuing more debt rather than cash, so the balance compounds — a fifteen percent PIK roughly doubling in five years — preserving near-term cash at the cost of a much larger future repayment. They carry a one-to-three-point premium over cash instruments, sit excluded from the cash-interest coverage test, and grow total debt silently. The sponsor's bet is that equity grows faster than the PIK accretes; when it does, PIK is brilliant leverage; when growth disappoints, the PIK trap consumes the equity. Use it with eyes open. Next we cross from private debt into the public markets, with high-yield bonds in LBOs.", "est_sec": 50}], "end_card": {"quiz_label": "Q1", "question_on_screen": "A $80m PIK note accrues at 15% for one year. What is its balance after Year 1 — and why does the stated rate understate the instrument's true cost?", "narration": "Before the next lesson, compute it. An eighty-million PIK note at fifteen percent for one year — what's the balance after year one, and why does that fifteen percent headline understate what the PIK really costs over a full hold? Work it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: PIK Notes\n\n[hook] Pay nothing now — owe more later\nPIK notes expose a fundamental tension in LBO financing: cash is scarce in the early years of ownership, yet lenders still need to be compensated for their risk. PIK solves it by deferring the cash payments entirely — but the compounding mechanic means the total cost of PIK debt is dramatically higher than its stated rate suggests. Understanding PIK is essential to modelling returns accurately, and to recognising when sponsors are using financial engineering to bridge a gap that cash flow can't yet support. It's the most seductive and most dangerous instrument in the stack.\n\n[definition] Interest paid in more debt\nThe definition. PIK — payment-in-kind — notes are debt instruments where interest is paid not in cash but by issuing additional debt, causing the principal balance to compound over time. They preserve cash in the near term at the cost of a growing future repayment obligation. Instead of writing an interest cheque, the company simply adds the interest to what it owes — and that pile grows.\n\n[intuition] The friend who adds it on\nImagine you borrow a hundred pounds from a friend. Instead of paying ten pounds interest each year, your friend says: you don't need to pay me in cash — just add the ten to what you owe me. After year one, you owe a hundred and ten. After year two, you owe a hundred and twenty-one — because now you're paying interest on a hundred and ten, not a hundred. After five years you owe about a hundred and sixty-one — even though you've never handed over a single penny in cash along the way. That's exactly how a PIK note works: the company borrows, and instead of paying cash interest, it issues more debt, so the balance grows — or accretes — at the stated rate. The benefit is obvious early on; the cost arrives all at once at the end.\n\n[intuition] Snowball, or the minimum-payment trap\nPIK interest is like a snowball rolling downhill. At first it's small — a modest accretion each year. But because the interest compounds on itself, the ball grows faster and faster, and after seven or eight years a PIK note can be two to three times its original size. Another way to see it: PIK is like the credit-card minimum-payment trap. You're not paying down the debt — you're adding to it every period. But unlike a credit card, where you could choose to pay more, in a PIK structure the deferral is explicit and contractual; the only way to escape is to exit the company and repay the whole thing at once. The sponsor's bet is that the company's equity value will grow faster than the PIK compounds — and that bet doesn't always pay off.\n\n[mechanics] How a 15% PIK accretes\nWatch a hundred-million PIK note at a fifteen percent rate accrete. End of year one: a hundred times one-point-one-five — a hundred and fifteen million. Year two: a hundred and fifteen times one-point-one-five — a hundred and thirty-two-point-two-five. Year three: a hundred and fifty-two-point-zero-nine. Year four: a hundred and seventy-four-point-nine. And year five: two hundred and one-point-one million. The company has paid nothing in cash over five years, but it now owes two hundred and one million — double the original loan. That's the PIK trap: if the equity value hasn't grown proportionally, the PIK has quietly consumed the equity. And note the pricing — PIK typically carries one to three percentage points more than an equivalent cash-interest instrument, the premium lenders demand for waiting and for the compounding risk they're taking on.\n\n[worked-example] Why a sponsor reaches for PIK\nWhy does a sponsor reach for PIK at all, given the cost? Because in the early years the company's cash flow simply can't service another cash-paying tranche — the senior interest and the operations already absorb it. PIK lets the deal carry more leverage without choking on cash interest, on the wager that by exit the equity will have grown faster than the PIK compounded. Picture our hundred-million note at fifteen percent: if the company's value triples over five years, the two-hundred-and-one-million PIK repayment is comfortably covered and the equity still wins handsomely. But if the value merely doubles, that compounding PIK can claim most or all of the equity gain — the sponsor did all the operational work and the PIK ate the reward. That asymmetry is the whole story: PIK is cheap on cash today and ruinous on equity tomorrow if growth disappoints.\n\n[pitfalls] What people get wrong\nThree corrections. First, the stated rate dramatically understates the true cost — a fifteen percent PIK that doubles the balance in five years has cost you the original principal again, and reading it as merely a fifteen percent coupon misses the compounding entirely. Second, recall from the coverage lesson that PIK is usually excluded from the interest coverage covenant — because no cash leaves the company, the ICR test looks healthy while total debt is quietly compounding, so a covenant-compliant company can still be sliding toward a PIK trap. And third — the same point from the debt-schedule lesson — PIK silently grows total debt: a company can be sweeping its term loan B down impressively while the PIK balance climbs above it, so always sum every tranche, including the accreting PIK, to see the real leverage.\n\n[recap] Deferred, compounding, dangerous\nTo recap. PIK notes pay interest by issuing more debt rather than cash, so the balance compounds — a fifteen percent PIK roughly doubling in five years — preserving near-term cash at the cost of a much larger future repayment. They carry a one-to-three-point premium over cash instruments, sit excluded from the cash-interest coverage test, and grow total debt silently. The sponsor's bet is that equity grows faster than the PIK accretes; when it does, PIK is brilliant leverage; when growth disappoints, the PIK trap consumes the equity. Use it with eyes open. Next we cross from private debt into the public markets, with high-yield bonds in LBOs.\n\nEnd-card question: A $80m PIK note accrues at 15% for one year. What is its balance after Year 1 — and why does the stated rate understate the instrument's true cost?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>PIK notes reveal a fundamental tension in LBO financing: cash is scarce in the early years of ownership, but lenders need to be compensated for their risk. PIK solves this by deferring cash payments — but the compounding mechanic means the total cost of PIK debt is dramatically higher than its stated rate suggests. Understanding PIK is essential for modelling LBO returns accurately and understanding when PE sponsors use financial engineering to bridge capital structure gaps.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>PIK (Payment-in-Kind) notes are debt instruments where interest is paid not in cash but by issuing additional debt, causing the principal balance to compound over time — preserving cash in the near term at the cost of a growing future repayment obligation.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Imagine you borrow £100 from a friend. Instead of paying £10 interest each year, your friend says: \"You don't need to pay me in cash. Just add the £10 to what you owe me.\" After Year 1, you owe £110. After Year 2, you owe £121 (because you're now paying interest on £110, not £100). After five years, you owe about £161 — even though you never paid a penny in cash along the way.</p><p>That is exactly how PIK (Payment-in-Kind) notes work. The company borrows money and instead of paying cash interest, it issues more debt. The debt balance grows — or \"accretes\" — at the stated interest rate.</p><p>The benefit: the company keeps its cash, which can be used to run the business, repay senior debt, or fund growth.</p><p>The cost: at exit, the PIK balance is much larger than the original principal. This larger debt must be repaid before equity holders get anything.</p><p>PE firms use PIK strategically — typically in the most junior part of the capital structure (the deepest layer before equity) where cash coverage is thinnest. If the deal goes well and exits on time, the PIK cost is manageable. If the hold period extends or performance disappoints, compounding PIK can become a serious problem.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>PIK interest is like a <strong>snowball rolling downhill</strong>. At first it's small — a modest accretion each year. But because the interest compounds on itself, the ball grows faster and faster. After 7-8 years, a PIK note can be 2-3x its original size.</p><p>Alternatively: PIK is like a <strong>credit card minimum payment trap</strong>. You're not paying down the debt — you're adding to it every month. Unlike a credit card (where you can choose to pay more), in PIK structures the deferral is explicit and contractual. The only way to escape is to exit and repay at once.</p><p>The PE sponsor's calculation: \"The cost of the PIK compounding (say, $80M extra at exit) is less than the value created by the company's growth (say, $200M in additional equity value) — so it's worth it.\" If that calculus breaks down — because growth was slower than expected — the PIK has destroyed equity value.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p><strong>How PIK accretes:</strong> If a $100M PIK note has a 15% PIK rate: - End of Year 1: $100M × 1.15 = $115M - End of Year 2: $115M × 1.15 = $132.25M - End of Year 3: $132.25M × 1.15 = $152.09M - End of Year 4: $152.09M × 1.15 = $174.9M - End of Year 5: $174.9M × 1.15 = <strong>$201.1M</strong></p><p>The company has paid nothing in cash over 5 years, but must repay $201M — double the original loan. This is the \"PIK trap\": if equity value has not grown proportionally, the PIK has consumed the equity.</p><p><strong>PIK rate premium:</strong> PIK notes typically carry 1-3 percentage points more than equivalent cash interest instruments — because the lender accepts the deferral risk (no cash income for years) and therefore demands extra compensation.</p><p><strong>PIK Toggle Notes:</strong> A toggle structure allows the borrower (usually the PE-backed company) to elect at the start of each interest period whether to pay in cash or in kind. If cash flows are strong, pay cash; if cash is tight, pay PIK. This gives the PE sponsor flexibility to manage cash in different operating environments without a permanent commitment to one structure.</p><p><strong>Semi-PIK / Cash + PIK combo:</strong> Some instruments pay, say, 8% in cash and 5% in PIK — a partial deferral. The borrower pays some interest in cash (keeping lenders satisfied with immediate income) while accreting some balance.</p><p><strong>Where PIK sits in the capital structure:</strong> PIK is used in the most junior debt layers because: 1. Senior and mezzanine lenders typically require cash interest (the income is part of their return model) 2. PIK instruments accept equity-like deferral risk, so they sit closest to equity 3. In a default, PIK is repaid last among debt instruments — making it structurally subordinate</p><p><strong>PIK vs. zero coupon bonds:</strong> Both defer cash payments. Zero coupon bonds are issued at a discount and mature at face value (the discount = the interest). PIK notes accrete from par upward. Both share the compounding deferral mechanic.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>PIK toggle notes in the 2006-2008 LBO wave:</strong></p><p>During the pre-crisis leveraged buyout wave, PIK toggle notes were widely used in large-cap deals. A well-known example was the Chrysler LBO by Cerberus Capital Management in 2007 — the deal used PIK-toggle instruments at the holding company level, allowing Cerberus to elect PIK when the automotive business deteriorated.</p><p>When the financial crisis hit in 2008, the toggle was exercised — interest was paid in PIK rather than cash as revenues collapsed. The PIK structure bought Cerberus time but the scale of business deterioration was beyond what financial engineering could solve. Chrysler eventually filed for bankruptcy in 2009, with the PIK instruments wiped out in the restructuring.</p><p>Lesson: PIK buys time; it does not fix underlying business problems. [needs-verification on specific Chrysler deal mechanics]</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PIK is cheap because you don't pay cash.\"</strong> PIK is expensive because of compounding. A 15% PIK note doubles in 5 years — the total cost is higher than the stated rate implies because you're paying interest on accrued interest.</p><p><strong>Misconception 2: \"PIK doesn't affect the company's cash flow.\"</strong> True in the short term, but PIK increases the total debt that must be repaid at exit — reducing equity proceeds. The cash cost is deferred, not eliminated.</p><p><strong>Misconception 3: \"PIK toggle means you can avoid paying altogether.\"</strong> PIK toggle means you elect cash or PIK each period — the debt accretes or cash is paid. You cannot elect to pay nothing. Principal is always eventually due.</p><p><strong>Misconception 4: \"PIK is always a sign of financial stress.\"</strong> Not necessarily. PIK can be a deliberate structural choice for cash management even in healthy deals — particularly in growth businesses that want to reinvest all cash rather than service debt. However, stressed companies also use PIK conversions as distress management tools.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>PIK notes defer interest payments by adding to the debt principal rather than paying in cash. The compounding mechanic means total cost is substantially higher than the stated rate — a 15% PIK note roughly doubles in 5 years. PE firms use PIK to preserve cash for operations and senior debt repayment during the hold period, and for PIK toggle flexibility in volatile businesses. The cost is borne entirely at exit — the accreted PIK balance reduces equity proceeds directly. PIK notes sit in the most junior debt layers, closest to equity. The defining risk is that compounding, combined with a longer hold period or lower exit multiple, can eliminate equity returns entirely.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

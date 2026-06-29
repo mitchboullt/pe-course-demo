@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "the-1990s-pe-expansion-and-rise-of-mega-funds", "title": "The 1990s PE Expansion and Rise of Mega-Funds", "draft_watermark": false, "estimated_runtime_sec": 425, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "When the structure was built", "on_screen_bullets": ["2-and-20 became standard", "Pension capital matured", "Secondary market was born"], "narration": "The 1990s are the decade that built the structural conditions modern PE runs on. The two-and-twenty model, the LP-GP contractual framework, the pension capital base, and the secondary market were not always present — they were assembled and standardised in the 1990s. Understanding this decade closes the historical arc: you cannot understand why GPs charge two-and-twenty without knowing when it became standard, why pension funds are the dominant LP without knowing when they started committing at scale, or why a secondary market exists without knowing it was born in this period. The secondary market that defines a whole corner of the industry today was invented here — Coller Capital, founded 1990, and Landmark Partners were among the first to build dedicated secondaries strategies, and the LP positions traded as secondaries today often originated in 1990s-vintage primary funds.", "est_sec": 48}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Boutique to asset class", "on_screen_bullets": ["~1991–2000 institutionalisation", "2-and-20, pension LPs, Yale model", "Mega-firms reach scale"], "narration": "The definition. The 1990s PE expansion, roughly 1991 to 2000, was the decade in which private equity transformed from a boutique, junk-bond-dependent activity into an institutionalised asset class: the two-and-twenty fee structure became standard, the pension capital unlocked by ERISA's 1979 reinterpretation matured into committed LP relationships, the Yale Endowment model spread alternative allocations across institutional investors, the first specialist secondary firms emerged, and the major firms — KKR, Blackstone, Carlyle, Bain Capital — reached the institutional scale that would enable the mega-buyouts of the 2000s.", "est_sec": 40}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Five things converged", "on_screen_bullets": ["Pension data + 2-and-20 + Yale model", "Nasdaq exit boom + secondary market", "AUM ~$20bn → $200bn+"], "narration": "After the S&L crisis and Drexel's 1990 collapse destroyed the junk-bond market that had powered 1980s LBOs, PE entered a rebuilding phase — the 1980s tools had failed spectacularly, but the underlying logic, buy undervalued companies, improve them, sell, remained sound. The 1990s recovery happened because five things converged. One, pension capital had been building since the 1979 ERISA reinterpretation, and a decade in, those funds had performance data showing PE could outperform public markets, so they committed more. Two, two-and-twenty crystallised as the industry standard — a two percent management fee on committed capital plus twenty percent carry above an eight percent hurdle became the standard partnership-agreement template. Three, the Yale Endowment model spread — David Swensen's heavy allocation to alternatives showed institutions could earn materially higher returns by accepting illiquidity, and Harvard, Stanford, and then public pensions copied it, pouring billions in. Four, the Nasdaq bull market from 1995 to 2000 created excellent exit conditions, so funds that bought cheaply in the early-1990s recession could exit at peak valuations. And five, the secondary market was born, letting LPs who needed liquidity sell their fund interests rather than wait for wind-down. The result: PE assets grew roughly tenfold, from about twenty billion in 1991 to over two hundred billion by 2000.", "est_sec": 56}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "Reaching product-market fit", "on_screen_bullets": ["1980s: the buggy prototype", "1990s: version 1.0 standardised", "2000s: the scale phase"], "narration": "The mental model: think of PE in the 1990s as a software platform reaching product-market fit. The 1980s were the prototype phase — dramatic, innovative, and often buggy, with RJR Nabisco's over-leverage and the S&L-adjacent failures. The 1990s were the version-one-point-oh standardisation: the user interface, meaning the LP terms, got standardised; the distribution channels, the pension capital and endowments, got validated; a secondary market, the app store, was created; and the platform was proven across multiple fund vintages and exit cycles. And the 2000s would be the scale phase — the same platform, but running at ten times the size, with cheap debt as the growth accelerant. The 1990s, in short, are where the messy invention became a repeatable, institutional product.", "est_sec": 44}, {"n": 5, "beat": "mechanics", "visual": "table", "source_section": "Technical Explanation", "on_screen_title": "Reconstruction, then standardisation", "on_screen_bullets": ["Leverage falls 6–8x → 4–5x; 100-day plan", "Yale: PE 25–30%, 30%+ vs S&P ~18%", "2-and-20 templated by elite law firms"], "narration": "Technically, the decade ran in phases. Reconstruction, 1991 to 1994: the S&L crisis and Milken conviction destroyed the high-yield infrastructure, banks tightened leveraged lending, and several 1980s portfolio companies hit debt crises — Campeau's retail chains and Federated Department Stores went bankrupt, demonstrating the downside of over-leverage. PE responded by shifting from pure financial engineering toward operational improvement; the hundred-day-plan concept emerged partly as a legitimacy response to the era's reputational damage, and early-90s deals used lower leverage, four-to-five times EBITDA versus six-to-eight in the late 1980s, making for more defensible returns. Then the Yale Endowment effect: Swensen formalised overweighting alternatives versus a traditional sixty-forty portfolio, with Yale's PE allocation reaching twenty-five to thirty percent and reputed thirty-percent-plus returns in peak years against an S&P returning about eighteen — and when CalPERS and the big public pensions replicated it even at ten-to-fifteen-percent allocations, the capital expanded dramatically; a one-percent reallocation at a hundred-billion-dollar CalPERS is a billion dollars newly available for PE. Standardisation, 1993 to 1998: where early fund terms were negotiated case by case, they now converged — a two percent fee, twenty percent carry, an eight percent compounding hurdle, a hundred-percent GP catch-up, an LPAC, and key-man provisions, copied fund to fund as elite law firms developed standard templates. And the crucial point: there was no principled reason for two-and-twenty — the two percent was sized to cover GP operating costs at 1990s fund sizes of five hundred million to two billion, but as funds grew to five and then twenty billion, the management fee far outran operating costs and became a profit centre in itself, a structural consequence of terms that were never renegotiated as scale changed.", "est_sec": 66}, {"n": 6, "beat": "worked-example", "visual": "table", "source_section": "Real-World Example", "on_screen_title": "KKR rebuilds; the secondary market starts", "on_screen_bullets": ["1996 fund $5.7bn, largest to date", "Operational credibility + global reach", "Coller 1990, Lexington 1994; 40–60% of NAV"], "narration": "Two threads show the decade in action. First, KKR's reconstruction — from RJR villain to institutionalised giant. After RJR closed in 1989, KKR's reputation was damaged, Barbarians at the Gate was out, and Henry Kravis had faced Congressional hearings. KKR's response: it shifted emphasis to operational improvement, hiring operating professionals to work alongside management; it held its institutional LP base, CalPERS, corporate pensions, and insurers, through mixed-performance vintages; it raised its 1996 fund at about five-point-seven billion dollars, the largest PE fund raised to that date; and it expanded into Europe and then Asia. By 2000 it had completed the transition from junk-bond dealmaker to institutionalised alternative-asset manager — the template of operational credibility plus LP-relationship management plus global diversification that Blackstone, Carlyle, and Apollo all replicated. Second, the secondary market's birth: before the 1990s, LP interests were effectively illiquid with no organised market. The pioneers — Coller Capital, founded 1990 by Jeremy Coller, Landmark Partners from 1989, and Lexington Partners from 1994 — built dedicated secondaries strategies, buying LP positions from S&L banks meeting capital requirements, corporations divesting non-core financial assets, and insurers facing capital charges. Early secondaries were bought at steep discounts, forty to sixty percent of NAV, because sellers were distressed and buyers opportunistic — a sharp contrast with the modern market, where large secondaries trade near ninety to a hundred percent of NAV. The entire secondary industry that exists today was assembled in this decade from those distressed-seller pieces.", "est_sec": 64}, {"n": 7, "beat": "pitfalls", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "What people get wrong", "on_screen_bullets": ["PE wasn't always institutional", "2-and-20 isn't cost-justified at scale", "1990s returns ≠ pure skill"], "narration": "Four corrections. First, PE has not always been a large institutional asset class — it was a niche activity for most of its history; the institutionalisation happened in the 1990s, and before the 1979 ERISA reinterpretation and the 1990s LP expansion it was capitalised mainly by wealthy individuals and small groups. Second, the two-and-twenty fee structure does not reflect the genuine economics of managing a fund — it was sized for 1990s fund sizes of half a billion to two billion, and at modern sizes of ten to thirty billion-plus a two-percent fee generates hundreds of millions a year, far more than operating costs require; the terms became convention and have proven remarkably sticky despite LPs having the scale to demand lower fees. Third, strong 1990s returns are not clean evidence that PE outperforms — they're partly evidence of excellent vintage timing, buying in recession and exiting into a bull market, and not fully separable from the macro; the persistence debate, whether GP skill or vintage luck drives returns, remains unresolved. And fourth, the secondary market is not a recent innovation — it originated in the early 1990s with Coller in 1990; what's recent is its scale and sophistication, from a niche distressed-seller market to a competitive hundred-billion-dollar-plus annual transaction market.", "est_sec": 54}, {"n": 8, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "The tools, ready to scale", "on_screen_bullets": ["Five developments converged", "Tenfold AUM growth", "Mega-firms set up for the 2000s"], "narration": "To recap. The 1990s PE expansion was the decade of institutionalisation, where five structural developments converged: ERISA pension capital matured into committed LP relationships at CalPERS, Ontario Teachers', and dozens of others; the two-and-twenty fee structure crystallised as the standard template; Swensen's Yale Endowment model spread alternative allocations across institutions, flooding capital in; the Nasdaq bull market created ideal exit conditions for early-90s vintages, delivering the returns that validated the asset class; and the first specialist secondary firms created partial liquidity for LP interests, reducing the illiquidity premium. By 2000, PE had grown roughly tenfold since 1991, and the major firms — KKR, Blackstone, Carlyle, Bain Capital, and Apollo, the last founded in 1990 by an ex-Milken team — had built the institutional structures that would scale dramatically next. The tools existed; the scale was about to multiply. And that scaling, fuelled by cheap debt, is exactly where the story turns next — but first, the archetypal overleveraged deal that the scale era would produce: Energy Future Holdings.", "est_sec": 52}], "end_card": {"quiz_label": "Q1", "question_on_screen": "Name three of the five developments that institutionalised PE in the 1990s. Why does the note argue the 2-and-20 fee — which became standard in this decade — is not justified by the actual economics of running today's mega-funds?", "narration": "Before the next lesson, answer both. Name three of the five structural developments that institutionalised private equity in the 1990s. And why does the note argue that the two-and-twenty fee, which became standard in this decade, is not justified by the actual economics of running today's mega-funds? Reason it out, then check the notes below."}, "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: The 1990s PE Expansion and Rise of Mega-Funds\n\n[hook] When the structure was built\nThe 1990s are the decade that built the structural conditions modern PE runs on. The two-and-twenty model, the LP-GP contractual framework, the pension capital base, and the secondary market were not always present — they were assembled and standardised in the 1990s. Understanding this decade closes the historical arc: you cannot understand why GPs charge two-and-twenty without knowing when it became standard, why pension funds are the dominant LP without knowing when they started committing at scale, or why a secondary market exists without knowing it was born in this period. The secondary market that defines a whole corner of the industry today was invented here — Coller Capital, founded 1990, and Landmark Partners were among the first to build dedicated secondaries strategies, and the LP positions traded as secondaries today often originated in 1990s-vintage primary funds.\n\n[definition] Boutique to asset class\nThe definition. The 1990s PE expansion, roughly 1991 to 2000, was the decade in which private equity transformed from a boutique, junk-bond-dependent activity into an institutionalised asset class: the two-and-twenty fee structure became standard, the pension capital unlocked by ERISA's 1979 reinterpretation matured into committed LP relationships, the Yale Endowment model spread alternative allocations across institutional investors, the first specialist secondary firms emerged, and the major firms — KKR, Blackstone, Carlyle, Bain Capital — reached the institutional scale that would enable the mega-buyouts of the 2000s.\n\n[intuition] Five things converged\nAfter the S&L crisis and Drexel's 1990 collapse destroyed the junk-bond market that had powered 1980s LBOs, PE entered a rebuilding phase — the 1980s tools had failed spectacularly, but the underlying logic, buy undervalued companies, improve them, sell, remained sound. The 1990s recovery happened because five things converged. One, pension capital had been building since the 1979 ERISA reinterpretation, and a decade in, those funds had performance data showing PE could outperform public markets, so they committed more. Two, two-and-twenty crystallised as the industry standard — a two percent management fee on committed capital plus twenty percent carry above an eight percent hurdle became the standard partnership-agreement template. Three, the Yale Endowment model spread — David Swensen's heavy allocation to alternatives showed institutions could earn materially higher returns by accepting illiquidity, and Harvard, Stanford, and then public pensions copied it, pouring billions in. Four, the Nasdaq bull market from 1995 to 2000 created excellent exit conditions, so funds that bought cheaply in the early-1990s recession could exit at peak valuations. And five, the secondary market was born, letting LPs who needed liquidity sell their fund interests rather than wait for wind-down. The result: PE assets grew roughly tenfold, from about twenty billion in 1991 to over two hundred billion by 2000.\n\n[intuition] Reaching product-market fit\nThe mental model: think of PE in the 1990s as a software platform reaching product-market fit. The 1980s were the prototype phase — dramatic, innovative, and often buggy, with RJR Nabisco's over-leverage and the S&L-adjacent failures. The 1990s were the version-one-point-oh standardisation: the user interface, meaning the LP terms, got standardised; the distribution channels, the pension capital and endowments, got validated; a secondary market, the app store, was created; and the platform was proven across multiple fund vintages and exit cycles. And the 2000s would be the scale phase — the same platform, but running at ten times the size, with cheap debt as the growth accelerant. The 1990s, in short, are where the messy invention became a repeatable, institutional product.\n\n[mechanics] Reconstruction, then standardisation\nTechnically, the decade ran in phases. Reconstruction, 1991 to 1994: the S&L crisis and Milken conviction destroyed the high-yield infrastructure, banks tightened leveraged lending, and several 1980s portfolio companies hit debt crises — Campeau's retail chains and Federated Department Stores went bankrupt, demonstrating the downside of over-leverage. PE responded by shifting from pure financial engineering toward operational improvement; the hundred-day-plan concept emerged partly as a legitimacy response to the era's reputational damage, and early-90s deals used lower leverage, four-to-five times EBITDA versus six-to-eight in the late 1980s, making for more defensible returns. Then the Yale Endowment effect: Swensen formalised overweighting alternatives versus a traditional sixty-forty portfolio, with Yale's PE allocation reaching twenty-five to thirty percent and reputed thirty-percent-plus returns in peak years against an S&P returning about eighteen — and when CalPERS and the big public pensions replicated it even at ten-to-fifteen-percent allocations, the capital expanded dramatically; a one-percent reallocation at a hundred-billion-dollar CalPERS is a billion dollars newly available for PE. Standardisation, 1993 to 1998: where early fund terms were negotiated case by case, they now converged — a two percent fee, twenty percent carry, an eight percent compounding hurdle, a hundred-percent GP catch-up, an LPAC, and key-man provisions, copied fund to fund as elite law firms developed standard templates. And the crucial point: there was no principled reason for two-and-twenty — the two percent was sized to cover GP operating costs at 1990s fund sizes of five hundred million to two billion, but as funds grew to five and then twenty billion, the management fee far outran operating costs and became a profit centre in itself, a structural consequence of terms that were never renegotiated as scale changed.\n\n[worked-example] KKR rebuilds; the secondary market starts\nTwo threads show the decade in action. First, KKR's reconstruction — from RJR villain to institutionalised giant. After RJR closed in 1989, KKR's reputation was damaged, Barbarians at the Gate was out, and Henry Kravis had faced Congressional hearings. KKR's response: it shifted emphasis to operational improvement, hiring operating professionals to work alongside management; it held its institutional LP base, CalPERS, corporate pensions, and insurers, through mixed-performance vintages; it raised its 1996 fund at about five-point-seven billion dollars, the largest PE fund raised to that date; and it expanded into Europe and then Asia. By 2000 it had completed the transition from junk-bond dealmaker to institutionalised alternative-asset manager — the template of operational credibility plus LP-relationship management plus global diversification that Blackstone, Carlyle, and Apollo all replicated. Second, the secondary market's birth: before the 1990s, LP interests were effectively illiquid with no organised market. The pioneers — Coller Capital, founded 1990 by Jeremy Coller, Landmark Partners from 1989, and Lexington Partners from 1994 — built dedicated secondaries strategies, buying LP positions from S&L banks meeting capital requirements, corporations divesting non-core financial assets, and insurers facing capital charges. Early secondaries were bought at steep discounts, forty to sixty percent of NAV, because sellers were distressed and buyers opportunistic — a sharp contrast with the modern market, where large secondaries trade near ninety to a hundred percent of NAV. The entire secondary industry that exists today was assembled in this decade from those distressed-seller pieces.\n\n[pitfalls] What people get wrong\nFour corrections. First, PE has not always been a large institutional asset class — it was a niche activity for most of its history; the institutionalisation happened in the 1990s, and before the 1979 ERISA reinterpretation and the 1990s LP expansion it was capitalised mainly by wealthy individuals and small groups. Second, the two-and-twenty fee structure does not reflect the genuine economics of managing a fund — it was sized for 1990s fund sizes of half a billion to two billion, and at modern sizes of ten to thirty billion-plus a two-percent fee generates hundreds of millions a year, far more than operating costs require; the terms became convention and have proven remarkably sticky despite LPs having the scale to demand lower fees. Third, strong 1990s returns are not clean evidence that PE outperforms — they're partly evidence of excellent vintage timing, buying in recession and exiting into a bull market, and not fully separable from the macro; the persistence debate, whether GP skill or vintage luck drives returns, remains unresolved. And fourth, the secondary market is not a recent innovation — it originated in the early 1990s with Coller in 1990; what's recent is its scale and sophistication, from a niche distressed-seller market to a competitive hundred-billion-dollar-plus annual transaction market.\n\n[recap] The tools, ready to scale\nTo recap. The 1990s PE expansion was the decade of institutionalisation, where five structural developments converged: ERISA pension capital matured into committed LP relationships at CalPERS, Ontario Teachers', and dozens of others; the two-and-twenty fee structure crystallised as the standard template; Swensen's Yale Endowment model spread alternative allocations across institutions, flooding capital in; the Nasdaq bull market created ideal exit conditions for early-90s vintages, delivering the returns that validated the asset class; and the first specialist secondary firms created partial liquidity for LP interests, reducing the illiquidity premium. By 2000, PE had grown roughly tenfold since 1991, and the major firms — KKR, Blackstone, Carlyle, Bain Capital, and Apollo, the last founded in 1990 by an ex-Milken team — had built the institutional structures that would scale dramatically next. The tools existed; the scale was about to multiply. And that scaling, fuelled by cheap debt, is exactly where the story turns next — but first, the archetypal overleveraged deal that the scale era would produce: Energy Future Holdings.\n\nEnd-card question: Name three of the five developments that institutionalised PE in the 1990s. Why does the note argue the 2-and-20 fee — which became standard in this decade — is not justified by the actual economics of running today's mega-funds?";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>The 1990s are the decade that built the structural conditions the course thesis analyses. The 2&amp;20 model, the LP/GP contractual framework, the pension capital base, and the secondary market were not always present — they were assembled and standardized in the 1990s. Understanding this decade closes the historical arc: you cannot understand why GPs charge 2-and-20 without knowing when it became standard, why pension funds are the dominant LP without knowing when they started committing at scale, or why a secondary market exists without knowing it was born in this period.</p><p>For CVC Secondary Partners specifically: the secondary market that defines the learner's professional world was invented in the 1990s. Coller Capital (founded 1990) and Landmark Partners were among the first firms to build dedicated secondary fund strategies. The LP positions that CVC might today purchase as secondaries often originated in 1990s-vintage primary funds from KKR, Carlyle, and Blackstone.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>The 1990s PE expansion (approximately 1991–2000) was the decade in which private equity transformed from a boutique, junk-bond-dependent activity into an institutionalized asset class: the 2&amp;20 fee structure became standard, pension capital unlocked by ERISA's 1979 reinterpretation matured into committed LP relationships, the Yale Endowment model spread alternative allocations across institutional investors, the first specialist secondary market firms emerged, and the major PE firms — KKR, Blackstone, Carlyle, Bain Capital — reached the institutional scale that would enable the mega-buyouts of the 2000s.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>After the S&amp;L crisis (1989–1992) and the collapse of Drexel Burnham Lambert (1990) — which destroyed the junk bond market that had powered 1980s LBOs — PE entered a rebuilding phase. The tools of the 1980s had failed spectacularly, but the underlying logic (buy undervalued companies, improve them, sell) remained sound.</p><p>The 1990s recovery happened because five things converged:</p><ol><li><strong>Pension capital had been building up since 1979.</strong> The DOL's 1979 reinterpretation of ERISA's \"prudent man\" rule had allowed pension funds to invest in PE as part of a diversified portfolio. A decade in, these funds had performance data demonstrating PE could outperform public markets — and they committed more capital.</li></ol><ol><li><strong>The 2&amp;20 model crystallized as the industry standard.</strong> In the 1970s and early 1980s, PE fund terms varied widely. By the mid-1990s, 2% management fee on committed capital plus 20% carried interest above an 8% hurdle had become the standard LPA template across buyout funds.</li></ol><ol><li><strong>The Yale Endowment model spread.</strong> David Swensen's strategy at Yale — heavy allocation to alternatives including PE — demonstrated that institutional investors could earn materially higher returns by accepting illiquidity. The Yale Model was copied by Harvard, Stanford, and eventually public pension funds, pouring billions into PE commitments.</li></ol><ol><li><strong>The IPO boom created excellent exit conditions.</strong> The Nasdaq bull market (1995–2000) generated strong IPO markets and high M&amp;A valuations. PE funds that had acquired companies cheaply in the recessionary early 1990s could exit at peak valuations in 1997–2000, producing strong returns that attracted further LP commitments.</li></ol><ol><li><strong>The secondary market was born.</strong> For the first time, LPs who needed liquidity could sell their fund interests rather than waiting for fund wind-down. This reduced the illiquidity premium that had deterred some investors, enabling more capital to enter the asset class.</li></ol><p>The result: PE AUM grew from approximately $20bn in 1991 to over $200bn by 2000 — a tenfold expansion in a decade [needs-verification on exact figures].</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of PE in the 1990s as a software platform reaching product-market fit.</p><p>The 1980s was the prototype phase: dramatic, innovative, often buggy (RJR Nabisco over-leverage, S&amp;L-adjacent failures). The 1990s was the version 1.0 standardisation: user interface (LP terms) standardised; distribution channels (pension capital, endowments) validated; a secondary market (the app store) created; and the platform proven across multiple fund vintages and exit cycles.</p><p>The 2000s would be the scale phase: the same platform, but running at 10× the size with cheap debt as the growth accelerant.</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### Phase 1: Post-Junk Bond Reconstruction (1991–1994)</p><p>The S&amp;L crisis and Milken conviction (1990) destroyed the high-yield lending infrastructure that had financed 1980s LBOs. Banks tightened leveraged lending standards dramatically. Several 1980s-vintage PE portfolio companies faced debt crises — the Campeau Corporation retail chain bankruptcies (1990), Federated Department Stores, and others demonstrated the downside of over-leveraged acquisitions.</p><p>PE response: shift from pure financial engineering toward operational improvement. The \"100-day plan\" concept — a structured post-acquisition improvement programme — emerged partly as a legitimacy response to the junk bond era's reputational damage. PE firms began emphasising \"operational value creation\" narratives, even before those narratives were fully realised in practice.</p><p><strong>The leverage shift:</strong> Without easy access to high-yield debt, 1991–1994 vintage deals used lower leverage ratios (4–5× EBITDA vs. 6–8× in the late 1980s). Returns were driven more by operational improvement and multiple expansion than by debt pay-down. This actually made for more defensible returns.</p><p>### Phase 2: ERISA Capital Matures and the Yale Endowment Effect (1993–1997)</p><p>David Swensen's <em>Pioneering Portfolio Management</em> (published 2000 but reflecting strategies implemented through the 1990s) formalised what large endowments and pension funds were already doing: overweighting alternatives — PE, venture capital, real estate, absolute return — versus traditional 60/40 equity/bond portfolios.</p><p><strong>The Yale Endowment model in numbers:</strong> - Yale's PE allocation: ~25–30% of total portfolio by the late 1990s - Yale's annualised PE returns 1990s: reputedly 30%+ in peak years - Comparator: S&amp;P 500 returned ~18% annualised 1990–2000</p><p>When CalPERS, OTPP, and other large public pension funds began replicating Yale's approach — even at lower alternative allocations (10–15%) — the capital available to PE expanded dramatically. A 1% reallocation from public equities at CalPERS (1990s AUM ~$100bn) = $1bn newly available for PE.</p><p><strong>The virtuous cycle:</strong> Strong LP returns → more LP commitment → larger funds → more deals → more competition for deals → higher entry valuations → GPs pressure to show strong returns → operational value creation becomes genuinely important (not just narrative).</p><p>### Phase 3: Institutionalisation and the 2&amp;20 Standardisation (1993–1998)</p><p>In the early years of PE (1970s–early 1980s), fund terms were negotiated. Some funds charged 1.5% management fees; some used 15% carry; hurdle rates varied; some had European waterfall structures, some American. By the mid-1990s, the terms converged:</p><p><strong>Standard 1990s LPA terms:</strong> - Management fee: 2% of committed capital during investment period; 1.5–2% of invested/remaining capital thereafter - Carried interest: 20% of fund profits - Preferred return (hurdle): 8% per annum, compounded - GP catch-up: typically 100% catch-up until GP receives 20% of total profits - LPAC: established as standard LP oversight mechanism - Key man provisions: standardised as LP protection</p><p>These terms were copied from fund to fund as law firms (Simpson Thacher, Kirkland &amp; Ellis, Debevoise &amp; Plimpton) developed standard LPA templates. The standardisation created the contractual architecture that still governs fund formation today.</p><p><strong>Why 2&amp;20?</strong> No principled reason — historical accident that became convention. The 2% management fee was sized to cover GP operating costs (team salaries, due diligence expenses, portfolio monitoring) at typical 1990s fund sizes ($500m–$2bn). As funds grew to $5bn+ in the 2000s and $20bn+ in the 2010s, the management fee far exceeded operating costs, becoming a profit centre in itself — a structural consequence of standardised terms that weren't renegotiated as scale changed.</p><p>### Phase 4: The IPO Boom and Exit Conditions (1995–2000)</p><p>The Nasdaq bull market (1995–2000) produced exceptional PE exit conditions:</p><ul class='notelist'><li>IPO market was liquid and receptive to growth-oriented businesses</li><li>M&amp;A multiples were high (strategic acquirers, flush with stock currency, paid premium prices)</li><li>PE firms that had acquired companies in 1991–1994 at recession-depressed valuations could exit in 1997–2000 at peak multiples</li></ul><p><strong>Example — KKR's recovery:</strong> After the reputational and financial damage of the RJR Nabisco deal (1989), KKR rebuilt through the 1990s. KKR raised its 1996 fund at $5.7bn — the largest PE fund raised to that date. Exits from this vintage benefited from the bull market exit window.</p><p>The dot-com effect: Some PE firms made opportunistic investments in technology companies, with mixed results. The 1990s PE exposure to TMT (telecoms, media, technology) was generally less successful than industrial and consumer investments — PE's operational improvement toolkit was poorly suited to pre-revenue tech businesses. The failures of late-1990s PE tech investments prefigured the broader dot-com bust.</p><p>### Phase 5: The Secondary Market Emerges (1990–2000)</p><p>Before the 1990s, LP interests in PE funds were effectively illiquid. There was no organised market for buying and selling limited partnership interests before a fund wound down.</p><p><strong>Pioneer firms:</strong> - <strong>Coller Capital (1990):</strong> Founded by Jeremy Coller; built the first dedicated secondaries strategy. Acquired LP positions from insurance companies, banks, and corporations that wanted to exit PE commitments for regulatory, balance sheet, or strategic reasons. - <strong>Landmark Partners (1989):</strong> Another early secondaries specialist. - <strong>Lexington Partners (1994):</strong> Grew into one of the largest secondary funds.</p><p><strong>Why secondary markets emerged in the 1990s:</strong> 1. S&amp;L banks needed to liquidate PE assets on their balance sheets to meet capital requirements (regulatory seller motivation) 2. Corporations that had made PE investments in the 1980s wanted to divest non-core financial assets 3. Insurance companies faced NAIC capital rules that made PE holdings expensive from a capital charge perspective 4. First-time LP investors who had over-committed during the 1980s bull market needed liquidity</p><p><strong>The pricing dynamic:</strong> Early secondaries were purchased at steep discounts — 40–60% of NAV was not uncommon. Sellers were distressed; buyers were opportunistic. This contrasts with the modern secondary market (post-2010), where large secondaries often trade at 90–100% of NAV.</p><p>CVC Secondary Partners (formerly Glendower Capital) is a product of this institutional development. The secondary market that the learner operates in daily was assembled in the 1990s from the pieces described above.</p><p>### The Major Firms at Decade End (2000)</p><p>| Firm | Founded | 1990s Key Development | AUM ~2000 | |---|---|---|---| | KKR | 1976 | Rebuilt post-RJR; raised $5.7bn 1996 fund | ~$6–8bn | | Blackstone | 1985 | Grew advisory alongside PE; launched real estate PE | ~$5–7bn | | Carlyle | 1987 | Washington DC connections; government/defence focus; went global | ~$7–9bn | | Bain Capital | 1984 | Mid-market consumer/retail focus; Mitt Romney years | ~$3–5bn | | Apollo | 1990 | Founded post-Drexel collapse by ex-Milken team; distressed/credit-oriented | ~$4–6bn |</p><p>By 2000, these firms had established the institutional structures — management companies, carry vehicles, LP advisory committees, portfolio monitoring systems — that characterise PE today. The tools existed. The scale was about to multiply.</p><p>---</p>"}, "5": {"section": "Real-World Example", "html": "<p><strong>KKR's 1990s reconstruction — from RJR villain to institutionalised giant:</strong></p><p>After the RJR Nabisco deal closed in 1989, KKR's reputation was damaged. Barbarians at the Gate had been published; Congressional hearings had featured Henry Kravis. Several KKR portfolio companies (Beatrice Companies, Seaman Furniture) faced difficulties.</p><p>KKR's 1990s response: - Shifted emphasis to operational improvement: hired operating professionals to work alongside portfolio company management - Maintained LP relationships through difficult vintages: KKR 1987 and KKR 1993 funds had mixed performance but KKR retained its institutional LP base (CalPERS, corporate pension funds, insurance companies) - Raised KKR 1996 Fund at ~$5.7bn, the largest PE fund raised to that date - Expanded internationally: European operations in 1990s; Asian operations late 1990s</p><p>By 2000, KKR had completed the transition from \"junk bond dealmaker\" to \"institutionalised alternative asset manager.\" This template — operational credibility + LP relationship management + global diversification — became the model that Blackstone, Carlyle, and Apollo replicated.</p><p><strong>The CVC secondary market connection:</strong> If CVC Secondary Partners today holds a LP interest in a KKR 1996 Fund or similar vintage, that position was originally acquired by a pension fund or insurance company in the late 1990s and may have been purchased as a secondary by Glendower/CVC from a seller who wanted liquidity. Every such position is a direct artefact of the 1990s institutionalisation described in this note.</p><p>---</p>"}, "6": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"PE has always been a large institutional asset class.\"</strong> Correction: PE was a niche activity for most of its history. The institutionalisation happened in the 1990s. Before ERISA's reinterpretation (1979) and the 1990s LP base expansion, PE was capitalised primarily by wealthy individuals and small groups of institutional investors.</p><p><strong>Misconception 2: \"The 2&amp;20 fee structure reflects the economics of managing a PE fund.\"</strong> Correction: 2&amp;20 was sized for 1990s fund sizes ($500m–$2bn). At modern fund sizes ($10bn–$30bn+), 2% management fees generate hundreds of millions annually — far more than operating costs require. The terms became convention and have proven remarkably sticky despite LP scale giving them negotiating power to demand lower fees.</p><p><strong>Misconception 3: \"PE returns in the 1990s are evidence that PE outperforms.\"</strong> Correction: 1990s PE returns are partly evidence of excellent vintage timing — buy in recession, exit in bull market. They are not fully separable from the macro conditions. Harris, Jenkinson, Kaplan (2014) try to control for this through PME methodology; the persistence debate (does GP skill drive returns or vintage luck?) remains unresolved.</p><p><strong>Misconception 4: \"The secondary market is a recent innovation.\"</strong> Correction: The secondary market originated in the early 1990s. Coller Capital was founded in 1990. What is recent is the secondary market's scale and sophistication — from a niche distressed-seller market to a competitive $100bn+ annual transaction market.</p><p>---</p>"}, "7": {"section": "Summary", "html": "<p>The 1990s PE expansion (1991–2000) was the decade of institutionalisation. Five structural developments converged: (1) ERISA pension capital — unlocked by the 1979 DOL reinterpretation — matured into committed institutional LP relationships at CalPERS, OTPP, and dozens of other funds; (2) the 2&amp;20 fee structure crystallised as the standard LPA template; (3) David Swensen's Yale Endowment model spread alternative allocations across institutional investors, flooding capital into PE; (4) the Nasdaq bull market (1995–2000) created ideal exit conditions for 1991–1995 vintage investments, delivering strong returns that validated the asset class; and (5) the first specialist secondary market firms (Coller Capital, Landmark Partners, Lexington Partners) created partial liquidity for LP interests, reducing the illiquidity premium and making PE accessible to more institutional investors. By 2000, PE had grown approximately tenfold in AUM since 1991, and the major firms (KKR, Blackstone, Carlyle, Bain Capital, Apollo) had established the institutional structures that would scale dramatically in the 2000s. The secondary market that CVC Secondary Partners operates in today was born in this decade from distressed bank and insurance company sellers.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Lesson</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--panel); color:var(--mut); border:1px solid var(--line); }
+  .progress { flex:1; height:6px; background:var(--panel); border-radius:99px; overflow:hidden; }
+  .progress > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .wrap { display:grid; grid-template-columns:1fr 360px; gap:0; height:calc(100vh - 53px); }
+  .stage { position:relative; padding:32px; overflow:auto; }
+  .slide { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 40px; min-height:340px;
+           box-shadow:0 8px 40px rgba(0,0,0,.3); position:relative; }
+  .slide .beat { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .slide h2 { font-size:28px; margin:0 0 22px; line-height:1.2; }
+  .slide ul { margin:0; padding:0; list-style:none; }
+  .slide li { font-size:19px; padding:9px 0 9px 30px; position:relative; opacity:.35; transition:opacity .3s; }
+  .slide li.on { opacity:1; }
+  .slide li::before { content:"▸"; position:absolute; left:0; color:var(--accent); }
+  .mermaidbox { margin-top:14px; padding:16px; background:#0c1117; border:1px dashed var(--line); border-radius:10px;
+                font:12px/1.4 ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; }
+  .presenter { position:absolute; right:24px; bottom:24px; width:128px; height:128px; border-radius:50%;
+               background:radial-gradient(circle at 35% 30%, #2d4a6b, #16202c); border:2px solid var(--line);
+               display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .presenter.speaking { box-shadow:0 0 0 0 rgba(79,156,249,.6); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)} 70%{box-shadow:0 0 0 14px rgba(79,156,249,0)} 100%{box-shadow:0 0 0 0 rgba(79,156,249,0)} }
+  .presenter span { font-size:11px; color:var(--mut); text-align:center; padding:6px; }
+  .controls { margin-top:20px; display:flex; gap:10px; align-items:center; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           padding:9px 16px; border-radius:9px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#08203f; font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .sidebar { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-radius:0; flex:1; background:transparent; color:var(--mut); padding:12px; }
+  .tabs button.active { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabpane { flex:1; overflow:auto; padding:16px; display:none; }
+  .tabpane.active { display:block; }
+  .field { display:flex; justify-content:space-between; font-size:13px; color:var(--mut); margin:14px 0 4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .moic { margin-top:18px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  .moic .big { font-size:38px; font-weight:700; }
+  .chat { display:flex; flex-direction:column; height:100%; }
+  .msgs { flex:1; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:90%; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#08203f; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .chatbar { display:flex; gap:8px; margin-top:10px; }
+  .chatbar input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:9px; padding:9px; }
+  .keyrow { font-size:12px; color:var(--mut); margin-bottom:10px; }
+  .keyrow input { width:100%; background:#0c1117; border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:6px; margin-top:4px; }
+  .overlay { position:absolute; inset:0; background:rgba(8,12,18,.92); display:none; align-items:center; justify-content:center; padding:32px; z-index:5; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; max-width:620px; width:100%; }
+  .card h3 { margin:0 0 14px; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:13px 16px; }
+  .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .feedback { margin-top:14px; padding:13px; border-radius:9px; font-size:14px; background:#0c1117; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:6px; margin-left:8px; }
+  .tag.disciplined { background:rgba(63,185,80,.15); color:var(--good); }
+  .tag.defensible { background:rgba(210,153,34,.15); color:var(--warn); }
+  .tag.over-cautious { background:rgba(248,81,73,.15); color:var(--bad); }
+  small.note { color:var(--mut); }
+  .notes { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; }
+  .notes .noteshead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .notes .noteshead span { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .notes .noteshead button { padding:4px 10px; font-size:12px; }
+  .notes p { margin:0 0 10px; font-size:15px; line-height:1.65; color:var(--ink); }
+  .notes p:last-child { margin-bottom:0; }
+  .notes ol, .notes ul.notelist { margin:0 0 10px; padding-left:22px; font-size:15px; line-height:1.6; }
+  .notes li { margin:4px 0; }
+  .notes strong { color:#fff; }
+  .notes.collapsed .notesbody { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="pill" id="draftpill" style="display:none">DRAFT — review only</span>
+  <div class="progress"><div id="pbar"></div></div>
+  <span class="pill" id="counter"></span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="slide">
+      <div class="beat" id="beat"></div>
+      <h2 id="stitle"></h2>
+      <ul id="bullets"></ul>
+      <div class="mermaidbox" id="mermaid" style="display:none"></div>
+      <div class="presenter" id="presenter"><span>avatar<br>drops in<br>here</span></div>
+    </div>
+    <div class="notes" id="notes">
+      <div class="noteshead"><span id="noteshdr">Lesson notes — full explanation</span><button id="notestoggle">Hide</button></div>
+      <div class="notesbody" id="scenetext"></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="replay">↻ Replay voice</button>
+      <button id="next">Next ▶</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label style="font-size:13px;color:var(--mut)">Voice
+        <select id="voice" style="margin-left:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px"></select>
+      </label>
+      <label style="font-size:13px;color:var(--mut)">Speed <span id="rateval">1.0</span>×
+        <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1" style="width:120px;vertical-align:middle">
+      </label>
+      <small class="note" id="hint">Browser voices. Tip: in Edge, pick a "(Natural)" voice. Swap in ElevenLabs later.</small>
+    </div>
+
+    <!-- Quiz gate -->
+    <div class="overlay" id="quizgate">
+      <div class="card">
+        <h3>✋ Checkpoint — answer to continue</h3>
+        <p id="qtext"></p>
+        <div id="qopts"></div>
+        <div class="feedback" id="qfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="qcontinue" disabled>Continue ▶</button></div>
+      </div>
+    </div>
+
+    <!-- Branching -->
+    <div class="overlay" id="branchgate">
+      <div class="card">
+        <h3 id="branchtitle"></h3>
+        <p id="branchsetup"></p>
+        <div id="branchopts"></div>
+        <div class="feedback" id="branchfeedback"></div>
+        <div style="margin-top:16px"><button class="primary" id="branchcontinue" style="display:none">Continue ▶</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="active" data-tab="tutor">AI Tutor</button>
+      <button data-tab="model" id="modeltab" style="display:none">Live Model</button>
+    </div>
+
+    <div class="tabpane active" id="pane-tutor">
+      <div class="keyrow">If this lesson is <b>hosted with the tutor backend</b>, the tutor just works — no key needed. Otherwise paste an Anthropic key for local use (kept only on this page):
+        <input id="apikey" type="password" placeholder="sk-ant-... (optional when hosted)">
+      </div>
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chatbar">
+          <input id="chatin" placeholder="Ask about this lesson...">
+          <button id="ask">Ask</button>
+          <button id="mic" title="Ask by voice">🎤</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="pane-model"></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT = {"lesson_id": "climate-risk-in-lbo-modelling", "title": "Climate Risk in LBO Modelling", "draft_watermark": false, "estimated_runtime_sec": 332, "voice_id": "narrator-default", "scenes": [{"n": 1, "beat": "hook", "visual": "slide", "source_section": "Why This Matters", "on_screen_title": "Climate hits the model", "on_screen_bullets": ["Hold a company, sell at exit", "The exit buyer pool is shrinking", "Carbon risk compresses the multiple"], "narration": "A fund buys a company, holds it for several years, and earns its return at exit. But the buyers at exit are increasingly subject to sustainability classification requirements, net-zero commitments, and investor pressure to exclude high-carbon assets. So a fund that ignores climate risk at entry may find its exit multiple compressed — not because the company performed poorly, but because the buyer pool has shrunk to only those willing to hold carbon risk. For longer-hold strategies the danger compounds: a fifteen-year infrastructure concession has to model the pace of the energy transition, carbon-price trajectories, and physical deterioration from extreme weather. So understanding how climate risk enters a buyout model is now a baseline skill for anyone underwriting deals or reporting to investors. This lesson shows where it actually hits the numbers.", "est_sec": 50}, {"n": 2, "beat": "definition", "visual": "slide", "source_section": "One-Sentence Definition", "on_screen_title": "Two risks in the scenarios", "on_screen_bullets": ["Transition and physical", "Into valuation and exit", "Urgent for carbon-heavy sectors"], "narration": "Here is the definition. Climate risk in buyout modelling means integrating two categories of financially material risk — transition risk, the regulatory, market, and reputational costs of moving to a low-carbon economy, and physical risk, the direct damage to assets and revenues from climate change itself — into scenario-based valuation and exit-multiple assumptions, with particular urgency in carbon-intensive sectors and long-hold strategies. The two words to hold are transition and physical. They are different mechanisms with different timing, and a complete model has to address both. Everything that follows is about where each one lands in the model and how to size it.", "est_sec": 46}, {"n": 3, "beat": "intuition", "visual": "slide", "source_section": "Plain-English Explanation", "on_screen_title": "Two kinds of risk", "on_screen_bullets": ["Transition: the world moves away", "Physical: the climate itself changes", "Ignoring both is a bet"], "narration": "Two kinds of climate risk affect a company. Transition risk comes from the world moving away from carbon-intensive energy and products — and it shows up as regulatory costs like carbon taxes and border charges, as revenue risk when demand falls for high-carbon products, as stranded assets when a refinery or plant becomes obsolete before the end of its engineering life, and as reputational risk when customers and staff reject high-carbon firms. Physical risk comes from the climate itself changing — acute events like flooding, hurricanes, and wildfires that damage assets and disrupt supply chains, and chronic shifts like rising temperatures, water scarcity, and sea-level rise that erode productivity and threaten coastal assets. A model that ignores both is implicitly betting that neither matters during the hold — and that is an increasingly untenable assumption, because both are already materialising on policy and weather timelines that fall inside a normal hold period.", "est_sec": 54}, {"n": 4, "beat": "intuition", "visual": "slide", "source_section": "Mental Model / Analogy", "on_screen_title": "The house by the river", "on_screen_bullets": ["New flood rules: transition", "The actual flood: physical", "Price both, or avoid"], "narration": "Picture buying a house next to a river. You buy at a great price, renovate, and plan to sell in five years for a profit. Transition risk is like new building regulations that require expensive flood-proofing — you did not budget for it, the cost erodes your renovation budget, and the house is less marketable to buyers who also have to comply. Physical risk is the actual flood — the house gets damaged, buyers know it, insurance gets expensive, and the resale price suffers. Climate risk in a buyout model is simply acknowledging both possibilities at the start, pricing them into the scenarios, and then either buying at a discount to compensate or walking away from the asset entirely. The whole discipline is that move from implicit assumption to explicit scenario: making the river visible in the model rather than hoping it stays in its banks.", "est_sec": 50}, {"n": 5, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Transition risk in the P&L", "on_screen_bullets": ["Carbon price across scenarios", "Direct, indirect, supply-chain", "Erodes earnings measurably"], "narration": "Take transition risk first and find it in the profit-and-loss. The core input is a carbon-price scenario — a range running from current policy at the low end up through orderly and disorderly transitions to an emergency response, with the price per tonne rising sharply across them. That carbon price hits earnings in three places. Directly, through the allowances a covered industrial emitter must buy. Indirectly, through energy costs, as power producers pass their own carbon costs into electricity prices. And through the supply chain, via border charges on high-carbon imports. Work a quick example: a bakery using gas ovens and grid power, at a moderate future carbon price, might see a few percent of its earnings eaten by the combination of a direct gas cost and an indirect electricity uplift. The point is that this is no longer a vague externality — it is a specific, sizeable line of cost that the model should carry as a base-case input, not a remote downside.", "est_sec": 56}, {"n": 6, "beat": "mechanics", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "The exit-multiple squeeze", "on_screen_bullets": ["Buyers apply sustainability screens", "High-carbon pool narrows", "Multiple compression hits returns"], "narration": "The most powerful financial effect, though, is on the exit multiple, and it works through the buyer pool. Buyers increasingly apply sustainability screens, so a high-carbon company with no credible transition plan attracts fewer qualified bidders at exit. Sort companies into three buckets and the effect is clear. A low-carbon, already-transitioned company can even earn a small premium, because the restricted pool of sustainability-focused buyers competes for it. A moderate-carbon company on a credible decarbonisation path is roughly neutral — the plan keeps its buyer pool intact. But a high-carbon company with no transition plan faces real multiple compression, because the pool narrows to the few buyers still willing to hold carbon risk, and less competition means a lower price. Put numbers on the worst case and the value destruction at exit can be enormous — the same earnings sold at a meaningfully lower multiple simply because the bidders thinned out. That is the financial materiality of climate risk made concrete, and it is driven by who can buy, not by how the company traded.", "est_sec": 56}, {"n": 7, "beat": "application", "visual": "slide", "source_section": "Technical Explanation", "on_screen_title": "Stranded assets and green capex", "on_screen_bullets": ["Value lost before engineering life", "Energy, industry, automotive exposed", "Green capex can pay back, or not"], "narration": "Two more pieces complete the picture. The stranded-asset problem: a physical asset can lose its economic value before the end of its engineering life because regulation, technology, or markets shift under it — a fossil plant rendered uneconomic by carbon pricing, an internal-combustion manufacturing line undercut by the shift to electric, a pipeline stranded by falling demand. The exposure is sharpest in energy, heavy industry, the automotive supply chain, and transport, and the model handles it by adding a stranded scenario where both earnings and the multiple fall, weighting it by the probability of fast transition, and asking whether the hold can be compressed to exit before the risk bites. On the other side is green capital expenditure as a value lever — energy-efficiency spending, fuel switching, and process decarbonisation that cut energy bills and emissions together. But here is the catch unique to a fund's finite hold: a retrofit with a payback longer than the hold period creates value for the next owner, not the current one, so the fund bears the cost while the buyer reaps the savings — a genuine misalignment between hold periods and long-payback green investments.", "est_sec": 56}, {"n": 8, "beat": "application", "visual": "slide", "source_section": "Common Misconceptions", "on_screen_title": "Four myths", "on_screen_bullets": ["Not just a long-term issue", "Not confined to energy", "Disclosure rules cross borders"], "narration": "Four misconceptions to correct. First, that climate risk is too long-term to affect a five-year hold — false; transition costs are already materialising through carbon pricing, border charges, and efficiency standards, and physical risk already shows up in rising insurance premiums and extreme weather, so both hit the profit-and-loss inside a normal hold. Second, that compliance is purely a cost with no value — directionally false for some categories, since green capex that cuts energy bills improves earnings, sustainability-linked financing lowers interest costs, and credentials protect the exit buyer pool. Third, that the disclosure regimes only affect European investors — managers seeking European capital must comply across their funds, and European capital is a large share of most major investor bases, so compliance is commercially necessary even for predominantly domestic-focused firms. And fourth, that carbon risk only matters for the energy sector — it is financially material across food, industrials, logistics, real estate, and consumer goods through process emissions, energy costs, transport, building standards, and packaging.", "est_sec": 54}, {"n": 9, "beat": "recap", "visual": "slide", "source_section": "Summary", "on_screen_title": "Carbon as a base case", "on_screen_bullets": ["Two risks, real impact", "Buyer pool drives multiples", "Stress IRR across scenarios"], "narration": "So to summarise: climate risk in buyout modelling spans transition risk — carbon pricing, demand shift, stranded assets — and physical risk — flooding, extreme weather, water stress — both of which affect earnings, exit multiples, and buyer-pool availability within a typical hold. The sustainability classification system creates direct exit-multiple compression for high-carbon assets as the pool narrows to fewer eligible buyers. Proactive decarbonisation through green capex and fuel switching can maintain or expand that pool, turning risk into a value-creation opportunity, though long paybacks can fall outside the hold. Stranded-asset risk is material in energy, industry, and automotive, where technology can outpace engineering life. The overall shift in practice is that climate-adjusted models now stress-test returns across standardised transition scenarios and increasingly treat the carbon-price trajectory as a base-case input rather than a remote downside. The throughline: make climate explicit in the scenarios, because the exit buyer pool already is.", "est_sec": 52}, {"n": 10, "beat": "end_card", "visual": "slide", "source_section": "Summary", "on_screen_title": "Test yourself", "on_screen_bullets": ["Transition versus physical?", "How does the buyer pool compress multiples?", "Why can green capex be misaligned?"], "narration": "Before you finish, answer these from memory. What is the difference between transition risk and physical risk, and where does each hit the model? How does a shrinking buyer pool compress the exit multiple for a high-carbon asset? And why might a value-creating green investment still be the wrong call for a particular fund? Work through your own answers first, then check the flashcards.", "est_sec": 30}], "quiz": []};
+const WIDGET = null;
+const BRANCH = null;
+const TUTOR_CONTEXT = "LESSON: Climate Risk in LBO Modelling\n\n[hook] Climate hits the model\nA fund buys a company, holds it for several years, and earns its return at exit. But the buyers at exit are increasingly subject to sustainability classification requirements, net-zero commitments, and investor pressure to exclude high-carbon assets. So a fund that ignores climate risk at entry may find its exit multiple compressed — not because the company performed poorly, but because the buyer pool has shrunk to only those willing to hold carbon risk. For longer-hold strategies the danger compounds: a fifteen-year infrastructure concession has to model the pace of the energy transition, carbon-price trajectories, and physical deterioration from extreme weather. So understanding how climate risk enters a buyout model is now a baseline skill for anyone underwriting deals or reporting to investors. This lesson shows where it actually hits the numbers.\n\n[definition] Two risks in the scenarios\nHere is the definition. Climate risk in buyout modelling means integrating two categories of financially material risk — transition risk, the regulatory, market, and reputational costs of moving to a low-carbon economy, and physical risk, the direct damage to assets and revenues from climate change itself — into scenario-based valuation and exit-multiple assumptions, with particular urgency in carbon-intensive sectors and long-hold strategies. The two words to hold are transition and physical. They are different mechanisms with different timing, and a complete model has to address both. Everything that follows is about where each one lands in the model and how to size it.\n\n[intuition] Two kinds of risk\nTwo kinds of climate risk affect a company. Transition risk comes from the world moving away from carbon-intensive energy and products — and it shows up as regulatory costs like carbon taxes and border charges, as revenue risk when demand falls for high-carbon products, as stranded assets when a refinery or plant becomes obsolete before the end of its engineering life, and as reputational risk when customers and staff reject high-carbon firms. Physical risk comes from the climate itself changing — acute events like flooding, hurricanes, and wildfires that damage assets and disrupt supply chains, and chronic shifts like rising temperatures, water scarcity, and sea-level rise that erode productivity and threaten coastal assets. A model that ignores both is implicitly betting that neither matters during the hold — and that is an increasingly untenable assumption, because both are already materialising on policy and weather timelines that fall inside a normal hold period.\n\n[intuition] The house by the river\nPicture buying a house next to a river. You buy at a great price, renovate, and plan to sell in five years for a profit. Transition risk is like new building regulations that require expensive flood-proofing — you did not budget for it, the cost erodes your renovation budget, and the house is less marketable to buyers who also have to comply. Physical risk is the actual flood — the house gets damaged, buyers know it, insurance gets expensive, and the resale price suffers. Climate risk in a buyout model is simply acknowledging both possibilities at the start, pricing them into the scenarios, and then either buying at a discount to compensate or walking away from the asset entirely. The whole discipline is that move from implicit assumption to explicit scenario: making the river visible in the model rather than hoping it stays in its banks.\n\n[mechanics] Transition risk in the P&L\nTake transition risk first and find it in the profit-and-loss. The core input is a carbon-price scenario — a range running from current policy at the low end up through orderly and disorderly transitions to an emergency response, with the price per tonne rising sharply across them. That carbon price hits earnings in three places. Directly, through the allowances a covered industrial emitter must buy. Indirectly, through energy costs, as power producers pass their own carbon costs into electricity prices. And through the supply chain, via border charges on high-carbon imports. Work a quick example: a bakery using gas ovens and grid power, at a moderate future carbon price, might see a few percent of its earnings eaten by the combination of a direct gas cost and an indirect electricity uplift. The point is that this is no longer a vague externality — it is a specific, sizeable line of cost that the model should carry as a base-case input, not a remote downside.\n\n[mechanics] The exit-multiple squeeze\nThe most powerful financial effect, though, is on the exit multiple, and it works through the buyer pool. Buyers increasingly apply sustainability screens, so a high-carbon company with no credible transition plan attracts fewer qualified bidders at exit. Sort companies into three buckets and the effect is clear. A low-carbon, already-transitioned company can even earn a small premium, because the restricted pool of sustainability-focused buyers competes for it. A moderate-carbon company on a credible decarbonisation path is roughly neutral — the plan keeps its buyer pool intact. But a high-carbon company with no transition plan faces real multiple compression, because the pool narrows to the few buyers still willing to hold carbon risk, and less competition means a lower price. Put numbers on the worst case and the value destruction at exit can be enormous — the same earnings sold at a meaningfully lower multiple simply because the bidders thinned out. That is the financial materiality of climate risk made concrete, and it is driven by who can buy, not by how the company traded.\n\n[application] Stranded assets and green capex\nTwo more pieces complete the picture. The stranded-asset problem: a physical asset can lose its economic value before the end of its engineering life because regulation, technology, or markets shift under it — a fossil plant rendered uneconomic by carbon pricing, an internal-combustion manufacturing line undercut by the shift to electric, a pipeline stranded by falling demand. The exposure is sharpest in energy, heavy industry, the automotive supply chain, and transport, and the model handles it by adding a stranded scenario where both earnings and the multiple fall, weighting it by the probability of fast transition, and asking whether the hold can be compressed to exit before the risk bites. On the other side is green capital expenditure as a value lever — energy-efficiency spending, fuel switching, and process decarbonisation that cut energy bills and emissions together. But here is the catch unique to a fund's finite hold: a retrofit with a payback longer than the hold period creates value for the next owner, not the current one, so the fund bears the cost while the buyer reaps the savings — a genuine misalignment between hold periods and long-payback green investments.\n\n[application] Four myths\nFour misconceptions to correct. First, that climate risk is too long-term to affect a five-year hold — false; transition costs are already materialising through carbon pricing, border charges, and efficiency standards, and physical risk already shows up in rising insurance premiums and extreme weather, so both hit the profit-and-loss inside a normal hold. Second, that compliance is purely a cost with no value — directionally false for some categories, since green capex that cuts energy bills improves earnings, sustainability-linked financing lowers interest costs, and credentials protect the exit buyer pool. Third, that the disclosure regimes only affect European investors — managers seeking European capital must comply across their funds, and European capital is a large share of most major investor bases, so compliance is commercially necessary even for predominantly domestic-focused firms. And fourth, that carbon risk only matters for the energy sector — it is financially material across food, industrials, logistics, real estate, and consumer goods through process emissions, energy costs, transport, building standards, and packaging.\n\n[recap] Carbon as a base case\nSo to summarise: climate risk in buyout modelling spans transition risk — carbon pricing, demand shift, stranded assets — and physical risk — flooding, extreme weather, water stress — both of which affect earnings, exit multiples, and buyer-pool availability within a typical hold. The sustainability classification system creates direct exit-multiple compression for high-carbon assets as the pool narrows to fewer eligible buyers. Proactive decarbonisation through green capex and fuel switching can maintain or expand that pool, turning risk into a value-creation opportunity, though long paybacks can fall outside the hold. Stranded-asset risk is material in energy, industry, and automotive, where technology can outpace engineering life. The overall shift in practice is that climate-adjusted models now stress-test returns across standardised transition scenarios and increasingly treat the carbon-price trajectory as a base-case input rather than a remote downside. The throughline: make climate explicit in the scenarios, because the exit buyer pool already is.\n\n[end_card] Test yourself\nBefore you finish, answer these from memory. What is the difference between transition risk and physical risk, and where does each hit the model? How does a shrinking buyer pool compress the exit multiple for a high-carbon asset? And why might a value-creating green investment still be the wrong call for a particular fund? Work through your own answers first, then check the flashcards.\n";
+const AUDIO = {};   // {sceneIndex: "data:audio/mpeg;base64,..."} — empty => browser TTS
+const HAS_AUDIO = AUDIO && Object.keys(AUDIO).length > 0;
+const NOTES = {"0": {"section": "Why This Matters", "html": "<p>PE funds hold companies for 4-7 years and generate returns at exit. In 2024, the buyers at exit are increasingly subject to SFDR Article 8/9 classification requirements, net-zero commitments, and LP pressure to exclude high-carbon assets. A PE fund that ignores climate risk at entry may find its exit multiple compressed not because the company performed poorly, but because the buyer pool has shrunk — only sponsors with carbon-risk appetites will bid.</p><p>For longer-hold strategies (infrastructure PE, growth equity) the risk compounds: a 15-year infrastructure concession must model the pace of energy transition, carbon pricing trajectories, and physical asset deterioration from extreme weather events.</p><p>Understanding how climate risk enters an LBO model is now a baseline skill for any PE professional involved in deal underwriting, LP reporting, or fund operations.</p><p>---</p>"}, "1": {"section": "One-Sentence Definition", "html": "<p>Climate risk in LBO modelling requires integrating two categories of financially material risk — transition risk (regulatory, market, and reputational costs of moving to a low-carbon economy) and physical risk (direct damage to assets and revenues from climate change) — into scenario-based valuation and exit multiple assumptions, with particular urgency in carbon-intensive sectors and long-hold fund strategies.</p><p>---</p>"}, "2": {"section": "Plain-English Explanation", "html": "<p>Two types of climate risk affect PE-owned companies:</p><p><strong>Type 1 — Transition Risk:</strong> The world is (or may be) moving away from carbon-intensive energy and products. This creates: - Regulatory costs: carbon taxes, EU ETS prices, CBAM (Carbon Border Adjustment Mechanism) charges - Revenue risk: demand falls for diesel cars, coal energy, oil and gas products, carbon-heavy industrial processes - Stranded assets: physical assets (refineries, coal plants) become economically obsolete before the end of their engineering life - Reputational risk: customers and employees reject high-carbon companies</p><p><strong>Type 2 — Physical Risk:</strong> The climate itself is changing. This creates: - Acute physical risks: flooding, hurricanes, wildfires damage physical assets and disrupt supply chains - Chronic physical risks: rising temperatures change agricultural productivity, sea-level rise threatens coastal assets, water scarcity affects industrial processes</p><p>An LBO model that doesn't account for either type is implicitly betting that neither matters during the hold period — which is an increasingly untenable assumption.</p><p>---</p>"}, "3": {"section": "Mental Model / Analogy", "html": "<p>Think of climate risk in an LBO like buying a house next to a river. You can buy the house at a great price, renovate it, and plan to sell in 5 years for a significant profit. But:</p><p><strong>Transition risk</strong> is like new building regulations requiring expensive flood-proofing. You didn't budget for it; the cost erodes your renovation budget; the house is less marketable to buyers who have to comply too.</p><p><strong>Physical risk</strong> is like the actual flood. The house gets damaged. Buyers know it; insurance is expensive; the resale price suffers.</p><p><strong>Climate risk in an LBO model</strong> is acknowledging both of these possibilities at the start, pricing them into the scenarios, and either buying at a discount to compensate (or avoiding the asset entirely).</p><p>---</p>"}, "4": {"section": "Technical Explanation", "html": "<p>### The TCFD Framework — What LBO Models Need to Integrate</p><p>The TCFD (Task Force on Climate-related Financial Disclosures) identifies four categories of climate-related risks and opportunities that companies must disclose:</p><ol><li><strong>Governance</strong> — board and management oversight of climate risk</li><li><strong>Strategy</strong> — how climate risk affects business strategy and financial planning</li><li><strong>Risk Management</strong> — how climate-related risks are identified, assessed, and managed</li><li><strong>Metrics and Targets</strong> — KPIs and GHG targets used to assess and manage climate risk</li></ol><p>For LBO modelling purposes, Strategy (financial impact of transition and physical risks) and Metrics/Targets (carbon intensity, Scope 1/2/3 emissions) are the operationally relevant categories.</p><p>---</p><p>### Transition Risk — Integration into LBO Model Components</p><p><strong>Carbon price scenarios:</strong></p><p>| Scenario | Carbon Price 2030 (€/tCO₂) | Policy Context | |---|---|---| | Baseline (current policy) | €50-80 | Current EU ETS pricing trajectory | | Orderly transition | €100-150 | Paris-aligned, gradual policy escalation | | Disorderly transition | €150-250 | Delayed action followed by abrupt regulatory shift | | Net-zero emergency | €300+ | Aggressive policy response to &gt;1.5°C breach |</p><p><strong>Where carbon price hits the P&amp;L:</strong> - Direct costs: EU ETS allowances for covered industrial emitters (cement, steel, chemicals, aviation) - Indirect costs: energy cost pass-through from power companies (electricity price increases as fossil fuel plants bear ETS costs) - Supply chain: CBAM charges on high-carbon imports from non-EU jurisdictions</p><p><strong>EBITDA scenario analysis — worked example:</strong></p><p>A PE fund is underwriting an LBO of a UK commercial bakery. The bakery uses natural gas for ovens (Scope 1) and grid electricity for refrigeration (Scope 2). Current EBITDA: £25m.</p><p>Under a 2030 carbon price of £120/tCO₂ (the UK ETS trajectory under orderly transition): - Natural gas direct cost: current £2m/year + £0.8m transition cost at £120/t = £2.8m - Electricity indirect cost: grid power price +15% for ETS pass-through = +£0.5m - Total transition cost impact: -£1.3m EBITDA (5.2% reduction)</p><p><strong>Exit multiple compression for high-carbon sectors:</strong></p><p>Strategic and financial buyers are increasingly applying ESG screens. A company with high carbon intensity will attract fewer qualified buyers at exit, compressing the exit multiple from a wider buyer pool scenario.</p><p>| Company Carbon Profile | Entry Multiple | Exit Multiple (ESG-adjusted) | IRR Impact | |---|---|---|---| | Low-carbon / already net-zero | 8.0x | 9.0x (ESG premium from restricted buyer pool) | +3-5% IRR | | Moderate carbon / decarbonisation pathway | 8.0x | 8.0x (neutral — plan maintains buyer pool) | No impact | | High-carbon / no credible transition plan | 8.0x | 6.5-7.0x (multiple compression at exit — restricted buyer pool) | -4-7% IRR |</p><p><strong>The multiple compression math:</strong></p><p>If entry EBITDA = $50m, entry price = $400m (8.0x), exit EBITDA = $70m, exit multiple falls from expected 9.0x to 7.0x due to carbon risk: - Expected exit value: $630m (9.0x × $70m) - Carbon-risk exit value: $490m (7.0x × $70m) - Value destruction: $140m</p><p>This is the financial materiality of climate risk in the LBO context.</p><p>---</p><p>### Physical Risk — Integration into LBO Model Components</p><p><strong>Acute physical risk scenarios:</strong></p><ul class='notelist'><li><strong>Flood risk:</strong> Manufacturing sites in flood zones require insurance premium increases and potential capital expenditure for flood defenses. In extreme scenarios, facility loss. Apply probability-weighted EV scenarios.</li><li><strong>Hurricane/wind:</strong> Distribution facilities and retail assets in hurricane corridors face higher insurance costs and periodic business interruption.</li><li><strong>Wildfire:</strong> Agricultural holdings, timber, and outdoor leisure assets in California, Australia, Southern Europe.</li><li><strong>Water stress:</strong> Manufacturing processes requiring significant water inputs (food and beverage, semiconductor) face input cost increases in water-stressed regions.</li></ul><p><strong>Chronic physical risk scenarios:</strong></p><ul class='notelist'><li><strong>Agricultural yield changes:</strong> PE funds with food/agriculture holdings must model changed growing season lengths, drought frequency, and crop yield distributions.</li><li><strong>Sea-level rise:</strong> Coastal real estate and infrastructure (ports) face increasing storm surge damage and eventual obsolescence of low-lying assets. 30-50 year RAB assumptions may be impacted.</li><li><strong>Cooling costs:</strong> Warmer average temperatures increase energy costs for climate-controlled facilities (data centres, cold storage, pharmaceutical manufacturing).</li></ul><p><strong>Physical risk data sources:</strong></p><ul class='notelist'><li>IPCC AR6 (Sixth Assessment Report) provides RCP scenario-based projections of temperature, precipitation, and extreme weather at regional level</li><li>Jupiter Intelligence, RMS, and AIR Worldwide provide asset-level physical risk modelling services</li><li>NGFS (Network for Greening the Financial System) provides climate scenarios for financial sector use</li></ul><p>---</p><p>### SFDR Classification — Impact on Exit</p><p><strong>EU Sustainable Finance Disclosure Regulation (SFDR):</strong></p><p>SFDR classifies funds as: - <strong>Article 6:</strong> No ESG integration (or adverse impact disclaimer) - <strong>Article 8:</strong> ESG \"promoted\" (considers ESG characteristics in investment process) - <strong>Article 9:</strong> Sustainable investment objective (fund targets measurable positive ESG impact)</p><p><strong>Why SFDR matters for PE exit:</strong></p><p>LPs in European PE funds increasingly mandate SFDR compliance. Article 8 and Article 9 fund managers have limited ability to hold high-carbon assets in their portfolios — they would need to be classed as \"Article 6\" investments (counted against sustainable investment performance).</p><p>If the buyer pool for a PE exit includes primarily Article 8/9 classified funds, and the company being sold is a high-carbon asset, the buyer pool narrows significantly. This is the direct mechanism through which SFDR creates multiple compression risk.</p><p>---</p><p>### The Stranded Asset Problem</p><p>A stranded asset is a physical asset that loses economic value before the end of its engineering life due to changing regulations, technology, or market conditions.</p><p><strong>PE-relevant stranded asset examples:</strong> - Coal-fired power plant: engineering life 40 years; but carbon pricing and renewable energy competition may render it economically unviable in 10-15 years - Internal combustion engine manufacturing facility: engineering life 25 years; but EV transition may eliminate the product market in 15 years - Gas pipeline: engineering life 50 years; but hydrogen transition uncertainty and declining gas demand may strand the asset before maturity - High-emission building: engineering life 50 years; but building energy efficiency regulations may require expensive retrofit or face value impairment</p><p>For PE, stranded asset risk is particularly acute in: - Energy (oil/gas E&amp;P, LNG, coal) - Heavy industry (cement, steel, chemicals) - Automotive supply chain - Transportation (aviation, shipping, road freight)</p><p><strong>LBO stranded asset model adjustment:</strong></p><p>When underwriting an asset with stranded asset risk, the LBO model should: 1. Model a \"base\" exit assuming current multiple trajectory 2. Add a \"stranded\" scenario where exit EBITDA falls (demand destruction) AND exit multiple falls (buyer pool shrinks) 3. Weight scenarios by probability of regulatory/technology transition speed 4. Assess whether the hold period can be compressed to exit before stranded asset risk materialises</p><p>---</p><p>### Green Capital Expenditure as Value Creation</p><p>PE can address climate risk proactively: - <strong>Energy efficiency capex:</strong> Solar panels, LED lighting, heat pumps, insulation reduce energy bills and Scope 2 emissions simultaneously - <strong>Fuel switching:</strong> Replace gas boilers with heat pumps; replace diesel fleet with EV - <strong>Process decarbonisation:</strong> Industrial process changes to reduce Scope 1 emissions</p><p><strong>The value creation case:</strong> Green capex that reduces energy bills also improves EBITDA, creating a dual value creation rationale (cost savings + ESG premium at exit). Companies that achieve Science-Based Targets (SBTi) commitments qualify for sustainability-linked financing at lower rates.</p><p>---</p>"}, "5": {"section": "Technical Explanation", "html": "<p>### The TCFD Framework — What LBO Models Need to Integrate</p><p>The TCFD (Task Force on Climate-related Financial Disclosures) identifies four categories of climate-related risks and opportunities that companies must disclose:</p><ol><li><strong>Governance</strong> — board and management oversight of climate risk</li><li><strong>Strategy</strong> — how climate risk affects business strategy and financial planning</li><li><strong>Risk Management</strong> — how climate-related risks are identified, assessed, and managed</li><li><strong>Metrics and Targets</strong> — KPIs and GHG targets used to assess and manage climate risk</li></ol><p>For LBO modelling purposes, Strategy (financial impact of transition and physical risks) and Metrics/Targets (carbon intensity, Scope 1/2/3 emissions) are the operationally relevant categories.</p><p>---</p><p>### Transition Risk — Integration into LBO Model Components</p><p><strong>Carbon price scenarios:</strong></p><p>| Scenario | Carbon Price 2030 (€/tCO₂) | Policy Context | |---|---|---| | Baseline (current policy) | €50-80 | Current EU ETS pricing trajectory | | Orderly transition | €100-150 | Paris-aligned, gradual policy escalation | | Disorderly transition | €150-250 | Delayed action followed by abrupt regulatory shift | | Net-zero emergency | €300+ | Aggressive policy response to &gt;1.5°C breach |</p><p><strong>Where carbon price hits the P&amp;L:</strong> - Direct costs: EU ETS allowances for covered industrial emitters (cement, steel, chemicals, aviation) - Indirect costs: energy cost pass-through from power companies (electricity price increases as fossil fuel plants bear ETS costs) - Supply chain: CBAM charges on high-carbon imports from non-EU jurisdictions</p><p><strong>EBITDA scenario analysis — worked example:</strong></p><p>A PE fund is underwriting an LBO of a UK commercial bakery. The bakery uses natural gas for ovens (Scope 1) and grid electricity for refrigeration (Scope 2). Current EBITDA: £25m.</p><p>Under a 2030 carbon price of £120/tCO₂ (the UK ETS trajectory under orderly transition): - Natural gas direct cost: current £2m/year + £0.8m transition cost at £120/t = £2.8m - Electricity indirect cost: grid power price +15% for ETS pass-through = +£0.5m - Total transition cost impact: -£1.3m EBITDA (5.2% reduction)</p><p><strong>Exit multiple compression for high-carbon sectors:</strong></p><p>Strategic and financial buyers are increasingly applying ESG screens. A company with high carbon intensity will attract fewer qualified buyers at exit, compressing the exit multiple from a wider buyer pool scenario.</p><p>| Company Carbon Profile | Entry Multiple | Exit Multiple (ESG-adjusted) | IRR Impact | |---|---|---|---| | Low-carbon / already net-zero | 8.0x | 9.0x (ESG premium from restricted buyer pool) | +3-5% IRR | | Moderate carbon / decarbonisation pathway | 8.0x | 8.0x (neutral — plan maintains buyer pool) | No impact | | High-carbon / no credible transition plan | 8.0x | 6.5-7.0x (multiple compression at exit — restricted buyer pool) | -4-7% IRR |</p><p><strong>The multiple compression math:</strong></p><p>If entry EBITDA = $50m, entry price = $400m (8.0x), exit EBITDA = $70m, exit multiple falls from expected 9.0x to 7.0x due to carbon risk: - Expected exit value: $630m (9.0x × $70m) - Carbon-risk exit value: $490m (7.0x × $70m) - Value destruction: $140m</p><p>This is the financial materiality of climate risk in the LBO context.</p><p>---</p><p>### Physical Risk — Integration into LBO Model Components</p><p><strong>Acute physical risk scenarios:</strong></p><ul class='notelist'><li><strong>Flood risk:</strong> Manufacturing sites in flood zones require insurance premium increases and potential capital expenditure for flood defenses. In extreme scenarios, facility loss. Apply probability-weighted EV scenarios.</li><li><strong>Hurricane/wind:</strong> Distribution facilities and retail assets in hurricane corridors face higher insurance costs and periodic business interruption.</li><li><strong>Wildfire:</strong> Agricultural holdings, timber, and outdoor leisure assets in California, Australia, Southern Europe.</li><li><strong>Water stress:</strong> Manufacturing processes requiring significant water inputs (food and beverage, semiconductor) face input cost increases in water-stressed regions.</li></ul><p><strong>Chronic physical risk scenarios:</strong></p><ul class='notelist'><li><strong>Agricultural yield changes:</strong> PE funds with food/agriculture holdings must model changed growing season lengths, drought frequency, and crop yield distributions.</li><li><strong>Sea-level rise:</strong> Coastal real estate and infrastructure (ports) face increasing storm surge damage and eventual obsolescence of low-lying assets. 30-50 year RAB assumptions may be impacted.</li><li><strong>Cooling costs:</strong> Warmer average temperatures increase energy costs for climate-controlled facilities (data centres, cold storage, pharmaceutical manufacturing).</li></ul><p><strong>Physical risk data sources:</strong></p><ul class='notelist'><li>IPCC AR6 (Sixth Assessment Report) provides RCP scenario-based projections of temperature, precipitation, and extreme weather at regional level</li><li>Jupiter Intelligence, RMS, and AIR Worldwide provide asset-level physical risk modelling services</li><li>NGFS (Network for Greening the Financial System) provides climate scenarios for financial sector use</li></ul><p>---</p><p>### SFDR Classification — Impact on Exit</p><p><strong>EU Sustainable Finance Disclosure Regulation (SFDR):</strong></p><p>SFDR classifies funds as: - <strong>Article 6:</strong> No ESG integration (or adverse impact disclaimer) - <strong>Article 8:</strong> ESG \"promoted\" (considers ESG characteristics in investment process) - <strong>Article 9:</strong> Sustainable investment objective (fund targets measurable positive ESG impact)</p><p><strong>Why SFDR matters for PE exit:</strong></p><p>LPs in European PE funds increasingly mandate SFDR compliance. Article 8 and Article 9 fund managers have limited ability to hold high-carbon assets in their portfolios — they would need to be classed as \"Article 6\" investments (counted against sustainable investment performance).</p><p>If the buyer pool for a PE exit includes primarily Article 8/9 classified funds, and the company being sold is a high-carbon asset, the buyer pool narrows significantly. This is the direct mechanism through which SFDR creates multiple compression risk.</p><p>---</p><p>### The Stranded Asset Problem</p><p>A stranded asset is a physical asset that loses economic value before the end of its engineering life due to changing regulations, technology, or market conditions.</p><p><strong>PE-relevant stranded asset examples:</strong> - Coal-fired power plant: engineering life 40 years; but carbon pricing and renewable energy competition may render it economically unviable in 10-15 years - Internal combustion engine manufacturing facility: engineering life 25 years; but EV transition may eliminate the product market in 15 years - Gas pipeline: engineering life 50 years; but hydrogen transition uncertainty and declining gas demand may strand the asset before maturity - High-emission building: engineering life 50 years; but building energy efficiency regulations may require expensive retrofit or face value impairment</p><p>For PE, stranded asset risk is particularly acute in: - Energy (oil/gas E&amp;P, LNG, coal) - Heavy industry (cement, steel, chemicals) - Automotive supply chain - Transportation (aviation, shipping, road freight)</p><p><strong>LBO stranded asset model adjustment:</strong></p><p>When underwriting an asset with stranded asset risk, the LBO model should: 1. Model a \"base\" exit assuming current multiple trajectory 2. Add a \"stranded\" scenario where exit EBITDA falls (demand destruction) AND exit multiple falls (buyer pool shrinks) 3. Weight scenarios by probability of regulatory/technology transition speed 4. Assess whether the hold period can be compressed to exit before stranded asset risk materialises</p><p>---</p><p>### Green Capital Expenditure as Value Creation</p><p>PE can address climate risk proactively: - <strong>Energy efficiency capex:</strong> Solar panels, LED lighting, heat pumps, insulation reduce energy bills and Scope 2 emissions simultaneously - <strong>Fuel switching:</strong> Replace gas boilers with heat pumps; replace diesel fleet with EV - <strong>Process decarbonisation:</strong> Industrial process changes to reduce Scope 1 emissions</p><p><strong>The value creation case:</strong> Green capex that reduces energy bills also improves EBITDA, creating a dual value creation rationale (cost savings + ESG premium at exit). Companies that achieve Science-Based Targets (SBTi) commitments qualify for sustainability-linked financing at lower rates.</p><p>---</p>"}, "6": {"section": "Technical Explanation", "html": "<p>### The TCFD Framework — What LBO Models Need to Integrate</p><p>The TCFD (Task Force on Climate-related Financial Disclosures) identifies four categories of climate-related risks and opportunities that companies must disclose:</p><ol><li><strong>Governance</strong> — board and management oversight of climate risk</li><li><strong>Strategy</strong> — how climate risk affects business strategy and financial planning</li><li><strong>Risk Management</strong> — how climate-related risks are identified, assessed, and managed</li><li><strong>Metrics and Targets</strong> — KPIs and GHG targets used to assess and manage climate risk</li></ol><p>For LBO modelling purposes, Strategy (financial impact of transition and physical risks) and Metrics/Targets (carbon intensity, Scope 1/2/3 emissions) are the operationally relevant categories.</p><p>---</p><p>### Transition Risk — Integration into LBO Model Components</p><p><strong>Carbon price scenarios:</strong></p><p>| Scenario | Carbon Price 2030 (€/tCO₂) | Policy Context | |---|---|---| | Baseline (current policy) | €50-80 | Current EU ETS pricing trajectory | | Orderly transition | €100-150 | Paris-aligned, gradual policy escalation | | Disorderly transition | €150-250 | Delayed action followed by abrupt regulatory shift | | Net-zero emergency | €300+ | Aggressive policy response to &gt;1.5°C breach |</p><p><strong>Where carbon price hits the P&amp;L:</strong> - Direct costs: EU ETS allowances for covered industrial emitters (cement, steel, chemicals, aviation) - Indirect costs: energy cost pass-through from power companies (electricity price increases as fossil fuel plants bear ETS costs) - Supply chain: CBAM charges on high-carbon imports from non-EU jurisdictions</p><p><strong>EBITDA scenario analysis — worked example:</strong></p><p>A PE fund is underwriting an LBO of a UK commercial bakery. The bakery uses natural gas for ovens (Scope 1) and grid electricity for refrigeration (Scope 2). Current EBITDA: £25m.</p><p>Under a 2030 carbon price of £120/tCO₂ (the UK ETS trajectory under orderly transition): - Natural gas direct cost: current £2m/year + £0.8m transition cost at £120/t = £2.8m - Electricity indirect cost: grid power price +15% for ETS pass-through = +£0.5m - Total transition cost impact: -£1.3m EBITDA (5.2% reduction)</p><p><strong>Exit multiple compression for high-carbon sectors:</strong></p><p>Strategic and financial buyers are increasingly applying ESG screens. A company with high carbon intensity will attract fewer qualified buyers at exit, compressing the exit multiple from a wider buyer pool scenario.</p><p>| Company Carbon Profile | Entry Multiple | Exit Multiple (ESG-adjusted) | IRR Impact | |---|---|---|---| | Low-carbon / already net-zero | 8.0x | 9.0x (ESG premium from restricted buyer pool) | +3-5% IRR | | Moderate carbon / decarbonisation pathway | 8.0x | 8.0x (neutral — plan maintains buyer pool) | No impact | | High-carbon / no credible transition plan | 8.0x | 6.5-7.0x (multiple compression at exit — restricted buyer pool) | -4-7% IRR |</p><p><strong>The multiple compression math:</strong></p><p>If entry EBITDA = $50m, entry price = $400m (8.0x), exit EBITDA = $70m, exit multiple falls from expected 9.0x to 7.0x due to carbon risk: - Expected exit value: $630m (9.0x × $70m) - Carbon-risk exit value: $490m (7.0x × $70m) - Value destruction: $140m</p><p>This is the financial materiality of climate risk in the LBO context.</p><p>---</p><p>### Physical Risk — Integration into LBO Model Components</p><p><strong>Acute physical risk scenarios:</strong></p><ul class='notelist'><li><strong>Flood risk:</strong> Manufacturing sites in flood zones require insurance premium increases and potential capital expenditure for flood defenses. In extreme scenarios, facility loss. Apply probability-weighted EV scenarios.</li><li><strong>Hurricane/wind:</strong> Distribution facilities and retail assets in hurricane corridors face higher insurance costs and periodic business interruption.</li><li><strong>Wildfire:</strong> Agricultural holdings, timber, and outdoor leisure assets in California, Australia, Southern Europe.</li><li><strong>Water stress:</strong> Manufacturing processes requiring significant water inputs (food and beverage, semiconductor) face input cost increases in water-stressed regions.</li></ul><p><strong>Chronic physical risk scenarios:</strong></p><ul class='notelist'><li><strong>Agricultural yield changes:</strong> PE funds with food/agriculture holdings must model changed growing season lengths, drought frequency, and crop yield distributions.</li><li><strong>Sea-level rise:</strong> Coastal real estate and infrastructure (ports) face increasing storm surge damage and eventual obsolescence of low-lying assets. 30-50 year RAB assumptions may be impacted.</li><li><strong>Cooling costs:</strong> Warmer average temperatures increase energy costs for climate-controlled facilities (data centres, cold storage, pharmaceutical manufacturing).</li></ul><p><strong>Physical risk data sources:</strong></p><ul class='notelist'><li>IPCC AR6 (Sixth Assessment Report) provides RCP scenario-based projections of temperature, precipitation, and extreme weather at regional level</li><li>Jupiter Intelligence, RMS, and AIR Worldwide provide asset-level physical risk modelling services</li><li>NGFS (Network for Greening the Financial System) provides climate scenarios for financial sector use</li></ul><p>---</p><p>### SFDR Classification — Impact on Exit</p><p><strong>EU Sustainable Finance Disclosure Regulation (SFDR):</strong></p><p>SFDR classifies funds as: - <strong>Article 6:</strong> No ESG integration (or adverse impact disclaimer) - <strong>Article 8:</strong> ESG \"promoted\" (considers ESG characteristics in investment process) - <strong>Article 9:</strong> Sustainable investment objective (fund targets measurable positive ESG impact)</p><p><strong>Why SFDR matters for PE exit:</strong></p><p>LPs in European PE funds increasingly mandate SFDR compliance. Article 8 and Article 9 fund managers have limited ability to hold high-carbon assets in their portfolios — they would need to be classed as \"Article 6\" investments (counted against sustainable investment performance).</p><p>If the buyer pool for a PE exit includes primarily Article 8/9 classified funds, and the company being sold is a high-carbon asset, the buyer pool narrows significantly. This is the direct mechanism through which SFDR creates multiple compression risk.</p><p>---</p><p>### The Stranded Asset Problem</p><p>A stranded asset is a physical asset that loses economic value before the end of its engineering life due to changing regulations, technology, or market conditions.</p><p><strong>PE-relevant stranded asset examples:</strong> - Coal-fired power plant: engineering life 40 years; but carbon pricing and renewable energy competition may render it economically unviable in 10-15 years - Internal combustion engine manufacturing facility: engineering life 25 years; but EV transition may eliminate the product market in 15 years - Gas pipeline: engineering life 50 years; but hydrogen transition uncertainty and declining gas demand may strand the asset before maturity - High-emission building: engineering life 50 years; but building energy efficiency regulations may require expensive retrofit or face value impairment</p><p>For PE, stranded asset risk is particularly acute in: - Energy (oil/gas E&amp;P, LNG, coal) - Heavy industry (cement, steel, chemicals) - Automotive supply chain - Transportation (aviation, shipping, road freight)</p><p><strong>LBO stranded asset model adjustment:</strong></p><p>When underwriting an asset with stranded asset risk, the LBO model should: 1. Model a \"base\" exit assuming current multiple trajectory 2. Add a \"stranded\" scenario where exit EBITDA falls (demand destruction) AND exit multiple falls (buyer pool shrinks) 3. Weight scenarios by probability of regulatory/technology transition speed 4. Assess whether the hold period can be compressed to exit before stranded asset risk materialises</p><p>---</p><p>### Green Capital Expenditure as Value Creation</p><p>PE can address climate risk proactively: - <strong>Energy efficiency capex:</strong> Solar panels, LED lighting, heat pumps, insulation reduce energy bills and Scope 2 emissions simultaneously - <strong>Fuel switching:</strong> Replace gas boilers with heat pumps; replace diesel fleet with EV - <strong>Process decarbonisation:</strong> Industrial process changes to reduce Scope 1 emissions</p><p><strong>The value creation case:</strong> Green capex that reduces energy bills also improves EBITDA, creating a dual value creation rationale (cost savings + ESG premium at exit). Companies that achieve Science-Based Targets (SBTi) commitments qualify for sustainability-linked financing at lower rates.</p><p>---</p>"}, "7": {"section": "Common Misconceptions", "html": "<p><strong>Misconception 1: \"Climate risk is a long-term issue that doesn't affect a 5-year PE hold.\"</strong> Transition risk operates on policy timelines that are already materialising: EU ETS prices, CBAM charges, building energy efficiency standards, vehicle emissions regulations. Physical risk is already manifesting through insurance premium increases and extreme weather events. Both affect P&amp;L within a typical PE hold period.</p><p><strong>Misconception 2: \"ESG compliance is just a cost; it doesn't create value.\"</strong> Empirically contested but directionally false for some categories: green capex that reduces energy bills creates EBITDA improvement. Sustainability-linked financing provides interest cost reductions. ESG credentials maintain the buyer pool at exit, preventing multiple compression. The cost/value balance depends on the specific asset and regulatory environment.</p><p><strong>Misconception 3: \"SFDR only affects European LPs; US PE firms can ignore it.\"</strong> US PE managers seeking European LP capital must comply with SFDR for EU-domiciled funds. As European LP capital is a significant portion of major US PE fund LP bases, effective SFDR compliance is commercially necessary even for predominantly US-focused firms.</p><p><strong>Misconception 4: \"Carbon risk is only relevant for energy sector companies.\"</strong> Carbon risk is financially material across sectors: food production (agricultural transition), industrials (process emissions, energy costs), logistics (transport decarbonisation), real estate (building energy efficiency regulations), and consumer goods (packaging, supply chain).</p><p>---</p>"}, "8": {"section": "Summary", "html": "<p>Climate risk in LBO modelling encompasses transition risk (carbon pricing, demand shift, stranded assets) and physical risk (flooding, extreme weather, water stress), both of which affect EBITDA, exit multiples, and buyer pool availability within typical PE hold periods. The EU SFDR classification system creates direct exit multiple compression risk: high-carbon assets face a narrowed buyer pool as Article 8/9 classified funds dominate European PE capital flows. Proactive decarbonisation (green capex, fuel switching, SBTi commitments) can maintain or expand the exit buyer pool, creating value creation opportunity. Stranded asset risk is material in energy, industrials, and automotive sectors where technology transition may render physical assets economically unviable before their engineering life. Climate-adjusted LBO models use NGFS scenario frameworks to stress-test IRR across transition pathways, and increasingly treat carbon price trajectory as a base-case model input rather than a downside scenario.</p><p>---</p>"}, "9": {"section": "Summary", "html": "<p>Climate risk in LBO modelling encompasses transition risk (carbon pricing, demand shift, stranded assets) and physical risk (flooding, extreme weather, water stress), both of which affect EBITDA, exit multiples, and buyer pool availability within typical PE hold periods. The EU SFDR classification system creates direct exit multiple compression risk: high-carbon assets face a narrowed buyer pool as Article 8/9 classified funds dominate European PE capital flows. Proactive decarbonisation (green capex, fuel switching, SBTi commitments) can maintain or expand the exit buyer pool, creating value creation opportunity. Stranded asset risk is material in energy, industrials, and automotive sectors where technology transition may render physical assets economically unviable before their engineering life. Climate-adjusted LBO models use NGFS scenario frameworks to stress-test IRR across transition pathways, and increasingly treat carbon price trajectory as a base-case model input rather than a downside scenario.</p><p>---</p>"}};   // {sceneIndex: {section, html}} — verbatim note prose; empty => narration fallback
+const TUTOR_ON = false;  // false => hide the AI-tutor pane
+
+const scenes = SCRIPT.scenes;
+let i = 0, speaking = false;
+
+document.getElementById('title').textContent = SCRIPT.title;
+if (SCRIPT.draft_watermark) document.getElementById('draftpill').style.display = '';
+if (HAS_AUDIO) {
+  const h = document.getElementById('hint');
+  if (h) h.innerHTML = '🎙 Studio narration (ElevenLabs). The speed slider works on the mp3 too; the voice picker only affects any TTS-fallback scenes.';
+}
+
+const el = id => document.getElementById(id);
+const presenter = el('presenter');
+
+// ---- Voice selection ----
+let voices = [];
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const sel = el('voice'); if(!sel) return;
+  const saved = localStorage.getItem('lessonVoice');
+  sel.innerHTML = '';
+  voices.filter(v=>v.lang.startsWith('en')).forEach(v=>{
+    const o=document.createElement('option'); o.value=v.name;
+    o.textContent=v.name.replace('Microsoft ','')+'  ('+v.lang+')';
+    if(v.name===saved) o.selected=true; sel.appendChild(o);
+  });
+  if(!voices.filter(v=>v.lang.startsWith('en')).length){
+    sel.innerHTML='<option>default</option>';
+  }
+}
+if(window.speechSynthesis){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+el('voice') && (el('voice').onchange = e => {
+  localStorage.setItem('lessonVoice', e.target.value);
+  speak('This is the '+e.target.value.replace('Microsoft ','')+' voice.');  // preview
+});
+el('rate') && (el('rate').oninput = e => {
+  el('rateval').textContent = (+e.target.value).toFixed(2).replace(/0$/,'');
+  if(currentAudio) currentAudio.playbackRate = parseFloat(e.target.value);  // live speed for mp3
+});
+
+function speak(text, onend){
+  window.speechSynthesis.cancel();
+  if(!('speechSynthesis' in window)){ if(onend) onend(); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  const chosen = el('voice') && el('voice').value;
+  const v = voices.find(x=>x.name===chosen);
+  if(v) u.voice = v;
+  u.rate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+  u.pitch = 1.0;
+  u.onstart = () => { speaking=true; presenter.classList.add('speaking'); };
+  u.onend = () => { speaking=false; presenter.classList.remove('speaking'); if(onend) onend(); };
+  window.speechSynthesis.speak(u);
+}
+
+// ---- Narration playback: prefer ElevenLabs mp3, fall back to browser TTS ----
+let currentAudio = null;
+function stopNarration(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  if(currentAudio){ currentAudio.pause(); currentAudio.onended=null; currentAudio=null; }
+  speaking=false; presenter.classList.remove('speaking');
+}
+function playNarration(idx, onend){
+  stopNarration();
+  const src = AUDIO[idx] || AUDIO[String(idx)];
+  if(src){
+    const a = new Audio(src); currentAudio = a;
+    a.playbackRate = el('rate') ? parseFloat(el('rate').value) : 1.0;
+    speaking=true; presenter.classList.add('speaking');
+    a.onended = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; if(onend) onend(); };
+    a.onerror = () => { speaking=false; presenter.classList.remove('speaking'); currentAudio=null; speak(scenes[idx].narration, onend); };
+    a.play().catch(()=>{ currentAudio=null; speak(scenes[idx].narration, onend); });
+  } else {
+    speak(scenes[idx].narration, onend);
+  }
+}
+
+function renderScene(){
+  const s = scenes[i];
+  el('beat').textContent = (s.beat||'').replace('-',' ');
+  el('stitle').textContent = s.on_screen_title || '';
+  const ul = el('bullets'); ul.innerHTML = '';
+  (s.on_screen_bullets||[]).forEach((b,idx)=>{
+    const li=document.createElement('li'); li.textContent=b;
+    ul.appendChild(li); setTimeout(()=>li.classList.add('on'), 250*idx+200);
+  });
+  const m = el('mermaid');
+  if(s.mermaid){ m.style.display='block'; m.textContent='[diagram]\n'+s.mermaid; } else { m.style.display='none'; }
+  // Under the slide: the VERBATIM note section this scene is drawn from (the note
+  // is the source of truth). Falls back to the scene narration if no note section.
+  const note = NOTES[i] || NOTES[String(i)];
+  if(note){
+    el('noteshdr').textContent = 'From the note — ' + note.section;
+    el('scenetext').innerHTML = note.html;
+  } else {
+    el('noteshdr').textContent = 'Lesson notes — full explanation';
+    const txt = (s.narration||'').trim();
+    el('scenetext').innerHTML = txt ? '<p>'+txt.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')+'</p>' : '';
+  }
+  el('counter').textContent = (i+1)+' / '+scenes.length;
+  el('pbar').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function playScene(){
+  renderScene();
+  playNarration(i, ()=>{ /* auto-advance off by default */ });
+}
+
+el('play').onclick = ()=>{ playScene(); el('play').textContent='▶ Play'; };
+el('replay').onclick = ()=> playNarration(i);
+
+// Show/hide the full-prose notes panel under the slide.
+el('notestoggle').onclick = ()=>{
+  const n = el('notes'); const hidden = n.classList.toggle('collapsed');
+  el('notestoggle').textContent = hidden ? 'Show' : 'Hide';
+};
+
+el('next').onclick = ()=>{
+  stopNarration();
+  // Quiz gate every ~3 scenes if we have questions; branching near the end.
+  if(SCRIPT.quiz.length && (i+1)%3===0 && !gatePassed.has(i)){ openQuiz(i); return; }
+  if(BRANCH && i===scenes.length-2 && !branchDone){ openBranch(); return; }
+  if(i < scenes.length-1){ i++; playScene(); }
+  else { el('stitle').textContent='✓ Lesson complete'; el('bullets').innerHTML=''; el('beat').textContent='done'; }
+};
+
+// ---- Quiz gates ----
+const gatePassed = new Set();
+let pendingScene = 0;
+function openQuiz(idx){
+  pendingScene = idx;
+  const q = SCRIPT.quiz[Math.floor(idx/3) % SCRIPT.quiz.length];
+  el('qtext').textContent = q.question;
+  const opts = el('qopts'); opts.innerHTML=''; el('qfeedback').classList.remove('show');
+  el('qcontinue').disabled = true;
+  // Build options: real MCQ if the question lists A)-D); else free recall reveal.
+  const mc = (q.question.match(/^[ \t]*[A-D]\)/m) || q.answer.match(/^\*\*[A-D]\*\*/));
+  const choices = mc ? ['A','B','C','D'] : ['Reveal model answer'];
+  choices.forEach(c=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.textContent = mc ? c : 'Show the model answer';
+    b.onclick=()=>{
+      const fb=el('qfeedback'); fb.classList.add('show'); fb.innerHTML='<b>Answer:</b> '+q.answer;
+      el('qcontinue').disabled=false;
+      if(mc){ const correct=(q.answer.match(/[A-D]/)||[''])[0]; b.classList.add(c===correct?'correct':'wrong'); }
+    };
+    opts.appendChild(b);
+  });
+  el('quizgate').classList.add('show');
+}
+el('qcontinue').onclick=()=>{
+  el('quizgate').classList.remove('show'); gatePassed.add(pendingScene);
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Branching ----
+let branchDone=false;
+function openBranch(){
+  if(!BRANCH) return;
+  el('branchtitle').textContent = BRANCH.title;
+  el('branchsetup').textContent = BRANCH.setup;
+  const opts=el('branchopts'); opts.innerHTML=''; el('branchfeedback').classList.remove('show');
+  el('branchcontinue').style.display='none';
+  BRANCH.choices.forEach(ch=>{
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML = ch.label + '<span class="tag '+ch.verdict+'">'+ch.verdict+'</span>';
+    b.onclick=()=>{
+      const fb=el('branchfeedback'); fb.classList.add('show'); fb.textContent=ch.outcome;
+      el('branchcontinue').style.display='';
+    };
+    opts.appendChild(b);
+  });
+  el('branchgate').classList.add('show');
+}
+el('branchcontinue').onclick=()=>{
+  el('branchgate').classList.remove('show'); branchDone=true;
+  if(i < scenes.length-1){ i++; playScene(); }
+};
+
+// ---- Live MOIC model ----
+if(WIDGET && WIDGET.type==='moic'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['ebitda','Entry EBITDA (£m)',20,150,1],['entryMult','Entry multiple (x)',4,15,0.5],
+                ['exitEbitda','Exit EBITDA (£m)',20,200,1],['exitMult','Exit multiple (x)',4,15,0.5],
+                ['debtPct','Debt % of EV',0,80,5],['paydown','Debt paydown (£m)',0,150,5]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<div class="moic"><div class="big" id="moicout">—</div><small class="note">MOIC = exit equity ÷ entry equity</small><div id="moicdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function calc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const ebitda=g('ebitda'), em=g('entryMult'), xe=g('exitEbitda'), xm=g('exitMult'), dp=g('debtPct'), pd=g('paydown');
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    const entryEV=ebitda*em, entryDebt=entryEV*dp/100, entryEq=entryEV-entryDebt;
+    const exitEV=xe*xm, remDebt=Math.max(0,entryDebt-pd), exitEq=exitEV-remDebt;
+    const moic=entryEq>0? exitEq/entryEq : 0;
+    el('moicout').textContent=moic.toFixed(2)+'x';
+    el('moicout').style.color = moic>=2.5?'var(--good)':moic>=1.8?'var(--warn)':'var(--bad)';
+    el('moicdetail').innerHTML='Entry EV £'+entryEV+'m · Entry equity £'+entryEq.toFixed(0)+'m · Exit equity £'+exitEq.toFixed(0)+'m';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=calc); calc();
+}
+
+// ---- Live fund J-curve model ----
+if(WIDGET && WIDGET.type==='jcurve'){
+  el('modeltab').style.display='';
+  const d=WIDGET.defaults;
+  const fields=[['commit','Commitment ($m)',50,300,10],['grossMoic','Gross MOIC (x)',1.2,3.5,0.1],
+                ['invest','Investment period (yrs)',3,6,1],['life','Fund life (yrs)',8,12,1],
+                ['feePct','Mgmt fee (% / yr)',0,2.5,0.25]];
+  let html='<h3 style="margin-top:0">'+WIDGET.title+'</h3><p><small class="note">'+WIDGET.blurb+'</small></p>';
+  fields.forEach(f=>{ html+='<div class="field"><span>'+f[1]+'</span><span id="v_'+f[0]+'"></span></div>'+
+    '<input type="range" id="r_'+f[0]+'" min="'+f[2]+'" max="'+f[3]+'" step="'+f[4]+'" value="'+d[f[0]]+'">'; });
+  html+='<svg id="jcsvg" viewBox="0 0 320 170" style="width:100%;margin-top:16px;background:#0c1117;border:1px solid var(--line);border-radius:10px"></svg>';
+  html+='<div class="moic"><div class="big" id="jcout">—</div><small class="note">Net cash to LPs at wind-down (per $1 called)</small><div id="jcdetail" style="margin-top:8px;font-size:12px;color:var(--mut)"></div></div>';
+  el('pane-model').innerHTML=html;
+  function jcalc(){
+    const g=k=>parseFloat(el('r_'+k).value);
+    const commit=g('commit'), moic=g('grossMoic'), inv=Math.round(g('invest')), life=Math.round(g('life')), fee=g('feePct')/100;
+    fields.forEach(f=>el('v_'+f[0]).textContent=g(f[0]));
+    // Illustrative model: capital called linearly over the investment period; a
+    // flat annual mgmt fee on commitment across the whole life; distributions paid
+    // out linearly across the second half (from mid-invest to wind-down).
+    const called=[], dist=[], cum=[]; let calledCum=0, distCum=0, trough=0, troughYr=0;
+    const distStart=Math.max(1,Math.round(inv/2)), distYears=Math.max(1,life-distStart);
+    const totalDist=commit*moic;
+    for(let y=1;y<=life;y++){
+      const call=(y<=inv? commit/inv : 0) + commit*fee;       // capital + fee drawn
+      const back=(y>=distStart? totalDist/distYears : 0);     // exits return cash
+      calledCum+=call; distCum+=back;
+      const net=distCum-calledCum;                            // cumulative net to LP
+      called.push(calledCum); dist.push(distCum); cum.push(net);
+      if(net<trough){ trough=net; troughYr=y; }
+    }
+    // Net multiple to LPs per $1 of capital+fees actually called.
+    const netMult=calledCum>0? distCum/calledCum : 0;
+    el('jcout').textContent=netMult.toFixed(2)+'x';
+    el('jcout').style.color = netMult>=1.7?'var(--good)':netMult>=1.2?'var(--warn)':'var(--bad)';
+    el('jcdetail').innerHTML='J-curve trough: $'+trough.toFixed(0)+'m in year '+troughYr+
+      ' · total called $'+calledCum.toFixed(0)+'m · total returned $'+distCum.toFixed(0)+'m';
+    // Draw the cumulative-net curve as an SVG path with a zero line.
+    const W=320,H=170,pad=8, lo=Math.min(...cum,0), hi=Math.max(...cum,0), span=(hi-lo)||1;
+    const x=k=>pad+(W-2*pad)*k/(cum.length-1), yv=v=>pad+(H-2*pad)*(1-(v-lo)/span);
+    const zeroY=yv(0);
+    let path=''; cum.forEach((v,k)=>{ path+=(k?'L':'M')+x(k).toFixed(1)+' '+yv(v).toFixed(1)+' '; });
+    el('jcsvg').innerHTML=
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2a3543" stroke-dasharray="3 3"/>'+
+      '<text x="'+(pad+2)+'" y="'+(zeroY-3).toFixed(1)+'" fill="#8b98a8" font-size="9">break-even</text>'+
+      '<path d="'+path+'" fill="none" stroke="#4f9cf9" stroke-width="2"/>'+
+      '<circle cx="'+x(troughYr-1).toFixed(1)+'" cy="'+yv(trough).toFixed(1)+'" r="3" fill="#f85149"/>';
+  }
+  fields.forEach(f=>el('r_'+f[0]).oninput=jcalc); jcalc();
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); el('pane-'+b.dataset.tab).classList.add('active');
+});
+
+// ---- AI Tutor (grounded in this lesson) ----
+function addMsg(text, who){ const m=document.createElement('div'); m.className='msg '+who; m.textContent=text; el('msgs').appendChild(m); el('msgs').scrollTop=1e9; return m; }
+addMsg("Hi — I'm the tutor for \""+SCRIPT.title+"\". Ask me anything about this lesson. Paste an API key above to make me live; without one I'll point you to the relevant part of the lesson.", 'bot');
+
+async function ask(q){
+  addMsg(q,'user');
+  const thinking=addMsg('…','bot');
+  // 1) Same-origin backend (/api/tutor). Used when the lesson is HOSTED with a
+  //    server that holds the Anthropic key (Replit Secret) — no buyer key needed.
+  try{
+    const r=await fetch('/api/tutor',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({question:q, context:TUTOR_CONTEXT})});
+    if(r.ok){
+      const j=await r.json();
+      if(j && j.text){ thinking.textContent=j.text; speak(j.text); return; }
+    }
+    // a 503 means the server is there but has no key set — fall through to key/offline
+  }catch(e){ /* no backend (opened as a local file) — fall through */ }
+  // 2) Browser-key path (local/dev): use a pasted Anthropic key directly.
+  const key=el('apikey').value.trim();
+  if(key){
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
+          system:"You are a tutor for one lesson. Answer ONLY from the lesson context. If asked beyond it, say so briefly. Be concise.\n\nLESSON CONTEXT:\n"+TUTOR_CONTEXT,
+          messages:[{role:'user',content:q}]})});
+      const j=await r.json();
+      const txt=(j.content&&j.content[0]&&j.content[0].text)||('(error: '+JSON.stringify(j).slice(0,200)+')');
+      thinking.textContent=txt; speak(txt); return;
+    }catch(e){ thinking.textContent='(network/CORS error: '+e.message+')'; return; }
+  }
+  // 3) Offline keyword fallback (no backend, no pasted key).
+  const ctx=TUTOR_CONTEXT.toLowerCase(); const hit=q.toLowerCase().split(/\W+/).find(w=>w.length>4 && ctx.includes(w));
+  thinking.textContent = hit? "This lesson covers that — look for \""+hit+"\" in the slides/notes. (Host this with the tutor backend, or paste a key above, for a full spoken answer.)" : "Host this lesson with the tutor backend, or paste an Anthropic key above, and I'll answer in depth — grounded only in this lesson.";
+}
+el('ask').onclick=()=>{ const v=el('chatin').value.trim(); if(v){ el('chatin').value=''; ask(v); } };
+el('chatin').onkeydown=e=>{ if(e.key==='Enter') el('ask').click(); };
+el('mic').onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice input needs Chrome/Edge.'); return; }
+  const rec=new SR(); rec.lang='en-GB'; rec.onresult=e=>{ const t=e.results[0][0].transcript; el('chatin').value=t; el('ask').click(); }; rec.start();
+};
+
+// ---- Optional: hide the AI tutor (built with --no-tutor) ----
+if(!TUTOR_ON){
+  const tb=document.querySelector('.tabs button[data-tab="tutor"]'); if(tb) tb.style.display='none';
+  const tp=el('pane-tutor'); if(tp){ tp.classList.remove('active'); tp.style.display='none'; }
+  if(WIDGET){
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    el('modeltab').classList.add('active'); el('pane-model').classList.add('active');
+  } else {
+    const sb=document.querySelector('.sidebar'); if(sb) sb.style.display='none';
+    document.querySelector('.wrap').style.gridTemplateColumns='1fr';
+  }
+}
+
+renderScene();
+</script>
+</body>
+</html>
