@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase Test — Interactive Course</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line);
+         position:sticky; top:0; background:rgba(15,20,25,.94); backdrop-filter:blur(6px); z-index:10; }
+  .top a.home { color:var(--mut); text-decoration:none; font-size:13px; }
+  .top a.home:hover { color:var(--accent); }
+  .top .title { font-weight:700; flex:1; font-size:15px; }
+  .top .score { font-size:13px; color:var(--mut); }
+  .wrap { max-width:820px; margin:0 auto; padding:26px 22px 90px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .intro { color:var(--mut); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0 26px; }
+  .q { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .q.unanswered.flagged { border-color:var(--warn); }
+  .qh { font-weight:600; margin-bottom:12px; }
+  .qh .n { color:var(--accent); margin-right:8px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+         margin:7px 0; cursor:pointer; transition:background .12s,border-color .12s; }
+  .opt:hover { background:#10161e; }
+  .opt.sel { border-color:var(--accent); background:rgba(79,156,249,.10); }
+  .opt .let { font-weight:700; color:var(--mut); flex:none; width:20px; }
+  .opt.sel .let { color:var(--accent); }
+  .graded .opt { cursor:default; }
+  .graded .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .graded .opt.correct .let { color:var(--good); }
+  .graded .opt.wrongpick { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .graded .opt.wrongpick .let { color:var(--bad); }
+  .expl { display:none; margin-top:12px; padding:11px 13px; border-left:3px solid var(--accent);
+          background:#0c1117; border-radius:0 8px 8px 0; color:#c9d4e0; font-size:14px; }
+  .graded .expl { display:block; }
+  .expl.ok { border-left-color:var(--good); }
+  .expl.no { border-left-color:var(--bad); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(15,20,25,.97); border-top:1px solid var(--line);
+         padding:12px 22px; display:flex; align-items:center; gap:16px; }
+  .bar .status { flex:1; color:var(--mut); font-size:13.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:9px; padding:11px 20px; }
+  #submit { background:var(--good); color:#fff; }
+  #submit:disabled { background:#39414d; color:#8b98a8; cursor:not-allowed; }
+  #retry { background:var(--panel); color:var(--ink); border:1px solid var(--line); display:none; }
+  .result { display:none; text-align:center; padding:22px; border-radius:14px; margin:8px 0 22px; font-size:16px; }
+  .result.pass { background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.4); }
+  .result.fail { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+  .result .big { font-size:34px; font-weight:800; display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="pe-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0d1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:30px 32px;max-width:360px;width:88%;text-align:center;color:#e6edf3;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="font-size:21px;font-weight:700;margin-bottom:6px">Private Equity Course</div>
+    <div style="color:#8b949e;font-size:13.5px;margin-bottom:18px">Enter your access code to continue.</div>
+    <input id="pe-gate-input" type="password" placeholder="Access code" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:15px;outline:none">
+    <div id="pe-gate-err" style="color:#f85149;font-size:12.5px;height:15px;margin:8px 0 2px"></div>
+    <button id="pe-gate-btn" style="width:100%;padding:11px;border:0;border-radius:8px;background:#238636;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH="2ab47ce2424d6043168f930c79e3931f57f9e86ad33a8e35c2e9b6d3f1444924";
+  var g=document.getElementById('pe-gate');
+  if(localStorage.getItem('pe_demo_ok')==='1'){ g.remove(); return; }
+  document.documentElement.style.overflow='hidden';
+  var inp=document.getElementById('pe-gate-input'), err=document.getElementById('pe-gate-err');
+  try{ inp.focus(); }catch(e){}
+  async function sha(s){ var b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }
+  async function submit(){
+    var v=inp.value; if(!v) return;
+    var h; try{ h=await sha(v); }catch(e){ err.textContent='Browser too old'; return; }
+    if(h===HASH){ localStorage.setItem('pe_demo_ok','1'); localStorage.setItem('pe_demo_code',v); document.documentElement.style.overflow=''; g.remove(); }
+    else { err.textContent='Incorrect code'; inp.value=''; inp.focus(); }
+  }
+  document.getElementById('pe-gate-btn').onclick=submit;
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+})();
+</script>
+<div class="top">
+  <a class="home" href="../index.html">☰ All lessons</a>
+  <span class="title" id="ttitle"></span>
+  <span class="score" id="tscore"></span>
+</div>
+<div class="wrap">
+  <h1 id="h1"></h1>
+  <div class="intro" id="intro"></div>
+  <div class="result" id="result"></div>
+  <div id="questions"></div>
+</div>
+<div class="bar">
+  <span class="status" id="status"></span>
+  <button id="retry">Retry</button>
+  <button id="submit">Submit test</button>
+</div>
+<script>
+const DATA = {"phase": "2", "title": "Phase 2 Test — The Deal", "pass_mark": 20, "questions": [{"n": 1, "prompt": "A leveraged buyout (LBO) is an acquisition in which:", "options": {"A": "The buyer pays entirely in its own equity", "B": "A significant portion of the purchase price is financed with debt secured against the target", "C": "The target must already be publicly listed", "D": "No equity is contributed at all"}, "answer": "B", "explanation": "An LBO finances much of the price with debt secured against the target."}, {"n": 2, "prompt": "In an LBO, the acquisition debt is primarily serviced by:", "options": {"A": "The GP's management fees", "B": "The target company's own operating cash flows", "C": "The LPs' personal assets", "D": "The fund's other portfolio companies"}, "answer": "B", "explanation": "The target's own cash flows service the acquisition debt."}, {"n": 3, "prompt": "In a Sources & Uses table, the \"Uses\" side lists:", "options": {"A": "Where the money comes from", "B": "What the money is spent on (equity purchase price, refinanced debt, fees)", "C": "Only the equity contribution", "D": "The exit proceeds"}, "answer": "B", "explanation": "\"Uses\" = what the money buys/pays (price, refinanced debt, fees)."}, {"n": 4, "prompt": "In a Sources & Uses table, \"Sources\" must:", "options": {"A": "Always exceed uses", "B": "Equal total uses (the table balances)", "C": "Be entirely equity", "D": "Exclude debt"}, "answer": "B", "explanation": "Sources must equal uses — the table balances."}, {"n": 5, "prompt": "The entry multiple most commonly quoted in buyouts is:", "options": {"A": "Price / Earnings", "B": "Enterprise Value / EBITDA", "C": "Price / Book", "D": "Dividend yield"}, "answer": "B", "explanation": "EV/EBITDA is the standard buyout entry multiple."}, {"n": 6, "prompt": "Enterprise value equals:", "options": {"A": "Equity value only", "B": "Equity value + net debt (plus minority interest/preferred, less cash)", "C": "Equity value − debt", "D": "Revenue × growth rate"}, "answer": "B", "explanation": "EV = equity value + net debt (+ minority/preferred, − cash)."}, {"n": 7, "prompt": "A company is bought at 8x EBITDA with EBITDA of $50m. The enterprise value is:", "options": {"A": "$58m", "B": "$400m", "C": "$50m", "D": "$8m"}, "answer": "B", "explanation": "8 × $50m = $400m enterprise value."}, {"n": 8, "prompt": "In the LBO capital stack, which tranche has the highest priority claim and lowest cost?", "options": {"A": "Common equity", "B": "Senior secured debt", "C": "PIK notes", "D": "Mezzanine debt"}, "answer": "B", "explanation": "Senior secured debt is the highest-priority, lowest-cost tranche."}, {"n": 9, "prompt": "Which correctly ranks seniority from safest to riskiest?", "options": {"A": "Equity → mezzanine → senior debt", "B": "Senior secured debt → mezzanine/subordinated → equity", "C": "Mezzanine → equity → senior debt", "D": "PIK → senior debt → equity"}, "answer": "B", "explanation": "Senior secured → mezzanine/subordinated → equity, safest to riskiest."}, {"n": 10, "prompt": "\"PIK\" (payment-in-kind) interest means:", "options": {"A": "Interest paid in cash quarterly", "B": "Interest that accrues and is added to the loan balance rather than paid in cash", "C": "Interest waived by the lender", "D": "Interest paid by the LPs"}, "answer": "B", "explanation": "PIK interest accrues onto the balance instead of being paid in cash."}, {"n": 11, "prompt": "Mezzanine debt typically sits:", "options": {"A": "Above senior secured debt in priority", "B": "Between senior debt and equity in the capital stack, with higher cost than senior debt", "C": "At the same priority as common equity", "D": "Outside the capital structure entirely"}, "answer": "B", "explanation": "Mezzanine sits between senior debt and equity, costing more than senior."}, {"n": 12, "prompt": "Why does adding leverage magnify equity returns in a successful LBO?", "options": {"A": "Debt reduces the company's taxes to zero", "B": "A smaller equity check controls the whole enterprise, so equity captures a larger share of value growth (after debt is repaid at a fixed claim)", "C": "Lenders share in the upside", "D": "Leverage guarantees higher EBITDA"}, "answer": "B", "explanation": "A small equity check controls the whole enterprise, so equity captures outsized value growth."}, {"n": 13, "prompt": "The same leverage that magnifies gains also:", "options": {"A": "Eliminates downside risk", "B": "Amplifies losses and raises the risk of financial distress if cash flow falls", "C": "Has no effect on risk", "D": "Is repaid by the LPs personally"}, "answer": "B", "explanation": "Leverage is symmetric — it amplifies losses and distress risk too."}, {"n": 14, "prompt": "Which company profile is generally most suitable for a high-leverage LBO?", "options": {"A": "A pre-revenue startup with volatile cash burn", "B": "A mature business with stable, predictable cash flows and low capital intensity", "C": "A cyclical commodity producer with erratic earnings", "D": "A company already near default"}, "answer": "B", "explanation": "Stable, predictable, low-capex cash flows best support high leverage."}, {"n": 15, "prompt": "In the standard investment process, which step comes first?", "options": {"A": "Signing the SPA", "B": "Sourcing / deal origination", "C": "Portfolio value creation", "D": "Exit"}, "answer": "B", "explanation": "Sourcing/origination is the first step."}, {"n": 16, "prompt": "A \"teaser\" and a confidential information memorandum (CIM) are used during which stage?", "options": {"A": "Exit", "B": "Sourcing and initial screening / early diligence in a sale process", "C": "Debt repayment", "D": "The clawback"}, "answer": "B", "explanation": "Teasers and CIMs are sourcing/early-diligence sale-process documents."}, {"n": 17, "prompt": "\"Exclusivity\" in a deal process refers to:", "options": {"A": "The seller agreeing to negotiate with only one buyer for a set period", "B": "The buyer's exclusive right to future deals", "C": "A type of debt tranche", "D": "The GP's carry"}, "answer": "A", "explanation": "Exclusivity = the seller negotiates with only one buyer for a period."}, {"n": 18, "prompt": "A management buyout (MBO) is an LBO in which:", "options": {"A": "The existing management team participates in acquiring the company, usually backed by a PE sponsor", "B": "Management is entirely replaced", "C": "No debt is used", "D": "The company is liquidated"}, "answer": "A", "explanation": "An MBO has incumbent management acquiring the company, usually with a sponsor."}, {"n": 19, "prompt": "Which is a \"Source\" in a Sources & Uses table?", "options": {"A": "Advisory fees", "B": "New term loan debt raised for the acquisition", "C": "Refinancing of the target's old debt", "D": "The equity purchase price"}, "answer": "B", "explanation": "New acquisition debt is a Source; the others are Uses."}, {"n": 20, "prompt": "A deal is priced at 9x forward EBITDA rather than 9x trailing EBITDA. This generally means the buyer is:", "options": {"A": "Paying on expected future earnings, which usually implies a lower headline multiple if growth is expected", "B": "Ignoring earnings entirely", "C": "Using book value", "D": "Paying a fixed dollar amount unrelated to earnings"}, "answer": "A", "explanation": "Pricing on higher expected future EBITDA usually yields a lower headline multiple."}, {"n": 21, "prompt": "In an LBO, \"rollover equity\" refers to:", "options": {"A": "Debt that rolls over at maturity", "B": "Existing owners/management reinvesting part of their proceeds into the new deal's equity", "C": "The GP's carry", "D": "Cash swept to repay debt"}, "answer": "B", "explanation": "Rollover equity is existing owners/management reinvesting proceeds into the new equity."}, {"n": 22, "prompt": "The primary reason a PE sponsor cares about the entry multiple is that:", "options": {"A": "It has no effect on returns", "B": "Overpaying at entry directly erodes returns and raises reliance on multiple expansion or growth to make the deal work", "C": "A higher entry multiple always means a better deal", "D": "It determines the management fee"}, "answer": "B", "explanation": "Overpaying at entry erodes returns and increases reliance on growth/multiple expansion."}, {"n": 23, "prompt": "In a typical LBO, the equity contribution as a share of total capitalisation is often around:", "options": {"A": "0%", "B": "30–50% (with the remainder debt)", "C": "95–100%", "D": "Exactly 20% by law"}, "answer": "B", "explanation": "Equity is often ~30–50% of total capitalisation, debt the rest."}, {"n": 24, "prompt": "Confirmatory due diligence typically occurs:", "options": {"A": "Before any indication of interest", "B": "After exclusivity/late in the process, to verify the thesis before signing", "C": "Only after the deal closes", "D": "During the exit"}, "answer": "B", "explanation": "Confirmatory diligence comes late (post-exclusivity) to verify before signing."}, {"n": 25, "prompt": "Putting the deal together: which ordering of the investment process is correct?", "options": {"A": "Sourcing → screening → diligence & structuring → negotiation/signing → closing", "B": "Closing → sourcing → diligence → screening", "C": "Diligence → exit → sourcing → signing", "D": "Negotiation → sourcing → closing → screening"}, "answer": "A", "explanation": "Sourcing → screening → diligence/structuring → negotiation/signing → closing."}]};
+const LS = 'pe-test::'+DATA.phase;
+const el = id => document.getElementById(id);
+const LETTERS = ['A','B','C','D'];
+let picks = {};   // n -> letter
+let graded = false;
+
+el('ttitle').textContent = DATA.title;
+el('h1').textContent = DATA.title;
+el('intro').innerHTML = DATA.questions.length+' multiple-choice questions. Choose one answer per question, then press '+
+  '<b>Submit test</b>. You need <b>'+DATA.pass_mark+'/'+DATA.questions.length+'</b> ('+
+  Math.round(DATA.pass_mark/DATA.questions.length*100)+'%) to pass. Answers and explanations reveal on submit.';
+
+const qwrap = el('questions');
+DATA.questions.forEach(q=>{
+  const card = document.createElement('div');
+  card.className='q unanswered'; card.id='q'+q.n;
+  // Shuffle options so the correct choice isn't positionally predictable
+  // (authored keys cluster on one letter). Remap to fresh display letters and
+  // record the correct display letter on the question.
+  let entries = LETTERS.filter(L=>q.options[L]).map(L=>({orig:L, text:q.options[L]}));
+  for(let i=entries.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=entries[i]; entries[i]=entries[j]; entries[j]=t; }
+  let opts = '';
+  entries.forEach((e,idx)=>{
+    const D = LETTERS[idx];
+    if(e.orig===q.answer) q._correct = D;
+    opts += '<div class="opt" data-n="'+q.n+'" data-l="'+D+'"><span class="let">'+D+'</span><span>'+e.text+'</span></div>';
+  });
+  card.innerHTML = '<div class="qh"><span class="n">Q'+q.n+'</span>'+q.prompt+'</div>'+opts+
+    '<div class="expl" id="expl'+q.n+'"></div>';
+  qwrap.appendChild(card);
+});
+
+qwrap.addEventListener('click', e=>{
+  if(graded) return;
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  const n = opt.dataset.n, L = opt.dataset.l;
+  picks[n] = L;
+  const card = el('q'+n);
+  card.classList.remove('unanswered');
+  card.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel', o.dataset.l===L));
+  updateStatus();
+});
+
+function updateStatus(){
+  const done = Object.keys(picks).length, total = DATA.questions.length;
+  el('status').textContent = graded ? '' : done+' of '+total+' answered'+(done<total?'':' — ready to submit');
+}
+updateStatus();
+
+el('submit').onclick = ()=>{
+  const total = DATA.questions.length, done = Object.keys(picks).length;
+  if(done<total){
+    const miss = DATA.questions.filter(q=>!picks[q.n]);
+    if(!confirm(done+' of '+total+' answered. '+(total-done)+' left blank will be marked wrong. Submit anyway?')){
+      miss.forEach(q=>{ const c=el('q'+q.n); c.classList.add('flagged'); });
+      if(miss[0]) el('q'+miss[0].n).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
+  grade();
+};
+
+function grade(){
+  graded = true;
+  let correct = 0;
+  DATA.questions.forEach(q=>{
+    const card = el('q'+q.n); card.classList.add('graded');
+    const pick = picks[q.n];
+    const ans = q._correct;   // display letter of the correct option (post-shuffle)
+    if(pick===ans) correct++;
+    card.querySelectorAll('.opt').forEach(o=>{
+      const L=o.dataset.l;
+      if(L===ans) o.classList.add('correct');
+      if(L===pick && pick!==ans) o.classList.add('wrongpick');
+    });
+    const ex = el('expl'+q.n);
+    const got = pick===ans;
+    ex.className = 'expl '+(got?'ok':'no');
+    ex.innerHTML = '<b>'+(got?'Correct':(pick?'Not quite':'No answer'))+' — answer '+ans+'.</b> '+(q.explanation||'');
+  });
+  const total = DATA.questions.length, pct = Math.round(correct/total*100);
+  const pass = correct>=DATA.pass_mark;
+  const r = el('result');
+  r.className = 'result '+(pass?'pass':'fail'); r.style.display='block';
+  r.innerHTML = '<span class="big">'+correct+' / '+total+'  ·  '+pct+'%</span>'+
+    (pass ? 'Passed — you cleared this phase. Review any misses, then continue to the next phase.'
+          : 'Below the '+DATA.pass_mark+'/'+total+' pass mark. Review the explanations and the linked notes, then retake cold.');
+  el('tscore').textContent = correct+'/'+total+' ('+pct+'%)';
+  el('status').textContent = 'Scored '+correct+'/'+total+'. Scroll to review explanations.';
+  el('submit').disabled = true; el('submit').style.display='none';
+  el('retry').style.display='inline-block';
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS)||'{}');
+    localStorage.setItem(LS, JSON.stringify({best: Math.max(correct, prev.best||0), last: correct, total: total}));
+  } catch(e){}
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+el('retry').onclick = ()=>{
+  graded=false; picks={};
+  el('result').style.display='none';
+  el('tscore').textContent='';
+  el('submit').disabled=false; el('submit').style.display='inline-block';
+  el('retry').style.display='none';
+  document.querySelectorAll('.q').forEach(c=>{ c.className='q unanswered'; });
+  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrongpick'));
+  updateStatus();
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+try {
+  const s = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(s.best!=null) el('tscore').textContent = 'Best: '+s.best+'/'+s.total;
+} catch(e){}
+</script>
+</body>
+</html>

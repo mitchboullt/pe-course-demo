@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase Test — Interactive Course</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line);
+         position:sticky; top:0; background:rgba(15,20,25,.94); backdrop-filter:blur(6px); z-index:10; }
+  .top a.home { color:var(--mut); text-decoration:none; font-size:13px; }
+  .top a.home:hover { color:var(--accent); }
+  .top .title { font-weight:700; flex:1; font-size:15px; }
+  .top .score { font-size:13px; color:var(--mut); }
+  .wrap { max-width:820px; margin:0 auto; padding:26px 22px 90px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .intro { color:var(--mut); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0 26px; }
+  .q { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .q.unanswered.flagged { border-color:var(--warn); }
+  .qh { font-weight:600; margin-bottom:12px; }
+  .qh .n { color:var(--accent); margin-right:8px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+         margin:7px 0; cursor:pointer; transition:background .12s,border-color .12s; }
+  .opt:hover { background:#10161e; }
+  .opt.sel { border-color:var(--accent); background:rgba(79,156,249,.10); }
+  .opt .let { font-weight:700; color:var(--mut); flex:none; width:20px; }
+  .opt.sel .let { color:var(--accent); }
+  .graded .opt { cursor:default; }
+  .graded .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .graded .opt.correct .let { color:var(--good); }
+  .graded .opt.wrongpick { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .graded .opt.wrongpick .let { color:var(--bad); }
+  .expl { display:none; margin-top:12px; padding:11px 13px; border-left:3px solid var(--accent);
+          background:#0c1117; border-radius:0 8px 8px 0; color:#c9d4e0; font-size:14px; }
+  .graded .expl { display:block; }
+  .expl.ok { border-left-color:var(--good); }
+  .expl.no { border-left-color:var(--bad); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(15,20,25,.97); border-top:1px solid var(--line);
+         padding:12px 22px; display:flex; align-items:center; gap:16px; }
+  .bar .status { flex:1; color:var(--mut); font-size:13.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:9px; padding:11px 20px; }
+  #submit { background:var(--good); color:#fff; }
+  #submit:disabled { background:#39414d; color:#8b98a8; cursor:not-allowed; }
+  #retry { background:var(--panel); color:var(--ink); border:1px solid var(--line); display:none; }
+  .result { display:none; text-align:center; padding:22px; border-radius:14px; margin:8px 0 22px; font-size:16px; }
+  .result.pass { background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.4); }
+  .result.fail { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+  .result .big { font-size:34px; font-weight:800; display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="pe-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0d1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:30px 32px;max-width:360px;width:88%;text-align:center;color:#e6edf3;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="font-size:21px;font-weight:700;margin-bottom:6px">Private Equity Course</div>
+    <div style="color:#8b949e;font-size:13.5px;margin-bottom:18px">Enter your access code to continue.</div>
+    <input id="pe-gate-input" type="password" placeholder="Access code" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:15px;outline:none">
+    <div id="pe-gate-err" style="color:#f85149;font-size:12.5px;height:15px;margin:8px 0 2px"></div>
+    <button id="pe-gate-btn" style="width:100%;padding:11px;border:0;border-radius:8px;background:#238636;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH="2ab47ce2424d6043168f930c79e3931f57f9e86ad33a8e35c2e9b6d3f1444924";
+  var g=document.getElementById('pe-gate');
+  if(localStorage.getItem('pe_demo_ok')==='1'){ g.remove(); return; }
+  document.documentElement.style.overflow='hidden';
+  var inp=document.getElementById('pe-gate-input'), err=document.getElementById('pe-gate-err');
+  try{ inp.focus(); }catch(e){}
+  async function sha(s){ var b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }
+  async function submit(){
+    var v=inp.value; if(!v) return;
+    var h; try{ h=await sha(v); }catch(e){ err.textContent='Browser too old'; return; }
+    if(h===HASH){ localStorage.setItem('pe_demo_ok','1'); localStorage.setItem('pe_demo_code',v); document.documentElement.style.overflow=''; g.remove(); }
+    else { err.textContent='Incorrect code'; inp.value=''; inp.focus(); }
+  }
+  document.getElementById('pe-gate-btn').onclick=submit;
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+})();
+</script>
+<div class="top">
+  <a class="home" href="../index.html">☰ All lessons</a>
+  <span class="title" id="ttitle"></span>
+  <span class="score" id="tscore"></span>
+</div>
+<div class="wrap">
+  <h1 id="h1"></h1>
+  <div class="intro" id="intro"></div>
+  <div class="result" id="result"></div>
+  <div id="questions"></div>
+</div>
+<div class="bar">
+  <span class="status" id="status"></span>
+  <button id="retry">Retry</button>
+  <button id="submit">Submit test</button>
+</div>
+<script>
+const DATA = {"phase": "9", "title": "Phase 9 Test — Fund Structure and Governance", "pass_mark": 20, "questions": [{"n": 1, "prompt": "The Limited Partnership Agreement (LPA) is:", "options": {"A": "A marketing brochure for the fund", "B": "The master contract governing the fund's economics, governance, and the GP–LP relationship", "C": "The loan agreement with lenders", "D": "A portfolio company's articles"}, "answer": "B", "explanation": "The LPA is the master contract governing fund economics, governance, and the GP–LP relationship."}, {"n": 2, "prompt": "In the fund's legal architecture, the GP entity's role is to:", "options": {"A": "Provide the majority of capital", "B": "Act as manager with control and (typically) unlimited liability for the partnership", "C": "Passively hold LP interests", "D": "Lend to portfolio companies"}, "answer": "B", "explanation": "The GP entity manages with control and (typically) unlimited partnership liability."}, {"n": 3, "prompt": "LPs are \"limited\" partners chiefly because they:", "options": {"A": "Manage the fund day to day", "B": "Have limited liability and a passive role, forgoing management control", "C": "Guarantee the fund's debts", "D": "Set the entry multiple"}, "answer": "B", "explanation": "LPs have limited liability and a passive role, forgoing control."}, {"n": 4, "prompt": "A \"management company\" (as distinct from the GP entity) typically:", "options": {"A": "Holds the carried interest only", "B": "Employs the investment professionals and receives the management fee", "C": "Is the fund's lender", "D": "Is a portfolio company"}, "answer": "B", "explanation": "The management company employs the professionals and receives the management fee."}, {"n": 5, "prompt": "The Limited Partner Advisory Committee (LPAC) exists to:", "options": {"A": "Run the fund's investments", "B": "Represent LPs on conflicts of interest, valuations, and consents — a governance check on the GP", "C": "Replace the GP", "D": "Approve every investment"}, "answer": "B", "explanation": "The LPAC represents LPs on conflicts, valuations, and consents."}, {"n": 6, "prompt": "A clawback provision requires the GP to:", "options": {"A": "Recall distributions from LPs", "B": "Return excess carried interest if, over the fund's life, it received more than the agreed profit split", "C": "Pay LPs a fixed coupon", "D": "Increase the management fee"}, "answer": "B", "explanation": "Clawback returns excess carry if the GP was overpaid over the fund's life."}, {"n": 7, "prompt": "Why do clawbacks arise more often under a *deal-by-deal* waterfall?", "options": {"A": "Because carry is never paid", "B": "Because early-deal carry can be paid before later losses, leaving the GP overpaid on a whole-fund basis", "C": "Because the hurdle is higher", "D": "Because LPs default"}, "answer": "B", "explanation": "Deal-by-deal carry can be paid before later losses, over-distributing to the GP."}, {"n": 8, "prompt": "An \"escrow\" or \"holdback\" of carry is a clawback *enforcement* mechanism that:", "options": {"A": "Pays the GP carry immediately in full", "B": "Retains a portion of the GP's carry to secure any future clawback obligation", "C": "Increases leverage", "D": "Waives the hurdle"}, "answer": "B", "explanation": "Carry escrow/holdback retains carry to secure future clawback."}, {"n": 9, "prompt": "A joint-and-several vs several clawback guarantee matters because it determines:", "options": {"A": "The entry multiple", "B": "Whether individual GP principals are each liable for the whole clawback or only their share", "C": "The exit route", "D": "The fund's domicile"}, "answer": "B", "explanation": "J&S vs several determines whether each principal is liable for the whole clawback or just their share."}, {"n": 10, "prompt": "The preferred return can compound. \"Compounding\" the hurdle means:", "options": {"A": "The hurdle is a one-off flat amount", "B": "The required LP return accrues on prior unpaid preferred return, growing over time", "C": "The GP earns carry first", "D": "LPs forgo their capital"}, "answer": "B", "explanation": "A compounding hurdle accrues on prior unpaid preferred return."}, {"n": 11, "prompt": "The timing of when the preferred return starts accruing (e.g., on drawdown) matters because it:", "options": {"A": "Has no effect on distributions", "B": "Changes how much LPs must receive before the GP earns carry", "C": "Sets the management fee", "D": "Determines the fund's legal form"}, "answer": "B", "explanation": "When the hurdle starts accruing changes how much LPs get before GP carry."}, {"n": 12, "prompt": "Common offshore fund domiciles (e.g., Cayman) are chosen mainly for:", "options": {"A": "High local taxes", "B": "Tax neutrality, legal familiarity, and flexibility for a global LP base", "C": "Mandatory public disclosure", "D": "Guaranteed returns"}, "answer": "B", "explanation": "Offshore domiciles offer tax neutrality, legal familiarity, and flexibility for global LPs."}, {"n": 13, "prompt": "Luxembourg and Delaware are also common domiciles because they offer:", "options": {"A": "Retail-only access", "B": "Established fund structures, legal certainty, and access to particular investor bases (e.g., EU via Luxembourg)", "C": "No regulation at all", "D": "Government-guaranteed carry"}, "answer": "B", "explanation": "Luxembourg/Delaware offer established structures, legal certainty, and investor-base access."}, {"n": 14, "prompt": "ILPA (Institutional Limited Partners Association) publishes Principles that:", "options": {"A": "Set legally binding rules for all funds", "B": "Recommend best practices on alignment of interests, governance, and transparency", "C": "Determine the entry multiple", "D": "Regulate high-yield bonds"}, "answer": "B", "explanation": "ILPA Principles are recommended best practices, not binding law."}, {"n": 15, "prompt": "The three broad pillars of the ILPA Principles concern:", "options": {"A": "Leverage, liquidity, and duration", "B": "Alignment of interests, governance, and transparency", "C": "Sourcing, diligence, and exit", "D": "Comps, precedents, and DCF"}, "answer": "B", "explanation": "ILPA's pillars: alignment of interests, governance, and transparency."}, {"n": 16, "prompt": "Why do many top-tier GPs deviate from ILPA recommendations?", "options": {"A": "ILPA forbids deviation", "B": "Strong demand for access lets sought-after GPs negotiate more GP-favourable terms", "C": "LPs prefer worse terms", "D": "Regulators require deviation"}, "answer": "B", "explanation": "High demand for access lets top GPs negotiate more GP-favourable terms."}, {"n": 17, "prompt": "\"Key person\" provisions in an LPA protect LPs by:", "options": {"A": "Guaranteeing returns", "B": "Suspending new investments (or triggering LP rights) if named senior professionals stop devoting time to the fund", "C": "Increasing the management fee", "D": "Setting the domicile"}, "answer": "B", "explanation": "Key-person clauses suspend investing (or trigger rights) if named leaders leave."}, {"n": 18, "prompt": "A \"no-fault divorce\" clause allows LPs (usually a supermajority) to:", "options": {"A": "Increase carry", "B": "Remove the GP or terminate the fund without cause, subject to thresholds", "C": "Force new investments", "D": "Waive the hurdle"}, "answer": "B", "explanation": "No-fault divorce lets a supermajority remove the GP/terminate without cause."}, {"n": 19, "prompt": "GP \"removal for cause\" typically requires:", "options": {"A": "A simple majority vote at any time", "B": "Defined bad acts (e.g., fraud, gross negligence, material breach), often with a lower LP vote threshold than no-fault", "C": "No vote at all", "D": "Regulator approval only"}, "answer": "B", "explanation": "For-cause removal needs defined bad acts, often at a lower vote threshold."}, {"n": 20, "prompt": "Transparency-oriented ILPA guidance pushes GPs toward:", "options": {"A": "Less frequent reporting", "B": "Standardised fee, expense, and performance reporting templates for LPs", "C": "Hiding portfolio valuations", "D": "Eliminating audits"}, "answer": "B", "explanation": "ILPA pushes standardised fee/expense/performance reporting templates."}, {"n": 21, "prompt": "In a whole-fund (European) waterfall, clawback risk is lower because:", "options": {"A": "Carry is paid deal by deal", "B": "The GP earns carry only after LPs receive all capital plus the preferred return, reducing overpayment risk", "C": "There is no hurdle", "D": "LPs bear all losses"}, "answer": "B", "explanation": "Whole-fund carry comes only after capital + preferred return, lowering clawback risk."}, {"n": 22, "prompt": "The management fee is usually paid to the management company and the carried interest usually flows to:", "options": {"A": "The LPs", "B": "A separate \"carry vehicle\" / the GP (special limited partner) entity", "C": "The fund's lenders", "D": "The portfolio companies"}, "answer": "B", "explanation": "Carry flows to a carry vehicle / GP (special LP) entity, not LPs."}, {"n": 23, "prompt": "Which document would an LP read first to understand the fund's economic terms?", "options": {"A": "The company's marketing teaser", "B": "The LPA (and side letters)", "C": "The debt schedule", "D": "A press release"}, "answer": "B", "explanation": "The LPA (plus side letters) sets the economic terms an LP checks first."}, {"n": 24, "prompt": "A \"GP commitment\" appearing in the LPA aligns interests by:", "options": {"A": "Giving the GP a fixed fee", "B": "Requiring the GP to invest its own capital in the fund alongside LPs", "C": "Removing the hurdle", "D": "Increasing leverage"}, "answer": "B", "explanation": "The GP commitment requires the GP to co-invest its own capital."}, {"n": 25, "prompt": "Reading an LPA, an LP wants to confirm the GP cannot pay itself carry before LPs are made whole. The relevant terms are the:", "options": {"A": "Entry multiple and exit multiple", "B": "Waterfall type (whole-fund vs deal-by-deal), preferred return, catch-up, and clawback/escrow provisions", "C": "Domicile and legal form only", "D": "Management fee step-down alone"}, "answer": "B", "explanation": "Waterfall type, preferred return, catch-up, and clawback/escrow govern carry timing."}]};
+const LS = 'pe-test::'+DATA.phase;
+const el = id => document.getElementById(id);
+const LETTERS = ['A','B','C','D'];
+let picks = {};   // n -> letter
+let graded = false;
+
+el('ttitle').textContent = DATA.title;
+el('h1').textContent = DATA.title;
+el('intro').innerHTML = DATA.questions.length+' multiple-choice questions. Choose one answer per question, then press '+
+  '<b>Submit test</b>. You need <b>'+DATA.pass_mark+'/'+DATA.questions.length+'</b> ('+
+  Math.round(DATA.pass_mark/DATA.questions.length*100)+'%) to pass. Answers and explanations reveal on submit.';
+
+const qwrap = el('questions');
+DATA.questions.forEach(q=>{
+  const card = document.createElement('div');
+  card.className='q unanswered'; card.id='q'+q.n;
+  // Shuffle options so the correct choice isn't positionally predictable
+  // (authored keys cluster on one letter). Remap to fresh display letters and
+  // record the correct display letter on the question.
+  let entries = LETTERS.filter(L=>q.options[L]).map(L=>({orig:L, text:q.options[L]}));
+  for(let i=entries.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=entries[i]; entries[i]=entries[j]; entries[j]=t; }
+  let opts = '';
+  entries.forEach((e,idx)=>{
+    const D = LETTERS[idx];
+    if(e.orig===q.answer) q._correct = D;
+    opts += '<div class="opt" data-n="'+q.n+'" data-l="'+D+'"><span class="let">'+D+'</span><span>'+e.text+'</span></div>';
+  });
+  card.innerHTML = '<div class="qh"><span class="n">Q'+q.n+'</span>'+q.prompt+'</div>'+opts+
+    '<div class="expl" id="expl'+q.n+'"></div>';
+  qwrap.appendChild(card);
+});
+
+qwrap.addEventListener('click', e=>{
+  if(graded) return;
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  const n = opt.dataset.n, L = opt.dataset.l;
+  picks[n] = L;
+  const card = el('q'+n);
+  card.classList.remove('unanswered');
+  card.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel', o.dataset.l===L));
+  updateStatus();
+});
+
+function updateStatus(){
+  const done = Object.keys(picks).length, total = DATA.questions.length;
+  el('status').textContent = graded ? '' : done+' of '+total+' answered'+(done<total?'':' — ready to submit');
+}
+updateStatus();
+
+el('submit').onclick = ()=>{
+  const total = DATA.questions.length, done = Object.keys(picks).length;
+  if(done<total){
+    const miss = DATA.questions.filter(q=>!picks[q.n]);
+    if(!confirm(done+' of '+total+' answered. '+(total-done)+' left blank will be marked wrong. Submit anyway?')){
+      miss.forEach(q=>{ const c=el('q'+q.n); c.classList.add('flagged'); });
+      if(miss[0]) el('q'+miss[0].n).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
+  grade();
+};
+
+function grade(){
+  graded = true;
+  let correct = 0;
+  DATA.questions.forEach(q=>{
+    const card = el('q'+q.n); card.classList.add('graded');
+    const pick = picks[q.n];
+    const ans = q._correct;   // display letter of the correct option (post-shuffle)
+    if(pick===ans) correct++;
+    card.querySelectorAll('.opt').forEach(o=>{
+      const L=o.dataset.l;
+      if(L===ans) o.classList.add('correct');
+      if(L===pick && pick!==ans) o.classList.add('wrongpick');
+    });
+    const ex = el('expl'+q.n);
+    const got = pick===ans;
+    ex.className = 'expl '+(got?'ok':'no');
+    ex.innerHTML = '<b>'+(got?'Correct':(pick?'Not quite':'No answer'))+' — answer '+ans+'.</b> '+(q.explanation||'');
+  });
+  const total = DATA.questions.length, pct = Math.round(correct/total*100);
+  const pass = correct>=DATA.pass_mark;
+  const r = el('result');
+  r.className = 'result '+(pass?'pass':'fail'); r.style.display='block';
+  r.innerHTML = '<span class="big">'+correct+' / '+total+'  ·  '+pct+'%</span>'+
+    (pass ? 'Passed — you cleared this phase. Review any misses, then continue to the next phase.'
+          : 'Below the '+DATA.pass_mark+'/'+total+' pass mark. Review the explanations and the linked notes, then retake cold.');
+  el('tscore').textContent = correct+'/'+total+' ('+pct+'%)';
+  el('status').textContent = 'Scored '+correct+'/'+total+'. Scroll to review explanations.';
+  el('submit').disabled = true; el('submit').style.display='none';
+  el('retry').style.display='inline-block';
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS)||'{}');
+    localStorage.setItem(LS, JSON.stringify({best: Math.max(correct, prev.best||0), last: correct, total: total}));
+  } catch(e){}
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+el('retry').onclick = ()=>{
+  graded=false; picks={};
+  el('result').style.display='none';
+  el('tscore').textContent='';
+  el('submit').disabled=false; el('submit').style.display='inline-block';
+  el('retry').style.display='none';
+  document.querySelectorAll('.q').forEach(c=>{ c.className='q unanswered'; });
+  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrongpick'));
+  updateStatus();
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+try {
+  const s = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(s.best!=null) el('tscore').textContent = 'Best: '+s.best+'/'+s.total;
+} catch(e){}
+</script>
+</body>
+</html>

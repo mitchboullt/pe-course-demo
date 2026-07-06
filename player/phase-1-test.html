@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase Test — Interactive Course</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line);
+         position:sticky; top:0; background:rgba(15,20,25,.94); backdrop-filter:blur(6px); z-index:10; }
+  .top a.home { color:var(--mut); text-decoration:none; font-size:13px; }
+  .top a.home:hover { color:var(--accent); }
+  .top .title { font-weight:700; flex:1; font-size:15px; }
+  .top .score { font-size:13px; color:var(--mut); }
+  .wrap { max-width:820px; margin:0 auto; padding:26px 22px 90px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .intro { color:var(--mut); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0 26px; }
+  .q { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .q.unanswered.flagged { border-color:var(--warn); }
+  .qh { font-weight:600; margin-bottom:12px; }
+  .qh .n { color:var(--accent); margin-right:8px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+         margin:7px 0; cursor:pointer; transition:background .12s,border-color .12s; }
+  .opt:hover { background:#10161e; }
+  .opt.sel { border-color:var(--accent); background:rgba(79,156,249,.10); }
+  .opt .let { font-weight:700; color:var(--mut); flex:none; width:20px; }
+  .opt.sel .let { color:var(--accent); }
+  .graded .opt { cursor:default; }
+  .graded .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .graded .opt.correct .let { color:var(--good); }
+  .graded .opt.wrongpick { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .graded .opt.wrongpick .let { color:var(--bad); }
+  .expl { display:none; margin-top:12px; padding:11px 13px; border-left:3px solid var(--accent);
+          background:#0c1117; border-radius:0 8px 8px 0; color:#c9d4e0; font-size:14px; }
+  .graded .expl { display:block; }
+  .expl.ok { border-left-color:var(--good); }
+  .expl.no { border-left-color:var(--bad); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(15,20,25,.97); border-top:1px solid var(--line);
+         padding:12px 22px; display:flex; align-items:center; gap:16px; }
+  .bar .status { flex:1; color:var(--mut); font-size:13.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:9px; padding:11px 20px; }
+  #submit { background:var(--good); color:#fff; }
+  #submit:disabled { background:#39414d; color:#8b98a8; cursor:not-allowed; }
+  #retry { background:var(--panel); color:var(--ink); border:1px solid var(--line); display:none; }
+  .result { display:none; text-align:center; padding:22px; border-radius:14px; margin:8px 0 22px; font-size:16px; }
+  .result.pass { background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.4); }
+  .result.fail { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+  .result .big { font-size:34px; font-weight:800; display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="pe-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0d1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:30px 32px;max-width:360px;width:88%;text-align:center;color:#e6edf3;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="font-size:21px;font-weight:700;margin-bottom:6px">Private Equity Course</div>
+    <div style="color:#8b949e;font-size:13.5px;margin-bottom:18px">Enter your access code to continue.</div>
+    <input id="pe-gate-input" type="password" placeholder="Access code" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:15px;outline:none">
+    <div id="pe-gate-err" style="color:#f85149;font-size:12.5px;height:15px;margin:8px 0 2px"></div>
+    <button id="pe-gate-btn" style="width:100%;padding:11px;border:0;border-radius:8px;background:#238636;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH="2ab47ce2424d6043168f930c79e3931f57f9e86ad33a8e35c2e9b6d3f1444924";
+  var g=document.getElementById('pe-gate');
+  if(localStorage.getItem('pe_demo_ok')==='1'){ g.remove(); return; }
+  document.documentElement.style.overflow='hidden';
+  var inp=document.getElementById('pe-gate-input'), err=document.getElementById('pe-gate-err');
+  try{ inp.focus(); }catch(e){}
+  async function sha(s){ var b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }
+  async function submit(){
+    var v=inp.value; if(!v) return;
+    var h; try{ h=await sha(v); }catch(e){ err.textContent='Browser too old'; return; }
+    if(h===HASH){ localStorage.setItem('pe_demo_ok','1'); localStorage.setItem('pe_demo_code',v); document.documentElement.style.overflow=''; g.remove(); }
+    else { err.textContent='Incorrect code'; inp.value=''; inp.focus(); }
+  }
+  document.getElementById('pe-gate-btn').onclick=submit;
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+})();
+</script>
+<div class="top">
+  <a class="home" href="../index.html">☰ All lessons</a>
+  <span class="title" id="ttitle"></span>
+  <span class="score" id="tscore"></span>
+</div>
+<div class="wrap">
+  <h1 id="h1"></h1>
+  <div class="intro" id="intro"></div>
+  <div class="result" id="result"></div>
+  <div id="questions"></div>
+</div>
+<div class="bar">
+  <span class="status" id="status"></span>
+  <button id="retry">Retry</button>
+  <button id="submit">Submit test</button>
+</div>
+<script>
+const DATA = {"phase": "1", "title": "Phase 1 Test — Fund Economics", "pass_mark": 20, "questions": [{"n": 1, "prompt": "A capital call is:", "options": {"A": "A distribution of profits to LPs", "B": "The GP drawing down committed capital from LPs to fund an investment or expense", "C": "A loan from the fund to a portfolio company", "D": "The GP's management fee"}, "answer": "B", "explanation": "A capital call draws down committed capital to fund investments/expenses."}, {"n": 2, "prompt": "In the classic \"2 and 20\" structure, the \"2\" refers to:", "options": {"A": "A 2% carried interest", "B": "An annual management fee of roughly 2% of committed capital", "C": "A 2-year fund life", "D": "A 2% hurdle rate"}, "answer": "B", "explanation": "The \"2\" is the ~2% annual management fee on committed capital."}, {"n": 3, "prompt": "Carried interest is:", "options": {"A": "A fixed annual fee regardless of performance", "B": "The GP's share of the fund's profits, commonly ~20%, earned above a hurdle", "C": "Interest paid on the fund's debt", "D": "A fee charged to portfolio companies"}, "answer": "B", "explanation": "Carry is the GP's profit share (~20%) earned above the hurdle."}, {"n": 4, "prompt": "The preferred return (hurdle rate) is the:", "options": {"A": "Maximum return LPs can earn", "B": "Minimum annualised return LPs must receive before the GP earns carry", "C": "Interest rate on subscription lines", "D": "GP's guaranteed fee"}, "answer": "B", "explanation": "The hurdle is the minimum LP return before the GP earns carry."}, {"n": 5, "prompt": "A common preferred return in buyout funds is approximately:", "options": {"A": "0%", "B": "8%", "C": "25%", "D": "50%"}, "answer": "B", "explanation": "~8% is the standard buyout preferred return."}, {"n": 6, "prompt": "In a standard European (\"whole-fund\") waterfall, carry is calculated:", "options": {"A": "Deal by deal, immediately on each exit", "B": "On the fund as a whole, only after LPs receive all contributed capital plus the preferred return", "C": "Before LPs receive any capital back", "D": "Only at the fund's legal dissolution date, never before"}, "answer": "B", "explanation": "European/whole-fund carry is computed fund-wide after LPs get capital + preferred return back."}, {"n": 7, "prompt": "The \"GP catch-up\" provision:", "options": {"A": "Lets LPs recover losses from the GP", "B": "Allows the GP to receive a large share (often 100%) of profits after the hurdle until the GP has \"caught up\" to its target carry split", "C": "Caps the GP's carry at the hurdle rate", "D": "Is a penalty paid by the GP"}, "answer": "B", "explanation": "The catch-up lets the GP take a high share after the hurdle until it reaches its target carry split."}, {"n": 8, "prompt": "The J-curve describes:", "options": {"A": "The shape of a fund's debt amortisation", "B": "The tendency for a fund's net returns to be negative early (fees + slow value) and turn positive as investments mature and exit", "C": "The rise in management fees over time", "D": "The hurdle rate compounding"}, "answer": "B", "explanation": "The J-curve is early-negative, later-positive net returns."}, {"n": 9, "prompt": "What primarily drives the *downward* early portion of the J-curve?", "options": {"A": "Large early distributions", "B": "Management fees and costs drawn before any exits generate gains", "C": "The GP's catch-up", "D": "High preferred returns"}, "answer": "B", "explanation": "Early fees and costs precede exits, driving the initial dip."}, {"n": 10, "prompt": "A distribution to LPs is:", "options": {"A": "Capital called from LPs", "B": "Cash (or stock) returned to LPs from realisations or income", "C": "The GP's management fee", "D": "A capital commitment"}, "answer": "B", "explanation": "A distribution returns cash/stock to LPs from realisations or income."}, {"n": 11, "prompt": "\"Committed capital\" versus \"called capital\": the difference is that committed capital is:", "options": {"A": "Already sitting in the fund's bank account", "B": "The total pledged amount, only part of which may be drawn (called) at any given time", "C": "Always fully drawn on day one", "D": "The same thing as distributed capital"}, "answer": "B", "explanation": "Committed = pledged total; called = the portion actually drawn."}, {"n": 12, "prompt": "A clawback provision protects LPs by:", "options": {"A": "Letting the GP recall distributions from LPs", "B": "Requiring the GP to return previously received carry if, at the end, the GP was overpaid relative to the agreed split", "C": "Guaranteeing LPs a fixed return", "D": "Increasing management fees"}, "answer": "B", "explanation": "Clawback forces the GP to return excess carry if it was overpaid."}, {"n": 13, "prompt": "Fund A calls $100m from LPs, invests it, and later returns $250m. Before carry and hurdle, the gross multiple (MOIC) is:", "options": {"A": "1.0x", "B": "1.5x", "C": "2.5x", "D": "25x"}, "answer": "C", "explanation": "$250m / $100m = 2.5x."}, {"n": 14, "prompt": "Many funds \"step down\" the management fee after the investment period. Why?", "options": {"A": "Because the GP no longer needs income", "B": "Because active new-deal sourcing ends, and fees often shift from committed to invested capital", "C": "Because LPs demand higher fees later", "D": "Because carry replaces all fees"}, "answer": "B", "explanation": "Post-investment-period, sourcing ends and fees often shift to invested capital, so they step down."}, {"n": 15, "prompt": "With an 8% preferred return and a 100% catch-up to a 20% carry, once the catch-up is complete the GP receives what share of *additional* profits?", "options": {"A": "8%", "B": "20%", "C": "80%", "D": "100%"}, "answer": "B", "explanation": "After the catch-up, incremental profit splits at the carry rate — 20% to the GP."}, {"n": 16, "prompt": "A capital call notice typically gives LPs:", "options": {"A": "No notice — funds are taken instantly", "B": "A defined notice period (often ~10 business days) to wire the called amount", "C": "One year to pay", "D": "The option to decline without penalty"}, "answer": "B", "explanation": "Calls come with a defined notice period (commonly ~10 business days)."}, {"n": 17, "prompt": "What happens if an LP defaults on a capital call?", "options": {"A": "Nothing — calls are optional", "B": "The LPA usually imposes penalties, up to forfeiture or forced sale of the LP's interest at a discount", "C": "The GP absorbs the shortfall permanently", "D": "The fund is dissolved"}, "answer": "B", "explanation": "Default triggers LPA penalties up to forfeiture/forced discounted sale of the interest."}, {"n": 18, "prompt": "Which best explains why LPs care about the *timing* of calls and distributions, not just the totals?", "options": {"A": "Timing has no effect on returns", "B": "IRR is time-sensitive: later calls and earlier distributions raise IRR for the same cash multiple", "C": "Only the multiple matters to LPs", "D": "Distributions are always reinvested automatically"}, "answer": "B", "explanation": "IRR is time-weighted: later calls and earlier distributions raise it for the same multiple."}, {"n": 19, "prompt": "In a *deal-by-deal* (\"American\") waterfall compared with a whole-fund waterfall, the GP tends to:", "options": {"A": "Receive carry later", "B": "Receive carry earlier, because it is computed on each realised deal", "C": "Never receive carry", "D": "Pay a higher hurdle"}, "answer": "B", "explanation": "Deal-by-deal carry pays the GP earlier than whole-fund."}, {"n": 20, "prompt": "\"Return of capital\" as a waterfall tier means LPs first receive back:", "options": {"A": "Only their profits", "B": "Their contributed capital (and often fees/expenses) before profit is split", "C": "The GP's carry", "D": "The preferred return only"}, "answer": "B", "explanation": "Return of capital returns LP contributions (and usually fees) before profit splits."}, {"n": 21, "prompt": "Recycling (reinvestment) provisions allow the GP to:", "options": {"A": "Re-use returned capital to make new investments rather than distributing it, within limits", "B": "Charge carry twice", "C": "Avoid the hurdle", "D": "Extend the preferred return"}, "answer": "A", "explanation": "Recycling lets returned capital be reinvested within limits instead of distributed."}, {"n": 22, "prompt": "Which statement about management fees is most accurate?", "options": {"A": "They are contingent on the fund making a profit", "B": "They are charged regardless of performance and fund the GP's operations", "C": "They are paid by portfolio companies, never LPs", "D": "They replace carried interest"}, "answer": "B", "explanation": "Management fees are performance-independent and fund GP operations."}, {"n": 23, "prompt": "An LP commits $50m to a fund. Over three years the GP calls $20m, $15m, and $10m. How much of the commitment remains uncalled after year three?", "options": {"A": "$0m", "B": "$5m", "C": "$15m", "D": "$45m"}, "answer": "B", "explanation": "$50m − ($20m+$15m+$10m = $45m) = $5m uncalled."}, {"n": 24, "prompt": "Why does carried interest align the GP with LPs better than management fees alone?", "options": {"A": "Carry is paid regardless of returns", "B": "Carry only pays out after LPs earn their capital back plus the hurdle, so the GP profits mainly when LPs do", "C": "Carry is a fixed percentage of committed capital", "D": "Carry is unrelated to fund performance"}, "answer": "B", "explanation": "Carry pays mainly after LPs recover capital + hurdle, aligning GP with LP outcomes."}, {"n": 25, "prompt": "Tracing one dollar end-to-end: which path is correct?", "options": {"A": "Distribution → capital call → investment → commitment", "B": "Commitment → capital call → portfolio investment → exit → distribution (through the waterfall)", "C": "Investment → commitment → distribution → capital call", "D": "Capital call → distribution → commitment → exit"}, "answer": "B", "explanation": "Commitment → call → invest → exit → distribution (via the waterfall) is the full path."}]};
+const LS = 'pe-test::'+DATA.phase;
+const el = id => document.getElementById(id);
+const LETTERS = ['A','B','C','D'];
+let picks = {};   // n -> letter
+let graded = false;
+
+el('ttitle').textContent = DATA.title;
+el('h1').textContent = DATA.title;
+el('intro').innerHTML = DATA.questions.length+' multiple-choice questions. Choose one answer per question, then press '+
+  '<b>Submit test</b>. You need <b>'+DATA.pass_mark+'/'+DATA.questions.length+'</b> ('+
+  Math.round(DATA.pass_mark/DATA.questions.length*100)+'%) to pass. Answers and explanations reveal on submit.';
+
+const qwrap = el('questions');
+DATA.questions.forEach(q=>{
+  const card = document.createElement('div');
+  card.className='q unanswered'; card.id='q'+q.n;
+  // Shuffle options so the correct choice isn't positionally predictable
+  // (authored keys cluster on one letter). Remap to fresh display letters and
+  // record the correct display letter on the question.
+  let entries = LETTERS.filter(L=>q.options[L]).map(L=>({orig:L, text:q.options[L]}));
+  for(let i=entries.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=entries[i]; entries[i]=entries[j]; entries[j]=t; }
+  let opts = '';
+  entries.forEach((e,idx)=>{
+    const D = LETTERS[idx];
+    if(e.orig===q.answer) q._correct = D;
+    opts += '<div class="opt" data-n="'+q.n+'" data-l="'+D+'"><span class="let">'+D+'</span><span>'+e.text+'</span></div>';
+  });
+  card.innerHTML = '<div class="qh"><span class="n">Q'+q.n+'</span>'+q.prompt+'</div>'+opts+
+    '<div class="expl" id="expl'+q.n+'"></div>';
+  qwrap.appendChild(card);
+});
+
+qwrap.addEventListener('click', e=>{
+  if(graded) return;
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  const n = opt.dataset.n, L = opt.dataset.l;
+  picks[n] = L;
+  const card = el('q'+n);
+  card.classList.remove('unanswered');
+  card.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel', o.dataset.l===L));
+  updateStatus();
+});
+
+function updateStatus(){
+  const done = Object.keys(picks).length, total = DATA.questions.length;
+  el('status').textContent = graded ? '' : done+' of '+total+' answered'+(done<total?'':' — ready to submit');
+}
+updateStatus();
+
+el('submit').onclick = ()=>{
+  const total = DATA.questions.length, done = Object.keys(picks).length;
+  if(done<total){
+    const miss = DATA.questions.filter(q=>!picks[q.n]);
+    if(!confirm(done+' of '+total+' answered. '+(total-done)+' left blank will be marked wrong. Submit anyway?')){
+      miss.forEach(q=>{ const c=el('q'+q.n); c.classList.add('flagged'); });
+      if(miss[0]) el('q'+miss[0].n).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
+  grade();
+};
+
+function grade(){
+  graded = true;
+  let correct = 0;
+  DATA.questions.forEach(q=>{
+    const card = el('q'+q.n); card.classList.add('graded');
+    const pick = picks[q.n];
+    const ans = q._correct;   // display letter of the correct option (post-shuffle)
+    if(pick===ans) correct++;
+    card.querySelectorAll('.opt').forEach(o=>{
+      const L=o.dataset.l;
+      if(L===ans) o.classList.add('correct');
+      if(L===pick && pick!==ans) o.classList.add('wrongpick');
+    });
+    const ex = el('expl'+q.n);
+    const got = pick===ans;
+    ex.className = 'expl '+(got?'ok':'no');
+    ex.innerHTML = '<b>'+(got?'Correct':(pick?'Not quite':'No answer'))+' — answer '+ans+'.</b> '+(q.explanation||'');
+  });
+  const total = DATA.questions.length, pct = Math.round(correct/total*100);
+  const pass = correct>=DATA.pass_mark;
+  const r = el('result');
+  r.className = 'result '+(pass?'pass':'fail'); r.style.display='block';
+  r.innerHTML = '<span class="big">'+correct+' / '+total+'  ·  '+pct+'%</span>'+
+    (pass ? 'Passed — you cleared this phase. Review any misses, then continue to the next phase.'
+          : 'Below the '+DATA.pass_mark+'/'+total+' pass mark. Review the explanations and the linked notes, then retake cold.');
+  el('tscore').textContent = correct+'/'+total+' ('+pct+'%)';
+  el('status').textContent = 'Scored '+correct+'/'+total+'. Scroll to review explanations.';
+  el('submit').disabled = true; el('submit').style.display='none';
+  el('retry').style.display='inline-block';
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS)||'{}');
+    localStorage.setItem(LS, JSON.stringify({best: Math.max(correct, prev.best||0), last: correct, total: total}));
+  } catch(e){}
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+el('retry').onclick = ()=>{
+  graded=false; picks={};
+  el('result').style.display='none';
+  el('tscore').textContent='';
+  el('submit').disabled=false; el('submit').style.display='inline-block';
+  el('retry').style.display='none';
+  document.querySelectorAll('.q').forEach(c=>{ c.className='q unanswered'; });
+  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrongpick'));
+  updateStatus();
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+try {
+  const s = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(s.best!=null) el('tscore').textContent = 'Best: '+s.best+'/'+s.total;
+} catch(e){}
+</script>
+</body>
+</html>

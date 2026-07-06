@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase Test — Interactive Course</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line);
+         position:sticky; top:0; background:rgba(15,20,25,.94); backdrop-filter:blur(6px); z-index:10; }
+  .top a.home { color:var(--mut); text-decoration:none; font-size:13px; }
+  .top a.home:hover { color:var(--accent); }
+  .top .title { font-weight:700; flex:1; font-size:15px; }
+  .top .score { font-size:13px; color:var(--mut); }
+  .wrap { max-width:820px; margin:0 auto; padding:26px 22px 90px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .intro { color:var(--mut); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0 26px; }
+  .q { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .q.unanswered.flagged { border-color:var(--warn); }
+  .qh { font-weight:600; margin-bottom:12px; }
+  .qh .n { color:var(--accent); margin-right:8px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+         margin:7px 0; cursor:pointer; transition:background .12s,border-color .12s; }
+  .opt:hover { background:#10161e; }
+  .opt.sel { border-color:var(--accent); background:rgba(79,156,249,.10); }
+  .opt .let { font-weight:700; color:var(--mut); flex:none; width:20px; }
+  .opt.sel .let { color:var(--accent); }
+  .graded .opt { cursor:default; }
+  .graded .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .graded .opt.correct .let { color:var(--good); }
+  .graded .opt.wrongpick { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .graded .opt.wrongpick .let { color:var(--bad); }
+  .expl { display:none; margin-top:12px; padding:11px 13px; border-left:3px solid var(--accent);
+          background:#0c1117; border-radius:0 8px 8px 0; color:#c9d4e0; font-size:14px; }
+  .graded .expl { display:block; }
+  .expl.ok { border-left-color:var(--good); }
+  .expl.no { border-left-color:var(--bad); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(15,20,25,.97); border-top:1px solid var(--line);
+         padding:12px 22px; display:flex; align-items:center; gap:16px; }
+  .bar .status { flex:1; color:var(--mut); font-size:13.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:9px; padding:11px 20px; }
+  #submit { background:var(--good); color:#fff; }
+  #submit:disabled { background:#39414d; color:#8b98a8; cursor:not-allowed; }
+  #retry { background:var(--panel); color:var(--ink); border:1px solid var(--line); display:none; }
+  .result { display:none; text-align:center; padding:22px; border-radius:14px; margin:8px 0 22px; font-size:16px; }
+  .result.pass { background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.4); }
+  .result.fail { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+  .result .big { font-size:34px; font-weight:800; display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="pe-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0d1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:30px 32px;max-width:360px;width:88%;text-align:center;color:#e6edf3;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="font-size:21px;font-weight:700;margin-bottom:6px">Private Equity Course</div>
+    <div style="color:#8b949e;font-size:13.5px;margin-bottom:18px">Enter your access code to continue.</div>
+    <input id="pe-gate-input" type="password" placeholder="Access code" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:15px;outline:none">
+    <div id="pe-gate-err" style="color:#f85149;font-size:12.5px;height:15px;margin:8px 0 2px"></div>
+    <button id="pe-gate-btn" style="width:100%;padding:11px;border:0;border-radius:8px;background:#238636;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH="2ab47ce2424d6043168f930c79e3931f57f9e86ad33a8e35c2e9b6d3f1444924";
+  var g=document.getElementById('pe-gate');
+  if(localStorage.getItem('pe_demo_ok')==='1'){ g.remove(); return; }
+  document.documentElement.style.overflow='hidden';
+  var inp=document.getElementById('pe-gate-input'), err=document.getElementById('pe-gate-err');
+  try{ inp.focus(); }catch(e){}
+  async function sha(s){ var b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }
+  async function submit(){
+    var v=inp.value; if(!v) return;
+    var h; try{ h=await sha(v); }catch(e){ err.textContent='Browser too old'; return; }
+    if(h===HASH){ localStorage.setItem('pe_demo_ok','1'); localStorage.setItem('pe_demo_code',v); document.documentElement.style.overflow=''; g.remove(); }
+    else { err.textContent='Incorrect code'; inp.value=''; inp.focus(); }
+  }
+  document.getElementById('pe-gate-btn').onclick=submit;
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+})();
+</script>
+<div class="top">
+  <a class="home" href="../index.html">☰ All lessons</a>
+  <span class="title" id="ttitle"></span>
+  <span class="score" id="tscore"></span>
+</div>
+<div class="wrap">
+  <h1 id="h1"></h1>
+  <div class="intro" id="intro"></div>
+  <div class="result" id="result"></div>
+  <div id="questions"></div>
+</div>
+<div class="bar">
+  <span class="status" id="status"></span>
+  <button id="retry">Retry</button>
+  <button id="submit">Submit test</button>
+</div>
+<script>
+const DATA = {"phase": "4", "title": "Phase 4 Test — Valuation", "pass_mark": 20, "questions": [{"n": 1, "prompt": "EV/EBITDA is preferred over P/E in PE because it:", "options": {"A": "Ignores the capital structure and is comparable across differently levered firms", "B": "Is always larger", "C": "Uses net income", "D": "Excludes operating performance"}, "answer": "A", "explanation": "EV/EBITDA is capital-structure neutral, so it compares across differently levered firms."}, {"n": 2, "prompt": "To move from enterprise value to equity value you:", "options": {"A": "Add net debt", "B": "Subtract net debt (and other non-equity claims)", "C": "Add EBITDA", "D": "Multiply by the tax rate"}, "answer": "B", "explanation": "Equity value = EV − net debt (and other non-equity claims)."}, {"n": 3, "prompt": "A firm has EV of $500m, debt of $180m, and cash of $30m. Its equity value is:", "options": {"A": "$290m", "B": "$350m", "C": "$650m", "D": "$710m"}, "answer": "B", "explanation": "Net debt = 180 − 30 = 150; 500 − 150 = $350m equity."}, {"n": 4, "prompt": "Comparable company analysis (\"comps\") values a target using:", "options": {"A": "The company's own past transactions", "B": "Trading multiples of similar publicly listed peers", "C": "Discounted future cash flows", "D": "The LBO required return"}, "answer": "B", "explanation": "Comps use trading multiples of listed peers."}, {"n": 5, "prompt": "Precedent transaction analysis values a target using:", "options": {"A": "Multiples paid in comparable past M&A deals", "B": "Public trading multiples only", "C": "The dividend discount model", "D": "Book value"}, "answer": "A", "explanation": "Precedent transactions use multiples paid in comparable past deals."}, {"n": 6, "prompt": "Precedent transaction multiples typically include a control premium and therefore tend to be:", "options": {"A": "Lower than trading comps", "B": "Higher than trading comps", "C": "Identical to trading comps", "D": "Always equal to the DCF value"}, "answer": "B", "explanation": "Precedents embed a control premium, so they run higher than trading comps."}, {"n": 7, "prompt": "A DCF values a company as:", "options": {"A": "A multiple of last year's revenue", "B": "The present value of its projected free cash flows plus a terminal value, discounted at an appropriate rate", "C": "The average of peer share prices", "D": "Its liquidation value only"}, "answer": "B", "explanation": "DCF = PV of projected free cash flows + terminal value, discounted."}, {"n": 8, "prompt": "In a DCF, the discount rate used to value the whole enterprise is usually the:", "options": {"A": "Risk-free rate", "B": "Weighted average cost of capital (WACC)", "C": "Cost of equity only", "D": "Hurdle rate"}, "answer": "B", "explanation": "The enterprise DCF discounts unlevered cash flows at WACC."}, {"n": 9, "prompt": "The terminal value in a DCF typically represents:", "options": {"A": "A trivial part of total value", "B": "A large share of total value, often via a perpetuity growth or exit-multiple method", "C": "The company's cash balance", "D": "The entry multiple"}, "answer": "B", "explanation": "Terminal value is usually a large share of total DCF value."}, {"n": 10, "prompt": "\"LBO as a floor valuation\" means:", "options": {"A": "The LBO always produces the highest price a buyer will pay", "B": "The maximum a financial sponsor can pay while still hitting its required return sets a *floor* reference for what a company is worth to that buyer", "C": "The LBO value ignores debt", "D": "The LBO sets the ceiling above all strategic bids"}, "answer": "B", "explanation": "The LBO floor = max a sponsor can pay at its required return — a reference floor for that buyer."}, {"n": 11, "prompt": "Compared with a financial sponsor, a strategic buyer can often pay *more* because it:", "options": {"A": "Has no return requirement", "B": "Can realise synergies (cost/revenue) that a standalone sponsor cannot", "C": "Uses more leverage than a sponsor", "D": "Ignores valuation entirely"}, "answer": "B", "explanation": "Strategics can pay more thanks to synergies a standalone sponsor lacks."}, {"n": 12, "prompt": "EBITDA is used as a proxy for:", "options": {"A": "Net income after tax", "B": "Approximate operating cash flow before capital structure, tax, and non-cash charges", "C": "Free cash flow after capex", "D": "Dividends"}, "answer": "B", "explanation": "EBITDA proxies operating cash flow before capital structure, tax, and non-cash items."}, {"n": 13, "prompt": "A key weakness of EBITDA as a cash-flow proxy is that it ignores:", "options": {"A": "Revenue", "B": "Capital expenditures, working-capital needs, taxes, and interest", "C": "Gross margin", "D": "The company's name"}, "answer": "B", "explanation": "EBITDA ignores capex, working capital, taxes, and interest."}, {"n": 14, "prompt": "In selecting comps, the most important criterion is:", "options": {"A": "Companies in unrelated industries", "B": "Similar business model, size, growth, and margin profile", "C": "The largest companies available", "D": "Companies with the highest share price"}, "answer": "B", "explanation": "Good comps share business model, size, growth, and margins."}, {"n": 15, "prompt": "A target has EBITDA of $60m. Peers trade at 9x EV/EBITDA. Implied enterprise value is:", "options": {"A": "$60m", "B": "$540m", "C": "$69m", "D": "$9m"}, "answer": "B", "explanation": "9 × $60m = $540m implied EV."}, {"n": 16, "prompt": "\"Net debt\" equals:", "options": {"A": "Total debt plus cash", "B": "Total debt minus cash and cash equivalents", "C": "Equity minus debt", "D": "EBITDA minus interest"}, "answer": "B", "explanation": "Net debt = total debt − cash and equivalents."}, {"n": 17, "prompt": "Why do PE investors triangulate value across several methods rather than relying on one?", "options": {"A": "Regulators forbid single methods", "B": "Each method has different assumptions and biases; convergence increases confidence and ranges frame negotiation", "C": "DCF is always exactly right", "D": "Comps are illegal in private deals"}, "answer": "B", "explanation": "Triangulation offsets each method's biases and frames a negotiation range."}, {"n": 18, "prompt": "A DCF is *most* sensitive to which pair of assumptions?", "options": {"A": "The company's logo and headquarters", "B": "The discount rate (WACC) and the terminal growth/exit assumption", "C": "Last year's marketing spend", "D": "The number of employees"}, "answer": "B", "explanation": "DCFs are most sensitive to the discount rate and the terminal assumption."}, {"n": 19, "prompt": "If a sponsor's required IRR rises (e.g., costlier debt), the maximum price it can pay generally:", "options": {"A": "Rises", "B": "Falls", "C": "Is unchanged", "D": "Becomes infinite"}, "answer": "B", "explanation": "A higher required IRR lowers the maximum affordable price."}, {"n": 20, "prompt": "Which method most directly reflects what buyers have *actually paid* for control of similar businesses?", "options": {"A": "Trading comps", "B": "Precedent transactions", "C": "A dividend discount model", "D": "Book value"}, "answer": "B", "explanation": "Precedent transactions reflect prices actually paid for control."}, {"n": 21, "prompt": "A company with unusually high capex relative to peers should, all else equal, trade at:", "options": {"A": "A higher EV/EBITDA than peers because EBITDA ignores capex", "B": "A lower EV/EBITDA than peers, because EBITDA overstates its true cash generation", "C": "The same multiple regardless", "D": "An infinite multiple"}, "answer": "B", "explanation": "High-capex firms should trade at lower EV/EBITDA since EBITDA overstates their cash generation."}, {"n": 22, "prompt": "Unlevered free cash flow (used in an enterprise DCF) is calculated before deducting:", "options": {"A": "Capex", "B": "Interest expense (it is capital-structure neutral)", "C": "Taxes", "D": "Changes in working capital"}, "answer": "B", "explanation": "Unlevered FCF is before interest — capital-structure neutral."}, {"n": 23, "prompt": "In a PE context, the DCF is often used to:", "options": {"A": "Replace all market-based methods", "B": "Sanity-check intrinsic value and test the business plan's cash-generation assumptions", "C": "Set management fees", "D": "Compute carried interest"}, "answer": "B", "explanation": "In PE the DCF sanity-checks intrinsic value and the plan's cash assumptions."}, {"n": 24, "prompt": "Two otherwise-identical firms differ only in leverage. Their EV/EBITDA multiples should be:", "options": {"A": "Very different, because EV/EBITDA depends on leverage", "B": "Broadly similar, because EV/EBITDA is capital-structure neutral", "C": "Zero for the levered firm", "D": "Impossible to compare"}, "answer": "B", "explanation": "EV/EBITDA is capital-structure neutral, so the two should be broadly similar."}, {"n": 25, "prompt": "A sponsor triangulates: comps imply ~$520m, precedents ~$580m, DCF ~$500m, and the LBO floor (max it can pay at target IRR) is ~$470m. The LBO floor tells the sponsor:", "options": {"A": "It must bid at least $580m", "B": "Paying much above ~$470m starts to compress its returns below target — a discipline anchor in the auction", "C": "Valuation is irrelevant", "D": "The company is worthless"}, "answer": "B", "explanation": "The LBO floor warns that paying much above ~$470m compresses returns below target — auction discipline."}]};
+const LS = 'pe-test::'+DATA.phase;
+const el = id => document.getElementById(id);
+const LETTERS = ['A','B','C','D'];
+let picks = {};   // n -> letter
+let graded = false;
+
+el('ttitle').textContent = DATA.title;
+el('h1').textContent = DATA.title;
+el('intro').innerHTML = DATA.questions.length+' multiple-choice questions. Choose one answer per question, then press '+
+  '<b>Submit test</b>. You need <b>'+DATA.pass_mark+'/'+DATA.questions.length+'</b> ('+
+  Math.round(DATA.pass_mark/DATA.questions.length*100)+'%) to pass. Answers and explanations reveal on submit.';
+
+const qwrap = el('questions');
+DATA.questions.forEach(q=>{
+  const card = document.createElement('div');
+  card.className='q unanswered'; card.id='q'+q.n;
+  // Shuffle options so the correct choice isn't positionally predictable
+  // (authored keys cluster on one letter). Remap to fresh display letters and
+  // record the correct display letter on the question.
+  let entries = LETTERS.filter(L=>q.options[L]).map(L=>({orig:L, text:q.options[L]}));
+  for(let i=entries.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=entries[i]; entries[i]=entries[j]; entries[j]=t; }
+  let opts = '';
+  entries.forEach((e,idx)=>{
+    const D = LETTERS[idx];
+    if(e.orig===q.answer) q._correct = D;
+    opts += '<div class="opt" data-n="'+q.n+'" data-l="'+D+'"><span class="let">'+D+'</span><span>'+e.text+'</span></div>';
+  });
+  card.innerHTML = '<div class="qh"><span class="n">Q'+q.n+'</span>'+q.prompt+'</div>'+opts+
+    '<div class="expl" id="expl'+q.n+'"></div>';
+  qwrap.appendChild(card);
+});
+
+qwrap.addEventListener('click', e=>{
+  if(graded) return;
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  const n = opt.dataset.n, L = opt.dataset.l;
+  picks[n] = L;
+  const card = el('q'+n);
+  card.classList.remove('unanswered');
+  card.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel', o.dataset.l===L));
+  updateStatus();
+});
+
+function updateStatus(){
+  const done = Object.keys(picks).length, total = DATA.questions.length;
+  el('status').textContent = graded ? '' : done+' of '+total+' answered'+(done<total?'':' — ready to submit');
+}
+updateStatus();
+
+el('submit').onclick = ()=>{
+  const total = DATA.questions.length, done = Object.keys(picks).length;
+  if(done<total){
+    const miss = DATA.questions.filter(q=>!picks[q.n]);
+    if(!confirm(done+' of '+total+' answered. '+(total-done)+' left blank will be marked wrong. Submit anyway?')){
+      miss.forEach(q=>{ const c=el('q'+q.n); c.classList.add('flagged'); });
+      if(miss[0]) el('q'+miss[0].n).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
+  grade();
+};
+
+function grade(){
+  graded = true;
+  let correct = 0;
+  DATA.questions.forEach(q=>{
+    const card = el('q'+q.n); card.classList.add('graded');
+    const pick = picks[q.n];
+    const ans = q._correct;   // display letter of the correct option (post-shuffle)
+    if(pick===ans) correct++;
+    card.querySelectorAll('.opt').forEach(o=>{
+      const L=o.dataset.l;
+      if(L===ans) o.classList.add('correct');
+      if(L===pick && pick!==ans) o.classList.add('wrongpick');
+    });
+    const ex = el('expl'+q.n);
+    const got = pick===ans;
+    ex.className = 'expl '+(got?'ok':'no');
+    ex.innerHTML = '<b>'+(got?'Correct':(pick?'Not quite':'No answer'))+' — answer '+ans+'.</b> '+(q.explanation||'');
+  });
+  const total = DATA.questions.length, pct = Math.round(correct/total*100);
+  const pass = correct>=DATA.pass_mark;
+  const r = el('result');
+  r.className = 'result '+(pass?'pass':'fail'); r.style.display='block';
+  r.innerHTML = '<span class="big">'+correct+' / '+total+'  ·  '+pct+'%</span>'+
+    (pass ? 'Passed — you cleared this phase. Review any misses, then continue to the next phase.'
+          : 'Below the '+DATA.pass_mark+'/'+total+' pass mark. Review the explanations and the linked notes, then retake cold.');
+  el('tscore').textContent = correct+'/'+total+' ('+pct+'%)';
+  el('status').textContent = 'Scored '+correct+'/'+total+'. Scroll to review explanations.';
+  el('submit').disabled = true; el('submit').style.display='none';
+  el('retry').style.display='inline-block';
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS)||'{}');
+    localStorage.setItem(LS, JSON.stringify({best: Math.max(correct, prev.best||0), last: correct, total: total}));
+  } catch(e){}
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+el('retry').onclick = ()=>{
+  graded=false; picks={};
+  el('result').style.display='none';
+  el('tscore').textContent='';
+  el('submit').disabled=false; el('submit').style.display='inline-block';
+  el('retry').style.display='none';
+  document.querySelectorAll('.q').forEach(c=>{ c.className='q unanswered'; });
+  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrongpick'));
+  updateStatus();
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+try {
+  const s = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(s.best!=null) el('tscore').textContent = 'Best: '+s.best+'/'+s.total;
+} catch(e){}
+</script>
+</body>
+</html>

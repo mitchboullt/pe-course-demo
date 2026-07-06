@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase Test — Interactive Course</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line);
+         position:sticky; top:0; background:rgba(15,20,25,.94); backdrop-filter:blur(6px); z-index:10; }
+  .top a.home { color:var(--mut); text-decoration:none; font-size:13px; }
+  .top a.home:hover { color:var(--accent); }
+  .top .title { font-weight:700; flex:1; font-size:15px; }
+  .top .score { font-size:13px; color:var(--mut); }
+  .wrap { max-width:820px; margin:0 auto; padding:26px 22px 90px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .intro { color:var(--mut); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0 26px; }
+  .q { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .q.unanswered.flagged { border-color:var(--warn); }
+  .qh { font-weight:600; margin-bottom:12px; }
+  .qh .n { color:var(--accent); margin-right:8px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+         margin:7px 0; cursor:pointer; transition:background .12s,border-color .12s; }
+  .opt:hover { background:#10161e; }
+  .opt.sel { border-color:var(--accent); background:rgba(79,156,249,.10); }
+  .opt .let { font-weight:700; color:var(--mut); flex:none; width:20px; }
+  .opt.sel .let { color:var(--accent); }
+  .graded .opt { cursor:default; }
+  .graded .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .graded .opt.correct .let { color:var(--good); }
+  .graded .opt.wrongpick { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .graded .opt.wrongpick .let { color:var(--bad); }
+  .expl { display:none; margin-top:12px; padding:11px 13px; border-left:3px solid var(--accent);
+          background:#0c1117; border-radius:0 8px 8px 0; color:#c9d4e0; font-size:14px; }
+  .graded .expl { display:block; }
+  .expl.ok { border-left-color:var(--good); }
+  .expl.no { border-left-color:var(--bad); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(15,20,25,.97); border-top:1px solid var(--line);
+         padding:12px 22px; display:flex; align-items:center; gap:16px; }
+  .bar .status { flex:1; color:var(--mut); font-size:13.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:9px; padding:11px 20px; }
+  #submit { background:var(--good); color:#fff; }
+  #submit:disabled { background:#39414d; color:#8b98a8; cursor:not-allowed; }
+  #retry { background:var(--panel); color:var(--ink); border:1px solid var(--line); display:none; }
+  .result { display:none; text-align:center; padding:22px; border-radius:14px; margin:8px 0 22px; font-size:16px; }
+  .result.pass { background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.4); }
+  .result.fail { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+  .result .big { font-size:34px; font-weight:800; display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="pe-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0d1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:30px 32px;max-width:360px;width:88%;text-align:center;color:#e6edf3;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="font-size:21px;font-weight:700;margin-bottom:6px">Private Equity Course</div>
+    <div style="color:#8b949e;font-size:13.5px;margin-bottom:18px">Enter your access code to continue.</div>
+    <input id="pe-gate-input" type="password" placeholder="Access code" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:15px;outline:none">
+    <div id="pe-gate-err" style="color:#f85149;font-size:12.5px;height:15px;margin:8px 0 2px"></div>
+    <button id="pe-gate-btn" style="width:100%;padding:11px;border:0;border-radius:8px;background:#238636;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH="2ab47ce2424d6043168f930c79e3931f57f9e86ad33a8e35c2e9b6d3f1444924";
+  var g=document.getElementById('pe-gate');
+  if(localStorage.getItem('pe_demo_ok')==='1'){ g.remove(); return; }
+  document.documentElement.style.overflow='hidden';
+  var inp=document.getElementById('pe-gate-input'), err=document.getElementById('pe-gate-err');
+  try{ inp.focus(); }catch(e){}
+  async function sha(s){ var b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }
+  async function submit(){
+    var v=inp.value; if(!v) return;
+    var h; try{ h=await sha(v); }catch(e){ err.textContent='Browser too old'; return; }
+    if(h===HASH){ localStorage.setItem('pe_demo_ok','1'); localStorage.setItem('pe_demo_code',v); document.documentElement.style.overflow=''; g.remove(); }
+    else { err.textContent='Incorrect code'; inp.value=''; inp.focus(); }
+  }
+  document.getElementById('pe-gate-btn').onclick=submit;
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+})();
+</script>
+<div class="top">
+  <a class="home" href="../index.html">☰ All lessons</a>
+  <span class="title" id="ttitle"></span>
+  <span class="score" id="tscore"></span>
+</div>
+<div class="wrap">
+  <h1 id="h1"></h1>
+  <div class="intro" id="intro"></div>
+  <div class="result" id="result"></div>
+  <div id="questions"></div>
+</div>
+<div class="bar">
+  <span class="status" id="status"></span>
+  <button id="retry">Retry</button>
+  <button id="submit">Submit test</button>
+</div>
+<script>
+const DATA = {"phase": "6", "title": "Phase 6 Test — LBO Deep Dive", "pass_mark": 20, "questions": [{"n": 1, "prompt": "The headline leverage ratio in an LBO is usually expressed as:", "options": {"A": "Debt / Equity", "B": "Total (or net) debt / EBITDA", "C": "EBITDA / Revenue", "D": "Price / Earnings"}, "answer": "B", "explanation": "Leverage is quoted as total/net debt ÷ EBITDA."}, {"n": 2, "prompt": "A company with $50m EBITDA carries $300m of net debt. Its leverage is:", "options": {"A": "3.0x", "B": "6.0x", "C": "0.17x", "D": "50x"}, "answer": "B", "explanation": "$300m / $50m = 6.0x."}, {"n": 3, "prompt": "The interest coverage ratio (e.g., EBITDA / interest) measures:", "options": {"A": "How much debt can be raised", "B": "The company's ability to service interest from earnings — a safety cushion", "C": "The exit multiple", "D": "The equity contribution"}, "answer": "B", "explanation": "Interest coverage = ability to service interest from earnings — a safety cushion."}, {"n": 4, "prompt": "A lower interest coverage ratio implies:", "options": {"A": "A safer capital structure", "B": "Less cushion to cover interest — higher risk of distress", "C": "A higher exit multiple", "D": "Lower leverage"}, "answer": "B", "explanation": "Lower coverage = less cushion, higher distress risk."}, {"n": 5, "prompt": "The standard LBO model is often described as roughly six linked modules. Which is NOT one of them?", "options": {"A": "Sources & uses / transaction assumptions", "B": "Operating model (revenue, EBITDA)", "C": "Debt schedule", "D": "The GP's personal tax return"}, "answer": "D", "explanation": "The GP's personal tax return is not an LBO model module."}, {"n": 6, "prompt": "In a debt schedule, a \"cash flow sweep\" means:", "options": {"A": "Excess free cash flow is used to prepay debt", "B": "Cash is distributed to LPs each quarter", "C": "Interest is capitalised", "D": "Debt is drawn to fund dividends"}, "answer": "A", "explanation": "A cash sweep uses excess free cash flow to prepay debt."}, {"n": 7, "prompt": "Mandatory amortisation refers to:", "options": {"A": "Optional prepayments", "B": "Scheduled required repayments of principal over the loan's life", "C": "Interest accrual", "D": "The exit multiple"}, "answer": "B", "explanation": "Mandatory amortisation = scheduled required principal repayments."}, {"n": 8, "prompt": "The three key forward-looking exit assumptions in an LBO are:", "options": {"A": "Entry multiple, entry EBITDA, entry leverage", "B": "Exit year, exit EBITDA, and exit multiple", "C": "Fees, carry, hurdle", "D": "DSO, DPO, DIO"}, "answer": "B", "explanation": "Exit year, exit EBITDA, and exit multiple are the forward-looking exit inputs."}, {"n": 9, "prompt": "All else equal, assuming a *higher* exit multiple than entry multiple will:", "options": {"A": "Lower the modelled IRR", "B": "Raise the modelled IRR (multiple expansion)", "C": "Have no effect", "D": "Eliminate the debt"}, "answer": "B", "explanation": "A higher exit than entry multiple raises IRR via multiple expansion."}, {"n": 10, "prompt": "Sensitivity analysis in an LBO is used to:", "options": {"A": "Guarantee the base case", "B": "Show how IRR/MOIC change as key assumptions (entry/exit multiple, leverage, growth) vary", "C": "Compute management fees", "D": "Replace due diligence"}, "answer": "B", "explanation": "Sensitivity shows how returns move as key assumptions vary."}, {"n": 11, "prompt": "A two-variable sensitivity table most commonly flexes:", "options": {"A": "The GP's carry and hurdle", "B": "Entry multiple and exit multiple (or leverage and growth)", "C": "The fund's name and vintage", "D": "DSO and DPO"}, "answer": "B", "explanation": "Two-variable tables usually flex entry/exit multiple (or leverage/growth)."}, {"n": 12, "prompt": "\"Debt capacity\" is the:", "options": {"A": "Amount of equity a sponsor must contribute", "B": "Maximum sustainable debt a business's cash flows can support under lender criteria", "C": "Company's cash balance", "D": "Exit multiple"}, "answer": "B", "explanation": "Debt capacity = max sustainable debt the cash flows can support."}, {"n": 13, "prompt": "Lenders sizing an LBO focus most on:", "options": {"A": "The company's logo", "B": "Cash-flow stability, leverage and coverage ratios, and downside resilience", "C": "The GP's carry", "D": "The number of LPs"}, "answer": "B", "explanation": "Lenders focus on cash-flow stability, leverage/coverage, and downside resilience."}, {"n": 14, "prompt": "A maintenance covenant requires the borrower to:", "options": {"A": "Repay all debt immediately", "B": "Keep financial ratios (e.g., leverage, coverage) within limits, tested periodically", "C": "Never generate cash", "D": "Increase leverage each year"}, "answer": "B", "explanation": "Maintenance covenants require ratios to stay within limits, tested periodically."}, {"n": 15, "prompt": "Which lever most powerfully improves IRR without changing the operating business?", "options": {"A": "A longer hold at a flat multiple", "B": "Higher leverage at entry (more debt, less equity) — subject to feasibility and risk", "C": "Higher fees", "D": "A larger fund"}, "answer": "B", "explanation": "More entry leverage boosts IRR (subject to feasibility/risk)."}, {"n": 16, "prompt": "In an LBO, debt paydown increases equity value because:", "options": {"A": "It raises EBITDA", "B": "At exit, equity value = enterprise value − remaining net debt; less debt means more equity", "C": "It expands the exit multiple", "D": "It reduces the entry multiple"}, "answer": "B", "explanation": "At exit, equity = EV − net debt; less debt means more equity."}, {"n": 17, "prompt": "A company breaches a covenant. Typically the first consequence is:", "options": {"A": "Automatic liquidation", "B": "A default/event that gives lenders rights — waiver negotiations, fees, or restructuring", "C": "The GP earns carry", "D": "The LPs are called for more capital automatically"}, "answer": "B", "explanation": "A breach is a default/event giving lenders rights — waiver, fees, or restructuring."}, {"n": 18, "prompt": "In a distressed LBO, \"amend and extend\" refers to:", "options": {"A": "Immediately liquidating the company", "B": "Renegotiating loan terms (often extending maturity, adjusting covenants) to buy time", "C": "Paying a dividend to equity", "D": "Increasing the exit multiple"}, "answer": "B", "explanation": "Amend-and-extend renegotiates terms (maturity/covenants) to buy time."}, {"n": 19, "prompt": "A \"loan-to-own\" strategy involves a distressed investor:", "options": {"A": "Lending to LPs", "B": "Buying a company's debt cheaply to convert it into equity/control through restructuring", "C": "Repaying all debt at par", "D": "Selling equity to management"}, "answer": "B", "explanation": "Loan-to-own buys debt cheaply to convert into control via restructuring."}, {"n": 20, "prompt": "In the LBO model, free cash flow available for debt paydown is roughly:", "options": {"A": "Revenue minus COGS", "B": "EBITDA − cash interest − cash taxes − capex − change in working capital", "C": "EBITDA plus interest", "D": "Net income plus dividends"}, "answer": "B", "explanation": "FCF for debt ≈ EBITDA − cash interest − cash taxes − capex − ΔWC."}, {"n": 21, "prompt": "A company's EBITDA falls sharply mid-hold. The most immediate LBO risk is:", "options": {"A": "The exit multiple rises", "B": "Interest coverage deteriorates and the company may breach covenants or struggle to service debt", "C": "The entry multiple changes retroactively", "D": "The GP's fee falls"}, "answer": "B", "explanation": "Falling EBITDA erodes coverage and threatens covenants/debt service."}, {"n": 22, "prompt": "\"Deleveraging\" over the hold means:", "options": {"A": "Adding more debt", "B": "Reducing the net-debt-to-EBITDA ratio via debt repayment and/or EBITDA growth", "C": "Raising the entry multiple", "D": "Increasing working capital"}, "answer": "B", "explanation": "Deleveraging lowers net-debt/EBITDA via repayment and/or EBITDA growth."}, {"n": 23, "prompt": "A dividend recapitalisation:", "options": {"A": "Raises new equity", "B": "Raises new debt to pay a dividend to the equity owners, increasing leverage and de-risking their equity (while raising company risk)", "C": "Repays all debt", "D": "Reduces leverage"}, "answer": "B", "explanation": "A dividend recap raises new debt to pay equity, increasing leverage."}, {"n": 24, "prompt": "In sensitivity output, IRR is generally *most* sensitive to which pairing?", "options": {"A": "Office location and headcount", "B": "Entry and exit multiples (and leverage)", "C": "The fund's vintage name", "D": "The number of board seats"}, "answer": "B", "explanation": "IRR is most sensitive to entry/exit multiples and leverage."}, {"n": 25, "prompt": "A base-case LBO shows 22% IRR. The downside case (lower growth, multiple contraction) shows 6%. The right read is:", "options": {"A": "The deal is riskless", "B": "Returns depend heavily on assumptions that may not hold; the downside erodes most of the return, so margin of safety and the entry price matter", "C": "IRR cannot fall below the base case", "D": "Sensitivity analysis is irrelevant"}, "answer": "B", "explanation": "A wide base-to-downside spread shows return depends on assumptions — margin of safety and entry price matter."}]};
+const LS = 'pe-test::'+DATA.phase;
+const el = id => document.getElementById(id);
+const LETTERS = ['A','B','C','D'];
+let picks = {};   // n -> letter
+let graded = false;
+
+el('ttitle').textContent = DATA.title;
+el('h1').textContent = DATA.title;
+el('intro').innerHTML = DATA.questions.length+' multiple-choice questions. Choose one answer per question, then press '+
+  '<b>Submit test</b>. You need <b>'+DATA.pass_mark+'/'+DATA.questions.length+'</b> ('+
+  Math.round(DATA.pass_mark/DATA.questions.length*100)+'%) to pass. Answers and explanations reveal on submit.';
+
+const qwrap = el('questions');
+DATA.questions.forEach(q=>{
+  const card = document.createElement('div');
+  card.className='q unanswered'; card.id='q'+q.n;
+  // Shuffle options so the correct choice isn't positionally predictable
+  // (authored keys cluster on one letter). Remap to fresh display letters and
+  // record the correct display letter on the question.
+  let entries = LETTERS.filter(L=>q.options[L]).map(L=>({orig:L, text:q.options[L]}));
+  for(let i=entries.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=entries[i]; entries[i]=entries[j]; entries[j]=t; }
+  let opts = '';
+  entries.forEach((e,idx)=>{
+    const D = LETTERS[idx];
+    if(e.orig===q.answer) q._correct = D;
+    opts += '<div class="opt" data-n="'+q.n+'" data-l="'+D+'"><span class="let">'+D+'</span><span>'+e.text+'</span></div>';
+  });
+  card.innerHTML = '<div class="qh"><span class="n">Q'+q.n+'</span>'+q.prompt+'</div>'+opts+
+    '<div class="expl" id="expl'+q.n+'"></div>';
+  qwrap.appendChild(card);
+});
+
+qwrap.addEventListener('click', e=>{
+  if(graded) return;
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  const n = opt.dataset.n, L = opt.dataset.l;
+  picks[n] = L;
+  const card = el('q'+n);
+  card.classList.remove('unanswered');
+  card.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel', o.dataset.l===L));
+  updateStatus();
+});
+
+function updateStatus(){
+  const done = Object.keys(picks).length, total = DATA.questions.length;
+  el('status').textContent = graded ? '' : done+' of '+total+' answered'+(done<total?'':' — ready to submit');
+}
+updateStatus();
+
+el('submit').onclick = ()=>{
+  const total = DATA.questions.length, done = Object.keys(picks).length;
+  if(done<total){
+    const miss = DATA.questions.filter(q=>!picks[q.n]);
+    if(!confirm(done+' of '+total+' answered. '+(total-done)+' left blank will be marked wrong. Submit anyway?')){
+      miss.forEach(q=>{ const c=el('q'+q.n); c.classList.add('flagged'); });
+      if(miss[0]) el('q'+miss[0].n).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
+  grade();
+};
+
+function grade(){
+  graded = true;
+  let correct = 0;
+  DATA.questions.forEach(q=>{
+    const card = el('q'+q.n); card.classList.add('graded');
+    const pick = picks[q.n];
+    const ans = q._correct;   // display letter of the correct option (post-shuffle)
+    if(pick===ans) correct++;
+    card.querySelectorAll('.opt').forEach(o=>{
+      const L=o.dataset.l;
+      if(L===ans) o.classList.add('correct');
+      if(L===pick && pick!==ans) o.classList.add('wrongpick');
+    });
+    const ex = el('expl'+q.n);
+    const got = pick===ans;
+    ex.className = 'expl '+(got?'ok':'no');
+    ex.innerHTML = '<b>'+(got?'Correct':(pick?'Not quite':'No answer'))+' — answer '+ans+'.</b> '+(q.explanation||'');
+  });
+  const total = DATA.questions.length, pct = Math.round(correct/total*100);
+  const pass = correct>=DATA.pass_mark;
+  const r = el('result');
+  r.className = 'result '+(pass?'pass':'fail'); r.style.display='block';
+  r.innerHTML = '<span class="big">'+correct+' / '+total+'  ·  '+pct+'%</span>'+
+    (pass ? 'Passed — you cleared this phase. Review any misses, then continue to the next phase.'
+          : 'Below the '+DATA.pass_mark+'/'+total+' pass mark. Review the explanations and the linked notes, then retake cold.');
+  el('tscore').textContent = correct+'/'+total+' ('+pct+'%)';
+  el('status').textContent = 'Scored '+correct+'/'+total+'. Scroll to review explanations.';
+  el('submit').disabled = true; el('submit').style.display='none';
+  el('retry').style.display='inline-block';
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS)||'{}');
+    localStorage.setItem(LS, JSON.stringify({best: Math.max(correct, prev.best||0), last: correct, total: total}));
+  } catch(e){}
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+el('retry').onclick = ()=>{
+  graded=false; picks={};
+  el('result').style.display='none';
+  el('tscore').textContent='';
+  el('submit').disabled=false; el('submit').style.display='inline-block';
+  el('retry').style.display='none';
+  document.querySelectorAll('.q').forEach(c=>{ c.className='q unanswered'; });
+  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrongpick'));
+  updateStatus();
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+try {
+  const s = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(s.best!=null) el('tscore').textContent = 'Best: '+s.best+'/'+s.total;
+} catch(e){}
+</script>
+</body>
+</html>

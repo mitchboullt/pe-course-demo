@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase Test — Interactive Course</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a212b; --line:#2a3543; --ink:#e6edf3; --mut:#8b98a8;
+          --accent:#4f9cf9; --good:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line);
+         position:sticky; top:0; background:rgba(15,20,25,.94); backdrop-filter:blur(6px); z-index:10; }
+  .top a.home { color:var(--mut); text-decoration:none; font-size:13px; }
+  .top a.home:hover { color:var(--accent); }
+  .top .title { font-weight:700; flex:1; font-size:15px; }
+  .top .score { font-size:13px; color:var(--mut); }
+  .wrap { max-width:820px; margin:0 auto; padding:26px 22px 90px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .intro { color:var(--mut); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0 26px; }
+  .q { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .q.unanswered.flagged { border-color:var(--warn); }
+  .qh { font-weight:600; margin-bottom:12px; }
+  .qh .n { color:var(--accent); margin-right:8px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+         margin:7px 0; cursor:pointer; transition:background .12s,border-color .12s; }
+  .opt:hover { background:#10161e; }
+  .opt.sel { border-color:var(--accent); background:rgba(79,156,249,.10); }
+  .opt .let { font-weight:700; color:var(--mut); flex:none; width:20px; }
+  .opt.sel .let { color:var(--accent); }
+  .graded .opt { cursor:default; }
+  .graded .opt.correct { border-color:var(--good); background:rgba(63,185,80,.12); }
+  .graded .opt.correct .let { color:var(--good); }
+  .graded .opt.wrongpick { border-color:var(--bad); background:rgba(248,81,73,.12); }
+  .graded .opt.wrongpick .let { color:var(--bad); }
+  .expl { display:none; margin-top:12px; padding:11px 13px; border-left:3px solid var(--accent);
+          background:#0c1117; border-radius:0 8px 8px 0; color:#c9d4e0; font-size:14px; }
+  .graded .expl { display:block; }
+  .expl.ok { border-left-color:var(--good); }
+  .expl.no { border-left-color:var(--bad); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(15,20,25,.97); border-top:1px solid var(--line);
+         padding:12px 22px; display:flex; align-items:center; gap:16px; }
+  .bar .status { flex:1; color:var(--mut); font-size:13.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:9px; padding:11px 20px; }
+  #submit { background:var(--good); color:#fff; }
+  #submit:disabled { background:#39414d; color:#8b98a8; cursor:not-allowed; }
+  #retry { background:var(--panel); color:var(--ink); border:1px solid var(--line); display:none; }
+  .result { display:none; text-align:center; padding:22px; border-radius:14px; margin:8px 0 22px; font-size:16px; }
+  .result.pass { background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.4); }
+  .result.fail { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+  .result .big { font-size:34px; font-weight:800; display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="pe-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0d1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:30px 32px;max-width:360px;width:88%;text-align:center;color:#e6edf3;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="font-size:21px;font-weight:700;margin-bottom:6px">Private Equity Course</div>
+    <div style="color:#8b949e;font-size:13.5px;margin-bottom:18px">Enter your access code to continue.</div>
+    <input id="pe-gate-input" type="password" placeholder="Access code" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:15px;outline:none">
+    <div id="pe-gate-err" style="color:#f85149;font-size:12.5px;height:15px;margin:8px 0 2px"></div>
+    <button id="pe-gate-btn" style="width:100%;padding:11px;border:0;border-radius:8px;background:#238636;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH="2ab47ce2424d6043168f930c79e3931f57f9e86ad33a8e35c2e9b6d3f1444924";
+  var g=document.getElementById('pe-gate');
+  if(localStorage.getItem('pe_demo_ok')==='1'){ g.remove(); return; }
+  document.documentElement.style.overflow='hidden';
+  var inp=document.getElementById('pe-gate-input'), err=document.getElementById('pe-gate-err');
+  try{ inp.focus(); }catch(e){}
+  async function sha(s){ var b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }
+  async function submit(){
+    var v=inp.value; if(!v) return;
+    var h; try{ h=await sha(v); }catch(e){ err.textContent='Browser too old'; return; }
+    if(h===HASH){ localStorage.setItem('pe_demo_ok','1'); localStorage.setItem('pe_demo_code',v); document.documentElement.style.overflow=''; g.remove(); }
+    else { err.textContent='Incorrect code'; inp.value=''; inp.focus(); }
+  }
+  document.getElementById('pe-gate-btn').onclick=submit;
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+})();
+</script>
+<div class="top">
+  <a class="home" href="../index.html">☰ All lessons</a>
+  <span class="title" id="ttitle"></span>
+  <span class="score" id="tscore"></span>
+</div>
+<div class="wrap">
+  <h1 id="h1"></h1>
+  <div class="intro" id="intro"></div>
+  <div class="result" id="result"></div>
+  <div id="questions"></div>
+</div>
+<div class="bar">
+  <span class="status" id="status"></span>
+  <button id="retry">Retry</button>
+  <button id="submit">Submit test</button>
+</div>
+<script>
+const DATA = {"phase": "11", "title": "Phase 11 Test — LP Perspective", "pass_mark": 20, "questions": [{"n": 1, "prompt": "LP due diligence on GPs is often organised around the \"4 Ps.\" These are:", "options": {"A": "Price, product, place, promotion", "B": "People, performance (track record), process, and philosophy/portfolio-fit", "C": "Profit, principal, preferred, payout", "D": "Pace, priority, pledge, put"}, "answer": "B", "explanation": "The 4 Ps: People, Performance, Process, and Philosophy/portfolio-fit."}, {"n": 2, "prompt": "When analysing a GP's track record, a sophisticated LP focuses on:", "options": {"A": "Only the headline gross IRR", "B": "Realised vs unrealised returns, loss ratios, attribution (leverage vs operations), and consistency across deals", "C": "The GP's office location", "D": "The number of employees"}, "answer": "B", "explanation": "Sophisticated LPs weigh realised vs unrealised, loss ratios, attribution, and consistency."}, {"n": 3, "prompt": "\"Return persistence\" in PE refers to the question of whether:", "options": {"A": "Returns are guaranteed", "B": "A GP's past outperformance predicts future outperformance", "C": "LPs can redeem early", "D": "Fees persist over time"}, "answer": "B", "explanation": "Persistence asks whether past outperformance predicts future outperformance."}, {"n": 4, "prompt": "The evidence on return persistence in *buyout* is best summarised as:", "options": {"A": "Extremely strong and reliable in all eras", "B": "Weaker and less reliable than once believed — persistence has diminished, so past top-quartile status is an imperfect predictor", "C": "Nonexistent — luck alone explains everything with certainty", "D": "Only relevant to venture capital"}, "answer": "B", "explanation": "Buyout persistence has weakened — past top-quartile is an imperfect predictor."}, {"n": 5, "prompt": "Public Market Equivalent (PME) analysis benchmarks a PE fund against:", "options": {"A": "Another PE fund's IRR", "B": "A public-market index, accounting for the timing of cash flows — \"what if the money had gone into stocks instead?\"", "C": "The risk-free rate only", "D": "The hurdle rate"}, "answer": "B", "explanation": "PME benchmarks against a public index using the fund's actual cash-flow timing."}, {"n": 6, "prompt": "A PME (e.g., Kaplan–Schoar) greater than 1.0 means the fund:", "options": {"A": "Underperformed the public index on a cash-flow-timed basis", "B": "Outperformed the public index on a cash-flow-timed basis", "C": "Exactly matched the risk-free rate", "D": "Lost money"}, "answer": "B", "explanation": "PME > 1.0 means the fund beat the public index on a cash-flow-timed basis."}, {"n": 7, "prompt": "Why is IRR alone an inadequate benchmark for PE performance?", "options": {"A": "IRR is illegal", "B": "It ignores the opportunity cost of public markets and can be distorted by timing/leverage — PME addresses this", "C": "IRR always understates returns", "D": "IRR cannot be computed"}, "answer": "B", "explanation": "IRR ignores public-market opportunity cost and can be distorted; PME corrects for it."}, {"n": 8, "prompt": "Co-investment lets an LP invest alongside a GP in a specific deal, typically:", "options": {"A": "At higher fees than the main fund", "B": "At reduced or zero fees/carry, improving the LP's blended net return", "C": "With no risk", "D": "Only after the deal exits"}, "answer": "B", "explanation": "Co-invest is usually at reduced/zero fees, lifting blended net returns."}, {"n": 9, "prompt": "The fee arithmetic of co-investment improves LP net returns because:", "options": {"A": "Co-invest capital pays full 2-and-20", "B": "A slice of capital deployed at little/no fee lowers the blended fee load across the LP's total exposure", "C": "It eliminates the GP's carry entirely on the fund", "D": "It raises management fees"}, "answer": "B", "explanation": "Low/no-fee co-invest capital lowers the blended fee load across total exposure."}, {"n": 10, "prompt": "A risk of co-investment for LPs is:", "options": {"A": "Guaranteed losses", "B": "Adverse selection and concentration — needing to move fast on single-deal exposure with less diversification", "C": "It is illegal", "D": "It always underperforms the fund"}, "answer": "B", "explanation": "Co-invest risks adverse selection and concentration, with pressure to act fast."}, {"n": 11, "prompt": "A secondary fund (LP secondaries) buys:", "options": {"A": "Portfolio companies directly from GPs", "B": "Existing LP interests in funds from other LPs seeking early liquidity, often at a discount to NAV", "C": "High-yield bonds", "D": "Newly issued primary commitments only"}, "answer": "B", "explanation": "LP secondaries buy existing fund interests from other LPs, often below NAV."}, {"n": 12, "prompt": "Secondaries often price at a discount to NAV because they compensate the buyer for:", "options": {"A": "Guaranteed outperformance", "B": "Illiquidity, remaining unfunded commitments, information asymmetry, and the J-curve already passed", "C": "The management fee", "D": "The hurdle rate"}, "answer": "B", "explanation": "Discounts pay for illiquidity, unfunded commitments, info asymmetry, and passed J-curve."}, {"n": 13, "prompt": "A benefit of buying secondaries is:", "options": {"A": "A steeper J-curve", "B": "A shallower/faster J-curve and greater near-term visibility into a maturing portfolio", "C": "No diligence required", "D": "Zero risk"}, "answer": "B", "explanation": "Secondaries offer a shallower J-curve and visibility into a maturing portfolio."}, {"n": 14, "prompt": "LP portfolio construction in PE is typically described across several dimensions, including:", "options": {"A": "Only vintage year", "B": "Vintage year, strategy, geography, sector, GP, and commitment size — diversifying across them", "C": "Only the number of funds", "D": "Only fees"}, "answer": "B", "explanation": "LP construction diversifies across vintage, strategy, geography, sector, GP, and size."}, {"n": 15, "prompt": "\"Vintage year diversification\" matters because:", "options": {"A": "All vintages perform identically", "B": "Returns vary systematically with entry-year macro conditions; spreading commitments across years reduces timing risk", "C": "It increases fees", "D": "It removes the J-curve"}, "answer": "B", "explanation": "Returns vary with entry-year macro; spreading vintages cuts timing risk."}, {"n": 16, "prompt": "The \"denominator effect\" hurts LPs when public markets fall because:", "options": {"A": "PE NAVs also instantly fall", "B": "Illiquid PE holdings become an over-weight share of a shrunken total portfolio, breaching allocation targets", "C": "It raises the hurdle", "D": "It increases distributions"}, "answer": "B", "explanation": "The denominator effect over-weights illiquid PE when the total portfolio shrinks."}, {"n": 17, "prompt": "In the fundraising process, a Private Placement Memorandum (PPM) is:", "options": {"A": "The final legal partnership agreement", "B": "The marketing/disclosure document describing the fund's strategy, team, terms, and track record", "C": "A portfolio company's accounts", "D": "The debt schedule"}, "answer": "B", "explanation": "The PPM is the fund's marketing/disclosure document."}, {"n": 18, "prompt": "A \"first close\" in fundraising is:", "options": {"A": "The point at which the fund can begin investing with committed capital, before final close", "B": "The fund's liquidation", "C": "The first portfolio exit", "D": "The hurdle being met"}, "answer": "A", "explanation": "First close lets the fund start investing before final close."}, {"n": 19, "prompt": "LPs pay attention to a GP's \"DPI\" in prior funds because it shows:", "options": {"A": "Only paper gains", "B": "Actual cash returned — realised, distributed performance rather than unrealised marks", "C": "The management fee", "D": "The fund's domicile"}, "answer": "B", "explanation": "DPI shows actual cash returned — realised, not paper, performance."}, {"n": 20, "prompt": "Vintage-year benchmarking (e.g., against a peer universe) lets an LP judge a fund by:", "options": {"A": "Absolute IRR only", "B": "Its quartile ranking versus funds of the same strategy and vintage", "C": "The GP's headcount", "D": "The risk-free rate"}, "answer": "B", "explanation": "Vintage benchmarking judges a fund by quartile vs same-strategy, same-vintage peers."}, {"n": 21, "prompt": "Which LP action most directly *lowers blended fees* across a PE programme?", "options": {"A": "Committing only to first-time funds", "B": "Adding fee-light co-investments and, where appropriate, secondaries alongside primary commitments", "C": "Paying carry twice", "D": "Avoiding diversification"}, "answer": "B", "explanation": "Fee-light co-invest and secondaries lower blended programme fees."}, {"n": 22, "prompt": "An LP evaluating a first-time (emerging) manager weighs:", "options": {"A": "Only a long realised track record, which by definition exists", "B": "Attribution of prior-firm deals, team cohesion, and alignment — accepting more uncertainty for potential access and better terms", "C": "Nothing, since new managers are always avoided", "D": "The GP's domicile only"}, "answer": "B", "explanation": "For emerging managers, LPs weigh prior-deal attribution, team, and alignment, accepting more uncertainty."}, {"n": 23, "prompt": "A PME of 1.15 and a peer-universe second-quartile ranking together suggest a fund that:", "options": {"A": "Destroyed value versus stocks and peers", "B": "Beat public markets modestly and sits mid-pack among peers — decent but not top-tier", "C": "Is top-quartile and dramatically beat stocks", "D": "Cannot be assessed"}, "answer": "B", "explanation": "PME 1.15 + second quartile = modest public-market outperformance, mid-pack peers."}, {"n": 24, "prompt": "Why do LPs diversify across GPs as well as vintages and strategies?", "options": {"A": "To increase concentration risk", "B": "To reduce manager-specific risk (a single GP's underperformance or key-person loss) across the programme", "C": "To raise fees", "D": "To avoid the J-curve"}, "answer": "B", "explanation": "GP diversification reduces manager-specific and key-person risk."}, {"n": 25, "prompt": "Pulling it together: an LP wants to build a resilient PE programme with strong net returns. The best approach is to:", "options": {"A": "Commit everything to one top GP in one vintage", "B": "Diversify across vintages/strategies/GPs, benchmark with PME and peer quartiles, and lower blended fees via co-invest/secondaries", "C": "Chase last year's top-quartile IRR alone", "D": "Rely solely on gross IRR"}, "answer": "B", "explanation": "Diversify broadly, benchmark with PME/quartiles, and cut blended fees via co-invest/secondaries."}]};
+const LS = 'pe-test::'+DATA.phase;
+const el = id => document.getElementById(id);
+const LETTERS = ['A','B','C','D'];
+let picks = {};   // n -> letter
+let graded = false;
+
+el('ttitle').textContent = DATA.title;
+el('h1').textContent = DATA.title;
+el('intro').innerHTML = DATA.questions.length+' multiple-choice questions. Choose one answer per question, then press '+
+  '<b>Submit test</b>. You need <b>'+DATA.pass_mark+'/'+DATA.questions.length+'</b> ('+
+  Math.round(DATA.pass_mark/DATA.questions.length*100)+'%) to pass. Answers and explanations reveal on submit.';
+
+const qwrap = el('questions');
+DATA.questions.forEach(q=>{
+  const card = document.createElement('div');
+  card.className='q unanswered'; card.id='q'+q.n;
+  // Shuffle options so the correct choice isn't positionally predictable
+  // (authored keys cluster on one letter). Remap to fresh display letters and
+  // record the correct display letter on the question.
+  let entries = LETTERS.filter(L=>q.options[L]).map(L=>({orig:L, text:q.options[L]}));
+  for(let i=entries.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=entries[i]; entries[i]=entries[j]; entries[j]=t; }
+  let opts = '';
+  entries.forEach((e,idx)=>{
+    const D = LETTERS[idx];
+    if(e.orig===q.answer) q._correct = D;
+    opts += '<div class="opt" data-n="'+q.n+'" data-l="'+D+'"><span class="let">'+D+'</span><span>'+e.text+'</span></div>';
+  });
+  card.innerHTML = '<div class="qh"><span class="n">Q'+q.n+'</span>'+q.prompt+'</div>'+opts+
+    '<div class="expl" id="expl'+q.n+'"></div>';
+  qwrap.appendChild(card);
+});
+
+qwrap.addEventListener('click', e=>{
+  if(graded) return;
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  const n = opt.dataset.n, L = opt.dataset.l;
+  picks[n] = L;
+  const card = el('q'+n);
+  card.classList.remove('unanswered');
+  card.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel', o.dataset.l===L));
+  updateStatus();
+});
+
+function updateStatus(){
+  const done = Object.keys(picks).length, total = DATA.questions.length;
+  el('status').textContent = graded ? '' : done+' of '+total+' answered'+(done<total?'':' — ready to submit');
+}
+updateStatus();
+
+el('submit').onclick = ()=>{
+  const total = DATA.questions.length, done = Object.keys(picks).length;
+  if(done<total){
+    const miss = DATA.questions.filter(q=>!picks[q.n]);
+    if(!confirm(done+' of '+total+' answered. '+(total-done)+' left blank will be marked wrong. Submit anyway?')){
+      miss.forEach(q=>{ const c=el('q'+q.n); c.classList.add('flagged'); });
+      if(miss[0]) el('q'+miss[0].n).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
+  grade();
+};
+
+function grade(){
+  graded = true;
+  let correct = 0;
+  DATA.questions.forEach(q=>{
+    const card = el('q'+q.n); card.classList.add('graded');
+    const pick = picks[q.n];
+    const ans = q._correct;   // display letter of the correct option (post-shuffle)
+    if(pick===ans) correct++;
+    card.querySelectorAll('.opt').forEach(o=>{
+      const L=o.dataset.l;
+      if(L===ans) o.classList.add('correct');
+      if(L===pick && pick!==ans) o.classList.add('wrongpick');
+    });
+    const ex = el('expl'+q.n);
+    const got = pick===ans;
+    ex.className = 'expl '+(got?'ok':'no');
+    ex.innerHTML = '<b>'+(got?'Correct':(pick?'Not quite':'No answer'))+' — answer '+ans+'.</b> '+(q.explanation||'');
+  });
+  const total = DATA.questions.length, pct = Math.round(correct/total*100);
+  const pass = correct>=DATA.pass_mark;
+  const r = el('result');
+  r.className = 'result '+(pass?'pass':'fail'); r.style.display='block';
+  r.innerHTML = '<span class="big">'+correct+' / '+total+'  ·  '+pct+'%</span>'+
+    (pass ? 'Passed — you cleared this phase. Review any misses, then continue to the next phase.'
+          : 'Below the '+DATA.pass_mark+'/'+total+' pass mark. Review the explanations and the linked notes, then retake cold.');
+  el('tscore').textContent = correct+'/'+total+' ('+pct+'%)';
+  el('status').textContent = 'Scored '+correct+'/'+total+'. Scroll to review explanations.';
+  el('submit').disabled = true; el('submit').style.display='none';
+  el('retry').style.display='inline-block';
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS)||'{}');
+    localStorage.setItem(LS, JSON.stringify({best: Math.max(correct, prev.best||0), last: correct, total: total}));
+  } catch(e){}
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+el('retry').onclick = ()=>{
+  graded=false; picks={};
+  el('result').style.display='none';
+  el('tscore').textContent='';
+  el('submit').disabled=false; el('submit').style.display='inline-block';
+  el('retry').style.display='none';
+  document.querySelectorAll('.q').forEach(c=>{ c.className='q unanswered'; });
+  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrongpick'));
+  updateStatus();
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+try {
+  const s = JSON.parse(localStorage.getItem(LS)||'{}');
+  if(s.best!=null) el('tscore').textContent = 'Best: '+s.best+'/'+s.total;
+} catch(e){}
+</script>
+</body>
+</html>
